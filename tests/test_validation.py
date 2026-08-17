@@ -3,7 +3,7 @@ from dataclasses import replace
 from datetime import date, datetime, timezone
 
 from core import Quote, expected_latest_trade_date, fresher_quote, quote_sanity_issue, validate_quotes
-from main import as_ratio
+from main import as_ratio, wanted_markets_for_group
 
 
 def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
@@ -27,6 +27,11 @@ def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: dat
 
 
 class ValidationTests(unittest.TestCase):
+    def test_scheduled_groups_cover_japan_and_sweden(self):
+        self.assertEqual(wanted_markets_for_group("asia"), {"CN", "HK", "JP"})
+        self.assertEqual(wanted_markets_for_group("us"), {"US", "SE"})
+        self.assertEqual(wanted_markets_for_group("all"), {"CN", "HK", "JP", "US", "SE"})
+
     def test_parses_percentage_tolerance(self):
         self.assertEqual(as_ratio("0.05%", 0.0), 0.0005)
         self.assertEqual(as_ratio("2%", 0.0), 0.02)
