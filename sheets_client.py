@@ -3,7 +3,13 @@ from __future__ import annotations
 import base64
 import json
 import os
+from datetime import datetime
 from typing import Iterable
+from zoneinfo import ZoneInfo
+
+
+BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
+SHEETS_EPOCH = datetime(1899, 12, 30)
 
 
 class SheetsClient:
@@ -38,6 +44,13 @@ class SheetsClient:
     def _clean(value):
         if value is None:
             return ""
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                local_value = value.replace(tzinfo=BEIJING_TIMEZONE)
+            else:
+                local_value = value.astimezone(BEIJING_TIMEZONE)
+            local_value = local_value.replace(tzinfo=None)
+            return (local_value - SHEETS_EPOCH).total_seconds() / 86400
         if hasattr(value, "isoformat"):
             return value.isoformat()
         return value
