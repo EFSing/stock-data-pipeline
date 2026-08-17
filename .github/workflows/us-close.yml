@@ -1,4 +1,4 @@
-name: 美股收盘更新
+name: 欧美市场收盘更新
 
 on:
   workflow_dispatch:
