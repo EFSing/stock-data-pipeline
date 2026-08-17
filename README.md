@@ -28,8 +28,9 @@
 2. 将目标 Google Sheet 共享给服务账号邮箱，权限设为“编辑者”。
 3. 将本压缩包解压后的内容放在 GitHub 仓库根目录，保留`.github/workflows`目录。
 4. 在仓库的 `Settings → Secrets and variables → Actions` 中增加：
-   - `GOOGLE_SHEET_ID`：Google Sheet网址中`/d/`与下一个`/`之间的ID。
    - `GOOGLE_SERVICE_ACCOUNT_JSON`：服务账号JSON密钥的完整内容。
+
+目标表格 ID 已写入工作流，无需再单独配置。若以后更换表格，只需修改两个工作流中的 `GOOGLE_SHEET_ID`。
 5. 在`Actions`页面手动运行一次`亚洲市场收盘更新`和`美股收盘更新`。
 
 此后任务会在工作日自动运行：
