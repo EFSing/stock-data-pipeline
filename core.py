@@ -121,3 +121,16 @@ def fresher_quote(primary: Optional[Quote], verifier: Optional[Quote]) -> Option
     if verifier is None or primary.trade_date >= verifier.trade_date:
         return primary
     return verifier
+
+
+def quote_sanity_issue(quote: Quote) -> Optional[str]:
+    """Return a reason when an OHLCV quote is internally inconsistent."""
+    if quote.low > quote.high:
+        return "行情字段异常：最低价高于最高价"
+    if not quote.low <= quote.open <= quote.high:
+        return "行情字段异常：开盘价不在最低价和最高价之间"
+    if not quote.low <= quote.close <= quote.high:
+        return "行情字段异常：收盘价不在最低价和最高价之间"
+    if quote.volume is not None and quote.volume < 0:
+        return "行情字段异常：成交量为负数"
+    return None
