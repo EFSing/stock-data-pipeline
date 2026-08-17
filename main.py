@@ -32,10 +32,10 @@ def as_ratio(value, default: float) -> float:
 def wanted_markets_for_group(group: str) -> set[str]:
     """Map scheduled job groups to every supported exchange market."""
     markets = {
-        "asia": {"CN", "HK", "JP"},
+        "asia": {"CN", "HK"},
         "us": {"US", "SE"},
     }
-    return markets.get(group, {"CN", "HK", "JP", "US", "SE"})
+    return markets.get(group, {"CN", "HK", "US", "SE"})
 
 
 def quote_row(quote: Quote, fetched_at: datetime, adjustment: str) -> dict:
