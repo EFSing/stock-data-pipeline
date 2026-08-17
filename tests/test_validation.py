@@ -1,7 +1,8 @@
 import unittest
+from dataclasses import replace
 from datetime import date, datetime, timezone
 
-from core import Quote, expected_latest_trade_date, fresher_quote, validate_quotes
+from core import Quote, expected_latest_trade_date, fresher_quote, quote_sanity_issue, validate_quotes
 from main import as_ratio
 
 
@@ -71,6 +72,13 @@ class ValidationTests(unittest.TestCase):
     def test_does_not_expect_same_day_before_close_buffer(self):
         fetched_at = datetime(2026, 8, 17, 8, 5, tzinfo=timezone.utc)
         self.assertIsNone(expected_latest_trade_date("Asia/Shanghai", "16:00", fetched_at))
+
+    def test_rejects_open_outside_daily_range(self):
+        invalid = replace(quote("主源"), open=97.0, low=98.0)
+        self.assertEqual(quote_sanity_issue(invalid), "行情字段异常：开盘价不在最低价和最高价之间")
+
+    def test_accepts_consistent_ohlcv(self):
+        self.assertIsNone(quote_sanity_issue(quote("主源")))
 
 
 if __name__ == "__main__":
