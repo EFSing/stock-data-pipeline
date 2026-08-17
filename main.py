@@ -10,6 +10,7 @@ from core import (
     fresher_quote,
     latest_quote,
     market_close_confirmed,
+    quote_sanity_issue,
     validate_quotes,
 )
 
@@ -89,15 +90,18 @@ def run(group: str) -> None:
             str(watch["时区"]), str(watch["收盘时间"]), fetched_at
         )
         stale_note = ""
+        sanity_note = quote_sanity_issue(chosen) or ""
         displayed_status = result.status
         if expected_date is not None and chosen.trade_date < expected_date:
             displayed_status = "待复核"
             stale_note = f"收盘后数据仍停留在{chosen.trade_date.isoformat()}，期望日期为{expected_date.isoformat()}"
+        if sanity_note:
+            displayed_status = "待复核"
 
         confirmed = displayed_status == "已验证" and market_close_confirmed(
             chosen.trade_date, str(watch["时区"]), str(watch["收盘时间"]), fetched_at
         )
-        notes = [item for item in (result.note, stale_note, "；".join(errors)) if item]
+        notes = [item for item in (result.note, stale_note, sanity_note, "；".join(errors)) if item]
         latest_rows.append({
             "统一代码": chosen.symbol, "名称": chosen.name, "市场": chosen.market,
             "交易日期": chosen.trade_date, "抓取时间": fetched_at, "正式收盘": confirmed,
@@ -115,7 +119,7 @@ def run(group: str) -> None:
             "收盘价差异": result.close_diff, "主源成交量": primary.volume if primary else None,
             "校验源成交量": verifier.volume if verifier else None, "成交量差异": result.volume_diff,
             "日期一致": result.date_match, "价格通过": result.close_pass, "成交量通过": result.volume_pass,
-            "校验状态": displayed_status, "说明": "；".join(item for item in (result.note, stale_note) if item),
+            "校验状态": displayed_status, "说明": "；".join(item for item in (result.note, stale_note, sanity_note) if item),
         })
         if verifier is not None and (primary is None or verifier.trade_date > primary.trade_date):
             history_source, history_quotes = verifier_source, verifier_quotes
