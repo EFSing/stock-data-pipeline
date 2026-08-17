@@ -29,6 +29,15 @@ def as_ratio(value, default: float) -> float:
     return float(text)
 
 
+def wanted_markets_for_group(group: str) -> set[str]:
+    """Map scheduled job groups to every supported exchange market."""
+    markets = {
+        "asia": {"CN", "HK", "JP"},
+        "us": {"US", "SE"},
+    }
+    return markets.get(group, {"CN", "HK", "JP", "US", "SE"})
+
+
 def quote_row(quote: Quote, fetched_at: datetime, adjustment: str) -> dict:
     return {
         "统一代码": quote.symbol, "名称": quote.name, "市场": quote.market,
@@ -61,18 +70,20 @@ def run(group: str) -> None:
     fetched_at = datetime.now(timezone.utc)
     end = fetched_at.date()
     start = end - timedelta(days=max(history_days * 2, 365))
-    wanted_markets = {"CN", "HK"} if group == "asia" else {"US"} if group == "us" else {"CN", "HK", "US"}
+    wanted_markets = wanted_markets_for_group(group)
 
     latest_rows, raw_rows, adjusted_rows, validation_rows, log_rows = [], [], [], [], []
     for watch in client.records("自选清单"):
         if not as_bool(watch.get("启用")) or str(watch.get("市场")) not in wanted_markets:
             continue
-        primary_source = str(watch["主数据源"])
-        verifier_source = str(watch["校验数据源"])
+        primary_source = str(watch.get("主数据源") or "").strip()
+        verifier_source = str(watch.get("校验数据源") or "").strip()
         primary_quotes = []
         verifier_quotes = []
         errors = []
         for source, target in ((primary_source, primary_quotes), (verifier_source, verifier_quotes)):
+            if not source:
+                continue
             try:
                 target.extend(fetch_with_retry(source, watch, "raw", start, end, retry_count, retry_wait))
             except Exception as exc:
