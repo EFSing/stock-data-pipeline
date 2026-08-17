@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from core import (
     Quote,
@@ -13,6 +14,14 @@ from core import (
     quote_sanity_issue,
     validate_quotes,
 )
+
+
+BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
+
+
+def beijing_now() -> datetime:
+    """Return the pipeline timestamp in the spreadsheet's canonical timezone."""
+    return datetime.now(BEIJING_TIMEZONE)
 
 
 def as_bool(value) -> bool:
@@ -67,7 +76,7 @@ def run(group: str) -> None:
     close_tolerance = as_ratio(config.get("close_tolerance_pct"), 0.0005)
     volume_tolerance = as_ratio(config.get("volume_tolerance_pct"), 0.02)
     write_adjusted = as_bool(config.get("write_adjusted", True))
-    fetched_at = datetime.now(timezone.utc)
+    fetched_at = beijing_now()
     end = fetched_at.date()
     start = end - timedelta(days=max(history_days * 2, 365))
     wanted_markets = wanted_markets_for_group(group)
