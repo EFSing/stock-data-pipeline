@@ -2,6 +2,7 @@ import unittest
 from datetime import date
 
 from core import Quote, validate_quotes
+from main import as_ratio
 
 
 def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
@@ -25,6 +26,13 @@ def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: dat
 
 
 class ValidationTests(unittest.TestCase):
+    def test_parses_percentage_tolerance(self):
+        self.assertEqual(as_ratio("0.05%", 0.0), 0.0005)
+        self.assertEqual(as_ratio("2%", 0.0), 0.02)
+
+    def test_keeps_decimal_tolerance(self):
+        self.assertEqual(as_ratio("0.0005", 0.0), 0.0005)
+
     def test_passes_within_tolerance(self):
         result = validate_quotes(quote("主源"), quote("校验源", close=100.02, volume=1_010_000), 0.0005, 0.02)
         self.assertEqual(result.status, "已验证")
@@ -46,4 +54,3 @@ class ValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
