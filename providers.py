@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import time
-from datetime import date, timedelta
+import json
+from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from functools import lru_cache
 from typing import Callable, Iterable
+from urllib.parse import quote as urlquote
+from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 from core import Quote
 
@@ -139,18 +143,103 @@ def fetch_yfinance(watch: dict, adjust: str, start: date, end: date) -> list[Quo
     import yfinance as yf
 
     symbol = str(watch["yfinance代码"])
-    frame = yf.Ticker(symbol).history(
-        start=start.isoformat(),
-        end=(end + timedelta(days=1)).isoformat(),
-        interval="1d",
-        auto_adjust=adjust == "qfq",
-        actions=False,
-        repair=False,
-    )
-    if frame.empty:
+    yfinance_error: Exception | None = None
+    try:
+        frame = yf.Ticker(symbol).history(
+            start=start.isoformat(),
+            end=(end + timedelta(days=1)).isoformat(),
+            interval="1d",
+            auto_adjust=adjust == "qfq",
+            actions=False,
+            repair=False,
+        )
+        if not frame.empty:
+            frame = frame.reset_index().rename(columns={"Date": "日期"})
+            return _records_to_quotes(frame, watch, "yfinance")
+    except Exception as exc:
+        yfinance_error = exc
+
+    try:
+        return _fetch_yahoo_chart(watch, adjust, start, end)
+    except Exception as chart_error:
+        if yfinance_error is None:
+            raise
+        raise RuntimeError(
+            f"yfinance失败：{yfinance_error}；Yahoo Chart回退失败：{chart_error}"
+        ) from chart_error
+
+
+def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
+    """Fetch daily bars from Yahoo's keyless chart endpoint.
+
+    This endpoint does not need the cookie/crumb session used by yfinance, so it
+    remains useful when that session is rate-limited.  Two public hosts are tried
+    because Yahoo occasionally throttles them independently.
+    """
+    symbol = str(watch["yfinance代码"])
+    period1 = int(datetime.combine(start, datetime_time.min, timezone.utc).timestamp())
+    period2 = int(datetime.combine(end + timedelta(days=1), datetime_time.min, timezone.utc).timestamp())
+    errors: list[str] = []
+    payload = None
+    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+        url = (
+            f"https://{host}/v8/finance/chart/{urlquote(symbol, safe='')}"
+            f"?period1={period1}&period2={period2}&interval=1d&events=history"
+        )
+        request = Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+        try:
+            with urlopen(request, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            chart_error = payload.get("chart", {}).get("error")
+            if chart_error:
+                raise RuntimeError(str(chart_error))
+            break
+        except Exception as exc:
+            errors.append(f"{host}: {exc}")
+    if payload is None:
+        raise RuntimeError("；".join(errors))
+
+    results = payload.get("chart", {}).get("result") or []
+    if not results:
         return []
-    frame = frame.reset_index().rename(columns={"Date": "日期"})
-    return _records_to_quotes(frame, watch, "yfinance")
+    result = results[0]
+    timestamps = result.get("timestamp") or []
+    indicators = result.get("indicators") or {}
+    price = (indicators.get("quote") or [{}])[0]
+    adjusted = (indicators.get("adjclose") or [{}])[0].get("adjclose") or []
+    timezone_name = (result.get("meta") or {}).get("exchangeTimezoneName") or "UTC"
+    try:
+        exchange_timezone = ZoneInfo(timezone_name)
+    except Exception:
+        exchange_timezone = timezone.utc
+
+    rows = []
+    for index, timestamp in enumerate(timestamps):
+        raw_close = (price.get("close") or [None] * len(timestamps))[index]
+        if raw_close is None:
+            continue
+        factor = 1.0
+        if adjust == "qfq" and index < len(adjusted) and adjusted[index] is not None and raw_close:
+            factor = adjusted[index] / raw_close
+        row = {
+            "日期": datetime.fromtimestamp(timestamp, exchange_timezone).date(),
+            "Open": _indexed(price.get("open"), index, raw_close) * factor,
+            "High": _indexed(price.get("high"), index, raw_close) * factor,
+            "Low": _indexed(price.get("low"), index, raw_close) * factor,
+            "Close": raw_close * factor,
+            "Volume": _indexed(price.get("volume"), index, None),
+        }
+        rows.append(row)
+
+    import pandas as pd
+
+    return _records_to_quotes(pd.DataFrame(rows), watch, "YahooChart")
+
+
+def _indexed(values, index: int, default):
+    if not values or index >= len(values) or values[index] is None:
+        return default
+    return values[index]
 
 
 PROVIDERS: dict[str, Callable[[dict, str, date, date], list[Quote]]] = {
