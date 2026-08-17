@@ -2,11 +2,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 from dataclasses import replace
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from core import Quote, expected_latest_trade_date, fresher_quote, quote_sanity_issue, validate_quotes
-from main import as_ratio, wanted_markets_for_group
+from main import as_ratio, beijing_now, wanted_markets_for_group
 from providers import fetch_yfinance
+from sheets_client import SheetsClient
 
 
 def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
@@ -30,6 +31,17 @@ def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: dat
 
 
 class ValidationTests(unittest.TestCase):
+    def test_pipeline_timestamp_uses_beijing_time(self):
+        current = beijing_now()
+        self.assertEqual(current.utcoffset(), timedelta(hours=8))
+        self.assertEqual(current.tzinfo.key, "Asia/Shanghai")
+
+    def test_sheet_datetime_is_numeric_beijing_time(self):
+        utc_value = datetime(2026, 8, 17, 9, 52, 28, tzinfo=timezone.utc)
+        beijing_value = datetime(2026, 8, 17, 17, 52, 28)
+        expected = (beijing_value - datetime(1899, 12, 30)).total_seconds() / 86400
+        self.assertEqual(SheetsClient._clean(utc_value), expected)
+
     def test_scheduled_groups_cover_japan_and_sweden(self):
         self.assertEqual(wanted_markets_for_group("asia"), {"CN", "HK", "JP"})
         self.assertEqual(wanted_markets_for_group("us"), {"US", "SE"})
