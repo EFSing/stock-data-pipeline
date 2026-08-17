@@ -11,6 +11,16 @@ def as_bool(value) -> bool:
     return str(value).strip().lower() in {"true", "1", "yes", "是"}
 
 
+def as_ratio(value, default: float) -> float:
+    """Parse a decimal ratio or a percentage string from Google Sheets."""
+    if value is None or str(value).strip() == "":
+        return default
+    text = str(value).strip()
+    if text.endswith("%"):
+        return float(text[:-1].strip()) / 100
+    return float(text)
+
+
 def quote_row(quote: Quote, fetched_at: datetime, adjustment: str) -> dict:
     return {
         "统一代码": quote.symbol, "名称": quote.name, "市场": quote.market,
@@ -37,8 +47,8 @@ def run(group: str) -> None:
     history_days = int(float(config.get("history_days", 1000)))
     retry_count = int(float(config.get("retry_count", 3)))
     retry_wait = float(config.get("retry_wait_seconds", 5))
-    close_tolerance = float(config.get("close_tolerance_pct", 0.0005))
-    volume_tolerance = float(config.get("volume_tolerance_pct", 0.02))
+    close_tolerance = as_ratio(config.get("close_tolerance_pct"), 0.0005)
+    volume_tolerance = as_ratio(config.get("volume_tolerance_pct"), 0.02)
     write_adjusted = as_bool(config.get("write_adjusted", True))
     fetched_at = datetime.now(timezone.utc)
     end = fetched_at.date()
