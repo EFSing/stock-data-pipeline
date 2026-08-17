@@ -27,10 +27,10 @@ def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: dat
 
 
 class ValidationTests(unittest.TestCase):
-    def test_scheduled_groups_cover_japan_and_sweden(self):
-        self.assertEqual(wanted_markets_for_group("asia"), {"CN", "HK", "JP"})
+    def test_scheduled_groups_cover_sweden(self):
+        self.assertEqual(wanted_markets_for_group("asia"), {"CN", "HK"})
         self.assertEqual(wanted_markets_for_group("us"), {"US", "SE"})
-        self.assertEqual(wanted_markets_for_group("all"), {"CN", "HK", "JP", "US", "SE"})
+        self.assertEqual(wanted_markets_for_group("all"), {"CN", "HK", "US", "SE"})
 
     def test_parses_percentage_tolerance(self):
         self.assertEqual(as_ratio("0.05%", 0.0), 0.0005)
