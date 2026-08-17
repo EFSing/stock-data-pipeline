@@ -87,8 +87,37 @@ def market_close_confirmed(
     return local_now >= close_at
 
 
+def expected_latest_trade_date(
+    timezone_name: str,
+    close_time_text: str,
+    fetched_at: datetime,
+    buffer_minutes: int = 20,
+) -> Optional[date]:
+    """Return today's expected trade date once a weekday market has closed.
+
+    This is intentionally conservative: on weekends there is no same-day
+    expectation, while weekday exchange holidays may remain pending review
+    instead of being incorrectly published as a formal close.
+    """
+    zone = ZoneInfo(timezone_name)
+    local_now = fetched_at.astimezone(zone)
+    if local_now.weekday() >= 5:
+        return None
+    hour, minute = (int(part) for part in close_time_text.split(":", 1))
+    close_at = datetime.combine(local_now.date(), time(hour, minute), zone) + timedelta(minutes=buffer_minutes)
+    return local_now.date() if local_now >= close_at else None
+
+
 def latest_quote(quotes: list[Quote]) -> Optional[Quote]:
     if not quotes:
         return None
     return max(quotes, key=lambda item: item.trade_date)
 
+
+def fresher_quote(primary: Optional[Quote], verifier: Optional[Quote]) -> Optional[Quote]:
+    """Prefer the quote with the newest trade date, keeping primary on ties."""
+    if primary is None:
+        return verifier
+    if verifier is None or primary.trade_date >= verifier.trade_date:
+        return primary
+    return verifier
