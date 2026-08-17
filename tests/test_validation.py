@@ -1,7 +1,7 @@
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
 
-from core import Quote, validate_quotes
+from core import Quote, expected_latest_trade_date, fresher_quote, validate_quotes
 from main import as_ratio
 
 
@@ -50,6 +50,27 @@ class ValidationTests(unittest.TestCase):
     def test_single_source_is_not_verified(self):
         result = validate_quotes(quote("主源"), None, 0.0005, 0.02)
         self.assertEqual(result.status, "单源可用")
+
+    def test_uses_verifier_when_its_trade_date_is_newer(self):
+        primary = quote("主源", day=date(2026, 8, 14))
+        verifier = quote("校验源", day=date(2026, 8, 17))
+        self.assertIs(fresher_quote(primary, verifier), verifier)
+
+    def test_keeps_primary_when_trade_dates_match(self):
+        primary = quote("主源")
+        verifier = quote("校验源")
+        self.assertIs(fresher_quote(primary, verifier), primary)
+
+    def test_expects_same_day_after_weekday_close_buffer(self):
+        fetched_at = datetime(2026, 8, 17, 8, 21, tzinfo=timezone.utc)
+        self.assertEqual(
+            expected_latest_trade_date("Asia/Shanghai", "16:00", fetched_at),
+            date(2026, 8, 17),
+        )
+
+    def test_does_not_expect_same_day_before_close_buffer(self):
+        fetched_at = datetime(2026, 8, 17, 8, 5, tzinfo=timezone.utc)
+        self.assertIsNone(expected_latest_trade_date("Asia/Shanghai", "16:00", fetched_at))
 
 
 if __name__ == "__main__":
