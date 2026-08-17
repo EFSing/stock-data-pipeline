@@ -3,5 +3,5 @@ baostock>=0.8.9
 gspread>=6.1
 google-auth>=2.35
 pandas>=2.2
+scipy>=1.13
 yfinance>=0.2.65
-
