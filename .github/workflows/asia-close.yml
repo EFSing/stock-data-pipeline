@@ -3,7 +3,8 @@ name: 亚洲市场收盘更新
 on:
   workflow_dispatch:
   schedule:
-    - cron: "45 8 * * 1-5"
+    # 北京时间18:30，给收盘后更新较慢的免费数据源预留同步时间。
+    - cron: "30 10 * * 1-5"
 
 jobs:
   update:
