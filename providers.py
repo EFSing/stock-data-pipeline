@@ -145,7 +145,7 @@ def fetch_yfinance(watch: dict, adjust: str, start: date, end: date) -> list[Quo
         interval="1d",
         auto_adjust=adjust == "qfq",
         actions=False,
-        repair=True,
+        repair=False,
     )
     if frame.empty:
         return []
