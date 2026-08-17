@@ -4,7 +4,14 @@ import argparse
 import json
 from datetime import date, datetime, timedelta, timezone
 
-from core import Quote, latest_quote, market_close_confirmed, validate_quotes
+from core import (
+    Quote,
+    expected_latest_trade_date,
+    fresher_quote,
+    latest_quote,
+    market_close_confirmed,
+    validate_quotes,
+)
 
 
 def as_bool(value) -> bool:
@@ -73,23 +80,33 @@ def run(group: str) -> None:
         primary = latest_quote(primary_quotes)
         verifier = latest_quote(verifier_quotes)
         result = validate_quotes(primary, verifier, close_tolerance, volume_tolerance)
-        chosen = primary or verifier
+        chosen = fresher_quote(primary, verifier)
         if chosen is None:
             log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": "失败", "新增／更新行数": 0, "消息": "；".join(errors)})
             continue
 
-        confirmed = result.status == "已验证" and market_close_confirmed(
+        expected_date = expected_latest_trade_date(
+            str(watch["时区"]), str(watch["收盘时间"]), fetched_at
+        )
+        stale_note = ""
+        displayed_status = result.status
+        if expected_date is not None and chosen.trade_date < expected_date:
+            displayed_status = "待复核"
+            stale_note = f"收盘后数据仍停留在{chosen.trade_date.isoformat()}，期望日期为{expected_date.isoformat()}"
+
+        confirmed = displayed_status == "已验证" and market_close_confirmed(
             chosen.trade_date, str(watch["时区"]), str(watch["收盘时间"]), fetched_at
         )
+        notes = [item for item in (result.note, stale_note, "；".join(errors)) if item]
         latest_rows.append({
             "统一代码": chosen.symbol, "名称": chosen.name, "市场": chosen.market,
             "交易日期": chosen.trade_date, "抓取时间": fetched_at, "正式收盘": confirmed,
-            "校验状态": result.status, "主数据源": primary_source, "校验数据源": verifier_source,
+            "校验状态": displayed_status, "主数据源": primary_source, "校验数据源": verifier_source,
             "开盘": chosen.open, "最高": chosen.high, "最低": chosen.low, "收盘": chosen.close,
             "昨收": chosen.preclose, "涨跌幅": chosen.pct_change, "成交量": chosen.volume,
             "成交额": chosen.amount, "换手率": chosen.turnover_rate,
             "收盘价差异": result.close_diff, "成交量差异": result.volume_diff,
-            "币种": chosen.currency, "备注": result.note + (("；" + "；".join(errors)) if errors else ""),
+            "币种": chosen.currency, "备注": "；".join(notes),
         })
         validation_rows.append({
             "抓取时间": fetched_at, "统一代码": chosen.symbol, "交易日期": chosen.trade_date,
@@ -98,10 +115,12 @@ def run(group: str) -> None:
             "收盘价差异": result.close_diff, "主源成交量": primary.volume if primary else None,
             "校验源成交量": verifier.volume if verifier else None, "成交量差异": result.volume_diff,
             "日期一致": result.date_match, "价格通过": result.close_pass, "成交量通过": result.volume_pass,
-            "校验状态": result.status, "说明": result.note,
+            "校验状态": displayed_status, "说明": "；".join(item for item in (result.note, stale_note) if item),
         })
-        history_source = primary_source if primary_quotes else verifier_source
-        history_quotes = primary_quotes or verifier_quotes
+        if verifier is not None and (primary is None or verifier.trade_date > primary.trade_date):
+            history_source, history_quotes = verifier_source, verifier_quotes
+        else:
+            history_source, history_quotes = primary_source, primary_quotes
         raw_for_symbol = [quote_row(item, fetched_at, "未复权") for item in history_quotes[-history_days:]]
         adjusted_for_symbol = []
         raw_rows.extend(raw_for_symbol)
@@ -112,7 +131,7 @@ def run(group: str) -> None:
                 adjusted_rows.extend(adjusted_for_symbol)
             except Exception as exc:
                 errors.append(f"前复权失败：{exc}")
-        log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": result.status, "新增／更新行数": len(raw_for_symbol) + len(adjusted_for_symbol), "消息": "；".join(errors) or result.note})
+        log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": displayed_status, "新增／更新行数": len(raw_for_symbol) + len(adjusted_for_symbol), "消息": "；".join(notes)})
 
     changed = client.upsert_latest(latest_rows)
     changed += client.upsert_history("历史行情_未复权", raw_rows)
