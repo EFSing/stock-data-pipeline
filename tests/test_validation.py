@@ -1,9 +1,12 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
 from core import Quote, expected_latest_trade_date, fresher_quote, quote_sanity_issue, validate_quotes
 from main import as_ratio, wanted_markets_for_group
+from providers import fetch_yfinance
 
 
 def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
@@ -84,6 +87,27 @@ class ValidationTests(unittest.TestCase):
 
     def test_accepts_consistent_ohlcv(self):
         self.assertIsNone(quote_sanity_issue(quote("主源")))
+
+    def test_yfinance_rate_limit_uses_chart_fallback(self):
+        class RateLimitedTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, **kwargs):
+                raise RuntimeError("rate limited")
+
+        fallback = [quote("YahooChart")]
+        fake_yfinance = SimpleNamespace(Ticker=RateLimitedTicker)
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD",
+        }
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
+            "providers._fetch_yahoo_chart", return_value=fallback
+        ) as chart:
+            result = fetch_yfinance(watch, "raw", date(2026, 8, 1), date(2026, 8, 17))
+        self.assertEqual(result, fallback)
+        chart.assert_called_once_with(watch, "raw", date(2026, 8, 1), date(2026, 8, 17))
 
 
 if __name__ == "__main__":
