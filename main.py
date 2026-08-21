@@ -58,8 +58,33 @@ def quote_row(quote: Quote, fetched_at: datetime, adjustment: str) -> dict:
     }
 
 
+def select_history_series(
+    primary_source: str,
+    primary_quotes: list[Quote],
+    verifier_source: str,
+    verifier_quotes: list[Quote],
+    chosen: Quote,
+) -> tuple[str, list[Quote]]:
+    """Prefer a real historical series over a one-row snapshot response."""
+    options = [
+        (source, quotes)
+        for source, quotes in (
+            (primary_source, primary_quotes),
+            (verifier_source, verifier_quotes),
+        )
+        if source and quotes
+    ]
+    if not options:
+        return "yfinance", [chosen]
+    history_source, history_quotes = max(options, key=lambda item: len(item[1]))
+    history_quotes = sorted(history_quotes, key=lambda item: item.trade_date)
+    if history_quotes[-1].trade_date < chosen.trade_date:
+        history_quotes.append(chosen)
+    return history_source, history_quotes
+
+
 def fixture() -> None:
-    first = Quote("000725.SZ", "京东方A", "CN", date(2026, 8, 14), "AKShare", 4.1, 4.2, 4.0, 4.15, 4.08, 1.72, 100_000_000, 415_000_000, 1.2, "CNY")
+    first = Quote("000725.SZ", "京东方A", "CN", date(2026, 8, 14), "yfinance", 4.1, 4.2, 4.0, 4.15, 4.08, 1.72, 100_000_000, 415_000_000, 1.2, "CNY")
     second = Quote("000725.SZ", "京东方A", "CN", date(2026, 8, 14), "BaoStock", 4.1, 4.2, 4.0, 4.1505, 4.08, 1.73, 99_500_000, 413_000_000, 1.2, "CNY")
     print(json.dumps(validate_quotes(first, second, 0.0005, 0.02).__dict__, ensure_ascii=False, indent=2))
 
@@ -90,7 +115,8 @@ def run(group: str) -> None:
         expected_date = expected_latest_trade_date(
             str(watch["时区"]), str(watch["收盘时间"]), fetched_at
         )
-        cn_target_date = expected_date if str(watch.get("市场")) == "CN" else None
+        market = str(watch.get("市场"))
+        raw_target_date = expected_date if market in {"CN", "HK", "US"} else None
         primary_quotes = []
         verifier_quotes = []
         errors = []
@@ -100,7 +126,7 @@ def run(group: str) -> None:
             try:
                 target.extend(fetch_with_retry(
                     source, watch, "raw", start, end, retry_count, retry_wait,
-                    target_trade_date=cn_target_date,
+                    target_trade_date=raw_target_date,
                 ))
             except Exception as exc:
                 errors.append(str(exc))
@@ -157,10 +183,9 @@ def run(group: str) -> None:
             "日期一致": result.date_match, "价格通过": result.close_pass, "成交量通过": result.volume_pass,
             "校验状态": displayed_status, "说明": "；".join(item for item in (result.note, stale_note, sanity_note) if item),
         })
-        if verifier is not None and (primary is None or verifier.trade_date > primary.trade_date):
-            history_source, history_quotes = verifier_source, verifier_quotes
-        else:
-            history_source, history_quotes = primary_source, primary_quotes
+        history_source, history_quotes = select_history_series(
+            primary_source, primary_quotes, verifier_source, verifier_quotes, chosen
+        )
         raw_for_symbol = [quote_row(item, fetched_at, "未复权") for item in history_quotes[-history_days:]]
         adjusted_for_symbol = []
         raw_rows.extend(raw_for_symbol)
