@@ -19,11 +19,11 @@ V0.2
 
 ## In Progress
 
-- 无
+- Phase 1 hardening（分支 `chore/trading-core-phase1-hardening`）：补夜间审计测试缺口（excursion filter pct/atr 分支、PROVISIONAL 可变性、confirmed 冻结、Market Structure as-of 稳定性），全量 82/82 通过
 
 ## Next
 
-- Review 并合并 PR #6（Trading Core Phase 1）
+- Review 并合并 PR #6（Trading Core Phase 1）与 hardening PR
 - Phase 2：Setup Engine（详见 `TRADING_SYSTEM_SPEC.md` 开发优先级）
 - 迁移测试框架到 pytest（可选，当前明确不做）
 

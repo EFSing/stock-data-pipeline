@@ -436,5 +436,98 @@ class RiskTests(unittest.TestCase):
             position_size(risk_capital=-1.0, entry=100.0, execution_stop=90.0)
 
 
+class HardeningTests(unittest.TestCase):
+    """Phase 1.1 加固：补夜间审计发现的测试缺口。
+
+    覆盖：excursion filter（pct/atr 分支）、PROVISIONAL 可变性、confirmed 冻结、
+    Market Structure as-of t 稳定性。
+    """
+
+    # 噪声 swing 序列：HIGH@2 冲高后几乎未回落，excursion 极小
+    NOISE_HIGHS = [10, 11, 12, 11.7, 11.8, 11, 10]
+    NOISE_LOWS = [8, 9, 10, 11.5, 11.6, 9, 8]
+
+    def test_excursion_pct_filters_noise_swing(self):
+        quotes = series_ohlc(self.NOISE_HIGHS, self.NOISE_LOWS)
+        # 无过滤：识别出 1 个 HIGH@2
+        self.assertEqual(len(find_swings(quotes, lookback=2)), 1)
+        # excursion = 12 - 11.5 = 0.5 < 0.05 * 12 = 0.6，噪声被过滤
+        filtered = find_swings(quotes, lookback=2, min_excursion_pct=0.05)
+        self.assertEqual(filtered, [])
+
+    def test_excursion_atr_filters_noise_swing(self):
+        quotes = series_ohlc(self.NOISE_HIGHS, self.NOISE_LOWS)
+        # ATR(period=2)@2 = 2.0；excursion=0.5 < 1.0 * 2.0，被过滤
+        filtered = find_swings(
+            quotes, lookback=2, min_excursion_atr=1.0, atr_period=2
+        )
+        self.assertEqual(filtered, [])
+
+    def test_provisional_becomes_confirmed_with_new_data(self):
+        s1_highs = [10, 11, 12, 11, 10, 11, 12, 11, 10]
+        s1_lows = [8, 9, 10, 9, 8, 9, 10, 9, 8]
+        s1 = series_ohlc(s1_highs, s1_lows)
+        last1 = find_swings(s1, lookback=2)[-1]
+        # 追加前：最后一个 swing HIGH@6 是 PROVISIONAL
+        self.assertEqual(last1.pivot_index, 6)
+        self.assertEqual(last1.state, SwingState.PROVISIONAL)
+
+        # 追加 4 根，出现 LOW@9 反向 pivot，确认 HIGH@6
+        s2 = series_ohlc(s1_highs + [9, 10, 11, 12], s1_lows + [7, 8, 9, 10])
+        swings2 = find_swings(s2, lookback=2)
+        high6 = next(s for s in swings2 if s.pivot_index == 6)
+        self.assertEqual(high6.state, SwingState.CONFIRMED)
+        self.assertEqual(high6.confirmed_index, 11)
+
+    def test_confirmed_swing_fields_frozen_after_append(self):
+        s1_highs = [10, 11, 12, 11, 10, 11, 12, 11, 10]
+        s1_lows = [8, 9, 10, 9, 8, 9, 10, 9, 8]
+        s1 = series_ohlc(s1_highs, s1_lows)
+        confirmed1 = {
+            s.pivot_index: s
+            for s in find_swings(s1, lookback=2)
+            if s.state is SwingState.CONFIRMED
+        }
+
+        s2 = series_ohlc(s1_highs + [9, 10, 11, 12], s1_lows + [7, 8, 9, 10])
+        confirmed2 = {
+            s.pivot_index: s
+            for s in find_swings(s2, lookback=2)
+            if s.state is SwingState.CONFIRMED
+        }
+
+        # 追加数据前已 confirmed 的 swing，字段必须完全一致
+        for idx in (2, 4):
+            a, b = confirmed1[idx], confirmed2[idx]
+            self.assertEqual(a.kind, b.kind)
+            self.assertEqual(a.price, b.price)
+            self.assertEqual(a.pivot_index, b.pivot_index)
+            self.assertEqual(a.confirmed_index, b.confirmed_index)
+
+    def test_market_structure_as_of_t_not_affected_by_future(self):
+        as_of_t4 = [
+            sp(SwingKind.HIGH, 100.0, 0, 1),
+            sp(SwingKind.LOW, 90.0, 1, 2),
+            sp(SwingKind.HIGH, 110.0, 2, 3),
+            sp(SwingKind.LOW, 95.0, 3, 4),
+        ]
+        struct_before = market_structure(as_of_t4)
+        self.assertEqual(struct_before.trend, Trend.UPTREND)
+
+        # 追加未来 confirmed swing（confirmed_index > 4），暗示趋势反转
+        future = as_of_t4 + [
+            sp(SwingKind.HIGH, 90.0, 4, 5),
+            sp(SwingKind.LOW, 80.0, 5, 6),
+        ]
+        # as-of t=4 视图：只取 confirmed_index <= 4 的 swing
+        as_of_t4_after = [
+            s
+            for s in future
+            if s.confirmed_index is not None and s.confirmed_index <= 4
+        ]
+        struct_after = market_structure(as_of_t4_after)
+        self.assertEqual(struct_after.trend, Trend.UPTREND)
+
+
 if __name__ == "__main__":
     unittest.main()
