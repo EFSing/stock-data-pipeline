@@ -307,6 +307,34 @@ class SwingTests(unittest.TestCase):
         highs_only = [s for s in swings if s.kind is SwingKind.HIGH]
         self.assertEqual([s.pivot_index for s in highs_only], [2, 7])
 
+    def test_confirmed_swing_not_repainted_by_extreme_dup(self):
+        """回归：连续同向 raw pivot 中，更极端者不得回填修改已 CONFIRMED swing。
+
+        highs 在 index 2 见顶后一路下行，lows 在 index 4、7 形成两个连续同向
+        LOW（中间无 HIGH pivot）。修复前 dedupe 会用 LOW@7 替换 LOW@4，把
+        HIGH@2 的 confirmed_index 从 6 改成 9（confirmed repaint）。
+        """
+        highs = [10, 11, 12, 11, 10, 9, 8, 7, 6, 5]
+        lows = [8, 9, 10, 8, 4, 6, 7, 3, 4, 4.5]
+        full = series_ohlc(highs, lows)
+        full_by_idx = {s.pivot_index: s for s in find_swings(full, lookback=2)}
+
+        # 截断到 t=6（含 index 6）：HIGH@2 已被 LOW@4 确认
+        truncated = series_ohlc(highs[:7], lows[:7])
+        trunc_confirmed = [
+            s for s in find_swings(truncated, lookback=2)
+            if s.state is SwingState.CONFIRMED
+        ]
+
+        self.assertTrue(any(s.pivot_index == 2 for s in trunc_confirmed))
+        for s_trunc in trunc_confirmed:
+            s_full = full_by_idx[s_trunc.pivot_index]
+            self.assertEqual(s_full.kind, s_trunc.kind)
+            self.assertEqual(s_full.price, s_trunc.price)
+            self.assertEqual(s_full.pivot_index, s_trunc.pivot_index)
+            self.assertEqual(s_full.confirmed_index, s_trunc.confirmed_index)
+            self.assertEqual(s_full.confirmed_date, s_trunc.confirmed_date)
+
 
 def sp(
     kind: SwingKind,

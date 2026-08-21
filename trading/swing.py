@@ -4,15 +4,16 @@
 - bar i 为 Swing High：high_i 严格大于左侧 lookback 根 bar，且大于等于右侧 lookback 根 bar。
 - bar i 为 Swing Low：low_i 严格小于左侧 lookback 根 bar，且小于等于右侧 lookback 根 bar。
 
-时间语义：
+时间语义（按时间顺序的状态机）：
 - pivot_index / pivot_date 表示 Swing 发生的 bar。
 - confirmed_index / confirmed_date 表示该 Swing 信息「实际可用」的 bar：
-  一个 pivot 被其后的第一个反向 pivot 确认，confirmed_index = 反向 pivot 的
+  一个 pivot 被其后出现的第一个反向 pivot 确认，confirmed_index = 反向 pivot 的
   pivot_index + lookback（反向 pivot 完成识别的最早时刻）。
 - 任何 as-of t 的历史决策只能使用 confirmed_index <= t 的 Swing。
 
-PROVISIONAL 可随新数据变化（例如被更高 high 取代），但 CONFIRMED 的 Swing 一旦
-确认即冻结，未来数据不得回填修改——这是本引擎与 ZigZag 的根本区别。
+PROVISIONAL 可随新数据变化：连续同向 pivot 中，更极端者只替换最后一个
+PROVISIONAL swing。CONFIRMED 的 Swing 一旦确认即冻结，未来数据（含更极端的
+同向 pivot）不得回填修改其确认信息——这是本引擎与 ZigZag 的根本区别。
 """
 from __future__ import annotations
 
@@ -34,24 +35,6 @@ def _is_swing_low(lows: list[float], i: int, lookback: int) -> bool:
     return lows[i] < min(lows[i - lookback : i]) and lows[i] <= min(
         lows[i + 1 : i + lookback + 1]
     )
-
-
-def _dedupe_alternating(
-    pivots: list[tuple[SwingKind, float, int]],
-) -> list[tuple[SwingKind, float, int]]:
-    """保证 pivot 严格交替；连续同向时保留更极端者。"""
-    out: list[tuple[SwingKind, float, int]] = []
-    for p in pivots:
-        if out and out[-1][0] is p[0]:
-            if p[0] is SwingKind.HIGH:
-                if p[1] > out[-1][1]:
-                    out[-1] = p
-            else:
-                if p[1] < out[-1][1]:
-                    out[-1] = p
-        else:
-            out.append(p)
-    return out
 
 
 def _apply_excursion_filter(
@@ -94,6 +77,59 @@ def _apply_excursion_filter(
     return out
 
 
+def _build_swings(
+    pivots: list[tuple[SwingKind, float, int]],
+    quotes: list[Quote],
+    lookback: int,
+) -> list[SwingPoint]:
+    """按时间顺序构建 swing 序列（状态机）。
+
+    对每个 pivot（已按 pivot_index 升序）：
+    - 与最后一个 swing 反向：确认最后一个 swing（confirmed_index = 当前
+      pivot_index + lookback），并把当前 pivot 追加为新的 PROVISIONAL。
+    - 与最后一个 swing 同向：更极端者（HIGH 更高 / LOW 更低）只替换最后一个
+      PROVISIONAL swing；绝不改动此前已 CONFIRMED 的 swing。
+
+    列表末尾永远是一个 PROVISIONAL，因此同向替换只会作用于 PROVISIONAL，
+    不会回填修改任何 CONFIRMED swing 的确认信息。
+    """
+    swing_list: list[list] = []  # [kind, price, pivot_index, confirmed_index]
+    for kind, price, idx in pivots:
+        if not swing_list:
+            swing_list.append([kind, price, idx, None])
+            continue
+        last = swing_list[-1]
+        if kind is not last[0]:
+            # 反向：确认最后一个 swing
+            last[3] = idx + lookback
+            swing_list.append([kind, price, idx, None])
+        else:
+            # 同向：更极端者替换最后一个 PROVISIONAL
+            if (kind is SwingKind.HIGH and price > last[1]) or (
+                kind is SwingKind.LOW and price < last[1]
+            ):
+                swing_list[-1] = [kind, price, idx, None]
+            # 否则忽略当前 pivot
+
+    result: list[SwingPoint] = []
+    for kind, price, idx, confirmed_index in swing_list:
+        result.append(
+            SwingPoint(
+                kind=kind,
+                price=price,
+                pivot_index=idx,
+                pivot_date=quotes[idx].trade_date,
+                confirmed_index=confirmed_index,
+                confirmed_date=(
+                    quotes[confirmed_index].trade_date
+                    if confirmed_index is not None
+                    else None
+                ),
+            )
+        )
+    return result
+
+
 def find_swings(
     quotes: list[Quote],
     lookback: int = 5,
@@ -125,32 +161,12 @@ def find_swings(
         elif _is_swing_low(lows, i, lookback):
             raw.append((SwingKind.LOW, lows[i], i))
 
-    pivots = _dedupe_alternating(raw)
-    if not pivots:
+    if not raw:
         return []
 
     atr_series = atr(quotes, atr_period) if min_excursion_atr > 0.0 else None
     pivots = _apply_excursion_filter(
-        pivots, highs, lows, lookback, min_excursion_atr, min_excursion_pct, atr_series
+        raw, highs, lows, lookback, min_excursion_atr, min_excursion_pct, atr_series
     )
-    pivots = _dedupe_alternating(pivots)
 
-    swings: list[SwingPoint] = []
-    for k, (kind, price, idx) in enumerate(pivots):
-        confirmed_index: Optional[int] = None
-        confirmed_date: Optional[date] = None
-        if k + 1 < len(pivots):
-            next_idx = pivots[k + 1][2]
-            confirmed_index = next_idx + lookback
-            confirmed_date = quotes[confirmed_index].trade_date
-        swings.append(
-            SwingPoint(
-                kind=kind,
-                price=price,
-                pivot_index=idx,
-                pivot_date=quotes[idx].trade_date,
-                confirmed_index=confirmed_index,
-                confirmed_date=confirmed_date,
-            )
-        )
-    return swings
+    return _build_swings(pivots, quotes, lookback)
