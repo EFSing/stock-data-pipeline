@@ -5,8 +5,8 @@ from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 
 from core import Quote, expected_latest_trade_date, fresher_quote, quote_sanity_issue, validate_quotes
-from main import as_ratio, beijing_now, wanted_markets_for_group
-from providers import fetch_sina, fetch_tencent, fetch_with_retry, fetch_yfinance
+from main import as_ratio, beijing_now, select_history_series, wanted_markets_for_group
+from providers import PROVIDERS, fetch_sina, fetch_tencent, fetch_with_retry, fetch_yfinance
 from sheets_client import SheetsClient
 
 
@@ -149,11 +149,105 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(result[0].volume, 3_471_692)
         self.assertEqual(result[0].amount, 116_318_671)
 
+    def test_tencent_us_snapshot_uses_regular_session_fields(self):
+        fields = [""] * 39
+        fields[1], fields[3], fields[4], fields[5] = "阿里巴巴", "130.53", "128.90", "123.47"
+        fields[30], fields[33], fields[34] = "2026-08-20 16:04:56", "130.62", "121.88"
+        fields[36], fields[37], fields[38] = "28101555", "3563771342", "1.17"
+        payload = 'v_usBABA="' + "~".join(fields) + '";'
+        watch = {"统一代码": "BABA", "yfinance代码": "BABA", "名称": "阿里巴巴", "市场": "US", "币种": "USD"}
+        with patch("providers._read_public_quote", return_value=payload):
+            result = fetch_tencent(watch, "raw", date(2026, 8, 1), date(2026, 8, 21))
+        self.assertEqual(result[0].trade_date, date(2026, 8, 20))
+        self.assertEqual(result[0].close, 130.53)
+        self.assertEqual(result[0].volume, 28_101_555)
+
+    def test_tencent_hk_snapshot_parser(self):
+        fields = [""] * 39
+        fields[1], fields[3], fields[4], fields[5] = "阿里巴巴-W", "123.000", "126.200", "129.200"
+        fields[30], fields[33], fields[34] = "2026/08/21 16:08:14", "129.800", "121.500"
+        fields[36], fields[37], fields[38] = "146890540", "18249523099.440", "0"
+        payload = 'v_r_hk09988="' + "~".join(fields) + '";'
+        watch = {"统一代码": "09988.HK", "yfinance代码": "9988.HK", "名称": "阿里巴巴-W", "市场": "HK", "币种": "HKD"}
+        with patch("providers._read_public_quote", return_value=payload):
+            result = fetch_tencent(watch, "raw", date(2026, 8, 1), date(2026, 8, 21))
+        self.assertEqual(result[0].trade_date, date(2026, 8, 21))
+        self.assertEqual(result[0].close, 123.0)
+        self.assertEqual(result[0].volume, 146_890_540)
+
+    def test_sina_us_snapshot_ignores_premarket_price_and_date(self):
+        payload = 'var hq_str_gb_baba="阿里巴巴,130.5300,1.26,2026-08-21 17:35:39,1.6300,123.4700,130.6200,121.8800,191.6200,91.9900,28101435,11278330,313147814671,6.41,20.36,0,0,0,0,2399048607,40,125.9200,-3.58,-4.67,Aug 21 05:35AM EDT,Aug 20 04:02PM EDT,128.9000,346865,1,2026,3560820111.3686";'
+        watch = {"统一代码": "BABA", "yfinance代码": "BABA", "名称": "阿里巴巴", "市场": "US", "币种": "USD"}
+        with patch("providers._read_public_quote", return_value=payload):
+            result = fetch_sina(watch, "raw", date(2026, 8, 1), date(2026, 8, 21))
+        self.assertEqual(result[0].trade_date, date(2026, 8, 20))
+        self.assertEqual(result[0].close, 130.53)
+        self.assertNotEqual(result[0].close, 125.92)
+
+    def test_sina_hk_snapshot_parser(self):
+        payload = 'var hq_str_hk09988="BABA-W,阿里巴巴-W,129.200,126.200,129.800,121.500,123.000,-3.200,-2.536,123.00000,123.10000,18249523099,146890540,0,0,184.566,88.650,2026/08/21,16:08";'
+        watch = {"统一代码": "09988.HK", "yfinance代码": "9988.HK", "名称": "阿里巴巴-W", "市场": "HK", "币种": "HKD"}
+        with patch("providers._read_public_quote", return_value=payload):
+            result = fetch_sina(watch, "raw", date(2026, 8, 1), date(2026, 8, 21))
+        self.assertEqual(result[0].trade_date, date(2026, 8, 21))
+        self.assertEqual(result[0].close, 123.0)
+        self.assertEqual(result[0].volume, 146_890_540)
+
+    def test_akshare_is_not_an_active_provider(self):
+        self.assertNotIn("AKShare", PROVIDERS)
+
+    def test_legacy_akshare_us_config_routes_to_tencent(self):
+        watch = {"统一代码": "BABA", "市场": "US"}
+        fallback = [quote("Tencent")]
+        with patch.dict("providers.PROVIDERS", {
+            "Tencent": lambda *args: fallback,
+            "Sina": lambda *args: [quote("Sina")],
+        }, clear=True):
+            result = fetch_with_retry("AKShare", watch, "raw", date(2026, 8, 1), date(2026, 8, 21), 1, 0)
+        self.assertEqual(result, fallback)
+
+    def test_us_source_falls_back_when_regular_close_date_is_stale(self):
+        watch = {"统一代码": "BABA", "市场": "US"}
+        stale = [quote("yfinance", day=date(2026, 8, 19))]
+        current = [quote("Tencent", day=date(2026, 8, 20))]
+        with patch.dict("providers.PROVIDERS", {
+            "yfinance": lambda *args: stale,
+            "Tencent": lambda *args: current,
+            "Sina": lambda *args: [quote("Sina", day=date(2026, 8, 20))],
+        }, clear=True):
+            result = fetch_with_retry(
+                "yfinance", watch, "raw", date(2026, 8, 1), date(2026, 8, 21),
+                1, 0, target_trade_date=date(2026, 8, 20),
+            )
+        self.assertEqual(result, current)
+
+    def test_sweden_does_not_use_tencent_or_sina_fallbacks(self):
+        watch = {"统一代码": "SIVE.SE", "市场": "SE"}
+        calls = []
+        with patch.dict("providers.PROVIDERS", {
+            "yfinance": lambda *args: calls.append("yfinance") or (_ for _ in ()).throw(RuntimeError("down")),
+            "Tencent": lambda *args: calls.append("Tencent") or [quote("Tencent")],
+            "Sina": lambda *args: calls.append("Sina") or [quote("Sina")],
+        }, clear=True):
+            with self.assertRaises(RuntimeError):
+                fetch_with_retry("yfinance", watch, "raw", date(2026, 8, 1), date(2026, 8, 21), 1, 0)
+        self.assertEqual(calls, ["yfinance"])
+
+    def test_history_selection_prefers_full_series_over_snapshot(self):
+        snapshot = [quote("Tencent", day=date(2026, 8, 21))]
+        history = [quote("yfinance", day=date(2026, 8, 19)), quote("yfinance", day=date(2026, 8, 20))]
+        source, result = select_history_series("AKShare", snapshot, "yfinance", history, snapshot[0])
+        self.assertEqual(source, "yfinance")
+        self.assertEqual(
+            [item.trade_date for item in result],
+            [date(2026, 8, 19), date(2026, 8, 20), date(2026, 8, 21)],
+        )
+
     def test_cn_provider_falls_back_to_tencent(self):
         watch = {"统一代码": "603199.SH", "市场": "CN"}
         fallback = [quote("Tencent")]
         with patch.dict("providers.PROVIDERS", {
-            "AKShare": lambda *args: (_ for _ in ()).throw(RuntimeError("down")),
+            "yfinance": lambda *args: (_ for _ in ()).throw(RuntimeError("down")),
             "Tencent": lambda *args: fallback,
             "Sina": lambda *args: [quote("Sina")],
         }, clear=True):
