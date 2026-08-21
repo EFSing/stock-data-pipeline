@@ -4,7 +4,6 @@ import time
 import json
 import re
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
-from functools import lru_cache
 from typing import Callable, Iterable
 from urllib.parse import quote as urlquote
 from urllib.request import Request, urlopen
@@ -13,11 +12,25 @@ from zoneinfo import ZoneInfo
 from core import Quote
 
 
-CN_SNAPSHOT_FALLBACKS: dict[str, tuple[str, ...]] = {
-    # Use opposite orders so two failed historical providers can still obtain
-    # independent Tencent and Sina snapshots when both endpoints are healthy.
-    "AKShare": ("Tencent", "Sina"),
-    "BaoStock": ("Sina", "Tencent"),
+RAW_SNAPSHOT_FALLBACKS: dict[str, dict[str, tuple[str, ...]]] = {
+    # Opposite orders preserve independent validation whenever both public
+    # snapshot endpoints are healthy.
+    "CN": {
+        "yfinance": ("Tencent", "Sina"),
+        "BaoStock": ("Sina", "Tencent"),
+        "Tencent": ("Sina",),
+        "Sina": ("Tencent",),
+    },
+    "HK": {
+        "yfinance": ("Tencent", "Sina"),
+        "Tencent": ("Sina",),
+        "Sina": ("Tencent",),
+    },
+    "US": {
+        "yfinance": ("Tencent", "Sina"),
+        "Tencent": ("Sina",),
+        "Sina": ("Tencent",),
+    },
 }
 
 
@@ -74,45 +87,6 @@ def _records_to_quotes(frame, watch: dict, source: str, volume_multiplier: float
     return quotes
 
 
-@lru_cache(maxsize=1)
-def _akshare_us_symbol_map() -> dict[str, str]:
-    import akshare as ak
-
-    frame = ak.stock_us_spot_em()
-    result: dict[str, str] = {}
-    for provider_code in frame["代码"].astype(str):
-        ticker = provider_code.rsplit(".", 1)[-1].upper()
-        result.setdefault(ticker, provider_code)
-    return result
-
-
-def fetch_akshare(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
-    import akshare as ak
-
-    market = str(watch["市场"])
-    code = str(watch.get("AKShare代码", ""))
-    adjustment = "qfq" if adjust == "qfq" else ""
-    kwargs = {
-        "start_date": start.strftime("%Y%m%d"),
-        "end_date": end.strftime("%Y%m%d"),
-        "adjust": adjustment,
-    }
-    if market == "CN":
-        frame = ak.stock_zh_a_hist(symbol=code, period="daily", **kwargs)
-        return _records_to_quotes(frame, watch, "AKShare")
-    if market == "HK":
-        frame = ak.stock_hk_hist(symbol=code, period="daily", **kwargs)
-        return _records_to_quotes(frame, watch, "AKShare")
-    if market == "US":
-        if not code or code.upper() == "AUTO":
-            code = _akshare_us_symbol_map().get(str(watch["统一代码"]).upper(), "")
-        if not code:
-            raise LookupError(f"AKShare未找到美股代码映射：{watch['统一代码']}")
-        frame = ak.stock_us_hist(symbol=code, period="daily", **kwargs)
-        return _records_to_quotes(frame, watch, "AKShare")
-    raise ValueError(f"AKShare不支持市场：{market}")
-
-
 def fetch_baostock(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
     import baostock as bs
     import pandas as pd
@@ -150,7 +124,7 @@ def fetch_baostock(watch: dict, adjust: str, start: date, end: date) -> list[Quo
 
 def _cn_exchange_symbol(watch: dict) -> str:
     """Return the Tencent/Sina market-prefixed A-share symbol."""
-    code = str(watch.get("AKShare代码") or watch.get("统一代码") or "").split(".", 1)[0]
+    code = str(watch.get("统一代码") or watch.get("AKShare代码") or "").split(".", 1)[0]
     if not re.fullmatch(r"\d{6}", code):
         raise ValueError(f"无法转换A股代码：{code}")
     if code.startswith(("4", "8")):
@@ -160,6 +134,44 @@ def _cn_exchange_symbol(watch: dict) -> str:
     else:
         prefix = "sz"
     return prefix + code
+
+
+def _plain_symbol(watch: dict) -> str:
+    return str(watch.get("yfinance代码") or watch.get("统一代码") or "").split(".", 1)[0]
+
+
+def _tencent_symbol(watch: dict) -> str:
+    market = str(watch["市场"])
+    if market == "CN":
+        return _cn_exchange_symbol(watch)
+    if market == "HK":
+        code = _plain_symbol(watch).zfill(5)
+        if not re.fullmatch(r"\d{5}", code):
+            raise ValueError(f"无法转换港股代码：{code}")
+        return "r_hk" + code
+    if market == "US":
+        code = _plain_symbol(watch).upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9.-]*", code):
+            raise ValueError(f"无法转换美股代码：{code}")
+        return "us" + code
+    raise ValueError(f"腾讯快照不支持市场：{market}")
+
+
+def _sina_symbol(watch: dict) -> str:
+    market = str(watch["市场"])
+    if market == "CN":
+        return _cn_exchange_symbol(watch)
+    if market == "HK":
+        code = _plain_symbol(watch).zfill(5)
+        if not re.fullmatch(r"\d{5}", code):
+            raise ValueError(f"无法转换港股代码：{code}")
+        return "hk" + code
+    if market == "US":
+        code = _plain_symbol(watch).lower()
+        if not re.fullmatch(r"[a-z][a-z0-9.-]*", code):
+            raise ValueError(f"无法转换美股代码：{code}")
+        return "gb_" + code
+    raise ValueError(f"新浪快照不支持市场：{market}")
 
 
 def _read_public_quote(url: str, headers: dict[str, str] | None = None) -> str:
@@ -213,12 +225,11 @@ def _snapshot_quote(
 
 
 def fetch_tencent(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
-    """Fetch the latest unadjusted A-share snapshot from Tencent."""
-    if str(watch["市场"]) != "CN":
-        raise ValueError("腾讯快照仅用于A股")
+    """Fetch the latest regular-session snapshot from Tencent."""
     if adjust != "raw":
         raise ValueError("腾讯快照不提供前复权历史行情")
-    symbol = _cn_exchange_symbol(watch)
+    market = str(watch["市场"])
+    symbol = _tencent_symbol(watch)
     text = _read_public_quote(f"https://qt.gtimg.cn/q={symbol}")
     match = re.search(r'="(.*)"', text)
     if not match:
@@ -226,11 +237,16 @@ def fetch_tencent(watch: dict, adjust: str, start: date, end: date) -> list[Quot
     fields = match.group(1).split("~")
     if len(fields) < 39 or not fields[30]:
         raise RuntimeError("腾讯返回字段不足")
-    trade_date = datetime.strptime(fields[30][:8], "%Y%m%d").date()
-    deal = fields[35].split("/") if len(fields) > 35 else []
-    volume_lots = _number(fields[36])
-    volume = volume_lots * 100 if volume_lots is not None else None
-    amount = deal[2] if len(deal) > 2 else None
+    if market == "CN":
+        trade_date = datetime.strptime(fields[30][:8], "%Y%m%d").date()
+        deal = fields[35].split("/") if len(fields) > 35 else []
+        volume_lots = _number(fields[36])
+        volume = volume_lots * 100 if volume_lots is not None else None
+        amount = deal[2] if len(deal) > 2 else None
+    else:
+        trade_date = datetime.strptime(fields[30][:10].replace("/", "-"), "%Y-%m-%d").date()
+        volume = fields[36]
+        amount = fields[37] if len(fields) > 37 else None
     return _snapshot_quote(
         watch, "Tencent", trade_date,
         fields[5], fields[33], fields[34], fields[3], fields[4],
@@ -239,12 +255,11 @@ def fetch_tencent(watch: dict, adjust: str, start: date, end: date) -> list[Quot
 
 
 def fetch_sina(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
-    """Fetch the latest unadjusted A-share snapshot from Sina."""
-    if str(watch["市场"]) != "CN":
-        raise ValueError("新浪快照仅用于A股")
+    """Fetch the latest regular-session snapshot from Sina."""
     if adjust != "raw":
         raise ValueError("新浪快照不提供前复权历史行情")
-    symbol = _cn_exchange_symbol(watch)
+    market = str(watch["市场"])
+    symbol = _sina_symbol(watch)
     text = _read_public_quote(
         f"https://hq.sinajs.cn/list={symbol}",
         {"Referer": "https://finance.sina.com.cn/"},
@@ -253,13 +268,38 @@ def fetch_sina(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
     if not match:
         raise RuntimeError("新浪返回格式异常")
     fields = match.group(1).split(",")
-    if len(fields) < 32 or not fields[30]:
-        raise RuntimeError("新浪返回字段不足")
-    trade_date = date.fromisoformat(fields[30])
+    if market == "CN":
+        if len(fields) < 32 or not fields[30]:
+            raise RuntimeError("新浪返回字段不足")
+        values = (
+            date.fromisoformat(fields[30]), fields[1], fields[4], fields[5],
+            fields[3], fields[2], fields[8], fields[9],
+        )
+    elif market == "HK":
+        if len(fields) < 19 or not fields[17]:
+            raise RuntimeError("新浪返回字段不足")
+        values = (
+            datetime.strptime(fields[17], "%Y/%m/%d").date(), fields[2], fields[4],
+            fields[5], fields[6], fields[3], fields[12], fields[11],
+        )
+    else:
+        if len(fields) < 28 or not fields[25]:
+            raise RuntimeError("新浪返回字段不足")
+        update_date = date.fromisoformat(fields[3][:10])
+        match_date = re.search(r"([A-Z][a-z]{2})\s+(\d{1,2})", fields[25])
+        if not match_date:
+            raise RuntimeError("新浪美股正式交易日期格式异常")
+        regular_month = datetime.strptime(match_date.group(1), "%b").month
+        regular_year = update_date.year - 1 if regular_month == 12 and update_date.month == 1 else update_date.year
+        regular_date = date(regular_year, regular_month, int(match_date.group(2)))
+        values = (
+            regular_date, fields[5], fields[6], fields[7], fields[1], fields[26],
+            fields[10], fields[30] if len(fields) > 30 else None,
+        )
     return _snapshot_quote(
-        watch, "Sina", trade_date,
-        fields[1], fields[4], fields[5], fields[3], fields[2],
-        fields[8], fields[9], None, start, end,
+        watch, "Sina", values[0],
+        values[1], values[2], values[3], values[4], values[5],
+        values[6], values[7], None, start, end,
     )
 
 
@@ -367,12 +407,22 @@ def _indexed(values, index: int, default):
 
 
 PROVIDERS: dict[str, Callable[[dict, str, date, date], list[Quote]]] = {
-    "AKShare": fetch_akshare,
     "BaoStock": fetch_baostock,
     "Tencent": fetch_tencent,
     "Sina": fetch_sina,
     "yfinance": fetch_yfinance,
 }
+
+
+def _configured_source_candidates(source: str, market: str, adjust: str) -> list[str]:
+    # Existing Sheets may still name AKShare. Treat it only as a deprecated
+    # configuration alias; no AKShare import or network request is performed.
+    if source == "AKShare":
+        source = "Tencent" if adjust == "raw" and market in {"HK", "US"} else "yfinance"
+    candidates = [source]
+    if adjust == "raw":
+        candidates.extend(RAW_SNAPSHOT_FALLBACKS.get(market, {}).get(source, ()))
+    return list(dict.fromkeys(candidates))
 
 
 def fetch_with_retry(
@@ -385,11 +435,11 @@ def fetch_with_retry(
     retry_wait_seconds: float,
     target_trade_date: date | None = None,
 ) -> list[Quote]:
-    if source not in PROVIDERS:
-        raise ValueError(f"未知数据源：{source}")
-    candidates = [source]
-    if adjust == "raw" and str(watch.get("市场")) == "CN":
-        candidates.extend(CN_SNAPSHOT_FALLBACKS.get(source, ()))
+    market = str(watch.get("市场"))
+    candidates = _configured_source_candidates(source, market, adjust)
+    unknown = [candidate for candidate in candidates if candidate not in PROVIDERS]
+    if unknown:
+        raise ValueError(f"未知数据源：{unknown[0]}")
 
     errors: list[str] = []
     last_error: Exception | None = None
