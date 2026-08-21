@@ -16,14 +16,15 @@ V0.2
 - GitHub Actions 定时任务（亚洲 / 欧美两个工作流）
 - CI Test Gate：`.github/workflows/ci.yml`，PR 与 main push 自动跑 unittest
 - Trading Core Phase 1（`trading/` 包，PR #6 待 review）：models（数据模型 + 输入校验）/ indicators（Wilder ATR·RSI·EMA）/ swing（causal pivot + PROVISIONAL·CONFIRMED）/ structure（Market Structure）/ fibonacci / risk（R&R + Position Size）；新增 46 个测试，全量 77/77 通过
+- Phase 1 hardening（PR #7）：补夜间审计测试缺口（excursion filter pct/atr 分支、PROVISIONAL 可变性、confirmed 冻结、Market Structure as-of 稳定性），新增 5 个测试，全量 82/82 通过
 
 ## In Progress
 
-- Phase 1 hardening（分支 `chore/trading-core-phase1-hardening`）：补夜间审计测试缺口（excursion filter pct/atr 分支、PROVISIONAL 可变性、confirmed 冻结、Market Structure as-of 稳定性），全量 82/82 通过
+- 无
 
 ## Next
 
-- Review 并合并 PR #6（Trading Core Phase 1）与 hardening PR
+- Review 并合并 PR #6（Trading Core Phase 1，已含 hardening 测试）
 - Phase 2：Setup Engine（详见 `TRADING_SYSTEM_SPEC.md` 开发优先级）
 - 迁移测试框架到 pytest（可选，当前明确不做）
 
