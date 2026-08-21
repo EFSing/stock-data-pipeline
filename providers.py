@@ -383,6 +383,7 @@ def fetch_with_retry(
     end: date,
     retry_count: int,
     retry_wait_seconds: float,
+    target_trade_date: date | None = None,
 ) -> list[Quote]:
     if source not in PROVIDERS:
         raise ValueError(f"未知数据源：{source}")
@@ -394,15 +395,28 @@ def fetch_with_retry(
     last_error: Exception | None = None
     attempts = max(1, retry_count)
     for candidate in candidates:
+        stale_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
                 quotes = PROVIDERS[candidate](watch, adjust, start, end)
                 if not quotes:
                     raise LookupError("返回空数据")
-                return sorted(quotes, key=lambda item: item.trade_date)
+                sorted_quotes = sorted(quotes, key=lambda item: item.trade_date)
+                latest_date = sorted_quotes[-1].trade_date
+                if target_trade_date is not None and latest_date < target_trade_date:
+                    stale_error = LookupError(
+                        f"返回数据日期{latest_date.isoformat()}落后于目标交易日"
+                        f"{target_trade_date.isoformat()}"
+                    )
+                    last_error = stale_error
+                    break
+                return sorted_quotes
             except Exception as exc:  # 上游站点错误需要重试并写入日志。
                 last_error = exc
                 if attempt < attempts:
                     time.sleep(max(0, retry_wait_seconds))
-        errors.append(f"{candidate}连续{attempts}次抓取失败：{last_error}")
+        if stale_error is not None:
+            errors.append(f"{candidate}数据失效：{stale_error}")
+        else:
+            errors.append(f"{candidate}连续{attempts}次抓取失败：{last_error}")
     raise RuntimeError("；".join(errors)) from last_error

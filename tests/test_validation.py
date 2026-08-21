@@ -160,6 +160,40 @@ class ValidationTests(unittest.TestCase):
             result = fetch_with_retry("AKShare", watch, "raw", date(2026, 8, 1), date(2026, 8, 21), 1, 0)
         self.assertEqual(result, fallback)
 
+    def test_cn_provider_falls_back_when_source_date_is_stale(self):
+        watch = {"统一代码": "603199.SH", "市场": "CN"}
+        calls = {"BaoStock": 0}
+
+        def stale_baostock(*args):
+            calls["BaoStock"] += 1
+            return [quote("BaoStock", day=date(2026, 8, 20))]
+
+        sina = [quote("Sina", day=date(2026, 8, 21))]
+        with patch.dict("providers.PROVIDERS", {
+            "BaoStock": stale_baostock,
+            "Sina": lambda *args: sina,
+            "Tencent": lambda *args: [quote("Tencent", day=date(2026, 8, 21))],
+        }, clear=True):
+            result = fetch_with_retry(
+                "BaoStock", watch, "raw", date(2026, 8, 1), date(2026, 8, 21),
+                3, 0, target_trade_date=date(2026, 8, 21),
+            )
+        self.assertEqual(result, sina)
+        self.assertEqual(calls["BaoStock"], 1)
+
+    def test_stale_date_is_allowed_without_target_trade_date(self):
+        watch = {"统一代码": "603199.SH", "市场": "CN"}
+        stale = [quote("BaoStock", day=date(2026, 8, 20))]
+        with patch.dict("providers.PROVIDERS", {
+            "BaoStock": lambda *args: stale,
+            "Sina": lambda *args: [quote("Sina", day=date(2026, 8, 21))],
+            "Tencent": lambda *args: [quote("Tencent", day=date(2026, 8, 21))],
+        }, clear=True):
+            result = fetch_with_retry(
+                "BaoStock", watch, "raw", date(2026, 8, 1), date(2026, 8, 21), 1, 0
+            )
+        self.assertEqual(result, stale)
+
 
 if __name__ == "__main__":
     unittest.main()
