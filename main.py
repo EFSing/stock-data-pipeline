@@ -87,6 +87,10 @@ def run(group: str) -> None:
             continue
         primary_source = str(watch.get("主数据源") or "").strip()
         verifier_source = str(watch.get("校验数据源") or "").strip()
+        expected_date = expected_latest_trade_date(
+            str(watch["时区"]), str(watch["收盘时间"]), fetched_at
+        )
+        cn_target_date = expected_date if str(watch.get("市场")) == "CN" else None
         primary_quotes = []
         verifier_quotes = []
         errors = []
@@ -94,7 +98,10 @@ def run(group: str) -> None:
             if not source:
                 continue
             try:
-                target.extend(fetch_with_retry(source, watch, "raw", start, end, retry_count, retry_wait))
+                target.extend(fetch_with_retry(
+                    source, watch, "raw", start, end, retry_count, retry_wait,
+                    target_trade_date=cn_target_date,
+                ))
             except Exception as exc:
                 errors.append(str(exc))
 
@@ -106,9 +113,6 @@ def run(group: str) -> None:
             log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": "失败", "新增／更新行数": 0, "消息": "；".join(errors)})
             continue
 
-        expected_date = expected_latest_trade_date(
-            str(watch["时区"]), str(watch["收盘时间"]), fetched_at
-        )
         stale_note = ""
         sanity_note = quote_sanity_issue(chosen) or ""
         displayed_status = result.status
