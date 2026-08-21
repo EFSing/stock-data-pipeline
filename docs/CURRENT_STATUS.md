@@ -18,13 +18,13 @@ V0.2
 
 ## In Progress
 
-- 无（Phase 0 基础工程化刚完成）
+- **CI Test Gate 建设**：新增 `.github/workflows/ci.yml`，PR 与 main push 自动跑现有 31 个 unittest（不连 Google Sheets、不需要 Secrets）
 
 ## Next
 
+- 验证 CI Test Gate 在 PR 上运行通过
 - Phase 1：Swing 引擎 / Market Structure（详见 `TRADING_SYSTEM_SPEC.md` 开发优先级）
-- 迁移测试框架到 pytest（可选）
-- 为 GitHub Actions 增加测试步骤
+- 迁移测试框架到 pytest（可选，当前明确不做）
 
 ## Known Issues
 
