@@ -14,16 +14,18 @@ V0.2
 - 双源校验（日期、收盘价、成交量容差）
 - Google Sheets 写入（最新行情 / 历史行情_未复权 / 历史行情_前复权 / 校验记录 / 运行日志）
 - GitHub Actions 定时任务（亚洲 / 欧美两个工作流）
-- 31 个 unittest 测试通过
-- CI Test Gate：`.github/workflows/ci.yml`，PR 与 main push 自动跑 31 个 unittest
+- CI Test Gate：`.github/workflows/ci.yml`，PR 与 main push 自动跑 unittest
+- Trading Core Phase 1（`trading/` 包，PR #6 待 review）：models（数据模型 + 输入校验）/ indicators（Wilder ATR·RSI·EMA）/ swing（causal pivot + PROVISIONAL·CONFIRMED）/ structure（Market Structure）/ fibonacci / risk（R&R + Position Size）；新增 46 个测试，全量 77/77 通过
+- Phase 1 hardening（PR #7）：补夜间审计测试缺口（excursion filter pct/atr 分支、PROVISIONAL 可变性、confirmed 冻结、Market Structure as-of 稳定性），新增 5 个测试，全量 82/82 通过
 
 ## In Progress
 
-- 无（Phase 0 基础工程化 + CI Test Gate 已完成）
+- 无
 
 ## Next
 
-- Phase 1：Swing 引擎 / Market Structure（详见 `TRADING_SYSTEM_SPEC.md` 开发优先级）
+- Review 并合并 PR #6（Trading Core Phase 1，已含 hardening 测试）
+- Phase 2：Setup Engine（详见 `TRADING_SYSTEM_SPEC.md` 开发优先级）
 - 迁移测试框架到 pytest（可选，当前明确不做）
 
 ## Known Issues
