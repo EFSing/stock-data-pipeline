@@ -1,0 +1,26 @@
+{
+  "name": "Trading Decision System",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt",
+  "containerEnv": {
+    "TZ": "Asia/Shanghai"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy"
+      ],
+      "settings": {
+        "python.testing.unittestEnabled": true,
+        "python.testing.unittestArgs": ["-v", "-s", "./tests"],
+        "python.testing.pytestEnabled": false,
+        "editor.formatOnSave": false
+      }
+    }
+  }
+}

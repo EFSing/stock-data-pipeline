@@ -1,0 +1,252 @@
+# TRADING_SYSTEM_SPEC.md — 交易系统长期稳定规则
+
+本文件保存长期稳定的交易规则，是所有 AI 开发工具共享的规则事实来源。**未经明确决策不得擅自改动**；任何改动必须写入 `DECISION_LOG.md`。
+
+## 核心交易框架
+
+```text
+股票池
+→ 数据质量
+→ 周线趋势
+→ 日线趋势
+→ Swing
+→ 波浪候选
+→ Fibonacci
+→ Setup
+→ Entry
+→ Invalidation
+→ Target
+→ Risk/Reward
+→ Position Size
+→ Portfolio Risk
+→ Position Management
+→ Exit
+```
+
+## 基本原则
+
+```text
+基本面决定是否值得长期做多
+周线决定大级别状态
+日线决定执行节奏
+Swing决定结构
+Fibonacci决定候选价格区域
+量价决定确认
+Invalidation决定哪里认错
+R/R决定值不值得交易
+1R决定最大计划亏损
+MFE负责利润保护
+```
+
+- 不能使用单一 RSI、MACD、Fib 等指标直接产生买入信号。
+- 系统必须允许输出 `NO_TRADE`。
+
+## 波浪理论
+
+采用「主情景 + 备选情景」，不武断输出唯一浪型。
+
+例如：
+
+```text
+主情景：
+Weekly Wave 3 Candidate
+
+备选情景：
+ABC B-Wave Candidate
+```
+
+需要记录：
+
+- 支持证据
+- 反方证据
+- 置信评分
+- Invalidation
+- Target
+
+如果证据不足，输出 `UPTREND_UNKNOWN_WAVE`，不要强行数浪。
+
+## 周线与日线
+
+必须遵循：
+
+```text
+Weekly State → Daily State
+```
+
+周线决定母级别。日线不能因为一两天价格波动随意推翻周线浪型。
+
+## 第一版只允许四类 Setup
+
+```text
+SETUP_01  Wave 2 → Wave 3
+SETUP_02  Wave 3 Continuation
+SETUP_03  Platform Breakout
+SETUP_04  Extreme Fear Reversal
+```
+
+RSI 超卖只能使 `SETUP_04` 进入观察状态，不能直接产生买入信号。
+
+## Setup 状态
+
+```text
+NONE
+WATCH
+ARMED
+CONFIRMED
+ACTIVE
+FAILED
+COMPLETED
+```
+
+未确认的 Setup 不得输出 `ENTRY_ALLOWED`。
+
+## Entry
+
+至少输出：
+
+```text
+Entry Zone
+Probe Entry
+Confirmation Entry
+Confirmation Conditions
+```
+
+## Invalidation
+
+区分：
+
+```text
+Structural Invalidation
+Execution Stop
+```
+
+- 结构失效来自 Swing、Wave Low、突破结构等。
+- Execution Stop 可以加入 ATR Buffer。
+
+## Target
+
+至少：
+
+```text
+T1
+T2
+T3
+```
+
+目标来自：
+
+- 前高
+- 关键压力
+- 周线结构
+- Fibonacci Extension
+
+必须：**先计算合理 Target，再计算 R/R。** 禁止为了满足 3R 倒推目标价格。
+
+## Risk / Reward
+
+多头：
+
+```text
+RR = (Target - Entry) / (Entry - Stop)
+```
+
+初始规则：
+
+```text
+RR < 2     → NO_TRADE
+2～3R      → NORMAL
+3～5R      → HIGH_QUALITY
+>5R        → HIGH_ASYMMETRY
+```
+
+大于 5R 时必须检查目标合理性。
+
+## 1R
+
+1R 不是止盈。1R 是「单笔最大计划损失」。
+
+初始建议：
+
+```text
+Risk Per Trade = 0.5% NAV
+```
+
+仓位：
+
+```text
+Position Size = Risk Capital / |Entry - Execution Stop|
+```
+
+## 持仓管理
+
+至少记录：
+
+```text
+Current R
+MFE
+MAE
+MFE Drawdown
+```
+
+动作：
+
+```text
+NO_TRADE
+WATCH
+WAIT_CONFIRMATION
+PROBE_ALLOWED
+ENTRY_ALLOWED
+ADD_ALLOWED
+HOLD
+NO_ADD
+PROFIT_PROTECTION
+REDUCE
+EXIT
+```
+
+必须专门识别高位风险：
+
+```text
+Wave 5 Candidate
++ Fib Target
++ 异常高成交量
++ 价格滞涨
++ 长上影
++ Momentum Divergence
+```
+
+高位异常放量不能默认解释为洗盘。
+
+## 未来函数（最高等级技术风险）
+
+严格保证：
+
+```text
+signal(t) 只能使用 data <= t
+```
+
+尤其注意：ZigZag、Swing High、Swing Low、Pivot、Weekly Resampling、Close、Volume。
+
+Swing 必须区分：
+
+```text
+PROVISIONAL
+CONFIRMED
+```
+
+回测时禁止拿未来确认的 Swing 回填过去交易信号。
+
+## 开发优先级
+
+```text
+Phase 0  Repository Audit
+Phase 1  Data Quality / Indicators / Swing / Market Structure / Fibonacci / R/R / Position Size
+Phase 2  Setup Engine
+Phase 3  Decision Engine
+Phase 4  Google Sheets Decision Tables
+Phase 5  Wave Scenario Engine
+Phase 6  MFE / MAE / Position Management
+Phase 7  Backtest / Expectancy
+```
+
+Swing、Market Structure、Risk Engine 必须首先稳定；不要先花大量时间做复杂 Elliott Wave。
