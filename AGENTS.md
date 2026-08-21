@@ -18,6 +18,7 @@
 - 使用未来 ZigZag 节点产生过去信号
 - 擅自改变交易系统核心规则（见 `docs/TRADING_SYSTEM_SPEC.md`）
 - 在代码中保存 API Key / Token / 凭证（一律使用 GitHub Secrets / Codespaces Secrets / 环境变量）
+- 在 `devcontainer.json` 中使用 `${localEnv:...}` 映射或硬编码任何凭证
 - 自动连接券商下单
 - 无理由重写已经稳定工作的行情模块（`core.py` / `providers.py` / `sheets_client.py`）
 - 为提高回测结果人为删除失败交易
@@ -39,6 +40,7 @@
 - 依赖清单在 `requirements.txt`（无 pyproject.toml）；新增运行时依赖需同步更新该文件。
 - 生产运行环境为 GitHub Actions（ubuntu-latest，Python 3.11）；本地 Windows 开发需安装 `tzdata`。
 - Google Sheets 凭证通过环境变量 `GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON` 注入，禁止写入仓库。
+- 凭证注入通道固定为：GitHub Actions → Actions Secrets；Codespaces → Codespaces Secrets；本地开发 → 本机环境变量。**不通过 `devcontainer.json` 的 `remoteEnv`/`localEnv` 映射传入**，也不写入任何文档或配置文件的明文。
 - 数据源回退链与双源校验是稳定逻辑，修改前必须先读 `providers.py` 与 `tests/test_validation.py`。
 - 项目为扁平模块结构（根目录 `core.py` / `main.py` / `providers.py` / `sheets_client.py`），未使用 `src/` 包布局；不要仅为迎合目录规范而大规模重构。
 

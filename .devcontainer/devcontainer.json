@@ -4,7 +4,7 @@
   "features": {
     "ghcr.io/devcontainers/features/git:1": {}
   },
-  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt && pip install pytest",
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt",
   "containerEnv": {
     "TZ": "Asia/Shanghai"
   },
@@ -16,14 +16,11 @@
         "ms-python.debugpy"
       ],
       "settings": {
-        "python.testing.pytestEnabled": true,
-        "python.testing.unittestEnabled": false,
+        "python.testing.unittestEnabled": true,
+        "python.testing.unittestArgs": ["-v", "-s", "./tests"],
+        "python.testing.pytestEnabled": false,
         "editor.formatOnSave": false
       }
     }
-  },
-  "remoteEnv": {
-    "GOOGLE_SHEET_ID": "${localEnv:GOOGLE_SHEET_ID}",
-    "GOOGLE_SERVICE_ACCOUNT_JSON": "${localEnv:GOOGLE_SERVICE_ACCOUNT_JSON}"
   }
 }
