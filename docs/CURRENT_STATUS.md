@@ -14,23 +14,16 @@ V0.2
 - 双源校验（日期、收盘价、成交量容差）
 - Google Sheets 写入（最新行情 / 历史行情_未复权 / 历史行情_前复权 / 校验记录 / 运行日志）
 - GitHub Actions 定时任务（亚洲 / 欧美两个工作流）
-- 31 个 unittest 测试通过
 - CI Test Gate：`.github/workflows/ci.yml`，PR 与 main push 自动跑 unittest
+- Trading Core Phase 1（`trading/` 包，PR #6 待 review）：models（数据模型 + 输入校验）/ indicators（Wilder ATR·RSI·EMA）/ swing（causal pivot + PROVISIONAL·CONFIRMED）/ structure（Market Structure）/ fibonacci / risk（R&R + Position Size）；新增 46 个测试，全量 77/77 通过
 
 ## In Progress
 
-- Phase 1 Trading Core（`trading/` 包，分支 `feat/trading-core-phase1`）：
-  - `models.py`（数据模型 + 输入校验，输入复用 `core.Quote`）
-  - `indicators.py`（Wilder ATR / Wilder RSI / EMA 2/(N+1)，warm-up 返回 None）
-  - `swing.py`（causal pivot + PROVISIONAL/CONFIRMED 状态机 + excursion filter）
-  - `structure.py`（Market Structure，含 TRANSITION/UNKNOWN）
-  - `fibonacci.py`（只消费 SwingPoint）
-  - `risk.py`（risk_reward 用 execution_stop + position_size）
-  - 已实现，待提交 PR 走 CI
+- 无
 
 ## Next
 
-- 提交 `feat/trading-core-phase1` PR 并合并
+- Review 并合并 PR #6（Trading Core Phase 1）
 - Phase 2：Setup Engine（详见 `TRADING_SYSTEM_SPEC.md` 开发优先级）
 - 迁移测试框架到 pytest（可选，当前明确不做）
 
