@@ -8,8 +8,9 @@
 1. 阅读本文件 `AGENTS.md`
 2. 阅读 `docs/CURRENT_STATUS.md`（了解项目当前进展）
 3. 根据任务阅读相关设计文档（`docs/ARCHITECTURE.md`、`docs/TRADING_SYSTEM_SPEC.md`、`docs/DECISION_LOG.md`）
-4. 阅读相关源代码
-5. 阅读相关测试（`tests/`）
+4. 全仓库搜索是否已有相同或相近职责的实现（模块/函数/数据模型）；优先复用、扩展或抽象现有实现，不得为方便在新模块中复制已有业务逻辑，公共计算逻辑必须保持 Single Source of Truth
+5. 阅读相关源代码
+6. 阅读相关测试（`tests/`）
 
 ## 任何修改禁止
 
