@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from core import Quote, expected_latest_trade_date, fresher_quote, quote_sanity_issue, validate_quotes
 from main import as_ratio, beijing_now, wanted_markets_for_group
-from providers import fetch_yfinance
+from providers import fetch_sina, fetch_tencent, fetch_with_retry, fetch_yfinance
 from sheets_client import SheetsClient
 
 
@@ -72,6 +72,11 @@ class ValidationTests(unittest.TestCase):
         result = validate_quotes(quote("主源"), None, 0.0005, 0.02)
         self.assertEqual(result.status, "单源可用")
 
+    def test_same_fallback_source_is_not_double_verified(self):
+        result = validate_quotes(quote("Tencent"), quote("Tencent"), 0.0005, 0.02)
+        self.assertEqual(result.status, "单源可用")
+        self.assertIn("同一数据源", result.note)
+
     def test_uses_verifier_when_its_trade_date_is_newer(self):
         primary = quote("主源", day=date(2026, 8, 14))
         verifier = quote("校验源", day=date(2026, 8, 17))
@@ -120,6 +125,40 @@ class ValidationTests(unittest.TestCase):
             result = fetch_yfinance(watch, "raw", date(2026, 8, 1), date(2026, 8, 17))
         self.assertEqual(result, fallback)
         chart.assert_called_once_with(watch, "raw", date(2026, 8, 1), date(2026, 8, 17))
+
+    def test_tencent_snapshot_parser(self):
+        payload = (
+            'v_sh603199="1~九华旅游~603199~33.45~34.00~34.26~34717~0~0~'
+            + "~" * 21
+            + '20260821154510~-0.55~-1.62~34.26~33.12~33.45/34717/116318671~34717~11632~3.14";'
+        )
+        watch = {"统一代码": "603199.SH", "AKShare代码": "603199", "名称": "九华旅游", "市场": "CN", "币种": "CNY"}
+        with patch("providers._read_public_quote", return_value=payload):
+            result = fetch_tencent(watch, "raw", date(2026, 8, 1), date(2026, 8, 21))
+        self.assertEqual(result[0].trade_date, date(2026, 8, 21))
+        self.assertEqual(result[0].close, 33.45)
+        self.assertEqual(result[0].volume, 3_471_700)
+        self.assertEqual(result[0].amount, 116_318_671)
+
+    def test_sina_snapshot_parser(self):
+        payload = 'var hq_str_sh603199="九华旅游,34.260,34.000,33.450,34.260,33.120,33.450,33.500,3471692,116318671.000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2026-08-21,15:34:58,00,D";'
+        watch = {"统一代码": "603199.SH", "AKShare代码": "603199", "名称": "九华旅游", "市场": "CN", "币种": "CNY"}
+        with patch("providers._read_public_quote", return_value=payload):
+            result = fetch_sina(watch, "raw", date(2026, 8, 1), date(2026, 8, 21))
+        self.assertEqual(result[0].trade_date, date(2026, 8, 21))
+        self.assertEqual(result[0].volume, 3_471_692)
+        self.assertEqual(result[0].amount, 116_318_671)
+
+    def test_cn_provider_falls_back_to_tencent(self):
+        watch = {"统一代码": "603199.SH", "市场": "CN"}
+        fallback = [quote("Tencent")]
+        with patch.dict("providers.PROVIDERS", {
+            "AKShare": lambda *args: (_ for _ in ()).throw(RuntimeError("down")),
+            "Tencent": lambda *args: fallback,
+            "Sina": lambda *args: [quote("Sina")],
+        }, clear=True):
+            result = fetch_with_retry("AKShare", watch, "raw", date(2026, 8, 1), date(2026, 8, 21), 1, 0)
+        self.assertEqual(result, fallback)
 
 
 if __name__ == "__main__":

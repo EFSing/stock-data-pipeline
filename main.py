@@ -121,11 +121,23 @@ def run(group: str) -> None:
         confirmed = displayed_status == "已验证" and market_close_confirmed(
             chosen.trade_date, str(watch["时区"]), str(watch["收盘时间"]), fetched_at
         )
-        notes = [item for item in (result.note, stale_note, sanity_note, "；".join(errors)) if item]
+        fallback_notes = []
+        if primary is not None and primary.source != primary_source:
+            fallback_notes.append(f"主数据源{primary_source}回退至{primary.source}")
+        if verifier is not None and verifier.source != verifier_source:
+            fallback_notes.append(f"校验数据源{verifier_source}回退至{verifier.source}")
+        actual_primary_source = primary.source if primary is not None else primary_source
+        actual_verifier_source = verifier.source if verifier is not None else verifier_source
+        notes = [
+            item for item in
+            (result.note, stale_note, sanity_note, "；".join(fallback_notes), "；".join(errors))
+            if item
+        ]
         latest_rows.append({
             "统一代码": chosen.symbol, "名称": chosen.name, "市场": chosen.market,
             "交易日期": chosen.trade_date, "抓取时间": fetched_at, "正式收盘": confirmed,
-            "校验状态": displayed_status, "主数据源": primary_source, "校验数据源": verifier_source,
+            "校验状态": displayed_status, "主数据源": actual_primary_source,
+            "校验数据源": actual_verifier_source,
             "开盘": chosen.open, "最高": chosen.high, "最低": chosen.low, "收盘": chosen.close,
             "昨收": chosen.preclose, "涨跌幅": chosen.pct_change, "成交量": chosen.volume,
             "成交额": chosen.amount, "换手率": chosen.turnover_rate,
@@ -134,7 +146,7 @@ def run(group: str) -> None:
         })
         validation_rows.append({
             "抓取时间": fetched_at, "统一代码": chosen.symbol, "交易日期": chosen.trade_date,
-            "主数据源": primary_source, "校验数据源": verifier_source,
+            "主数据源": actual_primary_source, "校验数据源": actual_verifier_source,
             "主源收盘": primary.close if primary else None, "校验源收盘": verifier.close if verifier else None,
             "收盘价差异": result.close_diff, "主源成交量": primary.volume if primary else None,
             "校验源成交量": verifier.volume if verifier else None, "成交量差异": result.volume_diff,

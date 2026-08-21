@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import json
+import re
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from functools import lru_cache
 from typing import Callable, Iterable
@@ -10,6 +11,14 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 from core import Quote
+
+
+CN_SNAPSHOT_FALLBACKS: dict[str, tuple[str, ...]] = {
+    # Use opposite orders so two failed historical providers can still obtain
+    # independent Tencent and Sina snapshots when both endpoints are healthy.
+    "AKShare": ("Tencent", "Sina"),
+    "BaoStock": ("Sina", "Tencent"),
+}
 
 
 def _number(value):
@@ -139,6 +148,121 @@ def fetch_baostock(watch: dict, adjust: str, start: date, end: date) -> list[Quo
         bs.logout()
 
 
+def _cn_exchange_symbol(watch: dict) -> str:
+    """Return the Tencent/Sina market-prefixed A-share symbol."""
+    code = str(watch.get("AKShare代码") or watch.get("统一代码") or "").split(".", 1)[0]
+    if not re.fullmatch(r"\d{6}", code):
+        raise ValueError(f"无法转换A股代码：{code}")
+    if code.startswith(("4", "8")):
+        prefix = "bj"
+    elif code.startswith(("60", "68", "5", "9")):
+        prefix = "sh"
+    else:
+        prefix = "sz"
+    return prefix + code
+
+
+def _read_public_quote(url: str, headers: dict[str, str] | None = None) -> str:
+    request = Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*", **(headers or {})},
+    )
+    with urlopen(request, timeout=20) as response:
+        return response.read().decode("gb18030", errors="replace")
+
+
+def _snapshot_quote(
+    watch: dict,
+    source: str,
+    trade_date: date,
+    open_price,
+    high,
+    low,
+    close,
+    preclose,
+    volume,
+    amount,
+    turnover_rate,
+    start: date,
+    end: date,
+) -> list[Quote]:
+    close_number = _number(close)
+    if close_number is None or close_number <= 0 or not start <= trade_date <= end:
+        return []
+    preclose_number = _number(preclose)
+    pct_change = None
+    if preclose_number not in (None, 0):
+        pct_change = (close_number / preclose_number - 1) * 100
+    return [Quote(
+        symbol=str(watch["统一代码"]),
+        name=str(watch["名称"]),
+        market=str(watch["市场"]),
+        trade_date=trade_date,
+        source=source,
+        open=_number(open_price) or close_number,
+        high=_number(high) or close_number,
+        low=_number(low) or close_number,
+        close=close_number,
+        preclose=preclose_number,
+        pct_change=pct_change,
+        volume=_number(volume),
+        amount=_number(amount),
+        turnover_rate=_number(turnover_rate),
+        currency=str(watch["币种"]),
+    )]
+
+
+def fetch_tencent(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
+    """Fetch the latest unadjusted A-share snapshot from Tencent."""
+    if str(watch["市场"]) != "CN":
+        raise ValueError("腾讯快照仅用于A股")
+    if adjust != "raw":
+        raise ValueError("腾讯快照不提供前复权历史行情")
+    symbol = _cn_exchange_symbol(watch)
+    text = _read_public_quote(f"https://qt.gtimg.cn/q={symbol}")
+    match = re.search(r'="(.*)"', text)
+    if not match:
+        raise RuntimeError("腾讯返回格式异常")
+    fields = match.group(1).split("~")
+    if len(fields) < 39 or not fields[30]:
+        raise RuntimeError("腾讯返回字段不足")
+    trade_date = datetime.strptime(fields[30][:8], "%Y%m%d").date()
+    deal = fields[35].split("/") if len(fields) > 35 else []
+    volume_lots = _number(fields[36])
+    volume = volume_lots * 100 if volume_lots is not None else None
+    amount = deal[2] if len(deal) > 2 else None
+    return _snapshot_quote(
+        watch, "Tencent", trade_date,
+        fields[5], fields[33], fields[34], fields[3], fields[4],
+        volume, amount, fields[38], start, end,
+    )
+
+
+def fetch_sina(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
+    """Fetch the latest unadjusted A-share snapshot from Sina."""
+    if str(watch["市场"]) != "CN":
+        raise ValueError("新浪快照仅用于A股")
+    if adjust != "raw":
+        raise ValueError("新浪快照不提供前复权历史行情")
+    symbol = _cn_exchange_symbol(watch)
+    text = _read_public_quote(
+        f"https://hq.sinajs.cn/list={symbol}",
+        {"Referer": "https://finance.sina.com.cn/"},
+    )
+    match = re.search(r'="(.*)"', text)
+    if not match:
+        raise RuntimeError("新浪返回格式异常")
+    fields = match.group(1).split(",")
+    if len(fields) < 32 or not fields[30]:
+        raise RuntimeError("新浪返回字段不足")
+    trade_date = date.fromisoformat(fields[30])
+    return _snapshot_quote(
+        watch, "Sina", trade_date,
+        fields[1], fields[4], fields[5], fields[3], fields[2],
+        fields[8], fields[9], None, start, end,
+    )
+
+
 def fetch_yfinance(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
     import yfinance as yf
 
@@ -245,6 +369,8 @@ def _indexed(values, index: int, default):
 PROVIDERS: dict[str, Callable[[dict, str, date, date], list[Quote]]] = {
     "AKShare": fetch_akshare,
     "BaoStock": fetch_baostock,
+    "Tencent": fetch_tencent,
+    "Sina": fetch_sina,
     "yfinance": fetch_yfinance,
 }
 
@@ -260,13 +386,23 @@ def fetch_with_retry(
 ) -> list[Quote]:
     if source not in PROVIDERS:
         raise ValueError(f"未知数据源：{source}")
+    candidates = [source]
+    if adjust == "raw" and str(watch.get("市场")) == "CN":
+        candidates.extend(CN_SNAPSHOT_FALLBACKS.get(source, ()))
+
+    errors: list[str] = []
     last_error: Exception | None = None
-    for attempt in range(1, max(1, retry_count) + 1):
-        try:
-            quotes = PROVIDERS[source](watch, adjust, start, end)
-            return sorted(quotes, key=lambda item: item.trade_date)
-        except Exception as exc:  # 上游站点错误需要重试并写入日志。
-            last_error = exc
-            if attempt < max(1, retry_count):
-                time.sleep(max(0, retry_wait_seconds))
-    raise RuntimeError(f"{source}连续{retry_count}次抓取失败：{last_error}") from last_error
+    attempts = max(1, retry_count)
+    for candidate in candidates:
+        for attempt in range(1, attempts + 1):
+            try:
+                quotes = PROVIDERS[candidate](watch, adjust, start, end)
+                if not quotes:
+                    raise LookupError("返回空数据")
+                return sorted(quotes, key=lambda item: item.trade_date)
+            except Exception as exc:  # 上游站点错误需要重试并写入日志。
+                last_error = exc
+                if attempt < attempts:
+                    time.sleep(max(0, retry_wait_seconds))
+        errors.append(f"{candidate}连续{attempts}次抓取失败：{last_error}")
+    raise RuntimeError("；".join(errors)) from last_error

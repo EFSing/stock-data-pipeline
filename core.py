@@ -53,6 +53,11 @@ def validate_quotes(
         return ValidationResult("抓取失败", False, False, False, None, None, "两个来源均不可用")
     if primary is None or verifier is None:
         return ValidationResult("单源可用", False, False, False, None, None, "仅一个来源返回数据")
+    if primary.source == verifier.source:
+        return ValidationResult(
+            "单源可用", False, False, False, None, None,
+            f"主源和校验源均回退至同一数据源：{primary.source}",
+        )
 
     date_match = primary.trade_date == verifier.trade_date
     close_diff = relative_diff(primary.close, verifier.close)
