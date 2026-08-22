@@ -1,0 +1,350 @@
+import unittest
+from dataclasses import replace
+from datetime import date, datetime, timedelta
+from unittest.mock import Mock, patch
+
+from core import Quote
+from main import (
+    decision_row,
+    evaluate_set03_decision,
+    run,
+    trading_parameters,
+)
+from providers import QFQ_HISTORY_SOURCES
+from sheets_client import DECISION_HEADERS, SheetsClient
+from trading.models import (
+    Decision,
+    DecisionAction,
+    EntryPlan,
+    PositionSize,
+    RiskReward,
+    Setup,
+    SetupState,
+)
+
+
+def quote(day: date = date(2026, 8, 21), source: str = "yfinance") -> Quote:
+    return Quote(
+        symbol="TEST",
+        name="测试标的",
+        market="US",
+        trade_date=day,
+        source=source,
+        open=109.0,
+        high=111.0,
+        low=108.0,
+        close=110.3,
+        preclose=109.0,
+        pct_change=1.19,
+        volume=1_000_000,
+        amount=None,
+        turnover_rate=None,
+        currency="USD",
+    )
+
+
+def confirmed_setup() -> Setup:
+    return Setup(
+        setup_type="SETUP_03",
+        state=SetupState.CONFIRMED,
+        breakout_price=110.0,
+        structural_invalidation=90.0,
+        detected_index=0,
+        state_entered_index=0,
+        confirmed_index=0,
+    )
+
+
+def entry_allowed_decision() -> Decision:
+    entry = EntryPlan(110.3, 110.0, 112.0, 110.0, 110.0, "close确认突破")
+    rr = RiskReward(110.3, 107.98, 2.32, (115.44, 122.36), (2.22, 5.2), "NORMAL")
+    position = PositionSize(1000.0, 110.3, 107.98, 2.32, 431.034, 1000.0)
+    return Decision(
+        DecisionAction.ENTRY_ALLOWED,
+        entry,
+        90.0,
+        107.98,
+        (115.44, 122.36),
+        rr,
+        position,
+    )
+
+
+class DecisionParameterTests(unittest.TestCase):
+    def test_snapshot_sources_are_not_qfq_history_sources(self):
+        self.assertEqual(QFQ_HISTORY_SOURCES, {"BaoStock", "yfinance"})
+        self.assertNotIn("Tencent", QFQ_HISTORY_SOURCES)
+        self.assertNotIn("Sina", QFQ_HISTORY_SOURCES)
+
+    def test_all_parameters_are_read_explicitly(self):
+        config = {
+            "setup_swing_lookback": "5",
+            "setup_platform_window": "40",
+            "setup_platform_tolerance_pct": "0%",
+            "setup_arm_proximity_pct": "0%",
+            "decision_swing_lookback": "5",
+            "decision_atr_period": "14",
+            "decision_atr_buffer": "0.5",
+            "decision_max_chase_atr": "0.5",
+            "decision_risk_capital": "1000",
+        }
+        setup, decision, risk_capital = trading_parameters(config)
+        self.assertEqual(
+            setup,
+            {
+                "swing_lookback": 5,
+                "platform_window": 40,
+                "platform_tolerance_pct": 0.0,
+                "arm_proximity_pct": 0.0,
+            },
+        )
+        self.assertEqual(
+            decision,
+            {
+                "swing_lookback": 5,
+                "atr_period": 14,
+                "atr_buffer": 0.5,
+                "max_chase_atr": 0.5,
+            },
+        )
+        self.assertEqual(risk_capital, 1000.0)
+
+    def test_missing_decision_parameter_fails_fast(self):
+        with self.assertRaisesRegex(ValueError, "setup_swing_lookback"):
+            trading_parameters({})
+
+
+class DecisionGateTests(unittest.TestCase):
+    @patch("main.detect_platform_breakout")
+    @patch("main.decide_platform_breakout")
+    def test_unconfirmed_close_does_not_call_core(self, decide, detect):
+        result, note = evaluate_set03_decision(
+            [quote()], date(2026, 8, 21), False, 1000.0, {}, {}
+        )
+        self.assertIsNone(result)
+        self.assertIn("尚非正式收盘", note)
+        detect.assert_not_called()
+        decide.assert_not_called()
+
+    @patch("main.detect_platform_breakout")
+    @patch("main.decide_platform_breakout")
+    def test_stale_qfq_does_not_call_core(self, decide, detect):
+        result, note = evaluate_set03_decision(
+            [quote(date(2026, 8, 20))], date(2026, 8, 21), True, 1000.0, {}, {}
+        )
+        self.assertIsNone(result)
+        self.assertIn("不一致", note)
+        detect.assert_not_called()
+        decide.assert_not_called()
+
+    @patch("main.detect_platform_breakout")
+    @patch("main.decide_platform_breakout")
+    def test_valid_gate_passes_every_explicit_parameter(self, decide, detect):
+        setup = confirmed_setup()
+        decision = entry_allowed_decision()
+        detect.return_value = setup
+        decide.return_value = decision
+        setup_parameters = {"swing_lookback": 5, "platform_window": 40}
+        decision_parameters = {"atr_period": 14, "atr_buffer": 0.5}
+
+        result, note = evaluate_set03_decision(
+            [quote()],
+            date(2026, 8, 21),
+            True,
+            1000.0,
+            setup_parameters,
+            decision_parameters,
+        )
+
+        self.assertEqual(result, (setup, decision, date(2026, 8, 21)))
+        self.assertEqual(note, "")
+        detect.assert_called_once_with([quote()], **setup_parameters)
+        decide.assert_called_once_with(
+            [quote()], setup, 1000.0, **decision_parameters
+        )
+
+
+class DecisionRowTests(unittest.TestCase):
+    def test_entry_allowed_is_projected_without_recalculation(self):
+        fetched_at = datetime(2026, 8, 22, 18, 0)
+        row = decision_row(
+            quote(),
+            confirmed_setup(),
+            entry_allowed_decision(),
+            fetched_at,
+            date(2026, 8, 21),
+            1000.0,
+            "YahooChart",
+        )
+        self.assertEqual(set(row), set(DECISION_HEADERS))
+        self.assertEqual(row["决策动作"], "ENTRY_ALLOWED")
+        self.assertEqual(row["计划入场"], 110.3)
+        self.assertEqual(row["执行止损"], 107.98)
+        self.assertEqual(row["T1"], 115.44)
+        self.assertEqual(row["T1_RR"], 2.22)
+        self.assertEqual(row["风险资本"], 1000.0)
+        self.assertEqual(row["数据源"], "YahooChart")
+        self.assertEqual(row["确认日期"], date(2026, 8, 21))
+
+    def test_no_trade_keeps_optional_fields_empty(self):
+        decision = Decision(
+            DecisionAction.NO_TRADE, None, None, None, (), None, None
+        )
+        row = decision_row(
+            quote(),
+            Setup("SETUP_03", SetupState.NONE),
+            decision,
+            datetime(2026, 8, 22, 18, 0),
+            None,
+            1000.0,
+            "yfinance",
+        )
+        self.assertIsNone(row["计划入场"])
+        self.assertIsNone(row["T1"])
+        self.assertIsNone(row["T1_RR"])
+        self.assertIsNone(row["理论数量"])
+
+
+class DecisionSheetUpsertTests(unittest.TestCase):
+    def test_decision_upsert_replaces_same_key_and_keeps_other_dates(self):
+        client = object.__new__(SheetsClient)
+        existing = [
+            {"统一代码": "TEST", "交易日期": "2026-08-21", "Setup类型": "SETUP_03", "决策动作": "WATCH"},
+            {"统一代码": "TEST", "交易日期": "2026-08-20", "Setup类型": "SETUP_03", "决策动作": "NO_TRADE"},
+        ]
+        client.records = Mock(return_value=existing)
+        client._replace = Mock()
+        incoming = {
+            "统一代码": "TEST",
+            "交易日期": "2026-08-21",
+            "Setup类型": "SETUP_03",
+            "决策动作": "ENTRY_ALLOWED",
+        }
+
+        changed = client.upsert_decisions([incoming])
+
+        self.assertEqual(changed, 1)
+        client._replace.assert_called_once()
+        sheet_name, headers, rows = client._replace.call_args.args
+        self.assertEqual(sheet_name, "交易决策")
+        self.assertEqual(headers, DECISION_HEADERS)
+        self.assertEqual(len(rows), 2)
+        current = next(row for row in rows if row["交易日期"] == "2026-08-21")
+        self.assertEqual(current["决策动作"], "ENTRY_ALLOWED")
+
+
+class DecisionPipelineTests(unittest.TestCase):
+    def test_real_entry_allowed_chain_projects_to_sheet(self):
+        closes = [
+            90, 94, 98, 102, 106, 110, 106, 102, 98, 94, 90,
+            94, 98, 102, 106, 110, 106, 102, 98, 94, 90,
+            94, 98, 102, 106, 110, 106, 104, 110.3,
+        ]
+        start = date(2026, 1, 1)
+        quotes = [
+            replace(
+                quote(start + timedelta(days=index)),
+                open=close,
+                high=close,
+                low=close,
+                close=close,
+            )
+            for index, close in enumerate(closes)
+        ]
+        result, note = evaluate_set03_decision(
+            quotes,
+            quotes[-1].trade_date,
+            True,
+            1000.0,
+            {
+                "swing_lookback": 2,
+                "platform_window": 40,
+                "platform_tolerance_pct": 0.0,
+                "arm_proximity_pct": 0.0,
+            },
+            {
+                "swing_lookback": 2,
+                "atr_period": 14,
+                "atr_buffer": 0.5,
+                "max_chase_atr": 0.5,
+            },
+        )
+        self.assertEqual(note, "")
+        setup, decision, confirmed_date = result
+        row = decision_row(
+            quotes[-1],
+            setup,
+            decision,
+            datetime(2026, 2, 1, 18, 0),
+            confirmed_date,
+            1000.0,
+            "yfinance",
+        )
+        self.assertEqual(row["决策动作"], "ENTRY_ALLOWED")
+        self.assertAlmostEqual(row["计划入场"], 110.3)
+        self.assertAlmostEqual(row["T1"], 115.44)
+        self.assertGreater(row["T1_RR"], 2.0)
+        self.assertIsNotNone(row["理论数量"])
+
+    @patch("main.market_close_confirmed", return_value=True)
+    @patch("main.expected_latest_trade_date", return_value=date(2026, 8, 21))
+    @patch("main.beijing_now", return_value=datetime(2026, 8, 22, 18, 0))
+    @patch("providers.fetch_with_retry")
+    @patch("sheets_client.SheetsClient")
+    def test_run_uses_explicit_history_source_for_qfq(
+        self, client_class, fetch, _now, _expected_date, _confirmed
+    ):
+        config = {
+            "history_days": "1000",
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+            "write_adjusted": "true",
+            "setup_swing_lookback": "5",
+            "setup_platform_window": "40",
+            "setup_platform_tolerance_pct": "0",
+            "setup_arm_proximity_pct": "0",
+            "decision_swing_lookback": "5",
+            "decision_atr_period": "14",
+            "decision_atr_buffer": "0.5",
+            "decision_max_chase_atr": "0.5",
+            "decision_risk_capital": "1000",
+        }
+        watch = {
+            "启用": True,
+            "市场": "US",
+            "主数据源": "yfinance",
+            "校验数据源": "BaoStock",
+            "历史数据源": "yfinance",
+            "时区": "America/New_York",
+            "收盘时间": "16:00",
+            "统一代码": "TEST",
+        }
+        client = client_class.return_value
+        client.config.return_value = config
+        client.records.return_value = [watch]
+        client.upsert_latest.return_value = 0
+        client.upsert_history.return_value = 0
+        client.upsert_decisions.return_value = 1
+
+        def fetch_result(source, _watch, adjustment, *_args, **_kwargs):
+            if adjustment == "qfq":
+                return [quote(source=source)]
+            return [quote(source=source)]
+
+        fetch.side_effect = fetch_result
+
+        run("us")
+
+        qfq_calls = [call for call in fetch.call_args_list if call.args[2] == "qfq"]
+        self.assertEqual(len(qfq_calls), 1)
+        self.assertEqual(qfq_calls[0].args[0], "yfinance")
+        self.assertNotIn(qfq_calls[0].args[0], {"Tencent", "Sina"})
+        decision_rows = client.upsert_decisions.call_args.args[0]
+        self.assertEqual(len(decision_rows), 1)
+        self.assertEqual(decision_rows[0]["数据源"], "yfinance")
+
+
+if __name__ == "__main__":
+    unittest.main()

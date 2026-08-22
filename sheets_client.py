@@ -78,6 +78,14 @@ class SheetsClient:
     def upsert_history(self, sheet_name: str, rows: Iterable[dict]) -> int:
         return self._upsert(sheet_name, HISTORY_HEADERS, rows, ("统一代码", "交易日期"))
 
+    def upsert_decisions(self, rows: Iterable[dict]) -> int:
+        return self._upsert(
+            "交易决策",
+            DECISION_HEADERS,
+            rows,
+            ("统一代码", "交易日期", "Setup类型"),
+        )
+
     def append_rows(self, sheet_name: str, headers: list[str], rows: Iterable[dict]) -> int:
         values = [[self._clean(row.get(header)) for header in headers] for row in rows]
         if values:
@@ -97,3 +105,10 @@ LATEST_HEADERS = ["统一代码", "名称", "市场", "交易日期", "抓取时
 HISTORY_HEADERS = ["统一代码", "名称", "市场", "交易日期", "复权方式", "数据源", "开盘", "最高", "最低", "收盘", "昨收", "涨跌幅", "成交量", "成交额", "换手率", "币种", "抓取时间"]
 VALIDATION_HEADERS = ["抓取时间", "统一代码", "交易日期", "主数据源", "校验数据源", "主源收盘", "校验源收盘", "收盘价差异", "主源成交量", "校验源成交量", "成交量差异", "日期一致", "价格通过", "成交量通过", "校验状态", "说明"]
 LOG_HEADERS = ["运行时间", "任务组", "市场", "统一代码", "执行状态", "新增／更新行数", "消息"]
+DECISION_HEADERS = [
+    "统一代码", "交易日期", "Setup类型", "名称", "市场", "币种", "决策时间",
+    "Setup状态", "确认日期", "决策动作", "计划入场", "入场区间下沿",
+    "入场区间上沿", "试探入场", "确认入场", "确认条件", "结构失效价",
+    "执行止损", "每股风险", "T1", "T2", "T3", "T1_RR", "RR质量",
+    "风险资本", "理论数量", "最大损失", "数据源", "数据序列", "写入时间",
+]

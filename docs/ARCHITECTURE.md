@@ -23,10 +23,16 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     quote_sanity_issue(chosen)                      [core]
     fresher_quote(primary, verifier)                [core]
     select_history_series(...)                      [main]
+    fetch_with_retry(历史数据源, "qfq")             [providers]
+        → 仅 yfinance / BaoStock；不使用快照源
+    confirmed close + qfq末日一致                    [main gate]
+        → detect_platform_breakout()                 [trading.setup]
+        → decide_platform_breakout()                 [trading.decision]
         ↓
     SheetsClient.upsert_latest("最新行情")
     SheetsClient.upsert_history("历史行情_未复权")
     SheetsClient.upsert_history("历史行情_前复权")
+    SheetsClient.upsert_decisions("交易决策")
     SheetsClient.append_rows("校验记录")
     SheetsClient.append_rows("运行日志")
 ```
@@ -76,9 +82,9 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ### sheets_client.py
 
 - `SheetsClient`：gspread 封装，凭证来自环境变量 `GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`
-- `records()` / `config()` / `upsert_latest()` / `upsert_history()` / `append_rows()`
+- `records()` / `config()` / `upsert_latest()` / `upsert_history()` / `upsert_decisions()` / `append_rows()`
 - `_clean()`：datetime → Google Sheets 数值（北京时间序列号）
-- 各表表头常量：`LATEST_HEADERS` / `HISTORY_HEADERS` / `VALIDATION_HEADERS` / `LOG_HEADERS`
+- 各表表头常量：`LATEST_HEADERS` / `HISTORY_HEADERS` / `DECISION_HEADERS` / `VALIDATION_HEADERS` / `LOG_HEADERS`
 - 依赖：标准库；gspread / google-auth 惰性导入
 
 ### main.py
@@ -87,7 +93,9 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `run(group)`：编排整个流水线
 - `wanted_markets_for_group()`：任务组 → 市场集合
 - `as_ratio()` / `as_bool()`：解析 Google Sheets 配置
-- `quote_row()` / `select_history_series()`：组装写入行
+- `quote_row()` / `decision_row()`：纯展示映射，不重算 Trading Core 逻辑
+- `evaluate_set03_decision()`：正式收盘 + qfq 末日一致双门控后调用 Trading Core
+- `trading_parameters()`：从 `参数设置` 读取全部 Setup/Decision 参数，缺失时 fail fast
 - 依赖：core；providers / sheets_client 惰性导入
 
 ## Google Sheets 各表（真实存在）
@@ -98,9 +106,14 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 | `最新行情` | 每标的最近一条未复权日线 | 写（upsert，键=统一代码） |
 | `历史行情_未复权` | 最新价格、成交量、缺口分析 | 写（upsert，键=统一代码+交易日期） |
 | `历史行情_前复权` | 均线、波浪、斐波那契分析 | 写（upsert） |
+| `交易决策` | SETUP_03 Decision 展示与历史留存 | 写（upsert，键=统一代码+交易日期+Setup类型） |
 | `校验记录` | 两源逐次比对结果 | 追加 |
 | `运行日志` | 任务时间、状态、错误 | 追加 |
-| `参数设置` | 容差、历史长度等参数 | 读（history_days、retry_count、retry_wait_seconds、close_tolerance_pct、volume_tolerance_pct、write_adjusted） |
+| `参数设置` | 容差、历史长度、Setup/Decision 显式参数 | 读 |
+
+`参数设置` 必须显式提供以下 Trading Core 参数；值保持当前规则基线，不在 Phase 4 调参：
+
+`setup_swing_lookback=5`、`setup_platform_window=40`、`setup_platform_tolerance_pct=0`、`setup_arm_proximity_pct=0`、`decision_swing_lookback=5`、`decision_atr_period=14`、`decision_atr_buffer=0.5`、`decision_max_chase_atr=0.5`、`decision_risk_capital=<显式风险资本>`。
 
 ### 自选清单 现有列映射（Known Issue）
 
@@ -112,6 +125,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 | 市场 | main.py `watch.get("市场")` |
 | 主数据源 | main.py / providers.py |
 | 校验数据源 | main.py / providers.py |
+| 历史数据源 | main.py qfq 历史与 Decision；仅允许 yfinance / BaoStock |
 | 时区 | main.py `watch["时区"]` |
 | 收盘时间 | main.py `watch["收盘时间"]` |
 | 统一代码 | providers.py 符号转换基准 |
@@ -121,7 +135,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 | yfinance代码 | providers.py `fetch_yfinance` |
 | AKShare代码 | providers.py（仅遗留符号回退，不触发网络请求） |
 
-> 注：代码中无 `总览` 表读写逻辑；如需该表需先核实真实 Google Sheets 结构再决定是否接入（Known Issue）。
+> `历史数据源` 是新增的显式列，不得复用或猜测 A:O 中未核实列的含义。`交易决策` worksheet 与固定表头需在生产启用前预先创建。代码中仍无 `总览` 表读写逻辑。
 
 ## GitHub Actions
 

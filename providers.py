@@ -413,6 +413,10 @@ PROVIDERS: dict[str, Callable[[dict, str, date, date], list[Quote]]] = {
     "yfinance": fetch_yfinance,
 }
 
+# Only these configured sources provide historical qfq bars. YahooChart remains
+# an internal qfq-capable fallback behind the yfinance provider.
+QFQ_HISTORY_SOURCES = frozenset({"BaoStock", "yfinance"})
+
 
 def _configured_source_candidates(source: str, market: str, adjust: str) -> list[str]:
     # Existing Sheets may still name AKShare. Treat it only as a deprecated

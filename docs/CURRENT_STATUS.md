@@ -19,6 +19,7 @@ V0.2
 - Phase 1 hardening + repaint 修复（已合并）：补测试缺口 + swing 状态机修复 confirmed repaint，全量 83/83 通过
 - Phase 2 SETUP_03 Platform Breakout（已合并到 main）：`setup.py` 状态机（NONE/WATCH⇄ARMED/CONFIRMED/FAILED）+ `Setup` 数据模型，平台边界一致性 + terminal lock + 直接突破；全量 93/93 通过
 - Phase 3 Decision Engine（SETUP_03 最小闭环，PR #9 已合并到 main）：Entry → Structural Invalidation → Execution Stop → Target → R/R → Position Size → Decision Action；future Setup 防泄漏 + 真实 ENTRY_ALLOWED 回归案例；全量 104/104 通过
+- Phase 4 第一批：SETUP_03 Decision 只读投影到 `交易决策` 表；正式收盘 + qfq 日期双门控、显式历史源与参数透传；全量 115/115 通过
 
 ## In Progress
 
@@ -26,7 +27,7 @@ V0.2
 
 ## Next
 
-- Phase 4：Google Sheets Decision Tables
+- Phase 4 生产启用：预创建 `交易决策` 表头、`历史数据源` 列与 9 个显式参数后做首轮验证
 - SETUP_01/02：暂待 Wave Engine（Phase 5）
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）
@@ -37,4 +38,4 @@ V0.2
 - 日股 (JP)、瑞典股 (SE) 无校验源，只能「单源可用」
 - 项目为扁平模块结构，交易决策模块增多后需渐进模块化
 - **`总览` 表无读写逻辑**：需先核实真实 Google Sheets 结构再决定是否接入，不擅自补逻辑
-- **`自选清单` 为 A:O（15 列）**，代码只消费其中 12 列（启用/市场/主数据源/校验数据源/时区/收盘时间/统一代码/名称/币种/BaoStock代码/yfinance代码/AKShare代码）；未消费列含义未核实，禁止猜测。列映射详见 `ARCHITECTURE.md`
+- **`自选清单` 现有 A:O 未消费列含义仍未核实**；Phase 4 使用新增的明确表头 `历史数据源`，不得复用或猜测旧列。列映射详见 `ARCHITECTURE.md`
