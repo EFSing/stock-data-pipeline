@@ -20,7 +20,7 @@ V0.2
 - Phase 2 SETUP_03 Platform Breakout（已合并到 main）：`setup.py` 状态机（NONE/WATCH⇄ARMED/CONFIRMED/FAILED）+ `Setup` 数据模型，平台边界一致性 + terminal lock + 直接突破；全量 93/93 通过
 - Phase 3 Decision Engine（SETUP_03 最小闭环，PR #9 已合并到 main）：Entry → Structural Invalidation → Execution Stop → Target → R/R → Position Size → Decision Action；future Setup 防泄漏 + 真实 ENTRY_ALLOWED 回归案例；全量 104/104 通过
 - Phase 4 第一批：SETUP_03 Decision 只读投影到 `交易决策` 表；正式收盘 + qfq 日期双门控、显式历史源、参数透传与单标的异常隔离；全量 116/116 通过
-- Phase 5A：SETUP_03 Historical Replay & Diagnostics（只读）：`trading/replay.py` 按历史交易日前缀 `quotes[:i+1]` 严格 as-of 回放，复用现有 Setup / Decision Engine，输出每标的 NONE/WATCH/ARMED/CONFIRMED/FAILED 次数与日期，并统计 CONFIRMED 日 Decision 动作；新增无未来数据泄漏 unittest；全量 120/120 通过
+- Phase 5A：SETUP_03 Historical Replay & Diagnostics（只读）：`trading/replay.py` 按历史交易日前缀 `quotes[:i+1]` 严格 as-of 回放，复用现有 Setup / Decision Engine，明确区分状态日与 CONFIRMED/FAILED 事件，仅在 CONFIRMED 事件日运行 Decision；新增 workflow_dispatch-only 真实前复权回放 workflow（只读 artifact，不写生产 Sheet）；全量 122/122 通过
 
 ## In Progress
 
@@ -28,7 +28,6 @@ V0.2
 
 ## Next
 
-- Phase 4 生产启用：预创建 `交易决策` 表头、`历史数据源` 列与 9 个显式参数后做首轮验证
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）

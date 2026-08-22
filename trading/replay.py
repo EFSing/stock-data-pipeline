@@ -30,6 +30,8 @@ class ReplayDay:
     symbol: str
     trade_date: date
     setup_state: SetupState
+    confirmed_event: bool = False
+    failed_event: bool = False
     decision_action: DecisionAction | None = None
 
 
@@ -38,8 +40,10 @@ class SymbolReplayReport:
     symbol: str
     market: str
     days: tuple[ReplayDay, ...]
-    setup_counts: dict[SetupState, int] = field(default_factory=dict)
-    setup_dates: dict[SetupState, tuple[date, ...]] = field(default_factory=dict)
+    state_day_counts: dict[SetupState, int] = field(default_factory=dict)
+    state_dates: dict[SetupState, tuple[date, ...]] = field(default_factory=dict)
+    confirmed_event_dates: tuple[date, ...] = ()
+    failed_event_dates: tuple[date, ...] = ()
     decision_counts: dict[DecisionAction, int] = field(default_factory=dict)
     decision_dates: dict[DecisionAction, tuple[date, ...]] = field(default_factory=dict)
 
@@ -51,11 +55,15 @@ class SymbolReplayReport:
             "回放交易日数": len(self.days),
         }
         for state in REPLAY_SETUP_STATES:
-            row[f"{state.value}次数"] = self.setup_counts.get(state, 0)
-            row[f"{state.value}日期"] = _join_dates(self.setup_dates.get(state, ()))
+            row[f"{state.value}状态日数"] = self.state_day_counts.get(state, 0)
+            row[f"{state.value}状态日期"] = _join_dates(self.state_dates.get(state, ()))
+        row["CONFIRMED事件次数"] = len(self.confirmed_event_dates)
+        row["CONFIRMED事件日期"] = _join_dates(self.confirmed_event_dates)
+        row["FAILED事件次数"] = len(self.failed_event_dates)
+        row["FAILED事件日期"] = _join_dates(self.failed_event_dates)
         for action in (DecisionAction.ENTRY_ALLOWED, DecisionAction.NO_TRADE):
-            row[f"{action.value}次数"] = self.decision_counts.get(action, 0)
-            row[f"{action.value}日期"] = _join_dates(
+            row[f"{action.value}事件次数"] = self.decision_counts.get(action, 0)
+            row[f"{action.value}事件日期"] = _join_dates(
                 self.decision_dates.get(action, ())
             )
         other_actions = [
@@ -89,31 +97,49 @@ def replay_setup03_history(
     validate_quote_series(quotes)
     setup_parameters = dict(setup_parameters or {})
     decision_parameters = dict(decision_parameters or {})
-    setup_dates: dict[SetupState, list[date]] = {
+    state_dates: dict[SetupState, list[date]] = {
         state: [] for state in REPLAY_SETUP_STATES
     }
+    confirmed_event_dates: list[date] = []
+    failed_event_dates: list[date] = []
     decision_dates: dict[DecisionAction, list[date]] = {}
     days: list[ReplayDay] = []
 
     for index, quote in enumerate(quotes):
         as_of_quotes = quotes[: index + 1]
         setup = detect_platform_breakout(as_of_quotes, **setup_parameters)
-        setup_dates[setup.state].append(quote.trade_date)
+        state_dates[setup.state].append(quote.trade_date)
 
+        confirmed_event = (
+            setup.state is SetupState.CONFIRMED and setup.confirmed_index == index
+        )
+        failed_event = (
+            setup.state is SetupState.FAILED and setup.state_entered_index == index
+        )
         decision_action = None
-        if setup.state is SetupState.CONFIRMED:
+        if confirmed_event:
+            confirmed_event_dates.append(quote.trade_date)
             decision = decide_platform_breakout(
                 as_of_quotes, setup, risk_capital, **decision_parameters
             )
             decision_action = decision.action
             decision_dates.setdefault(decision.action, []).append(quote.trade_date)
+        if failed_event:
+            failed_event_dates.append(quote.trade_date)
 
         days.append(
-            ReplayDay(quotes[0].symbol, quote.trade_date, setup.state, decision_action)
+            ReplayDay(
+                quotes[0].symbol,
+                quote.trade_date,
+                setup.state,
+                confirmed_event,
+                failed_event,
+                decision_action,
+            )
         )
 
-    setup_date_tuples = {
-        state: tuple(dates) for state, dates in setup_dates.items()
+    state_date_tuples = {
+        state: tuple(dates) for state, dates in state_dates.items()
     }
     decision_date_tuples = {
         action: tuple(dates) for action, dates in decision_dates.items()
@@ -122,10 +148,12 @@ def replay_setup03_history(
         symbol=quotes[0].symbol,
         market=quotes[0].market,
         days=tuple(days),
-        setup_counts={
-            state: len(dates) for state, dates in setup_date_tuples.items()
+        state_day_counts={
+            state: len(dates) for state, dates in state_date_tuples.items()
         },
-        setup_dates=setup_date_tuples,
+        state_dates=state_date_tuples,
+        confirmed_event_dates=tuple(confirmed_event_dates),
+        failed_event_dates=tuple(failed_event_dates),
         decision_counts={
             action: len(dates) for action, dates in decision_date_tuples.items()
         },

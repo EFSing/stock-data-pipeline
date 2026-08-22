@@ -1,0 +1,24 @@
+name: SETUP_03 Historical Replay
+
+on:
+  workflow_dispatch:
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run read-only SETUP_03 replay
+        run: python scripts/run_setup03_replay.py
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: setup03-replay
+          path: artifacts/setup03_replay/

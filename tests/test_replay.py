@@ -77,9 +77,9 @@ class Setup03ReplayTests(unittest.TestCase):
         self.assertEqual(pre_breakout.setup_state, SetupState.WATCH)
         self.assertEqual(breakout.setup_state, SetupState.CONFIRMED)
         self.assertEqual(
-            report.setup_dates[SetupState.WATCH][-1], pre_breakout.trade_date
+            report.state_dates[SetupState.WATCH][-1], pre_breakout.trade_date
         )
-        self.assertNotIn(pre_breakout.trade_date, report.setup_dates[SetupState.CONFIRMED])
+        self.assertNotIn(pre_breakout.trade_date, report.confirmed_event_dates)
 
     def test_decision_runs_only_on_confirmed_replay_days(self):
         quotes = ser(self.BASE_H + [115], self.BASE_L + [112])
@@ -97,12 +97,52 @@ class Setup03ReplayTests(unittest.TestCase):
                 decision_parameters={"swing_lookback": 2, "atr_period": 2},
             )
 
-        self.assertEqual(decision_dates, list(report.setup_dates[SetupState.CONFIRMED]))
+        self.assertEqual(decision_dates, list(report.confirmed_event_dates))
         self.assertEqual(
             sum(report.decision_counts.values()),
-            report.setup_counts[SetupState.CONFIRMED],
+            len(report.confirmed_event_dates),
         )
         self.assertEqual(report.decision_counts[DecisionAction.NO_TRADE], 1)
+
+    def test_confirmed_terminal_state_does_not_repeat_confirmed_event(self):
+        quotes = ser(
+            self.BASE_H + [115, 116, 117, 118],
+            self.BASE_L + [112, 113, 114, 115],
+        )
+        decision_dates = []
+
+        def spy_decide(as_of_quotes, setup, risk_capital, **kwargs):
+            decision_dates.append(as_of_quotes[-1].trade_date)
+            return decide_platform_breakout(as_of_quotes, setup, risk_capital, **kwargs)
+
+        with patch("trading.replay.decide_platform_breakout", side_effect=spy_decide):
+            report = replay_setup03_history(
+                quotes,
+                risk_capital=1000.0,
+                setup_parameters={"swing_lookback": 2, "platform_window": 20},
+                decision_parameters={"swing_lookback": 2, "atr_period": 2},
+            )
+
+        self.assertGreaterEqual(report.state_day_counts[SetupState.CONFIRMED], 4)
+        self.assertEqual(len(report.confirmed_event_dates), 1)
+        self.assertEqual(len(decision_dates), 1)
+        self.assertEqual(decision_dates, list(report.confirmed_event_dates))
+
+    def test_failed_terminal_state_does_not_repeat_failed_event(self):
+        quotes = ser(
+            self.BASE_H + [85, 84, 83, 82],
+            self.BASE_L + [82, 81, 80, 79],
+        )
+        report = replay_setup03_history(
+            quotes,
+            risk_capital=1000.0,
+            setup_parameters={"swing_lookback": 2, "platform_window": 20},
+            decision_parameters={"swing_lookback": 2, "atr_period": 2},
+        )
+
+        self.assertGreaterEqual(report.state_day_counts[SetupState.FAILED], 4)
+        self.assertEqual(len(report.failed_event_dates), 1)
+        self.assertEqual(report.failed_event_dates[0], date(2026, 1, 14))
 
     def test_summary_rows_include_counts_and_state_dates_per_symbol(self):
         reports = replay_setup03_symbols(
@@ -117,11 +157,11 @@ class Setup03ReplayTests(unittest.TestCase):
 
         rows = replay_summary_rows(reports.values())
         by_symbol = {row["统一代码"]: row for row in rows}
-        self.assertEqual(by_symbol["A"]["CONFIRMED次数"], 0)
-        self.assertEqual(by_symbol["B"]["CONFIRMED次数"], 1)
-        self.assertIn("2026-01-13", by_symbol["B"]["WATCH日期"])
-        self.assertEqual(by_symbol["B"]["NO_TRADE次数"], 1)
-        self.assertEqual(by_symbol["B"]["ENTRY_ALLOWED次数"], 0)
+        self.assertEqual(by_symbol["A"]["CONFIRMED事件次数"], 0)
+        self.assertEqual(by_symbol["B"]["CONFIRMED事件次数"], 1)
+        self.assertIn("2026-01-13", by_symbol["B"]["WATCH状态日期"])
+        self.assertEqual(by_symbol["B"]["NO_TRADE事件次数"], 1)
+        self.assertEqual(by_symbol["B"]["ENTRY_ALLOWED事件次数"], 0)
 
 
 if __name__ == "__main__":

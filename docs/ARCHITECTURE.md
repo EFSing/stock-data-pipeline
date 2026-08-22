@@ -43,7 +43,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 .
 ├── .github/workflows/
 │   ├── asia-close.yml        # 亚洲收盘任务 (CN/HK/JP)
-│   └── us-close.yml          # 欧美收盘任务 (US/SE)
+│   ├── us-close.yml          # 欧美收盘任务 (US/SE)
+│   └── setup03-replay.yml    # SETUP_03 手动只读历史回放
 ├── .devcontainer/
 │   └── devcontainer.json     # GitHub Codespaces / VS Code Dev Container
 ├── AGENTS.md                 # AI 开发人员项目规则
@@ -52,6 +53,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── main.py                   # CLI 入口与流水线编排
 ├── providers.py              # 行情数据源适配器与回退链
 ├── sheets_client.py          # Google Sheets 客户端与表头定义
+├── scripts/
+│   └── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放 artifact
 ├── trading/                  # Trading Core 与只读诊断
 │   ├── models.py             # 数据模型 + 输入校验
 │   ├── indicators.py         # Wilder ATR / RSI、EMA
@@ -112,8 +115,15 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ### trading/replay.py
 
 - `replay_setup03_history()`：对单标的历史序列逐日回放 SETUP_03，传入 Trading Core 的输入严格为 `quotes[:i+1]`
-- `replay_setup03_symbols()` / `replay_summary_rows()`：输出每标的 NONE/WATCH/ARMED/CONFIRMED/FAILED 次数与具体日期，并统计 CONFIRMED 日上的 Decision 动作
+- `replay_setup03_symbols()` / `replay_summary_rows()`：输出每标的 NONE/WATCH/ARMED/CONFIRMED/FAILED 状态日数与日期、CONFIRMED/FAILED 事件次数与日期，并统计 CONFIRMED 事件日上的 Decision 动作
 - 只读诊断层；不写入 `交易决策` 表，不复制 Swing / Setup / Decision 交易逻辑，不修改生产参数
+
+### scripts/run_setup03_replay.py
+
+- 由 `.github/workflows/setup03-replay.yml` 手动触发
+- 复用 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` secrets 读取 `自选清单` 与 `参数设置`
+- 使用生产参数原值和 `自选清单.历史数据源` 抓取最近 3 年前复权历史
+- 输出 `artifacts/setup03_replay/` CSV artifact；不写任何生产 Sheet
 
 ## Google Sheets 各表（真实存在）
 
@@ -158,6 +168,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
+- `setup03-replay.yml`：仅 `workflow_dispatch`，运行 `python scripts/run_setup03_replay.py`，输出只读 CSV artifact
 - 环境：ubuntu-latest，Python 3.11
 - Secrets：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`
 - 当前 CI **不包含测试步骤**（仅安装依赖并运行 main.py）
