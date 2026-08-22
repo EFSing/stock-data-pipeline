@@ -52,6 +52,16 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── main.py                   # CLI 入口与流水线编排
 ├── providers.py              # 行情数据源适配器与回退链
 ├── sheets_client.py          # Google Sheets 客户端与表头定义
+├── trading/                  # Trading Core 与只读诊断
+│   ├── models.py             # 数据模型 + 输入校验
+│   ├── indicators.py         # Wilder ATR / RSI、EMA
+│   ├── swing.py              # causal pivot 状态机
+│   ├── structure.py          # Market Structure
+│   ├── fibonacci.py          # Fibonacci levels
+│   ├── risk.py               # R/R + Position Size
+│   ├── setup.py              # SETUP_03 Platform Breakout
+│   ├── decision.py           # SETUP_03 Decision Engine
+│   └── replay.py             # SETUP_03 Historical Replay & Diagnostics（只读）
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -98,6 +108,12 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 单标的 Setup/Decision 异常仅写入运行日志，不中断其他标的与行情表写入
 - `trading_parameters()`：从 `参数设置` 读取全部 Setup/Decision 参数，缺失时 fail fast
 - 依赖：core；providers / sheets_client 惰性导入
+
+### trading/replay.py
+
+- `replay_setup03_history()`：对单标的历史序列逐日回放 SETUP_03，传入 Trading Core 的输入严格为 `quotes[:i+1]`
+- `replay_setup03_symbols()` / `replay_summary_rows()`：输出每标的 NONE/WATCH/ARMED/CONFIRMED/FAILED 次数与具体日期，并统计 CONFIRMED 日上的 Decision 动作
+- 只读诊断层；不写入 `交易决策` 表，不复制 Swing / Setup / Decision 交易逻辑，不修改生产参数
 
 ## Google Sheets 各表（真实存在）
 
