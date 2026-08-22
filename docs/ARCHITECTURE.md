@@ -169,10 +169,10 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
 - `setup03-replay.yml`：仅 `workflow_dispatch`，运行 `python scripts/run_setup03_replay.py`，输出只读 CSV artifact
-- `ci.yml`：PR / main push 跑 unittest；`workflow_dispatch` 可选 `run_setup03_replay=true` 作为 PR 合并前的只读回放入口
+- `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11
 - Secrets：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`
-- 当前 CI **不包含测试步骤**（仅安装依赖并运行 main.py）
+- 当前 CI 安装依赖后运行 `python -m unittest discover -s tests -v`
 
 ## 配置文件
 
