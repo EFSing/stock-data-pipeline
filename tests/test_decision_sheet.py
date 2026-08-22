@@ -345,6 +345,82 @@ class DecisionPipelineTests(unittest.TestCase):
         self.assertEqual(len(decision_rows), 1)
         self.assertEqual(decision_rows[0]["数据源"], "yfinance")
 
+    @patch("main.market_close_confirmed", return_value=True)
+    @patch("main.expected_latest_trade_date", return_value=date(2026, 8, 21))
+    @patch("main.beijing_now", return_value=datetime(2026, 8, 22, 18, 0))
+    @patch("providers.fetch_with_retry")
+    @patch("sheets_client.SheetsClient")
+    def test_one_decision_failure_does_not_stop_other_symbols_or_market_writes(
+        self, client_class, fetch, _now, _expected_date, _confirmed
+    ):
+        config = {
+            "history_days": "1000",
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+            "write_adjusted": "true",
+            "setup_swing_lookback": "5",
+            "setup_platform_window": "40",
+            "setup_platform_tolerance_pct": "0",
+            "setup_arm_proximity_pct": "0",
+            "decision_swing_lookback": "5",
+            "decision_atr_period": "14",
+            "decision_atr_buffer": "0.5",
+            "decision_max_chase_atr": "0.5",
+            "decision_risk_capital": "1000",
+        }
+        watches = [
+            {
+                "启用": True,
+                "市场": "US",
+                "主数据源": "yfinance",
+                "校验数据源": "BaoStock",
+                "历史数据源": "yfinance",
+                "时区": "America/New_York",
+                "收盘时间": "16:00",
+                "统一代码": symbol,
+            }
+            for symbol in ("FAIL", "PASS")
+        ]
+        client = client_class.return_value
+        client.config.return_value = config
+        client.records.return_value = watches
+        client.upsert_latest.return_value = 2
+        client.upsert_history.return_value = 2
+        client.upsert_decisions.return_value = 1
+
+        def fetch_result(source, watch, _adjustment, *_args, **_kwargs):
+            return [replace(quote(source=source), symbol=watch["统一代码"])]
+
+        fetch.side_effect = fetch_result
+        successful_result = (
+            confirmed_setup(),
+            entry_allowed_decision(),
+            date(2026, 8, 21),
+        )
+        with patch(
+            "main.evaluate_set03_decision",
+            side_effect=[RuntimeError("broken core input"), (successful_result, "")],
+        ):
+            run("us")
+
+        decision_rows = client.upsert_decisions.call_args.args[0]
+        self.assertEqual(len(decision_rows), 1)
+        self.assertEqual(decision_rows[0]["统一代码"], "PASS")
+
+        latest_rows = client.upsert_latest.call_args.args[0]
+        self.assertEqual({row["统一代码"] for row in latest_rows}, {"FAIL", "PASS"})
+        history_sheets = [call.args[0] for call in client.upsert_history.call_args_list]
+        self.assertEqual(history_sheets, ["历史行情_未复权", "历史行情_前复权"])
+
+        validation_call, log_call = client.append_rows.call_args_list
+        self.assertEqual(validation_call.args[0], "校验记录")
+        self.assertEqual(len(validation_call.args[2]), 2)
+        self.assertEqual(log_call.args[0], "运行日志")
+        self.assertEqual(len(log_call.args[2]), 2)
+        self.assertIn("SETUP_03 Decision失败：broken core input", log_call.args[2][0]["消息"])
+
 
 if __name__ == "__main__":
     unittest.main()

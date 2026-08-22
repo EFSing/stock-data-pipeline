@@ -335,29 +335,33 @@ def run(group: str) -> None:
             ]
             adjusted_rows.extend(adjusted_for_symbol)
 
-        decision_result, decision_note = evaluate_set03_decision(
-            adjusted,
-            chosen.trade_date,
-            confirmed,
-            risk_capital,
-            setup_parameters,
-            decision_parameters,
-        )
-        if decision_result is None:
-            errors.append(decision_note)
-        else:
-            setup, decision, confirmed_date = decision_result
-            decision_rows.append(
-                decision_row(
-                    adjusted[-1],
-                    setup,
-                    decision,
-                    fetched_at,
-                    confirmed_date,
-                    risk_capital,
-                    adjusted[-1].source,
-                )
+        try:
+            decision_result, decision_note = evaluate_set03_decision(
+                adjusted,
+                chosen.trade_date,
+                confirmed,
+                risk_capital,
+                setup_parameters,
+                decision_parameters,
             )
+        except Exception as exc:
+            errors.append(f"SETUP_03 Decision失败：{exc}")
+        else:
+            if decision_result is None:
+                errors.append(decision_note)
+            else:
+                setup, decision, confirmed_date = decision_result
+                decision_rows.append(
+                    decision_row(
+                        adjusted[-1],
+                        setup,
+                        decision,
+                        fetched_at,
+                        confirmed_date,
+                        risk_capital,
+                        adjusted[-1].source,
+                    )
+                )
         log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": displayed_status, "新增／更新行数": len(raw_for_symbol) + len(adjusted_for_symbol), "消息": "；".join(item for item in (*notes, *errors) if item)})
 
     changed = client.upsert_latest(latest_rows)

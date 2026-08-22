@@ -95,6 +95,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `as_ratio()` / `as_bool()`：解析 Google Sheets 配置
 - `quote_row()` / `decision_row()`：纯展示映射，不重算 Trading Core 逻辑
 - `evaluate_set03_decision()`：正式收盘 + qfq 末日一致双门控后调用 Trading Core
+- 单标的 Setup/Decision 异常仅写入运行日志，不中断其他标的与行情表写入
 - `trading_parameters()`：从 `参数设置` 读取全部 Setup/Decision 参数，缺失时 fail fast
 - 依赖：core；providers / sheets_client 惰性导入
 
