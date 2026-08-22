@@ -25,7 +25,9 @@ V0.2
 
 ## Next
 
-- Phase 2：Setup Engine 其余类型（SETUP_01/02/04，详见 `TRADING_SYSTEM_SPEC.md`）
+- Phase 2 下一批：围绕 SETUP_03 的交易决策最小闭环（Entry Candidate → Structural Invalidation → Execution Stop → Target → R/R → Position Size → Decision Action）
+- SETUP_01/02：暂待 Wave Engine（Phase 5）
+- SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）
 
 ## Known Issues

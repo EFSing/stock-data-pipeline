@@ -27,13 +27,11 @@ EXTENSION_RATIOS: dict[str, float] = {
 }
 
 
-def fibonacci_levels(a: SwingPoint, b: SwingPoint) -> FibonacciLevels:
-    """计算 a、b 两个 Swing 端点构成的 Fibonacci 水平。"""
-    if a.kind is b.kind:
-        raise ValueError(f"Fibonacci 需要 HIGH+LOW 两端，收到 {a.kind.value} + {b.kind.value}")
+def fibonacci_levels_from_prices(swing_high: float, swing_low: float) -> FibonacciLevels:
+    """基于数值 high/low 直接计算 Fibonacci 水平。
 
-    swing_high = max(a.price, b.price)
-    swing_low = min(a.price, b.price)
+    供无 SwingPoint 的调用方（如 decision）直接使用；`fibonacci_levels` 亦复用本函数。
+    """
     rng = swing_high - swing_low
     if rng <= 0:
         raise ValueError(
@@ -51,4 +49,15 @@ def fibonacci_levels(a: SwingPoint, b: SwingPoint) -> FibonacciLevels:
         swing_low=swing_low,
         retracements=retracements,
         extensions=extensions,
+    )
+
+
+def fibonacci_levels(a: SwingPoint, b: SwingPoint) -> FibonacciLevels:
+    """计算 a、b 两个 Swing 端点构成的 Fibonacci 水平。"""
+    if a.kind is b.kind:
+        raise ValueError(f"Fibonacci 需要 HIGH+LOW 两端，收到 {a.kind.value} + {b.kind.value}")
+
+    return fibonacci_levels_from_prices(
+        swing_high=max(a.price, b.price),
+        swing_low=min(a.price, b.price),
     )

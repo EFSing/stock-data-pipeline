@@ -138,6 +138,41 @@ class Setup:
     confirmed_index: Optional[int] = None
 
 
+class DecisionAction(str, Enum):
+    """决策动作（最小闭环）。"""
+
+    NO_TRADE = "NO_TRADE"
+    WATCH = "WATCH"
+    WAIT_CONFIRMATION = "WAIT_CONFIRMATION"
+    ENTRY_ALLOWED = "ENTRY_ALLOWED"
+
+
+@dataclass(frozen=True)
+class EntryPlan:
+    """入场计划。
+
+    - planned_entry：V1 用当前 as-of bar close 作为真实决策价格。
+    - entry_zone_low / entry_zone_high：入场区间 [breakout_price, breakout_price + max_chase_atr*ATR]。
+    """
+
+    planned_entry: float
+    entry_zone_low: float
+    entry_zone_high: float
+
+
+@dataclass(frozen=True)
+class Decision:
+    """一笔决策的完整结果。"""
+
+    action: DecisionAction
+    entry_plan: Optional[EntryPlan]
+    structural_invalidation: Optional[float]
+    execution_stop: Optional[float]
+    targets: tuple[float, ...]
+    rr: Optional[RiskReward]
+    position_size: Optional[PositionSize]
+
+
 def validate_quote_series(quotes: list[Quote]) -> None:
     """校验 Trading Core 输入序列；违反约束时 fail fast（抛 ValueError）。
 
