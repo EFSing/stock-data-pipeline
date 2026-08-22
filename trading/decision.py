@@ -6,9 +6,12 @@ ATR，不重复实现（Single Source of Truth）。
 
 关键约束：
 - Target 先独立生成（Swing 前高 + Fib extension），再算 R/R；禁止为满足 R/R 倒推 Target。
-- 多头 Execution Stop = structural_invalidation - atr_buffer * ATR（非 entry - ATR）。
-- planned_entry 用当前 as-of bar close；超 Entry Zone 上沿则 NO_TRADE，不得拿
-  breakout_price 当虚假 Entry 计算 R/R。
+- 多头 Execution Stop = breakout_price - atr_buffer * ATR；Structural Invalidation 保持 platform_low。
+- planned_entry 用当前 as-of bar close；完整执行 Entry Zone 分档：
+  close < inv → NO_TRADE；inv <= close < breakout_price → WAIT_CONFIRMATION；
+  [breakout_price, entry_zone_high] 内才继续算交易；超上沿 → NO_TRADE。
+- 未 CONFIRMED 的 Setup 不得 ENTRY_ALLOWED；CONFIRMED 但 confirmed_index 晚于
+  决策时刻（未来 Setup）不得进入风险计算。
 """
 from __future__ import annotations
 
@@ -91,6 +94,10 @@ def decide_platform_breakout(
     decision_index = n - 1
     planned_entry = float(quotes[-1].close)
 
+    # 未来 Setup：confirmed_index 缺失或晚于决策时刻 → 不得进入风险计算
+    if setup.confirmed_index is None or setup.confirmed_index > decision_index:
+        return Decision(DecisionAction.NO_TRADE, None, None, None, (), None, None)
+
     if swings is None:
         swings = find_swings(quotes, lookback=swing_lookback)
 
@@ -106,12 +113,21 @@ def decide_platform_breakout(
     entry_zone_low = breakout_price
     entry_zone_high = breakout_price + max_chase_atr * atr_value
 
-    # 当前价格超 Entry Zone 上沿 → 追高，NO_TRADE（不拿 breakout_price 虚假入场）
+    # 完整执行 Entry Zone 分档
+    if planned_entry < structural_invalidation:
+        # 跌破结构失效价
+        return Decision(DecisionAction.NO_TRADE, None, None, None, (), None, None)
+    if planned_entry < breakout_price:
+        # 仍在平台内未突破
+        return Decision(
+            DecisionAction.WAIT_CONFIRMATION, None, None, None, (), None, None
+        )
     if planned_entry > entry_zone_high:
+        # 追高，NO_TRADE（不拿 breakout_price 虚假入场）
         return Decision(DecisionAction.NO_TRADE, None, None, None, (), None, None)
 
-    # 多头 Execution Stop = structural_invalidation - atr_buffer * ATR
-    execution_stop = structural_invalidation - atr_buffer * atr_value
+    # 多头 Execution Stop = breakout_price - atr_buffer * ATR
+    execution_stop = breakout_price - atr_buffer * atr_value
 
     # Target candidates：历史前高 + Fib extension，均为候选
     t1_candidate = _t1_swing_high(swings, decision_index, planned_entry)
@@ -134,6 +150,11 @@ def decide_platform_breakout(
         planned_entry=planned_entry,
         entry_zone_low=entry_zone_low,
         entry_zone_high=entry_zone_high,
+        probe_entry=breakout_price,
+        confirmation_entry=breakout_price,
+        confirmation_conditions=(
+            "close 突破 breakout_price 且未追高（close <= entry_zone_high）"
+        ),
     )
 
     rr: RiskReward = risk_reward(planned_entry, execution_stop, targets)

@@ -153,11 +153,17 @@ class EntryPlan:
 
     - planned_entry：V1 用当前 as-of bar close 作为真实决策价格。
     - entry_zone_low / entry_zone_high：入场区间 [breakout_price, breakout_price + max_chase_atr*ATR]。
+    - probe_entry：试探入场价（= breakout_price）。
+    - confirmation_entry：确认入场价（V1 简化 = breakout_price）。
+    - confirmation_conditions：确认条件（文本描述）。
     """
 
     planned_entry: float
     entry_zone_low: float
     entry_zone_high: float
+    probe_entry: float
+    confirmation_entry: float
+    confirmation_conditions: str
 
 
 @dataclass(frozen=True)

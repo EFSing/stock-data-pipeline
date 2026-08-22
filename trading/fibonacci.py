@@ -1,7 +1,8 @@
 """Fibonacci 引擎。
 
-只消费 SwingPoint（不依赖 structure），基于一个明确 Swing（HIGH+LOW 两端）
-计算回撤位与延伸位。
+基于一个明确 Swing（HIGH+LOW 两端）计算回撤位与延伸位，不依赖 structure。
+提供两个入口：`fibonacci_levels_from_prices(high, low)`（直接消费数值）与
+`fibonacci_levels(a, b)`（消费 SwingPoint，内部复用前者）。
 
 - retracement：从 swing_high 向下，price = swing_high - range * ratio。
 - extension：从 swing_low 向上延伸，price = swing_low + range * ratio（ratio > 1）。
