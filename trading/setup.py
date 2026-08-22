@@ -88,6 +88,7 @@ def detect_platform_breakout(
       structural_invalidation（=平台低点）。
     - WATCH → CONFIRMED：close 突破平台高点（> breakout_price），含识别同一 bar 直接突破。
     - WATCH → ARMED：close 逼近平台高点（≥ breakout_price * (1-arm_proximity_pct)）。
+    - ARMED → WATCH：close 回落到逼近阈值以下但未失效（< breakout_price * (1-arm_proximity_pct)）。
     - WATCH/ARMED → FAILED：close 跌破平台低点（< structural_invalidation）。
     - CONFIRMED / FAILED 为当前 Setup 终态；Detector 继续扫描后续新平台。
 
@@ -163,6 +164,10 @@ def detect_platform_breakout(
                 state = SetupState.FAILED
                 state_entered_index = t
                 last_terminal_index = t
+            elif close_t < breakout_price * (1 - arm_proximity_pct):
+                # 回落到逼近阈值以下但未失效 → 降级回 WATCH
+                state = SetupState.WATCH
+                state_entered_index = t
 
     return Setup(
         setup_type="SETUP_03",

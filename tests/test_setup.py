@@ -149,6 +149,21 @@ class PlatformBreakoutTests(unittest.TestCase):
         self.assertEqual(s.detected_index, 12)
         self.assertEqual(s.confirmed_index, 13)
 
+    def test_armed_downgrades_to_watch(self):
+        """先逼近阻力进入 ARMED，再回落但不失效 → 降级回 WATCH。"""
+        # arm_proximity_pct=0.05：逼近阈值 = 110*0.95 = 104.5
+        # close@13 = (108+106)/2 = 107 >= 104.5 → ARMED
+        # close@14 = (100+98)/2 = 99 < 104.5 且 > 90 → 降级 WATCH
+        s = detect_platform_breakout(
+            ser(self.BASE_H + [108, 100], self.BASE_L + [106, 98]),
+            swing_lookback=2,
+            platform_window=20,
+            arm_proximity_pct=0.05,
+        )
+        self.assertEqual(s.state, SetupState.WATCH)
+        self.assertEqual(s.breakout_price, 110.0)
+        self.assertEqual(s.structural_invalidation, 90.0)
+
 
 if __name__ == "__main__":
     unittest.main()
