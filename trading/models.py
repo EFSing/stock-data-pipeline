@@ -104,6 +104,40 @@ class PositionSize:
     max_loss: float
 
 
+class SetupState(str, Enum):
+    """Setup 生命周期状态（Phase 2 只做到 FAILED 为止）。
+
+    ACTIVE / COMPLETED 属于后续交易生命周期，不在本阶段实现。
+    """
+
+    NONE = "NONE"
+    WATCH = "WATCH"
+    ARMED = "ARMED"
+    CONFIRMED = "CONFIRMED"
+    FAILED = "FAILED"
+
+
+@dataclass(frozen=True)
+class Setup:
+    """一个 Setup 候选（Phase 2 目前仅 SETUP_03 Platform Breakout）。
+
+    - breakout_price：突破触发价（= 平台高点 platform_high）。
+    - structural_invalidation：结构失效价（= 平台低点 platform_low）。
+    - detected_index：平台被识别（进入 WATCH）的 bar index。
+    - state_entered_index：进入当前 state 的 bar index。
+    - confirmed_index：突破确认（进入 CONFIRMED）的 bar index。
+    Phase 2 暂不输出 execution_stop / entry / target。
+    """
+
+    setup_type: str
+    state: SetupState
+    breakout_price: Optional[float] = None
+    structural_invalidation: Optional[float] = None
+    detected_index: Optional[int] = None
+    state_entered_index: Optional[int] = None
+    confirmed_index: Optional[int] = None
+
+
 def validate_quote_series(quotes: list[Quote]) -> None:
     """校验 Trading Core 输入序列；违反约束时 fail fast（抛 ValueError）。
 
