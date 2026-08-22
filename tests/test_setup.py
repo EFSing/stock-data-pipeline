@@ -43,7 +43,6 @@ class PlatformBreakoutTests(unittest.TestCase):
     BREAKDOWN_L = [92, 89, 85, 82]
 
     def test_no_setup_without_platform(self):
-        # 单边上涨，无横盘平台
         highs = [100, 105, 110, 115, 120, 125, 130, 135, 140]
         lows = [95, 100, 105, 110, 115, 120, 125, 130, 135]
         s = detect_platform_breakout(ser(highs, lows), swing_lookback=2, platform_window=20)
@@ -101,20 +100,54 @@ class PlatformBreakoutTests(unittest.TestCase):
         )
         self.assertEqual(s.state, SetupState.WATCH)
 
-    def test_boundary_tolerance_relaxes_breakout(self):
-        # close 突破到 112（介于 110 与 110*1.05=115.5 之间）
-        highs = self.BASE_H + [114, 114]
-        lows = self.BASE_L + [110, 110]
-        # tolerance=0：112 > 110 → 突破 CONFIRMED
-        s0 = detect_platform_breakout(
-            ser(highs, lows), swing_lookback=2, platform_window=20, boundary_tolerance=0.0
+    def test_expansion_not_platform(self):
+        """扩张（HH+LL）虽判为 TRANSITION，但高低点离散度超容差，不视为平台。"""
+        highs = [100, 105, 110, 105, 100, 105, 120, 105, 100, 105, 120, 105, 100]
+        lows = [90, 95, 100, 95, 90, 95, 100, 95, 80, 95, 100, 95, 90]
+        s = detect_platform_breakout(
+            ser(highs, lows),
+            swing_lookback=2,
+            platform_window=30,
+            platform_tolerance_pct=0.05,
         )
-        self.assertEqual(s0.state, SetupState.CONFIRMED)
-        # tolerance=0.05：需 close > 115.5 才突破，112 未达 → 保持 ARMED
-        s1 = detect_platform_breakout(
-            ser(highs, lows), swing_lookback=2, platform_window=20, boundary_tolerance=0.05
+        self.assertEqual(s.state, SetupState.NONE)
+
+    def test_new_platform_after_failed(self):
+        """旧 FAILED 后出现新平台突破，最终返回新 CONFIRMED（不重复识别旧平台）。"""
+        # 平台1（110/90）→ 跌破 FAILED → 平台2（90/60）→ 突破
+        highs = (
+            self.BASE_H
+            + self.BREAKDOWN_H
+            + [80, 85, 90, 85, 80, 85, 90, 85, 80, 85, 90, 85, 80]
+            + [95, 98, 100]
         )
-        self.assertEqual(s1.state, SetupState.ARMED)
+        lows = (
+            self.BASE_L
+            + self.BREAKDOWN_L
+            + [60, 65, 70, 65, 60, 65, 70, 65, 60, 65, 70, 65, 60]
+            + [92, 95, 97]
+        )
+        s = detect_platform_breakout(
+            ser(highs, lows),
+            swing_lookback=2,
+            platform_window=20,
+            platform_tolerance_pct=0.05,
+        )
+        self.assertEqual(s.state, SetupState.CONFIRMED)
+        # 新平台的 breakout = 平台2 高点 90，detected 晚于平台1 的 detected(12)
+        self.assertEqual(s.breakout_price, 90.0)
+        self.assertGreater(s.detected_index, 12)
+
+    def test_direct_breakout_confirmed(self):
+        """WATCH 后单根 bar 直接突破，confirmed_index 即突破 bar index（不经 ARM 延迟）。"""
+        s = detect_platform_breakout(
+            ser(self.BASE_H + [115], self.BASE_L + [112]),
+            swing_lookback=2,
+            platform_window=20,
+        )
+        self.assertEqual(s.state, SetupState.CONFIRMED)
+        self.assertEqual(s.detected_index, 12)
+        self.assertEqual(s.confirmed_index, 13)
 
 
 if __name__ == "__main__":
