@@ -17,6 +17,7 @@ V0.2
 - CI Test Gate：`.github/workflows/ci.yml`，PR 与 main push 自动跑 unittest
 - Trading Core Phase 1（`trading/` 包，已合并到 main）：models（数据模型 + 输入校验）/ indicators（Wilder ATR·RSI·EMA）/ swing（causal pivot 状态机 + PROVISIONAL·CONFIRMED）/ structure（Market Structure）/ fibonacci / risk（R&R + Position Size）
 - Phase 1 hardening + repaint 修复（已合并）：补测试缺口 + swing 状态机修复 confirmed repaint，全量 83/83 通过
+- Phase 2 SETUP_03 Platform Breakout（已合并到 main）：`setup.py` 状态机（NONE/WATCH⇄ARMED/CONFIRMED/FAILED）+ `Setup` 数据模型，平台边界一致性 + terminal lock + 直接突破；全量 93/93 通过
 
 ## In Progress
 
@@ -24,7 +25,7 @@ V0.2
 
 ## Next
 
-- Phase 2：Setup Engine（详见 `TRADING_SYSTEM_SPEC.md` 开发优先级）
+- Phase 2：Setup Engine 其余类型（SETUP_01/02/04，详见 `TRADING_SYSTEM_SPEC.md`）
 - 迁移测试框架到 pytest（可选，当前明确不做）
 
 ## Known Issues
