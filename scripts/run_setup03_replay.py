@@ -11,9 +11,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core import expected_latest_trade_date
+from core import Quote, expected_latest_trade_date
 from main import as_bool, beijing_now, trading_parameters
 from providers import QFQ_HISTORY_SOURCES, fetch_with_retry
+from research.backtest.setup03 import (
+    ExecutionStatus,
+    parameter_sensitivity_rows,
+    research_trade_outcomes,
+)
 from sheets_client import SheetsClient
 from trading.models import DecisionAction, SetupState
 from trading.replay import (
@@ -27,10 +32,16 @@ OUTPUT_DIR = Path("artifacts") / "setup03_replay"
 SUMMARY_PATH = OUTPUT_DIR / "setup03_replay_summary.csv"
 SKIPPED_PATH = OUTPUT_DIR / "setup03_replay_skipped.csv"
 EVENTS_PATH = OUTPUT_DIR / "setup03_replay_events.csv"
+OUTCOMES_PATH = OUTPUT_DIR / "setup03_trade_outcomes.csv"
+SENSITIVITY_PATH = OUTPUT_DIR / "setup03_parameter_sensitivity.csv"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
     "事件类型",
+    "signal_date",
+    "confirmed_date",
+    "signal_close",
+    "ATR",
     "Setup状态",
     "detected_index",
     "state_entered_index",
@@ -42,9 +53,60 @@ EVENT_HEADERS = [
     "执行止损",
     "T1",
     "T1_RR",
+    "T2",
+    "T2_RR",
+    "T3",
+    "T3_RR",
     "历史数据源",
     "参数版本",
     "参数快照",
+]
+OUTCOME_HEADERS = [
+    "symbol",
+    "market",
+    "signal_date",
+    "confirmed_date",
+    "T+1_date",
+    "execution_status",
+    "T+1_open",
+    "actual_entry",
+    "entry_zone_high",
+    "stop",
+    "T1",
+    "T2",
+    "T3",
+    "5D_return",
+    "10D_return",
+    "20D_return",
+    "MFE_pct",
+    "MAE_pct",
+    "MFE_R",
+    "MAE_R",
+    "first_exit_event",
+    "first_exit_date",
+    "final_R",
+    "observation_days",
+    "horizon_complete",
+    "历史数据源",
+    "参数版本",
+]
+SENSITIVITY_HEADERS = [
+    "swing_lookback",
+    "platform_window",
+    "platform_tolerance_pct",
+    "symbol_count",
+    "input_bar_count",
+    "sample_size",
+    "confirmed_count",
+    "executed_count",
+    "censored_count",
+    "win_rate",
+    "avg_R",
+    "expectancy",
+    "profit_factor",
+    "MFE",
+    "MAE",
+    "生产参数版本",
 ]
 
 
@@ -84,6 +146,8 @@ def main() -> None:
     rows: list[dict] = []
     skipped: list[dict] = []
     event_rows: list[dict] = []
+    outcome_rows: list[dict] = []
+    symbol_quotes: dict[str, list[Quote]] = {}
     enabled_count = 0
     for watch in client.records("自选清单"):
         symbol = str(watch.get("统一代码") or "").strip()
@@ -155,17 +219,48 @@ def main() -> None:
                 parameter_snapshot,
             )
         )
+        symbol_quotes[symbol] = quotes
+        research_report = research_trade_outcomes(report, quotes)
+        for outcome in research_report.outcomes:
+            outcome_row = outcome.to_row()
+            outcome_row["历史数据源"] = historical_source
+            outcome_row["参数版本"] = parameter_version
+            outcome_rows.append(outcome_row)
+
+    sensitivity_rows = (
+        parameter_sensitivity_rows(
+            symbol_quotes,
+            risk_capital,
+            setup_parameters,
+            decision_parameters,
+        )
+        if symbol_quotes
+        else []
+    )
+    for sensitivity_row in sensitivity_rows:
+        sensitivity_row["生产参数版本"] = parameter_version
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     _write_csv(SUMMARY_PATH, rows)
     _write_csv(SKIPPED_PATH, skipped)
     _write_csv(EVENTS_PATH, event_rows, EVENT_HEADERS)
+    _write_csv(OUTCOMES_PATH, outcome_rows, OUTCOME_HEADERS)
+    _write_csv(SENSITIVITY_PATH, sensitivity_rows, SENSITIVITY_HEADERS)
+    confirmed_count = sum(
+        int(row.get("CONFIRMED事件次数", 0)) for row in rows
+    )
+    executed_count = sum(
+        row["execution_status"] == ExecutionStatus.EXECUTED.value
+        for row in outcome_rows
+    )
     _print_summary(
         rows,
         skipped,
         enabled_count,
         len(event_rows),
         parameter_version,
+        confirmed_count,
+        executed_count,
     )
     if enabled_count == 0 or not rows:
         raise RuntimeError(
@@ -189,12 +284,12 @@ def _write_csv(
 def _fieldnames(
     rows: list[dict], empty_fieldnames: list[str] | None = None
 ) -> list[str]:
-    seen: list[str] = []
+    seen: list[str] = list(empty_fieldnames or [])
     for row in rows:
         for key in row:
             if key not in seen:
                 seen.append(key)
-    return seen or list(empty_fieldnames or ["统一代码", "原因"])
+    return seen or ["统一代码", "原因"]
 
 
 def _print_summary(
@@ -203,6 +298,8 @@ def _print_summary(
     enabled_count: int,
     event_count: int,
     parameter_version: str,
+    confirmed_count: int,
+    executed_count: int,
 ) -> None:
     coverage = len(rows) / enabled_count if enabled_count else 0.0
     print(
@@ -210,9 +307,15 @@ def _print_summary(
         f"calculable={len(rows)}, enabled={enabled_count}, "
         f"coverage={coverage:.2%}, skipped={len(skipped)}, events={event_count}"
     )
+    print(
+        "production_parameters: "
+        f"CONFIRMED={confirmed_count}, EXECUTED={executed_count}"
+    )
     print(f"summary_csv={SUMMARY_PATH}")
     print(f"skipped_csv={SKIPPED_PATH}")
     print(f"events_csv={EVENTS_PATH}")
+    print(f"outcomes_csv={OUTCOMES_PATH}")
+    print(f"sensitivity_csv={SENSITIVITY_PATH}")
     print(f"parameter_version={parameter_version}")
     for row in rows:
         symbol = row["统一代码"]

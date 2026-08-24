@@ -22,10 +22,11 @@ V0.2
 - Phase 4 第一批：SETUP_03 Decision 只读投影到 `交易决策` 表；正式收盘 + qfq 日期双门控、显式历史源、参数透传与单标的异常隔离；全量 116/116 通过
 - Phase 5A：SETUP_03 Historical Replay & Diagnostics（只读）：`trading/replay.py` 按历史交易日前缀 `quotes[:i+1]` 严格 as-of 回放，复用现有 Setup / Decision Engine，明确区分状态日与 CONFIRMED/FAILED 事件，仅在 CONFIRMED 事件日运行 Decision；新增 workflow_dispatch-only 真实前复权回放 workflow（只读 artifact，不写生产 Sheet）；全量 122/122 通过
 - SETUP_03 审计整改：生产与回放共用 `trading/events.py` 终态事件语义；`交易决策` 改为仅发布新 CONFIRMED 事件并以已有事件键阻止同日重算；补齐真实多生命周期回放、数据质量门控、calculable/enabled 覆盖率失败条件、只读事件明细 artifact 及 replay/生产一致性测试；全量 136/136 通过
+- SETUP_03 审计整改 PR #12 已合并；带真实 Secrets 的 3 年只读 replay 在生产参数 `platform_tolerance_pct=0` 下客观为 `events=0`
 
 ## In Progress
 
-- SETUP_03 settled 验收：PR #12 的 CI 与带真实 Secrets 的只读 replay workflow 已通过（calculable/enabled=9/9，skipped=0），但 3 年窗口 events=0；等待审阅并确认零真实事件是否符合当前严格参数预期，不合并前不标记最终 settled
+- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics：直接消费 PR #12 统一 CONFIRMED 事件流水，只在 T+1 Open 模拟执行；新增 trade outcomes 与固定 54 组 research-only 敏感性诊断，不排名、不优化、不改生产参数
 
 ## Next
 

@@ -1,4 +1,4 @@
-name: SETUP_03 Historical Replay
+name: SETUP_03 Historical Replay and Research Backtest
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Run read-only SETUP_03 replay
+      - name: Run read-only SETUP_03 replay and research diagnostics
         run: python scripts/run_setup03_replay.py
         env:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}

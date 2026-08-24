@@ -56,7 +56,10 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── providers.py              # 行情数据源适配器与回退链
 ├── sheets_client.py          # Google Sheets 客户端与表头定义
 ├── scripts/
-│   └── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放 artifact
+│   └── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
+├── research/
+│   └── backtest/
+│       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
 │   ├── models.py             # 数据模型 + 输入校验
 │   ├── indicators.py         # Wilder ATR / RSI、EMA
@@ -120,6 +123,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 - `terminal_event_type()`：统一判定 CONFIRMED/FAILED 是否在当前最后一根 K 线首次进入终态
 - `evaluate_setup03_event()`：生产与回放共用；复用现有 Setup / Decision Engine，仅为新 CONFIRMED 事件计算 Decision；已发布事件键命中时不重算
+- CONFIRMED 事件同一 as-of 上下文携带 `signal_date` / `confirmed_date` / `signal_close` / ATR，供 Phase 5A artifact 与 Phase 5B 共用
 - 不复制 Swing / Setup / Decision 公式
 
 ### trading/replay.py
@@ -130,12 +134,19 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `validate_replay_history()`：空序列、重复/乱序日期、样本不足、最新日期和异常日历缺口门控
 - 只读诊断层；不写入 `交易决策` 表，不复制 Swing / Setup / Decision 交易逻辑，不修改生产参数
 
+### research/backtest/setup03.py
+
+- `research_trade_outcomes()`：只消费 `SymbolReplayReport.events` 中由 `trading/events.py` 产生的 CONFIRMED event contract；不重建事件、Setup 或 Decision
+- T 日收盘确认后，仅用 T+1 Open 执行三分支；`actual_entry` 从不使用 T 日 close
+- `parameter_sensitivity_rows()`：通过 `replay_setup03_history()` 运行固定 54 组研究参数，不排名、不回写 `参数设置`、不修改生产参数
+- 绩效是 research-only 20D 首障碍诊断：stop/T1 同日保守按 stop；20D 未触发则期末盯市；不足 20D 且未触发的样本标记 censored，不进入 R 聚合统计
+
 ### scripts/run_setup03_replay.py
 
 - 由 `.github/workflows/setup03-replay.yml` 手动触发
 - 复用 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` secrets 读取 `自选清单` 与 `参数设置`
 - 使用生产参数原值和 `自选清单.历史数据源` 抓取最近 3 年前复权历史，并保留数据源原始顺序供质量门控检查
-- 输出 summary / skipped / `setup03_replay_events.csv` 三类只读 CSV artifact；事件明细与 summary 均含参数哈希版本及完整参数快照，零事件运行仍可复现；不写任何生产 Sheet
+- 输出 summary / skipped / `setup03_replay_events.csv` / `setup03_trade_outcomes.csv` / `setup03_parameter_sensitivity.csv` 五类只读 CSV artifact；事件明细与 outcomes 含生产参数哈希版本，零事件运行仍可复现；不写任何生产 Sheet
 - 输出 calculable/enabled 覆盖率；enabled=0 或 calculable=0 时先落诊断 artifact 再令 workflow 失败
 
 ## Google Sheets 各表（真实存在）
@@ -181,7 +192,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
-- `setup03-replay.yml`：仅 `workflow_dispatch`，运行 `python scripts/run_setup03_replay.py`，输出只读 CSV artifact；失败时仍上传诊断文件
+- `setup03-replay.yml`：仅 `workflow_dispatch`，运行 `python scripts/run_setup03_replay.py`，输出 Phase 5A 回放与 Phase 5B research-only CSV artifact；失败时仍上传诊断文件
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11
 - Secrets：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`

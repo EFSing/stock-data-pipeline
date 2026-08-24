@@ -41,6 +41,10 @@ class ReplayEvent:
     event_type: SetupState
     setup: Setup
     decision: Decision | None = None
+    signal_date: date | None = None
+    confirmed_date: date | None = None
+    signal_close: float | None = None
+    signal_atr: float | None = None
 
 
 @dataclass(frozen=True)
@@ -142,11 +146,15 @@ def replay_setup03_history(
         if evaluation.event_type is not None:
             events.append(
                 ReplayEvent(
-                    quotes[0].symbol,
-                    quote.trade_date,
-                    evaluation.event_type,
-                    setup,
-                    evaluation.decision,
+                    symbol=quotes[0].symbol,
+                    trade_date=quote.trade_date,
+                    event_type=evaluation.event_type,
+                    setup=setup,
+                    decision=evaluation.decision,
+                    signal_date=evaluation.signal_date,
+                    confirmed_date=evaluation.confirmed_date,
+                    signal_close=evaluation.signal_close,
+                    signal_atr=evaluation.signal_atr,
                 )
             )
 
@@ -224,6 +232,10 @@ def replay_event_rows(
                 "统一代码": event.symbol,
                 "交易日期": event.trade_date,
                 "事件类型": event.event_type.value,
+                "signal_date": event.signal_date,
+                "confirmed_date": event.confirmed_date,
+                "signal_close": event.signal_close,
+                "ATR": event.signal_atr,
                 "Setup状态": event.setup.state.value,
                 "detected_index": event.setup.detected_index,
                 "state_entered_index": event.setup.state_entered_index,
@@ -235,6 +247,10 @@ def replay_event_rows(
                 "执行止损": decision.execution_stop if decision else None,
                 "T1": targets[0] if targets else None,
                 "T1_RR": ratios[0] if ratios else None,
+                "T2": targets[1] if len(targets) > 1 else None,
+                "T2_RR": ratios[1] if len(ratios) > 1 else None,
+                "T3": targets[2] if len(targets) > 2 else None,
+                "T3_RR": ratios[2] if len(ratios) > 2 else None,
                 "历史数据源": historical_source,
                 "参数版本": parameter_version,
                 "参数快照": parameter_snapshot,

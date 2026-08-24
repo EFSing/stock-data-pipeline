@@ -1,0 +1,17 @@
+"""Research backtests built from the Trading Core event ledger."""
+
+from research.backtest.setup03 import (
+    ExecutionStatus,
+    Setup03ResearchReport,
+    Setup03TradeOutcome,
+    parameter_sensitivity_rows,
+    research_trade_outcomes,
+)
+
+__all__ = [
+    "ExecutionStatus",
+    "Setup03ResearchReport",
+    "Setup03TradeOutcome",
+    "parameter_sensitivity_rows",
+    "research_trade_outcomes",
+]
