@@ -58,7 +58,14 @@ class ReplayWorkflowCoverageTests(unittest.TestCase):
         self.assertIn("actual_entry", outcome_call.args[2])
         sensitivity_call = write_csv.call_args_list[4]
         self.assertEqual(sensitivity_call.args[0], replay_script.SENSITIVITY_PATH)
+        self.assertIn("setup_swing_lookback", sensitivity_call.args[2])
         self.assertIn("confirmed_count", sensitivity_call.args[2])
+        self.assertIn("entry_allowed_count", sensitivity_call.args[2])
+        self.assertIn("signal_not_entry_allowed_count", sensitivity_call.args[2])
+        self.assertIn("skip_no_t1_count", sensitivity_call.args[2])
+        self.assertIn("skip_gap_below_breakout_count", sensitivity_call.args[2])
+        self.assertIn("skip_gap_above_entry_zone_count", sensitivity_call.args[2])
+        self.assertIn("executed_count", sensitivity_call.args[2])
 
     def test_parameter_version_is_deterministic_and_snapshot_complete(self):
         setup = {"swing_lookback": 5, "platform_window": 40}

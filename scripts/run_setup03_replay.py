@@ -15,8 +15,8 @@ from core import Quote, expected_latest_trade_date
 from main import as_bool, beijing_now, trading_parameters
 from providers import QFQ_HISTORY_SOURCES, fetch_with_retry
 from research.backtest.setup03 import (
-    ExecutionStatus,
     parameter_sensitivity_rows,
+    research_funnel_counts,
     research_trade_outcomes,
 )
 from sheets_client import SheetsClient
@@ -91,14 +91,20 @@ OUTCOME_HEADERS = [
     "参数版本",
 ]
 SENSITIVITY_HEADERS = [
-    "swing_lookback",
+    "setup_swing_lookback",
     "platform_window",
     "platform_tolerance_pct",
     "symbol_count",
     "input_bar_count",
     "sample_size",
     "confirmed_count",
+    "entry_allowed_count",
+    "signal_not_entry_allowed_count",
+    "skip_no_t1_count",
+    "skip_gap_below_breakout_count",
+    "skip_gap_above_entry_zone_count",
     "executed_count",
+    "other_execution_status_count",
     "censored_count",
     "win_rate",
     "avg_R",
@@ -147,6 +153,7 @@ def main() -> None:
     skipped: list[dict] = []
     event_rows: list[dict] = []
     outcome_rows: list[dict] = []
+    production_funnel_rows: list[dict[str, int]] = []
     symbol_quotes: dict[str, list[Quote]] = {}
     enabled_count = 0
     for watch in client.records("自选清单"):
@@ -210,7 +217,6 @@ def main() -> None:
         row["样本数"] = len(quotes)
         row["参数版本"] = parameter_version
         row["参数快照"] = parameter_snapshot
-        rows.append(row)
         event_rows.extend(
             replay_event_rows(
                 report,
@@ -221,6 +227,10 @@ def main() -> None:
         )
         symbol_quotes[symbol] = quotes
         research_report = research_trade_outcomes(report, quotes)
+        symbol_funnel = research_funnel_counts(report, research_report)
+        row.update(symbol_funnel)
+        production_funnel_rows.append(symbol_funnel)
+        rows.append(row)
         for outcome in research_report.outcomes:
             outcome_row = outcome.to_row()
             outcome_row["历史数据源"] = historical_source
@@ -246,21 +256,26 @@ def main() -> None:
     _write_csv(EVENTS_PATH, event_rows, EVENT_HEADERS)
     _write_csv(OUTCOMES_PATH, outcome_rows, OUTCOME_HEADERS)
     _write_csv(SENSITIVITY_PATH, sensitivity_rows, SENSITIVITY_HEADERS)
-    confirmed_count = sum(
-        int(row.get("CONFIRMED事件次数", 0)) for row in rows
-    )
-    executed_count = sum(
-        row["execution_status"] == ExecutionStatus.EXECUTED.value
-        for row in outcome_rows
-    )
+    production_funnel = {
+        key: sum(row[key] for row in production_funnel_rows)
+        for key in (
+            "confirmed_count",
+            "entry_allowed_count",
+            "signal_not_entry_allowed_count",
+            "skip_no_t1_count",
+            "skip_gap_below_breakout_count",
+            "skip_gap_above_entry_zone_count",
+            "executed_count",
+            "other_execution_status_count",
+        )
+    }
     _print_summary(
         rows,
         skipped,
         enabled_count,
         len(event_rows),
         parameter_version,
-        confirmed_count,
-        executed_count,
+        production_funnel,
     )
     if enabled_count == 0 or not rows:
         raise RuntimeError(
@@ -298,8 +313,7 @@ def _print_summary(
     enabled_count: int,
     event_count: int,
     parameter_version: str,
-    confirmed_count: int,
-    executed_count: int,
+    production_funnel: dict[str, int],
 ) -> None:
     coverage = len(rows) / enabled_count if enabled_count else 0.0
     print(
@@ -308,8 +322,18 @@ def _print_summary(
         f"coverage={coverage:.2%}, skipped={len(skipped)}, events={event_count}"
     )
     print(
-        "production_parameters: "
-        f"CONFIRMED={confirmed_count}, EXECUTED={executed_count}"
+        "production_parameters_funnel: "
+        f"CONFIRMED={production_funnel['confirmed_count']}, "
+        f"ENTRY_ALLOWED={production_funnel['entry_allowed_count']}, "
+        "SIGNAL_NOT_ENTRY_ALLOWED="
+        f"{production_funnel['signal_not_entry_allowed_count']}, "
+        f"SKIP_NO_T1={production_funnel['skip_no_t1_count']}, "
+        "SKIP_GAP_BELOW_BREAKOUT="
+        f"{production_funnel['skip_gap_below_breakout_count']}, "
+        "SKIP_GAP_ABOVE_ENTRY_ZONE="
+        f"{production_funnel['skip_gap_above_entry_zone_count']}, "
+        f"EXECUTED={production_funnel['executed_count']}, "
+        f"OTHER={production_funnel['other_execution_status_count']}"
     )
     print(f"summary_csv={SUMMARY_PATH}")
     print(f"skipped_csv={SKIPPED_PATH}")

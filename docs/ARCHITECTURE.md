@@ -137,9 +137,11 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ### research/backtest/setup03.py
 
 - `research_trade_outcomes()`：只消费 `SymbolReplayReport.events` 中由 `trading/events.py` 产生的 CONFIRMED event contract；不重建事件、Setup 或 Decision
-- T 日收盘确认后，仅用 T+1 Open 执行三分支；`actual_entry` 从不使用 T 日 close
-- `parameter_sensitivity_rows()`：通过 `replay_setup03_history()` 运行固定 54 组研究参数，不排名、不回写 `参数设置`、不修改生产参数
+- T 日按 as-of 数据先生成生产 Decision，只有 `ENTRY_ALLOWED` 才进入 T+1 候选；T+1 Open 再执行 below-breakout / entry-zone / above-zone 三分支，`actual_entry` 从不使用 T 日 close
+- `parameter_sensitivity_rows()`：通过 `replay_setup03_history()` 运行固定 54 组研究参数，不排名、不回写 `参数设置`、不修改生产参数；artifact 的 `setup_swing_lookback` 只表示 Setup lookback，Decision lookback 保持生产参数原值
+- 一级漏斗直接使用 `ReplayEvent.decision` 与 outcome `execution_status`，显式输出 CONFIRMED → ENTRY_ALLOWED / rejected → T+1 各 skip / EXECUTED，并强制校验计数守恒
 - 绩效是 research-only 20D 首障碍诊断：stop/T1 同日保守按 stop；20D 未触发则期末盯市；不足 20D 且未触发的样本标记 censored，不进入 R 聚合统计
+- excursion 只完整使用退出 bar 之前的 OHLC；STOP bar 的 MAE 截止 stop、忽略无法确定先后的有利 high，T1 bar 的 MFE 截止 T1、保守保留可能在 T1 前发生且高于 stop 的 low；`observation_days` 是从 T+1 起到首次退出（含退出 bar）的实际观察交易日数，未退出时才等于 available forward bars
 
 ### scripts/run_setup03_replay.py
 

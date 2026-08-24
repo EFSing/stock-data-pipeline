@@ -4,6 +4,14 @@ The input event ledger is produced by ``trading.events`` through
 ``trading.replay``. This module deliberately has no terminal-event detector and
 does not call Setup or Decision engines for an individual outcome.
 
+Decision and execution chronology
+---------------------------------
+On signal day T, a CONFIRMED event first receives its production as-of Decision.
+Only ``DecisionAction.ENTRY_ALLOWED`` becomes a candidate for T+1 execution. On
+T+1, and only then, the open is classified as below breakout, executable inside
+the entry zone, or above the entry zone. CONFIRMED therefore does not imply an
+executed trade.
+
 Research exit convention
 ------------------------
 The production system does not yet define position management. For diagnostics
@@ -12,10 +20,18 @@ touch of the execution stop or T1 closes the diagnostic trade. If both are
 touched in one daily bar, stop is assumed first. If neither is touched after 20
 sessions, the 20D close is marked to market. A shorter unresolved tail is
 censored and excluded from R-based aggregate statistics.
+
+Daily OHLC cannot establish the order of an exit-bar high and low. Excursions
+therefore use full OHLC only for bars strictly before the exit bar. On a STOP
+bar, the adverse endpoint is capped at the stop and the uncertain favorable
+high is excluded. On a T1 bar, favorable excursion is capped at T1 and the bar
+low is retained as the conservative possible pre-exit adverse path. Prices
+beyond the first barrier are never treated as held-price excursion.
 """
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
@@ -65,6 +81,8 @@ class Setup03TradeOutcome:
     first_exit_event: str | None = None
     first_exit_date: date | None = None
     final_r: float | None = None
+    # Actual observed holding bars from T+1 through first exit (inclusive).
+    # Without an exit this is the available forward-bar count, capped at 20.
     observation_days: int = 0
     horizon_complete: bool = False
 
@@ -156,7 +174,7 @@ def parameter_sensitivity_rows(
             platform_window=platform_window,
             platform_tolerance_pct=tolerance,
         )
-        reports: list[Setup03ResearchReport] = []
+        report_pairs: list[tuple[SymbolReplayReport, Setup03ResearchReport]] = []
         for quotes in symbol_quotes.values():
             replay_report = replay_setup03_history(
                 quotes,
@@ -164,9 +182,14 @@ def parameter_sensitivity_rows(
                 research_setup_parameters,
                 decision_parameters,
             )
-            reports.append(research_trade_outcomes(replay_report, quotes))
+            research_report = research_trade_outcomes(replay_report, quotes)
+            report_pairs.append((replay_report, research_report))
 
-        outcomes = [outcome for report in reports for outcome in report.outcomes]
+        outcomes = [
+            outcome
+            for _, research_report in report_pairs
+            for outcome in research_report.outcomes
+        ]
         executed = [
             outcome
             for outcome in outcomes
@@ -176,16 +199,23 @@ def parameter_sensitivity_rows(
         final_rs = [outcome.final_r for outcome in observed]
         mfe_rs = [outcome.mfe_r for outcome in observed if outcome.mfe_r is not None]
         mae_rs = [outcome.mae_r for outcome in observed if outcome.mae_r is not None]
+        funnel_rows = [
+            research_funnel_counts(replay_report, research_report)
+            for replay_report, research_report in report_pairs
+        ]
+        funnel = {
+            key: sum(row[key] for row in funnel_rows)
+            for key in _FUNNEL_COUNT_FIELDS
+        }
         rows.append(
             {
-                "swing_lookback": swing_lookback,
+                "setup_swing_lookback": swing_lookback,
                 "platform_window": platform_window,
                 "platform_tolerance_pct": tolerance,
                 "symbol_count": len(symbol_quotes),
                 "input_bar_count": input_bar_count,
                 "sample_size": len(observed),
-                "confirmed_count": sum(report.confirmed_count for report in reports),
-                "executed_count": len(executed),
+                **funnel,
                 "censored_count": len(executed) - len(observed),
                 **_performance_metrics(final_rs, mfe_rs, mae_rs),
             }
@@ -221,6 +251,23 @@ def _simulate_event(
         "stop": stop,
         "targets": targets,
     }
+    # T-day production Decision is the prerequisite gate. A rejected signal is
+    # never allowed to fall through to T+1 availability or gap classification.
+    if (
+        decision is None
+        or decision.action is not DecisionAction.ENTRY_ALLOWED
+        or entry_plan is None
+        or stop is None
+        or not targets
+    ):
+        return Setup03TradeOutcome(
+            **common,
+            t_plus_1_date=None,
+            execution_status=ExecutionStatus.SKIP_SIGNAL_NOT_ENTRY_ALLOWED,
+            t_plus_1_open=None,
+            actual_entry=None,
+        )
+
     next_index = confirmed_index + 1
     if next_index >= len(quotes):
         return Setup03TradeOutcome(
@@ -238,19 +285,6 @@ def _simulate_event(
         "t_plus_1_date": next_quote.trade_date,
         "t_plus_1_open": next_open,
     }
-    if (
-        decision is None
-        or decision.action is not DecisionAction.ENTRY_ALLOWED
-        or entry_plan is None
-        or stop is None
-        or not targets
-    ):
-        return Setup03TradeOutcome(
-            **next_common,
-            execution_status=ExecutionStatus.SKIP_SIGNAL_NOT_ENTRY_ALLOWED,
-            actual_entry=None,
-        )
-
     breakout_price = event.setup.breakout_price
     if breakout_price is None:
         raise ValueError("CONFIRMED event contract is missing breakout_price")
@@ -295,7 +329,7 @@ def _executed_outcome(
     first_exit_event = None
     first_exit_date = None
     final_r = None
-    exit_index = len(path) - 1
+    exit_index = None
     for index, quote in enumerate(path):
         if float(quote.low) <= stop:
             first_exit_event = "STOP"
@@ -318,9 +352,30 @@ def _executed_outcome(
     elif final_r is None:
         first_exit_event = "CENSORED_END_OF_DATA"
 
-    observed_path = path[: exit_index + 1]
-    max_high = max(float(quote.high) for quote in observed_path)
-    min_low = min(float(quote.low) for quote in observed_path)
+    if exit_index is None:
+        excursion_highs = [float(quote.high) for quote in path]
+        excursion_lows = [float(quote.low) for quote in path]
+        observation_days = len(path)
+    else:
+        # Full OHLC is safe only for bars strictly before the exit bar. The
+        # exit-bar convention below does not invent an intraday ordering.
+        pre_exit_path = path[:exit_index]
+        excursion_highs = [float(quote.high) for quote in pre_exit_path]
+        excursion_lows = [float(quote.low) for quote in pre_exit_path]
+        exit_quote = path[exit_index]
+        observation_days = exit_index + 1
+        if first_exit_event == "STOP":
+            # The stop is known to be reached; any lower price is necessarily
+            # beyond that barrier. The uncertain same-bar high is excluded.
+            excursion_lows.append(stop)
+        else:
+            assert first_exit_event == "T1"
+            # T1 is the most favorable held price. The low stayed above stop,
+            # but may have occurred before T1, so retain it as worst case.
+            excursion_highs.append(targets[0])
+            excursion_lows.append(float(exit_quote.low))
+    max_high = max([actual_entry, *excursion_highs])
+    min_low = min([actual_entry, *excursion_lows])
     favorable_move = max(max_high - actual_entry, 0.0)
     adverse_move = min(min_low - actual_entry, 0.0)
     return Setup03TradeOutcome(
@@ -345,9 +400,90 @@ def _executed_outcome(
         first_exit_event=first_exit_event,
         first_exit_date=first_exit_date,
         final_r=final_r,
-        observation_days=len(path),
+        observation_days=observation_days,
         horizon_complete=horizon_complete,
     )
+
+
+_FUNNEL_COUNT_FIELDS = (
+    "confirmed_count",
+    "entry_allowed_count",
+    "signal_not_entry_allowed_count",
+    "skip_no_t1_count",
+    "skip_gap_below_breakout_count",
+    "skip_gap_above_entry_zone_count",
+    "executed_count",
+    "other_execution_status_count",
+)
+
+
+def research_funnel_counts(
+    replay_report: SymbolReplayReport,
+    research_report: Setup03ResearchReport,
+) -> dict[str, int]:
+    """Return a conserved CONFIRMED -> Decision -> T+1 execution funnel."""
+    confirmed_events = tuple(
+        event
+        for event in replay_report.events
+        if event.event_type is SetupState.CONFIRMED
+    )
+    if research_report.confirmed_count != len(confirmed_events):
+        raise ValueError("research report CONFIRMED count does not match replay events")
+    if len(research_report.outcomes) != len(confirmed_events):
+        raise ValueError("each CONFIRMED event must have exactly one research outcome")
+
+    entry_allowed_count = sum(
+        event.decision is not None
+        and event.decision.action is DecisionAction.ENTRY_ALLOWED
+        for event in confirmed_events
+    )
+    status_counts = Counter(
+        outcome.execution_status for outcome in research_report.outcomes
+    )
+    mapped_statuses = {
+        ExecutionStatus.EXECUTED,
+        ExecutionStatus.SKIP_SIGNAL_NOT_ENTRY_ALLOWED,
+        ExecutionStatus.SKIP_NO_T_PLUS_1_BAR,
+        ExecutionStatus.SKIP_GAP_BELOW_BREAKOUT,
+        ExecutionStatus.SKIP_GAP_ABOVE_ENTRY_ZONE,
+    }
+    other_execution_status_count = sum(
+        count for status, count in status_counts.items() if status not in mapped_statuses
+    )
+    funnel = {
+        "confirmed_count": len(confirmed_events),
+        "entry_allowed_count": entry_allowed_count,
+        "signal_not_entry_allowed_count": len(confirmed_events)
+        - entry_allowed_count,
+        "skip_no_t1_count": status_counts[ExecutionStatus.SKIP_NO_T_PLUS_1_BAR],
+        "skip_gap_below_breakout_count": status_counts[
+            ExecutionStatus.SKIP_GAP_BELOW_BREAKOUT
+        ],
+        "skip_gap_above_entry_zone_count": status_counts[
+            ExecutionStatus.SKIP_GAP_ABOVE_ENTRY_ZONE
+        ],
+        "executed_count": status_counts[ExecutionStatus.EXECUTED],
+        "other_execution_status_count": other_execution_status_count,
+    }
+    rejected_outcomes = status_counts[
+        ExecutionStatus.SKIP_SIGNAL_NOT_ENTRY_ALLOWED
+    ]
+    if rejected_outcomes != funnel["signal_not_entry_allowed_count"]:
+        raise ValueError("Decision gate and research execution statuses are inconsistent")
+    t_plus_1_candidates = (
+        funnel["skip_no_t1_count"]
+        + funnel["skip_gap_below_breakout_count"]
+        + funnel["skip_gap_above_entry_zone_count"]
+        + funnel["executed_count"]
+        + funnel["other_execution_status_count"]
+    )
+    if funnel["entry_allowed_count"] != t_plus_1_candidates:
+        raise ValueError("ENTRY_ALLOWED count does not conserve across T+1 outcomes")
+    if funnel["confirmed_count"] != (
+        funnel["signal_not_entry_allowed_count"] + t_plus_1_candidates
+    ):
+        raise ValueError("CONFIRMED count does not conserve across the research funnel")
+    return funnel
 
 
 def _forward_return(path: list[Quote], days: int, entry: float) -> float | None:

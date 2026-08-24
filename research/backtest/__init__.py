@@ -5,6 +5,7 @@ from research.backtest.setup03 import (
     Setup03ResearchReport,
     Setup03TradeOutcome,
     parameter_sensitivity_rows,
+    research_funnel_counts,
     research_trade_outcomes,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "Setup03ResearchReport",
     "Setup03TradeOutcome",
     "parameter_sensitivity_rows",
+    "research_funnel_counts",
     "research_trade_outcomes",
 ]
