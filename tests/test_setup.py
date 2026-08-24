@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from core import Quote
 
-from trading.models import SetupState
+from trading.models import SetupState, SwingKind, SwingPoint
 from trading.setup import detect_platform_breakout
 from trading.swing import find_swings
 
@@ -148,6 +148,61 @@ class PlatformBreakoutTests(unittest.TestCase):
         self.assertEqual(s.state, SetupState.CONFIRMED)
         self.assertEqual(s.detected_index, 12)
         self.assertEqual(s.confirmed_index, 13)
+
+    def test_platform_recognition_bar_can_confirm_immediately(self):
+        """平台信息首次可用的同一 bar 已突破时，识别与确认索引相同。"""
+        quotes = ser(
+            [100, 100, 100, 100, 111],
+            [90, 90, 90, 90, 109],
+        )
+        confirmed_date = quotes[4].trade_date
+        swings = [
+            SwingPoint(
+                SwingKind.HIGH,
+                100.0,
+                0,
+                quotes[0].trade_date,
+                4,
+                confirmed_date,
+            ),
+            SwingPoint(
+                SwingKind.LOW,
+                90.0,
+                1,
+                quotes[1].trade_date,
+                4,
+                confirmed_date,
+            ),
+            SwingPoint(
+                SwingKind.HIGH,
+                100.0,
+                2,
+                quotes[2].trade_date,
+                4,
+                confirmed_date,
+            ),
+            SwingPoint(
+                SwingKind.LOW,
+                90.0,
+                3,
+                quotes[3].trade_date,
+                4,
+                confirmed_date,
+            ),
+        ]
+
+        setup = detect_platform_breakout(
+            quotes,
+            swing_lookback=2,
+            platform_window=20,
+            swings=swings,
+        )
+
+        self.assertEqual(setup.state, SetupState.CONFIRMED)
+        self.assertEqual(
+            (setup.detected_index, setup.state_entered_index, setup.confirmed_index),
+            (4, 4, 4),
+        )
 
     def test_armed_downgrades_to_watch(self):
         """先逼近阻力进入 ARMED，再回落但不失效 → 降级回 WATCH。"""

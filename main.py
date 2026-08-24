@@ -14,9 +14,12 @@ from core import (
     quote_sanity_issue,
     validate_quotes,
 )
-from trading.decision import decide_platform_breakout
-from trading.models import Decision, Setup
-from trading.setup import detect_platform_breakout
+from trading.events import (
+    DecisionEventKey,
+    evaluate_setup03_event,
+    setup03_decision_key,
+)
+from trading.models import Decision, Setup, SetupState
 
 
 BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -142,6 +145,21 @@ def decision_row(
     }
 
 
+def published_setup03_decision_keys(rows: list[dict]) -> set[DecisionEventKey]:
+    """Read the production event-stream keys used to make reruns idempotent."""
+    return {
+        setup03_decision_key(
+            str(row.get("统一代码") or "").strip(),
+            str(row.get("交易日期") or "").strip(),
+            str(row.get("Setup类型") or "").strip(),
+        )
+        for row in rows
+        if str(row.get("统一代码") or "").strip()
+        and str(row.get("交易日期") or "").strip()
+        and str(row.get("Setup类型") or "").strip() == "SETUP_03"
+    }
+
+
 def evaluate_set03_decision(
     qfq_quotes: list[Quote],
     chosen_trade_date: date,
@@ -149,8 +167,9 @@ def evaluate_set03_decision(
     risk_capital: float,
     setup_parameters: dict,
     decision_parameters: dict,
+    published_decision_keys: set[DecisionEventKey] | None = None,
 ) -> tuple[tuple[Setup, Decision, date | None] | None, str]:
-    """Run Trading Core only after the close and qfq-date gates pass."""
+    """Return only a new, unpublished CONFIRMED Decision event."""
     if not confirmed:
         return None, "SETUP_03 Decision跳过：尚非正式收盘"
     if not qfq_quotes:
@@ -162,16 +181,26 @@ def evaluate_set03_decision(
             f"{chosen_trade_date.isoformat()}不一致"
         )
 
-    setup = detect_platform_breakout(qfq_quotes, **setup_parameters)
-    decision = decide_platform_breakout(
-        qfq_quotes, setup, risk_capital, **decision_parameters
+    evaluation = evaluate_setup03_event(
+        qfq_quotes,
+        risk_capital,
+        setup_parameters,
+        decision_parameters,
+        published_decision_keys or (),
     )
-    confirmed_date = (
-        qfq_quotes[setup.confirmed_index].trade_date
-        if setup.confirmed_index is not None
-        else None
-    )
-    return (setup, decision, confirmed_date), ""
+    if evaluation.event_type is not SetupState.CONFIRMED:
+        return None, (
+            "SETUP_03 Decision跳过：当前最后一根K线无新CONFIRMED事件"
+            f"（Setup状态={evaluation.setup.state.value}）"
+        )
+    if evaluation.duplicate:
+        return None, "SETUP_03 Decision跳过：该CONFIRMED事件已发布"
+    assert evaluation.decision is not None
+    return (
+        evaluation.setup,
+        evaluation.decision,
+        evaluation.confirmed_date,
+    ), ""
 
 
 def select_history_series(
@@ -223,9 +252,13 @@ def run(group: str) -> None:
     start = end - timedelta(days=max(history_days * 2, 365))
     wanted_markets = wanted_markets_for_group(group)
 
+    watchlist = client.records("自选清单")
+    published_decision_keys = published_setup03_decision_keys(
+        client.records("交易决策")
+    )
     latest_rows, raw_rows, adjusted_rows = [], [], []
     validation_rows, decision_rows, log_rows = [], [], []
-    for watch in client.records("自选清单"):
+    for watch in watchlist:
         if not as_bool(watch.get("启用")) or str(watch.get("市场")) not in wanted_markets:
             continue
         primary_source = str(watch.get("主数据源") or "").strip()
@@ -343,6 +376,7 @@ def run(group: str) -> None:
                 risk_capital,
                 setup_parameters,
                 decision_parameters,
+                published_decision_keys,
             )
         except Exception as exc:
             errors.append(f"SETUP_03 Decision失败：{exc}")
@@ -360,6 +394,13 @@ def run(group: str) -> None:
                         confirmed_date,
                         risk_capital,
                         adjusted[-1].source,
+                    )
+                )
+                published_decision_keys.add(
+                    setup03_decision_key(
+                        adjusted[-1].symbol,
+                        adjusted[-1].trade_date,
+                        setup.setup_type,
                     )
                 )
         log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": displayed_status, "新增／更新行数": len(raw_for_symbol) + len(adjusted_for_symbol), "消息": "；".join(item for item in (*notes, *errors) if item)})

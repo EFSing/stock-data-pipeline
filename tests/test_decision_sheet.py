@@ -12,6 +12,11 @@ from main import (
 )
 from providers import QFQ_HISTORY_SOURCES
 from sheets_client import DECISION_HEADERS, SheetsClient
+from trading.events import (
+    Setup03Evaluation,
+    evaluate_setup03_event,
+    setup03_decision_key,
+)
 from trading.models import (
     Decision,
     DecisionAction,
@@ -115,35 +120,35 @@ class DecisionParameterTests(unittest.TestCase):
 
 
 class DecisionGateTests(unittest.TestCase):
-    @patch("main.detect_platform_breakout")
-    @patch("main.decide_platform_breakout")
-    def test_unconfirmed_close_does_not_call_core(self, decide, detect):
+    @patch("main.evaluate_setup03_event")
+    def test_unconfirmed_close_does_not_call_core(self, evaluate):
         result, note = evaluate_set03_decision(
             [quote()], date(2026, 8, 21), False, 1000.0, {}, {}
         )
         self.assertIsNone(result)
         self.assertIn("尚非正式收盘", note)
-        detect.assert_not_called()
-        decide.assert_not_called()
+        evaluate.assert_not_called()
 
-    @patch("main.detect_platform_breakout")
-    @patch("main.decide_platform_breakout")
-    def test_stale_qfq_does_not_call_core(self, decide, detect):
+    @patch("main.evaluate_setup03_event")
+    def test_stale_qfq_does_not_call_core(self, evaluate):
         result, note = evaluate_set03_decision(
             [quote(date(2026, 8, 20))], date(2026, 8, 21), True, 1000.0, {}, {}
         )
         self.assertIsNone(result)
         self.assertIn("不一致", note)
-        detect.assert_not_called()
-        decide.assert_not_called()
+        evaluate.assert_not_called()
 
-    @patch("main.detect_platform_breakout")
-    @patch("main.decide_platform_breakout")
-    def test_valid_gate_passes_every_explicit_parameter(self, decide, detect):
+    @patch("main.evaluate_setup03_event")
+    def test_valid_gate_passes_every_explicit_parameter(self, evaluate):
         setup = confirmed_setup()
         decision = entry_allowed_decision()
-        detect.return_value = setup
-        decide.return_value = decision
+        evaluate.return_value = Setup03Evaluation(
+            setup,
+            SetupState.CONFIRMED,
+            date(2026, 8, 21),
+            date(2026, 8, 21),
+            decision,
+        )
         setup_parameters = {"swing_lookback": 5, "platform_window": 40}
         decision_parameters = {"atr_period": 14, "atr_buffer": 0.5}
 
@@ -158,10 +163,61 @@ class DecisionGateTests(unittest.TestCase):
 
         self.assertEqual(result, (setup, decision, date(2026, 8, 21)))
         self.assertEqual(note, "")
-        detect.assert_called_once_with([quote()], **setup_parameters)
-        decide.assert_called_once_with(
-            [quote()], setup, 1000.0, **decision_parameters
+        evaluate.assert_called_once_with(
+            [quote()],
+            1000.0,
+            setup_parameters,
+            decision_parameters,
+            (),
         )
+
+    @patch("main.evaluate_setup03_event")
+    def test_non_event_terminal_state_is_not_published(self, evaluate):
+        setup = confirmed_setup()
+        evaluate.return_value = Setup03Evaluation(
+            setup, None, None, date(2026, 8, 21), None
+        )
+
+        result, note = evaluate_set03_decision(
+            [quote()], date(2026, 8, 21), True, 1000.0, {}, {}
+        )
+
+        self.assertIsNone(result)
+        self.assertIn("无新CONFIRMED事件", note)
+
+
+class SharedEventSemanticsTests(unittest.TestCase):
+    @patch("trading.events.detect_platform_breakout")
+    @patch("trading.events.decide_platform_breakout")
+    def test_persistent_confirmed_state_does_not_recalculate_decision(
+        self, decide, detect
+    ):
+        setup = confirmed_setup()
+        detect.return_value = setup
+        quotes = [quote(date(2026, 8, 21)), quote(date(2026, 8, 22))]
+
+        evaluation = evaluate_setup03_event(quotes, 1000.0)
+
+        self.assertIsNone(evaluation.event_type)
+        self.assertIsNone(evaluation.decision)
+        decide.assert_not_called()
+
+    @patch("trading.events.detect_platform_breakout")
+    @patch("trading.events.decide_platform_breakout")
+    def test_same_day_published_event_is_idempotent_without_recalculation(
+        self, decide, detect
+    ):
+        detect.return_value = confirmed_setup()
+        key = setup03_decision_key("TEST", date(2026, 8, 21))
+
+        evaluation = evaluate_setup03_event(
+            [quote()], 1000.0, published_decision_keys={key}
+        )
+
+        self.assertEqual(evaluation.event_type, SetupState.CONFIRMED)
+        self.assertTrue(evaluation.duplicate)
+        self.assertIsNone(evaluation.decision)
+        decide.assert_not_called()
 
 
 class DecisionRowTests(unittest.TestCase):
@@ -286,13 +342,14 @@ class DecisionPipelineTests(unittest.TestCase):
         self.assertGreater(row["T1_RR"], 2.0)
         self.assertIsNotNone(row["理论数量"])
 
+    @patch("main.evaluate_set03_decision")
     @patch("main.market_close_confirmed", return_value=True)
     @patch("main.expected_latest_trade_date", return_value=date(2026, 8, 21))
     @patch("main.beijing_now", return_value=datetime(2026, 8, 22, 18, 0))
     @patch("providers.fetch_with_retry")
     @patch("sheets_client.SheetsClient")
     def test_run_uses_explicit_history_source_for_qfq(
-        self, client_class, fetch, _now, _expected_date, _confirmed
+        self, client_class, fetch, _now, _expected_date, _confirmed, evaluate
     ):
         config = {
             "history_days": "1000",
@@ -327,6 +384,14 @@ class DecisionPipelineTests(unittest.TestCase):
         client.upsert_latest.return_value = 0
         client.upsert_history.return_value = 0
         client.upsert_decisions.return_value = 1
+        evaluate.return_value = (
+            (
+                confirmed_setup(),
+                entry_allowed_decision(),
+                date(2026, 8, 21),
+            ),
+            "",
+        )
 
         def fetch_result(source, _watch, adjustment, *_args, **_kwargs):
             if adjustment == "qfq":

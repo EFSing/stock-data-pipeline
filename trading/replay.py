@@ -11,9 +11,8 @@ from datetime import date
 from typing import Iterable
 
 from core import Quote
-from trading.decision import decide_platform_breakout
-from trading.models import DecisionAction, SetupState, validate_quote_series
-from trading.setup import detect_platform_breakout
+from trading.events import evaluate_setup03_event
+from trading.models import Decision, DecisionAction, Setup, SetupState, validate_quote_series
 
 
 REPLAY_SETUP_STATES = (
@@ -36,10 +35,20 @@ class ReplayDay:
 
 
 @dataclass(frozen=True)
+class ReplayEvent:
+    symbol: str
+    trade_date: date
+    event_type: SetupState
+    setup: Setup
+    decision: Decision | None = None
+
+
+@dataclass(frozen=True)
 class SymbolReplayReport:
     symbol: str
     market: str
     days: tuple[ReplayDay, ...]
+    events: tuple[ReplayEvent, ...] = ()
     state_day_counts: dict[SetupState, int] = field(default_factory=dict)
     state_dates: dict[SetupState, tuple[date, ...]] = field(default_factory=dict)
     confirmed_event_dates: tuple[date, ...] = ()
@@ -104,28 +113,42 @@ def replay_setup03_history(
     failed_event_dates: list[date] = []
     decision_dates: dict[DecisionAction, list[date]] = {}
     days: list[ReplayDay] = []
+    events: list[ReplayEvent] = []
 
     for index, quote in enumerate(quotes):
         as_of_quotes = quotes[: index + 1]
-        setup = detect_platform_breakout(as_of_quotes, **setup_parameters)
+        evaluation = evaluate_setup03_event(
+            as_of_quotes,
+            risk_capital,
+            setup_parameters,
+            decision_parameters,
+        )
+        setup = evaluation.setup
         state_dates[setup.state].append(quote.trade_date)
 
-        confirmed_event = (
-            setup.state is SetupState.CONFIRMED and setup.confirmed_index == index
+        confirmed_event = evaluation.event_type is SetupState.CONFIRMED
+        failed_event = evaluation.event_type is SetupState.FAILED
+        decision_action = (
+            evaluation.decision.action if evaluation.decision is not None else None
         )
-        failed_event = (
-            setup.state is SetupState.FAILED and setup.state_entered_index == index
-        )
-        decision_action = None
         if confirmed_event:
             confirmed_event_dates.append(quote.trade_date)
-            decision = decide_platform_breakout(
-                as_of_quotes, setup, risk_capital, **decision_parameters
+            assert evaluation.decision is not None
+            decision_dates.setdefault(evaluation.decision.action, []).append(
+                quote.trade_date
             )
-            decision_action = decision.action
-            decision_dates.setdefault(decision.action, []).append(quote.trade_date)
         if failed_event:
             failed_event_dates.append(quote.trade_date)
+        if evaluation.event_type is not None:
+            events.append(
+                ReplayEvent(
+                    quotes[0].symbol,
+                    quote.trade_date,
+                    evaluation.event_type,
+                    setup,
+                    evaluation.decision,
+                )
+            )
 
         days.append(
             ReplayDay(
@@ -148,6 +171,7 @@ def replay_setup03_history(
         symbol=quotes[0].symbol,
         market=quotes[0].market,
         days=tuple(days),
+        events=tuple(events),
         state_day_counts={
             state: len(dates) for state, dates in state_date_tuples.items()
         },
@@ -179,6 +203,101 @@ def replay_summary_rows(
     reports: Iterable[SymbolReplayReport],
 ) -> list[dict]:
     return [report.summary_row() for report in reports]
+
+
+def replay_event_rows(
+    report: SymbolReplayReport,
+    historical_source: str,
+    parameter_version: str,
+    parameter_snapshot: str,
+) -> list[dict]:
+    """Project the read-only terminal-event ledger into artifact fields."""
+    rows: list[dict] = []
+    for event in report.events:
+        decision = event.decision
+        entry = decision.entry_plan if decision is not None else None
+        rr = decision.rr if decision is not None else None
+        targets = decision.targets if decision is not None else ()
+        ratios = rr.rr_ratios if rr is not None else ()
+        rows.append(
+            {
+                "统一代码": event.symbol,
+                "交易日期": event.trade_date,
+                "事件类型": event.event_type.value,
+                "Setup状态": event.setup.state.value,
+                "detected_index": event.setup.detected_index,
+                "state_entered_index": event.setup.state_entered_index,
+                "confirmed_index": event.setup.confirmed_index,
+                "突破价": event.setup.breakout_price,
+                "结构失效价": event.setup.structural_invalidation,
+                "Decision动作": decision.action.value if decision else None,
+                "计划入场": entry.planned_entry if entry else None,
+                "执行止损": decision.execution_stop if decision else None,
+                "T1": targets[0] if targets else None,
+                "T1_RR": ratios[0] if ratios else None,
+                "历史数据源": historical_source,
+                "参数版本": parameter_version,
+                "参数快照": parameter_snapshot,
+            }
+        )
+    return rows
+
+
+def validate_replay_history(
+    quotes: list[Quote],
+    *,
+    as_of_date: date,
+    expected_latest_date: date | None,
+    minimum_rows: int,
+    max_calendar_gap_days: int,
+    max_latest_lag_days: int,
+) -> None:
+    """Apply replay-only history quality gates without correcting source data."""
+    if not quotes:
+        raise ValueError("历史数据为空")
+    dates = [quote.trade_date for quote in quotes]
+    seen: set[date] = set()
+    for trade_date in dates:
+        if trade_date in seen:
+            raise ValueError(f"历史数据存在重复日期：{trade_date.isoformat()}")
+        seen.add(trade_date)
+    for previous, current in zip(dates, dates[1:]):
+        if current < previous:
+            raise ValueError(
+                "历史数据日期乱序："
+                f"{previous.isoformat()}之后出现{current.isoformat()}"
+            )
+    validate_quote_series(quotes)
+
+    if minimum_rows < 1:
+        raise ValueError(f"minimum_rows必须>=1：{minimum_rows}")
+    if len(quotes) < minimum_rows:
+        raise ValueError(
+            f"历史样本不足：实际{len(quotes)}，至少需要{minimum_rows}"
+        )
+    latest_date = dates[-1]
+    if latest_date > as_of_date:
+        raise ValueError(
+            f"历史数据包含未来日期：{latest_date.isoformat()}>{as_of_date.isoformat()}"
+        )
+    if expected_latest_date is not None and latest_date != expected_latest_date:
+        raise ValueError(
+            f"历史数据最新日期{latest_date.isoformat()}与期望交易日"
+            f"{expected_latest_date.isoformat()}不一致"
+        )
+    latest_lag = (as_of_date - latest_date).days
+    if latest_lag > max_latest_lag_days:
+        raise ValueError(
+            f"历史数据最新日期滞后{latest_lag}天，超过{max_latest_lag_days}天"
+        )
+    for previous, current in zip(dates, dates[1:]):
+        gap = (current - previous).days
+        if gap > max_calendar_gap_days:
+            raise ValueError(
+                "历史数据存在异常缺口："
+                f"{previous.isoformat()}至{current.isoformat()}相隔{gap}天，"
+                f"超过{max_calendar_gap_days}天"
+            )
 
 
 def _join_dates(dates: Iterable[date]) -> str:

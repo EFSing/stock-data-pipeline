@@ -438,6 +438,7 @@ def fetch_with_retry(
     retry_count: int,
     retry_wait_seconds: float,
     target_trade_date: date | None = None,
+    preserve_source_order: bool = False,
 ) -> list[Quote]:
     market = str(watch.get("市场"))
     candidates = _configured_source_candidates(source, market, adjust)
@@ -464,7 +465,7 @@ def fetch_with_retry(
                     )
                     last_error = stale_error
                     break
-                return sorted_quotes
+                return list(quotes) if preserve_source_order else sorted_quotes
             except Exception as exc:  # 上游站点错误需要重试并写入日志。
                 last_error = exc
                 if attempt < attempts:
