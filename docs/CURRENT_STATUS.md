@@ -26,7 +26,7 @@ V0.2
 
 ## In Progress
 
-- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics（PR #13 收尾整改中）：直接消费 PR #12 统一 CONFIRMED 事件流水；T 日生产 Decision gate 后，仅 `ENTRY_ALLOWED` 在 T+1 Open 尝试三分支执行。已补真实 Core → ReplayEvent → EXECUTED 集成测试、CONFIRMED → Decision → T+1 守恒漏斗、退出 bar 保守 MFE/MAE 与实际 `observation_days` 口径；敏感性字段明确为 `setup_swing_lookback`，固定 54 组仍不排名、不优化、不改生产参数。全量 151/151 通过；本轮远端真实 3 年 workflow 待最终 commit 后重跑
+- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics（PR #13 收尾整改完成，待最终审阅）：直接消费 PR #12 统一 CONFIRMED 事件流水；T 日生产 Decision gate 后，仅 `ENTRY_ALLOWED` 在 T+1 Open 尝试三分支执行。已补真实 Core → ReplayEvent → EXECUTED 集成测试、CONFIRMED → Decision → T+1 守恒漏斗、退出 bar 保守 MFE/MAE 与实际 `observation_days` 口径；敏感性字段明确为 `setup_swing_lookback`，固定 54 组仍不排名、不优化、不改生产参数。全量 151/151 通过；真实 3 年只读 workflow `32747728644`（9 标的/6037 bars）成功：生产参数 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；54 组累计 `206 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，29 组有 CONFIRMED、3 组有 ENTRY_ALLOWED，计数全部守恒且 R 统计客观留空
 
 ## Next
 
