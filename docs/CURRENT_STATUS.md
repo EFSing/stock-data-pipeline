@@ -26,7 +26,7 @@ V0.2
 
 ## In Progress
 
-- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics：直接消费 PR #12 统一 CONFIRMED 事件流水，只在 T+1 Open 模拟执行；新增 trade outcomes 与固定 54 组 research-only 敏感性诊断，不排名、不优化、不改生产参数
+- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics（PR #13 待审阅）：直接消费 PR #12 统一 CONFIRMED 事件流水，只在 T+1 Open 模拟执行；新增 trade outcomes 与固定 54 组 research-only 敏感性诊断，不排名、不优化、不改生产参数。全量 145/145 通过；真实 3 年 workflow（9 标的/6037 bars）成功：生产 CONFIRMED=0 / EXECUTED=0，54 组中 26 组有 CONFIRMED，但 EXECUTED 仍全为 0，故 R 统计客观留空
 
 ## Next
 
@@ -43,3 +43,4 @@ V0.2
 - **`自选清单` 现有 A:O 未消费列含义仍未核实**；Phase 4 使用新增的明确表头 `历史数据源`，不得复用或猜测旧列。列映射详见 `ARCHITECTURE.md`
 - `交易决策` 历史上由 PR #10 写入的状态快照行不会由本整改自动删除；新版本只追加/幂等更新 CONFIRMED 事件，旧行清理需单独审阅后执行
 - Replay 最新日期使用现有保守收盘日判断，异常缺口使用可配置日历日阈值；尚未接入各交易所节假日/停牌日历，真实 workflow 的 skipped 明细仍需人工复核
+- Phase 5B 真实 54 组严格逐日前缀回放约需 14 分钟；当前仅手动 research workflow 使用，后续若扩大标的池需在不改变 as-of/事件语义前提下优化编排性能
