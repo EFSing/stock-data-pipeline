@@ -25,7 +25,7 @@ V0.2
 
 ## In Progress
 
-- SETUP_03 settled 验收：等待独立 PR 审阅及带真实 Secrets 的只读 replay workflow 结果，不合并前不标记最终 settled
+- SETUP_03 settled 验收：PR #12 的 CI 与带真实 Secrets 的只读 replay workflow 已通过（calculable/enabled=9/9，skipped=0），但 3 年窗口 events=0；等待审阅并确认零真实事件是否符合当前严格参数预期，不合并前不标记最终 settled
 
 ## Next
 

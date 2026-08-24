@@ -144,6 +144,8 @@ def main() -> None:
             expected_latest_date.isoformat() if expected_latest_date else ""
         )
         row["样本数"] = len(quotes)
+        row["参数版本"] = parameter_version
+        row["参数快照"] = parameter_snapshot
         rows.append(row)
         event_rows.extend(
             replay_event_rows(
@@ -158,7 +160,13 @@ def main() -> None:
     _write_csv(SUMMARY_PATH, rows)
     _write_csv(SKIPPED_PATH, skipped)
     _write_csv(EVENTS_PATH, event_rows, EVENT_HEADERS)
-    _print_summary(rows, skipped, enabled_count, len(event_rows))
+    _print_summary(
+        rows,
+        skipped,
+        enabled_count,
+        len(event_rows),
+        parameter_version,
+    )
     if enabled_count == 0 or not rows:
         raise RuntimeError(
             "SETUP_03 replay failed: calculable/enabled coverage is zero "
@@ -194,6 +202,7 @@ def _print_summary(
     skipped: list[dict],
     enabled_count: int,
     event_count: int,
+    parameter_version: str,
 ) -> None:
     coverage = len(rows) / enabled_count if enabled_count else 0.0
     print(
@@ -204,6 +213,7 @@ def _print_summary(
     print(f"summary_csv={SUMMARY_PATH}")
     print(f"skipped_csv={SKIPPED_PATH}")
     print(f"events_csv={EVENTS_PATH}")
+    print(f"parameter_version={parameter_version}")
     for row in rows:
         symbol = row["统一代码"]
         name = row.get("名称") or ""

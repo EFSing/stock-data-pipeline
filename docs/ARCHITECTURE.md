@@ -135,7 +135,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 由 `.github/workflows/setup03-replay.yml` 手动触发
 - 复用 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` secrets 读取 `自选清单` 与 `参数设置`
 - 使用生产参数原值和 `自选清单.历史数据源` 抓取最近 3 年前复权历史，并保留数据源原始顺序供质量门控检查
-- 输出 summary / skipped / `setup03_replay_events.csv` 三类只读 CSV artifact；事件明细含参数哈希版本与完整参数快照，不写任何生产 Sheet
+- 输出 summary / skipped / `setup03_replay_events.csv` 三类只读 CSV artifact；事件明细与 summary 均含参数哈希版本及完整参数快照，零事件运行仍可复现；不写任何生产 Sheet
 - 输出 calculable/enabled 覆盖率；enabled=0 或 calculable=0 时先落诊断 artifact 再令 workflow 失败
 
 ## Google Sheets 各表（真实存在）
