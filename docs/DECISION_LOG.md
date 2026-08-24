@@ -129,3 +129,17 @@
 **Decision:** Phase 5A replay 汇总明确区分「状态日」与「事件」：CONFIRMED 事件仅在 `setup.confirmed_index == 当前 replay index` 当日记录，FAILED 事件仅在 `setup.state_entered_index == 当前 replay index` 当日记录；Decision 只在真正 CONFIRMED 事件日运行一次。
 
 **Reason:** `detect_platform_breakout()` 的 CONFIRMED/FAILED 是终态，在没有新 Setup 前后续 bar 可能继续返回同一终态。若按终态状态重复计数，会把持续天数误判为多次确认/失败并重复运行 Decision。
+
+---
+
+## 2026-08-24
+
+**Decision:** 生产 Google Sheets 发布与 Historical Replay 共用 `trading.events.evaluate_setup03_event()` 的终态事件语义。`CONFIRMED/FAILED` 是状态；只有 `confirmed_index == 当前最后索引` / `state_entered_index == 当前最后索引` 才是首次终态事件。`交易决策` 仅发布新的 CONFIRMED Decision 事件，并以已有 Sheet 事件键阻止同日重跑再次计算 Decision。
+
+**Reason:** PR #10 的生产路径按每日状态运行 Decision，而 PR #11 的回放路径按首次终态事件运行，两者语义分叉；仅依赖 Sheet upsert 虽不增加重复键，仍会重复计算入场方案并把持续 CONFIRMED 状态误作新交易信号。
+
+---
+
+**Decision:** SETUP_03 真实回放在 Trading Core 前增加只读数据质量门控：保留数据源原始顺序以检查重复/乱序，校验空序列、最小样本、最新日期、最新数据滞后与异常日历缺口；enabled=0 或 calculable=0 时 workflow 失败，但失败诊断 artifact 始终上传。
+
+**Reason:** 排序后再校验会掩盖源数据日期乱序；全部标的跳过仍成功会产生“回放已完成”的假阳性。质量阈值与 Trading 参数一起写入事件 artifact 参数快照，确保结果可追踪。

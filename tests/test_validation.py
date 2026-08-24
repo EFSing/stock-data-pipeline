@@ -288,6 +288,29 @@ class ValidationTests(unittest.TestCase):
             )
         self.assertEqual(result, stale)
 
+    def test_replay_fetch_can_preserve_source_order_for_quality_gate(self):
+        watch = {"统一代码": "603199.SH", "市场": "CN"}
+        newest = quote("BaoStock", day=date(2026, 8, 21))
+        older = quote("BaoStock", day=date(2026, 8, 20))
+        source_order = [newest, older]
+        with patch.dict(
+            "providers.PROVIDERS",
+            {"BaoStock": lambda *args: source_order},
+            clear=True,
+        ):
+            result = fetch_with_retry(
+                "BaoStock",
+                watch,
+                "qfq",
+                date(2026, 8, 1),
+                date(2026, 8, 21),
+                1,
+                0,
+                preserve_source_order=True,
+            )
+
+        self.assertEqual(result, source_order)
+
 
 if __name__ == "__main__":
     unittest.main()

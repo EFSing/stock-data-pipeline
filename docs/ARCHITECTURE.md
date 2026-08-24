@@ -26,8 +26,10 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     fetch_with_retry(历史数据源, "qfq")             [providers]
         → 仅 yfinance / BaoStock；不使用快照源
     confirmed close + qfq末日一致                    [main gate]
-        → detect_platform_breakout()                 [trading.setup]
-        → decide_platform_breakout()                 [trading.decision]
+        → evaluate_setup03_event()                   [trading.events]
+            → detect_platform_breakout()             [trading.setup]
+            → 仅最新bar首次CONFIRMED且未发布时
+               decide_platform_breakout()            [trading.decision]
         ↓
     SheetsClient.upsert_latest("最新行情")
     SheetsClient.upsert_history("历史行情_未复权")
@@ -64,6 +66,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── risk.py               # R/R + Position Size
 │   ├── setup.py              # SETUP_03 Platform Breakout
 │   ├── decision.py           # SETUP_03 Decision Engine
+│   ├── events.py             # 生产/回放共享的终态事件语义与幂等键
 │   └── replay.py             # SETUP_03 Historical Replay & Diagnostics（只读）
 ├── README.md
 ├── requirements.txt
@@ -107,23 +110,33 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `wanted_markets_for_group()`：任务组 → 市场集合
 - `as_ratio()` / `as_bool()`：解析 Google Sheets 配置
 - `quote_row()` / `decision_row()`：纯展示映射，不重算 Trading Core 逻辑
-- `evaluate_set03_decision()`：正式收盘 + qfq 末日一致双门控后调用 Trading Core
+- `evaluate_set03_decision()`：正式收盘 + qfq 末日一致双门控后，仅发布当前最后一根 K 线首次进入 CONFIRMED 的事件
+- 启动时读取 `交易决策` 已有事件键；同一标的/交易日/Setup 已存在时不重新计算 Decision，持续 CONFIRMED 状态日也不生成新行
 - 单标的 Setup/Decision 异常仅写入运行日志，不中断其他标的与行情表写入
 - `trading_parameters()`：从 `参数设置` 读取全部 Setup/Decision 参数，缺失时 fail fast
 - 依赖：core；providers / sheets_client 惰性导入
+
+### trading/events.py
+
+- `terminal_event_type()`：统一判定 CONFIRMED/FAILED 是否在当前最后一根 K 线首次进入终态
+- `evaluate_setup03_event()`：生产与回放共用；复用现有 Setup / Decision Engine，仅为新 CONFIRMED 事件计算 Decision；已发布事件键命中时不重算
+- 不复制 Swing / Setup / Decision 公式
 
 ### trading/replay.py
 
 - `replay_setup03_history()`：对单标的历史序列逐日回放 SETUP_03，传入 Trading Core 的输入严格为 `quotes[:i+1]`
 - `replay_setup03_symbols()` / `replay_summary_rows()`：输出每标的 NONE/WATCH/ARMED/CONFIRMED/FAILED 状态日数与日期、CONFIRMED/FAILED 事件次数与日期，并统计 CONFIRMED 事件日上的 Decision 动作
+- `ReplayEvent` / `replay_event_rows()`：只读终态事件流水及关键 Setup/Decision 字段
+- `validate_replay_history()`：空序列、重复/乱序日期、样本不足、最新日期和异常日历缺口门控
 - 只读诊断层；不写入 `交易决策` 表，不复制 Swing / Setup / Decision 交易逻辑，不修改生产参数
 
 ### scripts/run_setup03_replay.py
 
 - 由 `.github/workflows/setup03-replay.yml` 手动触发
 - 复用 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` secrets 读取 `自选清单` 与 `参数设置`
-- 使用生产参数原值和 `自选清单.历史数据源` 抓取最近 3 年前复权历史
-- 输出 `artifacts/setup03_replay/` CSV artifact；不写任何生产 Sheet
+- 使用生产参数原值和 `自选清单.历史数据源` 抓取最近 3 年前复权历史，并保留数据源原始顺序供质量门控检查
+- 输出 summary / skipped / `setup03_replay_events.csv` 三类只读 CSV artifact；事件明细与 summary 均含参数哈希版本及完整参数快照，零事件运行仍可复现；不写任何生产 Sheet
+- 输出 calculable/enabled 覆盖率；enabled=0 或 calculable=0 时先落诊断 artifact 再令 workflow 失败
 
 ## Google Sheets 各表（真实存在）
 
@@ -133,7 +146,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 | `最新行情` | 每标的最近一条未复权日线 | 写（upsert，键=统一代码） |
 | `历史行情_未复权` | 最新价格、成交量、缺口分析 | 写（upsert，键=统一代码+交易日期） |
 | `历史行情_前复权` | 均线、波浪、斐波那契分析 | 写（upsert） |
-| `交易决策` | SETUP_03 Decision 展示与历史留存 | 写（upsert，键=统一代码+交易日期+Setup类型） |
+| `交易决策` | SETUP_03 CONFIRMED Decision 事件流水 | 写（仅新 CONFIRMED 事件；upsert 键=统一代码+交易日期+Setup类型） |
 | `校验记录` | 两源逐次比对结果 | 追加 |
 | `运行日志` | 任务时间、状态、错误 | 追加 |
 | `参数设置` | 容差、历史长度、Setup/Decision 显式参数 | 读 |
@@ -168,7 +181,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
-- `setup03-replay.yml`：仅 `workflow_dispatch`，运行 `python scripts/run_setup03_replay.py`，输出只读 CSV artifact
+- `setup03-replay.yml`：仅 `workflow_dispatch`，运行 `python scripts/run_setup03_replay.py`，输出只读 CSV artifact；失败时仍上传诊断文件
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11
 - Secrets：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`
