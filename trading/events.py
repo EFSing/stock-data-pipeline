@@ -12,6 +12,7 @@ from typing import Collection
 
 from core import Quote
 from trading.decision import decide_platform_breakout
+from trading.indicators import atr
 from trading.models import Decision, Setup, SetupState
 from trading.setup import detect_platform_breakout
 
@@ -27,6 +28,9 @@ class Setup03Evaluation:
     confirmed_date: date | None
     decision: Decision | None
     duplicate: bool = False
+    signal_date: date | None = None
+    signal_close: float | None = None
+    signal_atr: float | None = None
 
 
 def setup03_decision_key(
@@ -78,10 +82,30 @@ def evaluate_setup03_event(
         if setup.confirmed_index is not None
         else None
     )
+    signal_date = event_date if event_type is SetupState.CONFIRMED else None
+    signal_close = (
+        float(quotes[current_index].close)
+        if event_type is SetupState.CONFIRMED
+        else None
+    )
+    signal_atr = None
+    if event_type is SetupState.CONFIRMED:
+        if "atr_period" in decision_parameters:
+            atr_values = atr(quotes, int(decision_parameters["atr_period"]))
+        else:
+            atr_values = atr(quotes)
+        signal_atr = atr_values[current_index]
 
     if event_type is not SetupState.CONFIRMED:
         return Setup03Evaluation(
-            setup, event_type, event_date, confirmed_date, None
+            setup,
+            event_type,
+            event_date,
+            confirmed_date,
+            None,
+            signal_date=signal_date,
+            signal_close=signal_close,
+            signal_atr=signal_atr,
         )
 
     key = setup03_decision_key(
@@ -91,12 +115,27 @@ def evaluate_setup03_event(
     )
     if key in published_decision_keys:
         return Setup03Evaluation(
-            setup, event_type, event_date, confirmed_date, None, duplicate=True
+            setup,
+            event_type,
+            event_date,
+            confirmed_date,
+            None,
+            duplicate=True,
+            signal_date=signal_date,
+            signal_close=signal_close,
+            signal_atr=signal_atr,
         )
 
     decision = decide_platform_breakout(
         quotes, setup, risk_capital, **decision_parameters
     )
     return Setup03Evaluation(
-        setup, event_type, event_date, confirmed_date, decision
+        setup,
+        event_type,
+        event_date,
+        confirmed_date,
+        decision,
+        signal_date=signal_date,
+        signal_close=signal_close,
+        signal_atr=signal_atr,
     )

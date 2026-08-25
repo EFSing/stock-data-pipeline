@@ -41,6 +41,13 @@ def ser_close(closes: list[float]) -> list[Quote]:
     return [q(start + timedelta(days=i), c, c) for i, c in enumerate(closes)]
 
 
+ENTRY_ALLOWED_CLOSES = [
+    90, 94, 98, 102, 106, 110, 106, 102, 98, 94, 90,
+    94, 98, 102, 106, 110, 106, 102, 98, 94, 90,
+    94, 98, 102, 106, 110, 106, 104, 110.3,
+]
+
+
 class DecisionTests(unittest.TestCase):
     BASE_H = [100, 105, 110, 105, 100, 105, 110, 105, 100, 105, 110, 105, 100]
     BASE_L = [90, 95, 100, 95, 90, 95, 100, 95, 90, 95, 100, 95, 90]
@@ -148,12 +155,7 @@ class DecisionTests(unittest.TestCase):
         证明系统不是 mathematically dead：Execution Stop 用 breakout_price - 0.5*ATR，
         risk≈2.3、reward≈5.1，RR(T1=Fib 1.272)≈2.2 达标。
         """
-        closes = [
-            90, 94, 98, 102, 106, 110, 106, 102, 98, 94, 90,
-            94, 98, 102, 106, 110, 106, 102, 98, 94, 90,
-            94, 98, 102, 106, 110, 106, 104, 110.3,
-        ]
-        quotes = ser_close(closes)
+        quotes = ser_close(ENTRY_ALLOWED_CLOSES)
         setup = detect_platform_breakout(quotes, swing_lookback=2, platform_window=40)
         self.assertEqual(setup.state, SetupState.CONFIRMED)
         self.assertEqual(setup.breakout_price, 110.0)

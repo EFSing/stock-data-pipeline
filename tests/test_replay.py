@@ -109,6 +109,27 @@ class Setup03ReplayTests(unittest.TestCase):
         )
         self.assertEqual(report.decision_counts[DecisionAction.NO_TRADE], 1)
 
+    def test_confirmed_event_carries_same_as_of_signal_context(self):
+        quotes = ser(self.BASE_H + [115], self.BASE_L + [112])
+        report = replay_setup03_history(
+            quotes,
+            risk_capital=1000.0,
+            setup_parameters={"swing_lookback": 2, "platform_window": 20},
+            decision_parameters={"swing_lookback": 2, "atr_period": 2},
+        )
+
+        event = report.events[-1]
+        self.assertEqual(event.event_type, SetupState.CONFIRMED)
+        self.assertEqual(event.signal_date, event.trade_date)
+        self.assertEqual(event.confirmed_date, event.trade_date)
+        self.assertEqual(event.signal_close, quotes[-1].close)
+        self.assertIsNotNone(event.signal_atr)
+        row = replay_event_rows(report, "yfinance", "sha256:test", "{}")[-1]
+        self.assertEqual(row["signal_date"], event.signal_date)
+        self.assertEqual(row["confirmed_date"], event.confirmed_date)
+        self.assertEqual(row["signal_close"], event.signal_close)
+        self.assertEqual(row["ATR"], event.signal_atr)
+
     def test_confirmed_terminal_state_does_not_repeat_confirmed_event(self):
         quotes = ser(
             self.BASE_H + [115, 116, 117, 118],
@@ -486,6 +507,10 @@ class ReplayProductionConsistencyTests(unittest.TestCase):
         self.assertEqual(artifact_row["Decision动作"], production_row["决策动作"])
         for field in ("计划入场", "结构失效价", "执行止损", "T1", "T1_RR"):
             self.assertEqual(artifact_row[field], production_row[field])
+        self.assertEqual(artifact_row["signal_date"], event.signal_date)
+        self.assertEqual(artifact_row["confirmed_date"], confirmed_date)
+        self.assertEqual(artifact_row["signal_close"], quotes[-1].close)
+        self.assertIsNotNone(artifact_row["ATR"])
 
 
 if __name__ == "__main__":

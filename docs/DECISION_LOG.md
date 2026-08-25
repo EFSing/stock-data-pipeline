@@ -143,3 +143,27 @@
 **Decision:** SETUP_03 真实回放在 Trading Core 前增加只读数据质量门控：保留数据源原始顺序以检查重复/乱序，校验空序列、最小样本、最新日期、最新数据滞后与异常日历缺口；enabled=0 或 calculable=0 时 workflow 失败，但失败诊断 artifact 始终上传。
 
 **Reason:** 排序后再校验会掩盖源数据日期乱序；全部标的跳过仍成功会产生“回放已完成”的假阳性。质量阈值与 Trading 参数一起写入事件 artifact 参数快照，确保结果可追踪。
+
+---
+
+**Decision:** Phase 5B SETUP_03 Research Backtest 只消费 `trading.events.evaluate_setup03_event()` 通过 Historical Replay 产生的 CONFIRMED event contract。T 日仅确认信号，T+1 Open 才可模拟执行；生产 `platform_tolerance_pct=0` 保持不变。敏感性 54 组参数仅输出客观统计，不排名、不选“最佳参数”、不回写生产配置。
+
+**Reason:** 保证 Phase 5B 与生产发布使用同一事件语义，避免回测重建终态事件或根据结果篡改历史信号。
+
+---
+
+**Decision:** 在生产 Position Management / Exit 尚未定义前，Phase 5B 的 `final_R` 使用显式 research-only 20 交易日首障碍口径：stop 与 T1 同 bar 按保守 stop-first；20D 未触发则按期末 close 盯市；不足 20D 且未触发为 censored，不进入 R 统计。`sample_size` 是有可观测 `final_R` 的成交样本数，另行输出 `confirmed_count` / `executed_count` / `censored_count`。
+
+**Reason:** 当前不应虚构多段止盈或持仓管理为生产规则；明确的保守诊断口径使 expectancy / profit factor 可复现，同时对未成熟样本避免端点偏差。
+
+---
+
+**Decision:** Phase 5B 的时间顺序固定为：T 日 SETUP_03 首次 CONFIRMED 后，使用仅截至 T 日的 as-of 数据生成生产 Decision；只有 `DecisionAction.ENTRY_ALLOWED` 才成为 T+1 执行候选。T+1 才读取 Open 并依次归类：`Open < breakout_price` → `SKIP_GAP_BELOW_BREAKOUT`；`breakout_price <= Open <= entry_zone_high` → `EXECUTED` 且 `actual_entry=Open`；`Open > entry_zone_high` → `SKIP_GAP_ABOVE_ENTRY_ZONE`。无 T+1 bar 仅适用于已通过 Decision gate 的候选。
+
+**Reason:** CONFIRMED 是 Setup 终态事件，不等于自动成交；生产 Decision 是 T 日前置 gate。先检查 T+1 再检查 Decision 会把末日 `NO_TRADE` 错分为无 T+1，从而污染漏斗并模糊真实零成交原因。研究结果即使为零成交也不得据此放宽生产规则。
+
+---
+
+**Decision:** Phase 5B 日线 excursion 采用不虚构分钟顺序的保守退出 bar 口径：首次退出之前的 bar 使用完整 high/low；STOP bar 的 adverse excursion 截止 stop，退出 bar 内先后不明的 favorable high 不计；T1 bar 的 favorable excursion 截止 T1，而仍高于 stop 的 low 可能发生在 T1 前，按保守 worst-case 纳入 adverse excursion。退出后的 bar 与越过首个退出障碍后的价格不再计入 MFE/MAE。`observation_days` 表示从 T+1 起到首次退出且包含退出 bar 的实际观察交易日数；无退出时才记录可用 forward bars（最多 20）。
+
+**Reason:** 日线 OHLC 无法证明同一 bar 内 high/low 的先后。直接使用退出 bar 完整极值会出现 stop-first `final_R=-1` 却同时把同 bar 后续高点计入 MFE 的内部矛盾；明确 barrier-capped 口径可复现且不伪造分钟级路径。
