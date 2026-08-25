@@ -17,7 +17,14 @@ from trading.decision import (
 )
 from trading.indicators import atr
 from trading.models import Decision, Setup, SetupState
-from trading.setup import detect_platform_breakout
+from trading.setup import (
+    SetupDiagnostics,
+    detect_platform_breakout,
+    detect_platform_breakout_with_diagnostics,
+)
+
+
+_ORIGINAL_DETECT_PLATFORM_BREAKOUT = detect_platform_breakout
 
 
 DecisionEventKey = tuple[str, str, str]
@@ -35,6 +42,7 @@ class Setup03Evaluation:
     signal_close: float | None = None
     signal_atr: float | None = None
     decision_diagnostics: DecisionDiagnostics | None = None
+    setup_diagnostics: SetupDiagnostics | None = None
 
 
 def setup03_decision_key(
@@ -77,7 +85,18 @@ def evaluate_setup03_event(
     """
     setup_parameters = dict(setup_parameters or {})
     decision_parameters = dict(decision_parameters or {})
-    setup = detect_platform_breakout(quotes, **setup_parameters)
+    # Keep the established test/integration seam. The real production function
+    # always uses the one-pass calculation; only an explicitly replaced legacy
+    # detector lacks diagnostics.
+    if detect_platform_breakout is _ORIGINAL_DETECT_PLATFORM_BREAKOUT:
+        setup_calculation = detect_platform_breakout_with_diagnostics(
+            quotes, **setup_parameters
+        )
+        setup = setup_calculation.setup
+        setup_diagnostics = setup_calculation.diagnostics
+    else:
+        setup = detect_platform_breakout(quotes, **setup_parameters)
+        setup_diagnostics = None
     current_index = len(quotes) - 1
     event_type = terminal_event_type(setup, current_index)
     event_date = quotes[current_index].trade_date if event_type is not None else None
@@ -110,6 +129,7 @@ def evaluate_setup03_event(
             signal_date=signal_date,
             signal_close=signal_close,
             signal_atr=signal_atr,
+            setup_diagnostics=setup_diagnostics,
         )
 
     key = setup03_decision_key(
@@ -128,6 +148,7 @@ def evaluate_setup03_event(
             signal_date=signal_date,
             signal_close=signal_close,
             signal_atr=signal_atr,
+            setup_diagnostics=setup_diagnostics,
         )
 
     calculated = decide_platform_breakout_with_diagnostics(
@@ -143,4 +164,5 @@ def evaluate_setup03_event(
         signal_close=signal_close,
         signal_atr=signal_atr,
         decision_diagnostics=calculated.diagnostics,
+        setup_diagnostics=setup_diagnostics,
     )

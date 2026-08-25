@@ -28,7 +28,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
         → 仅 yfinance / BaoStock；不使用快照源
     confirmed close + qfq末日一致                    [main gate]
         → evaluate_setup03_event()                   [trading.events]
-            → detect_platform_breakout()             [trading.setup]
+            → detect_platform_breakout_with_diagnostics() [trading.setup]
             → 仅最新bar首次CONFIRMED且未发布时
                decide_platform_breakout()            [trading.decision]
         ↓
@@ -61,6 +61,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── research/
 │   ├── replay_input.py      # canonical input hash / manifest / frozen replay
 │   ├── frozen_validation.py # Phase 5E 固定数据集描述性验证
+│   ├── confirmation_diagnostics.py # Phase 5F 确认前守恒漏斗/near-miss
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -130,6 +131,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - CONFIRMED 事件同一 as-of 上下文携带 `signal_date` / `confirmed_date` / `signal_close` / ATR，供 Phase 5A artifact 与 Phase 5B 共用
 - CONFIRMED Decision 使用同一次 production calculation 取得不改变 `Decision` 的 `DecisionDiagnostics`，并随事件 contract 传给 Replay/Research
 - 不复制 Swing / Setup / Decision 公式
+- 同一次 production Setup 计算携带只读 `SetupDiagnostics`；兼容入口仍只暴露原 `Setup`，不改变发布与交易行为
 
 ### trading/replay.py
 
@@ -165,6 +167,12 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 信号后路径以 CONFIRMED 日 `signal_close` 为锚，观察后续第 5/10/20 个交易日 close，以及相同期内 high/low 的描述性 MFE/MAE；它不是模拟成交、生产持仓管理或参数优化
 - 中文 Markdown/CSV 明确标记“描述性诊断（非参数优化）”；零 CONFIRMED/EXECUTED 时收益、MFE/MAE 与 Edge 均为不可评估，不放宽任何规则
 
+### research/confirmation_diagnostics.py
+
+- 只消费 `ReplayDay.setup_diagnostics`，不重算 Swing、Market Structure、平台边界或突破条件
+- 每个 bar 以 production 短路顺序唯一归入 terminal reason，强制 `total bars = 所有 terminal reason 之和`；多条件同时失败只记入不求和的 auxiliary diagnostics
+- 输出平台搜索逐 gate 进入/淘汰/通过数、状态转移分布、逐 bar 操作数和 near-miss 分位数；仅描述冻结 Phase 5E 数据集
+
 ### scripts/run_setup03_replay.py
 
 - 由 `.github/workflows/setup03-replay.yml` 手动触发
@@ -173,6 +181,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 输出 summary / skipped / replay events / trade outcomes / parameter sensitivity，并新增 `setup03_decision_gate_diagnostics.csv` 与 `setup03_decision_gate_summary.csv` 两类只读 artifact；事件明细与研究结果含生产参数哈希版本，零事件运行仍可复现；不写任何生产 Sheet
 - Phase 5D 额外输出 JSON/CSV input manifest、deterministic `setup03_replay_input.jsonl.gz` 与 manifest comparison CSV；`--frozen-input` 跳过 live history fetch，精确还原 Quote 后复用同一 Replay/Decision/Research 链
 - `--phase5e` 必须与 `--frozen-input` 同时使用，并且只接受上述固定 dataset/参数版本；使用 frozen manifest 自带的完整 symbol universe，不读取 live historical data，也不运行参数网格
+- `--phase5f` 必须同时启用 `--phase5e`，输出逐 bar terminal reason、完整确认前漏斗、辅助多重失败、near-miss 分布与中文报告
 - 输出 calculable/enabled 覆盖率；enabled=0 或 calculable=0 时先落诊断 artifact 再令 workflow 失败
 
 ## Google Sheets 各表（真实存在）

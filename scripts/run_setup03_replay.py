@@ -28,6 +28,10 @@ from research.frozen_validation import (
     render_frozen_validation_report,
     validate_phase5e_baseline,
 )
+from research.confirmation_diagnostics import (
+    confirmation_gate_artifacts,
+    render_confirmation_report,
+)
 from research.replay_input import (
     ManifestChange,
     build_input_manifest,
@@ -68,6 +72,12 @@ FROZEN_VALIDATION_CONCENTRATION_PATH = OUTPUT_DIR / "setup03_冻结验证_集中
 FROZEN_VALIDATION_SIGNAL_PATH_PATH = OUTPUT_DIR / "setup03_冻结验证_信号后路径.csv"
 FROZEN_VALIDATION_FORWARD_PATH = OUTPUT_DIR / "setup03_冻结验证_Forward_MAE_MFE.csv"
 FROZEN_VALIDATION_REPORT_PATH = OUTPUT_DIR / "setup03_冻结验证报告.md"
+CONFIRMATION_DETAIL_PATH = OUTPUT_DIR / "setup03_确认门诊断_逐bar.csv"
+CONFIRMATION_REASON_PATH = OUTPUT_DIR / "setup03_确认门诊断_terminal_reason.csv"
+CONFIRMATION_GATE_PATH = OUTPUT_DIR / "setup03_确认门诊断_完整漏斗.csv"
+CONFIRMATION_NEAR_MISS_PATH = OUTPUT_DIR / "setup03_确认门诊断_near_miss.csv"
+CONFIRMATION_AUXILIARY_PATH = OUTPUT_DIR / "setup03_确认门诊断_辅助多重失败.csv"
+CONFIRMATION_REPORT_PATH = OUTPUT_DIR / "setup03_确认门诊断报告.md"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
@@ -238,6 +248,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         )
     if args.phase5e and frozen_symbol_quotes is None:
         raise ValueError("Phase 5E requires --frozen-input; live history is forbidden")
+    if args.phase5f and not args.phase5e:
+        raise ValueError("Phase 5F requires --phase5e on the fixed frozen baseline")
     client = SheetsClient()
     config = client.config()
     setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
@@ -418,6 +430,7 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     input_manifest = build_input_manifest(symbol_quotes)
     phase5e_artifacts = None
+    phase5f_artifacts = None
     if args.phase5e:
         phase5e_artifacts = frozen_validation_artifacts(
             replay_reports,
@@ -426,6 +439,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             input_manifest,
             parameter_version,
         )
+    if args.phase5f:
+        phase5f_artifacts = confirmation_gate_artifacts(replay_reports)
     write_input_manifest(INPUT_MANIFEST_JSON_PATH, input_manifest)
     frozen_manifest = write_frozen_input(FROZEN_INPUT_PATH, symbol_quotes)
     if frozen_manifest != input_manifest:
@@ -491,6 +506,16 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             render_frozen_validation_report(phase5e_artifacts),
             encoding="utf-8",
         )
+    if phase5f_artifacts is not None:
+        _write_csv(CONFIRMATION_DETAIL_PATH, list(phase5f_artifacts.detail_rows))
+        _write_csv(CONFIRMATION_REASON_PATH, list(phase5f_artifacts.reason_rows))
+        _write_csv(CONFIRMATION_GATE_PATH, list(phase5f_artifacts.gate_rows))
+        _write_csv(CONFIRMATION_NEAR_MISS_PATH, list(phase5f_artifacts.near_miss_rows))
+        _write_csv(CONFIRMATION_AUXILIARY_PATH, list(phase5f_artifacts.auxiliary_rows))
+        CONFIRMATION_REPORT_PATH.write_text(
+            render_confirmation_report(phase5f_artifacts, input_manifest.aggregate_hash),
+            encoding="utf-8",
+        )
     production_funnel = {
         key: sum(row[key] for row in production_funnel_rows)
         for key in (
@@ -522,6 +547,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             f"dataset_hash={PHASE5E_DATASET_HASH}"
         )
         print(f"phase5e_report={FROZEN_VALIDATION_REPORT_PATH}")
+    if phase5f_artifacts is not None:
+        print(f"phase5f_confirmation_report={CONFIRMATION_REPORT_PATH}")
     if enabled_count == 0 or not rows:
         raise RuntimeError(
             "SETUP_03 replay failed: calculable/enabled coverage is zero "
@@ -686,6 +713,11 @@ def _parse_args(argv: tuple[str, ...] | list[str]) -> argparse.Namespace:
         "--phase5e",
         action="store_true",
         help="Run descriptive Phase 5E validation on the fixed frozen baseline",
+    )
+    parser.add_argument(
+        "--phase5f",
+        action="store_true",
+        help="Run production-path confirmation gate diagnostics on Phase 5E",
     )
     return parser.parse_args(list(argv))
 

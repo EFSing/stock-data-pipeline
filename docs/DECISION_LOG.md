@@ -220,6 +220,18 @@
 
 ---
 
+**Decision:** Phase 5F 的 Confirmation Gate reason 必须由 `trading.setup` 同一次 production SETUP_03 状态机计算产生。兼容 API 继续只返回原 `Setup`，只读 diagnostics 随 event/replay contract 传递，research 层不复制任何 Setup 公式。
+
+**Reason:** CONFIRMED 前失败原因必须与真实生产短路顺序和中间值一致；若在 research 层重建 Swing/结构/平台判断，会引入第二套交易逻辑与漂移风险。
+
+---
+
+**Decision:** 每个 frozen bar 按 production gate 的稳定优先级只归入一个 terminal reason，并强制总数守恒。同时失败的其他条件可作为 auxiliary diagnostics 与 near-miss 分布输出，但不参与 terminal 求和。
+
+**Reason:** 唯一归因可证明 6032 bars 无丢失、无重复；辅助多失败保留条件相关性信息，避免因互斥分类而掩盖下游同时过严的约束。
+
+---
+
 ## 2026-08-26
 
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
