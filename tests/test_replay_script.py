@@ -25,6 +25,13 @@ def config() -> dict:
 
 class ReplayWorkflowCoverageTests(unittest.TestCase):
     @patch("scripts.run_setup03_replay.SheetsClient")
+    def test_phase5e_rejects_live_mode_before_reading_sheets(self, client_class):
+        with self.assertRaisesRegex(ValueError, "requires --frozen-input"):
+            replay_script.main(["--phase5e"])
+
+        client_class.assert_not_called()
+
+    @patch("scripts.run_setup03_replay.SheetsClient")
     def test_zero_calculable_enabled_symbols_fails_after_writing_diagnostics(
         self, client_class
     ):

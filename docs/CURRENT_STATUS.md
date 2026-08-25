@@ -29,6 +29,7 @@ V0.2
 
 - Phase 5C SETUP_03 Decision Gate Diagnostics（PR #14 待审阅）：Decision 同一次生产计算返回原 `Decision` 与只读 `DecisionDiagnostics`，ReplayEvent 原样携带 diagnostics，research 固定 54 组只投影、不重算交易条件；新增逐事件/逐参数组合 CSV，并强制 reason 守恒；全量 164/164 通过。真实 3 年只读 workflow `32821290764` 成功（9/9 标的、6032 bars、skipped=0）：生产参数仍为 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；54 组为 `197 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，27 组有 CONFIRMED、3 组有 ENTRY_ALLOWED。Decision gate 为 `139 ABOVE_ENTRY_ZONE + 54 RR_BELOW_MINIMUM + 4 ENTRY_ALLOWED`，其余 reason（含 OTHER/invalid context）均为 0；不排名、不选 best、不修改生产参数或交易行为
 - Phase 5D Replay Input Reproducibility（PR #15，基于待合并 PR #14 的堆叠开发）：对实际进入 replay 的完整 Quote 生成逐 symbol/全数据集 SHA-256 manifest；支持六类显式 manifest diff、确定性 frozen input、跳过 live fetch 的 frozen replay 与 artifact 间自动比较。任何 frozen 内容与嵌入 manifest 不一致时 fail fast；`artifacts/` 已加入 gitignore。全量 172/172 通过。真实 live runs `32826696259` / `32828129539` 均成功：均为 9 symbols / 6032 bars、bar count 与日期范围相同，但 aggregate hash 由 `sha256:2b8203…c54703` 变为 `sha256:8166e1…09e36`，6 symbols 为 `CONTENT_CHANGED_WITH_SAME_BAR_COUNT`，grid funnel 由 `207 CONFIRMED → 4 ENTRY_ALLOWED → 0 EXECUTED` 变为 `200 → 4 → 0`。frozen run `32829662164` 从首轮 artifact 重放成功：9/9 `IDENTICAL`，aggregate/frozen bytes/六份核心报告 hash 与 funnel 全部一致，验证 same input + same config/code 可重复
+- Phase 5E Frozen Dataset Validation（基于 PR #15 的堆叠开发）：固定 Phase 5D 首轮 run `32826696259`（9 标的/6032 bars，dataset hash `sha256:2b8203468ee22c46bce446ae0aed695fab73c36ae6feab045b19c889f2c54703`）及生产参数版本 `sha256:abe4d3026892`；Phase 5E 入口禁止 live history，任何 dataset/参数漂移 fail fast，并跳过 54 组参数网格。只读输出中文漏斗、Decision reason、标的/市场/年份/季度、集中度及信号后 5/10/20D forward return/MFE/MAE；本地 frozen 重放为 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`，6032 个状态日全部为 NONE，因此收益、MAE/MFE、集中度与初步 Edge 均不可评估；不优化参数，不启动最终样本外验证
 
 ## Next
 
@@ -47,3 +48,4 @@ V0.2
 - Replay 最新日期使用现有保守收盘日判断，异常缺口使用可配置日历日阈值；尚未接入各交易所节假日/停牌日历，真实 workflow 的 skipped 明细仍需人工复核
 - Phase 5B 真实 54 组严格逐日前缀回放约需 14 分钟；当前仅手动 research workflow 使用，后续若扩大标的池需在不改变 as-of/事件语义前提下优化编排性能
 - 三年 live replay 仍按运行日滚动，数据源也可能修订历史 OHLC；Phase 5D 可准确识别、冻结并重放输入，但不会阻止上游修订。manifest/frozen input 当前随 GitHub artifact retention 生命周期保存，长期样本外基准需另行决定保留策略
+- Phase 5E 固定集已经用于 Phase 5B~5E 开发诊断，不能再作为最终样本外保留集；最终 OOS universe、时间边界与保留策略尚未定义，本阶段明确不启动

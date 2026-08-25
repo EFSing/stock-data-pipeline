@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       frozen_input_run_id:
-        description: "Optional prior run ID whose canonical frozen input should be replayed"
+        description: "Prior run ID; 32826696259 is the fixed Phase 5E dataset"
         required: false
         type: string
 
@@ -33,14 +33,20 @@ jobs:
       - name: Run read-only SETUP_03 replay and research diagnostics
         shell: bash
         run: |
-          if [ -n "${{ inputs.frozen_input_run_id }}" ]; then
+          if [ -n "$FROZEN_INPUT_RUN_ID" ]; then
+            phase5e_args=()
+            if [ "$FROZEN_INPUT_RUN_ID" = "32826696259" ]; then
+              phase5e_args+=(--phase5e)
+            fi
             python scripts/run_setup03_replay.py \
               --frozen-input previous-artifact/setup03_replay_input.jsonl.gz \
-              --compare-manifest previous-artifact/setup03_replay_input_manifest.json
+              --compare-manifest previous-artifact/setup03_replay_input_manifest.json \
+              "${phase5e_args[@]}"
           else
             python scripts/run_setup03_replay.py
           fi
         env:
+          FROZEN_INPUT_RUN_ID: ${{ inputs.frozen_input_run_id }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       - uses: actions/upload-artifact@v4

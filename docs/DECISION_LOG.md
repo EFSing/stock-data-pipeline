@@ -199,3 +199,21 @@
 **Decision:** manifest comparison 对每个 symbol 采用稳定的主分类优先级：added/removed → bar count → date range → same-count content hash → identical，并始终保留前后 count/range/hash 供审阅。
 
 **Reason:** 一次变化可能同时影响数量与日期；单一优先分类便于自动汇总，而保留全部前后字段不会丢失次级差异信息。
+
+---
+
+**Decision:** Phase 5E Frozen Dataset Validation 固定使用 Phase 5D 首轮 live run `32826696259` 经 frozen run `32829662164` 验证的 canonical dataset，aggregate hash 为 `sha256:2b8203468ee22c46bce446ae0aed695fab73c36ae6feab045b19c889f2c54703`；生产参数版本同时锁定为 `sha256:abe4d3026892`。Phase 5E 入口必须是 frozen input，hash 或参数版本漂移立即失败。
+
+**Reason:** Phase 5E 的正式历史描述必须消除 live historical OHLC 修订与配置漂移；同时固定 input identity 和生产参数 identity，才能让结果可审阅、可复现且不会悄然换样本或换规则。
+
+---
+
+**Decision:** Phase 5E 只统计生产参数下既有 ReplayEvent / Decision / T+1 execution contract，不运行 Phase 5B 的 54 组敏感性网格。信号后 forward return、MFE、MAE 以 CONFIRMED 日 `signal_close` 为锚，观察后续 5/10/20 个交易日的 close/high/low，仅作为描述性路径诊断；它与实际成交后的 `Setup03TradeOutcome` 分开，不定义生产持仓规则。
+
+**Reason:** 正式冻结样本验证与参数诊断必须分离。生产漏斗为零时，应客观报告收益与 Edge 不可评估并定位阻断阶段，而不是借用非生产参数样本、调参或把事后路径伪装成可交易绩效。
+
+---
+
+**Decision:** Phase 5D/5E 固定数据集已参与开发诊断，明确不属于最终样本外保留集。Phase 5E 不选择参数、不放宽 tolerance / R/R / ATR stop / Target / Entry Zone / execution rules，也不启动正式 out-of-sample validation。
+
+**Reason:** 已被反复观察和用于诊断的数据不能再提供独立样本外证据；把描述性结论与未来 OOS validation 分开可防止选择偏差和过度宣称 Edge。
