@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import json
@@ -20,6 +21,16 @@ from research.backtest.setup03 import (
     research_funnel_counts,
     research_trade_outcomes,
 )
+from research.replay_input import (
+    ManifestChange,
+    build_input_manifest,
+    compare_input_manifests,
+    comparison_rows,
+    read_frozen_input,
+    read_input_manifest,
+    write_frozen_input,
+    write_input_manifest,
+)
 from sheets_client import SheetsClient
 from trading.models import DecisionAction, SetupState
 from trading.replay import (
@@ -39,6 +50,10 @@ DECISION_GATE_DIAGNOSTICS_PATH = (
     OUTPUT_DIR / "setup03_decision_gate_diagnostics.csv"
 )
 DECISION_GATE_SUMMARY_PATH = OUTPUT_DIR / "setup03_decision_gate_summary.csv"
+INPUT_MANIFEST_JSON_PATH = OUTPUT_DIR / "setup03_replay_input_manifest.json"
+INPUT_MANIFEST_CSV_PATH = OUTPUT_DIR / "setup03_replay_input_manifest.csv"
+FROZEN_INPUT_PATH = OUTPUT_DIR / "setup03_replay_input.jsonl.gz"
+INPUT_COMPARISON_PATH = OUTPUT_DIR / "setup03_replay_input_comparison.csv"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
@@ -155,9 +170,36 @@ DECISION_GATE_SUMMARY_HEADERS = [
     ],
     "生产参数版本",
 ]
+INPUT_MANIFEST_HEADERS = [
+    "symbol",
+    "bar_count",
+    "start_date",
+    "end_date",
+    "input_hash",
+    "aggregate_hash",
+    "total_symbol_count",
+    "total_bar_count",
+    "schema_version",
+]
+INPUT_COMPARISON_HEADERS = [
+    "symbol",
+    "status",
+    "previous_bar_count",
+    "current_bar_count",
+    "previous_start_date",
+    "current_start_date",
+    "previous_end_date",
+    "current_end_date",
+    "previous_input_hash",
+    "current_input_hash",
+]
 
 
-def main() -> None:
+def main(argv: tuple[str, ...] | list[str] = ()) -> None:
+    args = _parse_args(argv)
+    frozen_symbol_quotes = None
+    if args.frozen_input is not None:
+        frozen_symbol_quotes, _ = read_frozen_input(args.frozen_input)
     client = SheetsClient()
     config = client.config()
     setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
@@ -219,21 +261,30 @@ def main() -> None:
                 str(watch["收盘时间"]),
                 fetched_at,
             )
-            quotes = fetch_with_retry(
-                historical_source,
-                watch,
-                "qfq",
-                start,
-                end,
-                retry_count,
-                retry_wait,
-                target_trade_date=expected_latest_date,
-                preserve_source_order=True,
-            )
+            if frozen_symbol_quotes is None:
+                quotes = fetch_with_retry(
+                    historical_source,
+                    watch,
+                    "qfq",
+                    start,
+                    end,
+                    retry_count,
+                    retry_wait,
+                    target_trade_date=expected_latest_date,
+                    preserve_source_order=True,
+                )
+                quality_as_of_date = end
+                quality_expected_latest_date = expected_latest_date
+            else:
+                if symbol not in frozen_symbol_quotes:
+                    raise ValueError(f"frozen input is missing enabled symbol: {symbol}")
+                quotes = list(frozen_symbol_quotes[symbol])
+                quality_as_of_date = quotes[-1].trade_date
+                quality_expected_latest_date = quotes[-1].trade_date
             validate_replay_history(
                 quotes,
-                as_of_date=end,
-                expected_latest_date=expected_latest_date,
+                as_of_date=quality_as_of_date,
+                expected_latest_date=quality_expected_latest_date,
                 minimum_rows=minimum_rows,
                 max_calendar_gap_days=max_gap_days,
                 max_latest_lag_days=max_latest_lag_days,
@@ -305,6 +356,17 @@ def main() -> None:
             artifact_row["生产参数版本"] = parameter_version
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    input_manifest = build_input_manifest(symbol_quotes)
+    write_input_manifest(INPUT_MANIFEST_JSON_PATH, input_manifest)
+    frozen_manifest = write_frozen_input(FROZEN_INPUT_PATH, symbol_quotes)
+    if frozen_manifest != input_manifest:
+        raise RuntimeError("frozen replay input manifest changed during serialization")
+    comparison_data = []
+    if args.compare_manifest is not None:
+        previous_manifest = read_input_manifest(args.compare_manifest)
+        comparison_data = comparison_rows(
+            compare_input_manifests(previous_manifest, input_manifest)
+        )
     _write_csv(SUMMARY_PATH, rows)
     _write_csv(SKIPPED_PATH, skipped)
     _write_csv(EVENTS_PATH, event_rows, EVENT_HEADERS)
@@ -319,6 +381,16 @@ def main() -> None:
         DECISION_GATE_SUMMARY_PATH,
         decision_gate_summary_rows,
         DECISION_GATE_SUMMARY_HEADERS,
+    )
+    _write_csv(
+        INPUT_MANIFEST_CSV_PATH,
+        input_manifest.csv_rows(),
+        INPUT_MANIFEST_HEADERS,
+    )
+    _write_csv(
+        INPUT_COMPARISON_PATH,
+        comparison_data,
+        INPUT_COMPARISON_HEADERS,
     )
     production_funnel = {
         key: sum(row[key] for row in production_funnel_rows)
@@ -340,6 +412,9 @@ def main() -> None:
         len(event_rows),
         parameter_version,
         production_funnel,
+        input_manifest.aggregate_hash,
+        comparison_data,
+        args.frozen_input is not None,
     )
     if enabled_count == 0 or not rows:
         raise RuntimeError(
@@ -378,6 +453,9 @@ def _print_summary(
     event_count: int,
     parameter_version: str,
     production_funnel: dict[str, int],
+    aggregate_input_hash: str,
+    comparison_data: list[dict],
+    frozen_input: bool,
 ) -> None:
     coverage = len(rows) / enabled_count if enabled_count else 0.0
     print(
@@ -406,6 +484,26 @@ def _print_summary(
     print(f"sensitivity_csv={SENSITIVITY_PATH}")
     print(f"decision_gate_diagnostics_csv={DECISION_GATE_DIAGNOSTICS_PATH}")
     print(f"decision_gate_summary_csv={DECISION_GATE_SUMMARY_PATH}")
+    print(f"input_manifest_json={INPUT_MANIFEST_JSON_PATH}")
+    print(f"input_manifest_csv={INPUT_MANIFEST_CSV_PATH}")
+    print(f"frozen_input={FROZEN_INPUT_PATH}")
+    print(f"input_comparison_csv={INPUT_COMPARISON_PATH}")
+    print(f"input_mode={'FROZEN' if frozen_input else 'LIVE'}")
+    print(f"aggregate_input_hash={aggregate_input_hash}")
+    if comparison_data:
+        comparison_counts = {
+            status.value: sum(
+                row["status"] == status.value for row in comparison_data
+            )
+            for status in ManifestChange
+        }
+        print(
+            "input_manifest_comparison: "
+            + ", ".join(
+                f"{status.value}={comparison_counts[status.value]}"
+                for status in ManifestChange
+            )
+        )
     print(f"parameter_version={parameter_version}")
     for row in rows:
         symbol = row["统一代码"]
@@ -464,5 +562,22 @@ def _parameter_metadata(
     return snapshot, version
 
 
+def _parse_args(argv: tuple[str, ...] | list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run read-only SETUP_03 replay and research diagnostics"
+    )
+    parser.add_argument(
+        "--frozen-input",
+        type=Path,
+        help="Replay canonical Quote bars from a prior workflow artifact",
+    )
+    parser.add_argument(
+        "--compare-manifest",
+        type=Path,
+        help="Compare the current input manifest with a prior manifest JSON",
+    )
+    return parser.parse_args(list(argv))
+
+
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

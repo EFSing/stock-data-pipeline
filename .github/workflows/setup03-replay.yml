@@ -2,6 +2,15 @@ name: SETUP_03 Historical Replay and Research Backtest
 
 on:
   workflow_dispatch:
+    inputs:
+      frozen_input_run_id:
+        description: "Optional prior run ID whose canonical frozen input should be replayed"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
   replay:
@@ -13,8 +22,24 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
+      - name: Download prior frozen replay input
+        if: inputs.frozen_input_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: setup03-replay
+          path: previous-artifact
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.frozen_input_run_id }}
       - name: Run read-only SETUP_03 replay and research diagnostics
-        run: python scripts/run_setup03_replay.py
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.frozen_input_run_id }}" ]; then
+            python scripts/run_setup03_replay.py \
+              --frozen-input previous-artifact/setup03_replay_input.jsonl.gz \
+              --compare-manifest previous-artifact/setup03_replay_input_manifest.json
+          else
+            python scripts/run_setup03_replay.py
+          fi
         env:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
