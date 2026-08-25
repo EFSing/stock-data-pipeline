@@ -292,7 +292,8 @@ def _quantile(values, q):
     position = (len(values) - 1) * q
     lower = int(position)
     upper = min(lower + 1, len(values) - 1)
-    return values[lower] * (upper - position) + values[upper] * (position - lower)
+    weight = position - lower
+    return values[lower] * (1 - weight) + values[upper] * weight
 
 
 def _explosion_label(ratio, count):

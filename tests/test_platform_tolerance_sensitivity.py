@@ -77,6 +77,8 @@ class PlatformToleranceSensitivityTests(unittest.TestCase):
         )
         self.assertEqual(artifacts.funnel_rows[0]["平台识别数量"], 0)
         self.assertEqual(artifacts.funnel_rows[1]["平台识别数量"], 1)
+        self.assertEqual(artifacts.structure_rows[1]["high_span_P90"], 0.004)
+        self.assertEqual(artifacts.structure_rows[1]["low_span_P90"], 0.003)
         self.assertEqual(
             len(artifacts.confirmation_reason_rows),
             len(PLATFORM_TOLERANCES) * len(SetupGateReason),
