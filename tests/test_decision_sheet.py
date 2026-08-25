@@ -188,7 +188,7 @@ class DecisionGateTests(unittest.TestCase):
 
 class SharedEventSemanticsTests(unittest.TestCase):
     @patch("trading.events.detect_platform_breakout")
-    @patch("trading.events.decide_platform_breakout")
+    @patch("trading.events.decide_platform_breakout_with_diagnostics")
     def test_persistent_confirmed_state_does_not_recalculate_decision(
         self, decide, detect
     ):
@@ -203,7 +203,7 @@ class SharedEventSemanticsTests(unittest.TestCase):
         decide.assert_not_called()
 
     @patch("trading.events.detect_platform_breakout")
-    @patch("trading.events.decide_platform_breakout")
+    @patch("trading.events.decide_platform_breakout_with_diagnostics")
     def test_same_day_published_event_is_idempotent_without_recalculation(
         self, decide, detect
     ):

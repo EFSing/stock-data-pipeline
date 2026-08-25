@@ -23,10 +23,11 @@ V0.2
 - Phase 5A：SETUP_03 Historical Replay & Diagnostics（只读）：`trading/replay.py` 按历史交易日前缀 `quotes[:i+1]` 严格 as-of 回放，复用现有 Setup / Decision Engine，明确区分状态日与 CONFIRMED/FAILED 事件，仅在 CONFIRMED 事件日运行 Decision；新增 workflow_dispatch-only 真实前复权回放 workflow（只读 artifact，不写生产 Sheet）；全量 122/122 通过
 - SETUP_03 审计整改：生产与回放共用 `trading/events.py` 终态事件语义；`交易决策` 改为仅发布新 CONFIRMED 事件并以已有事件键阻止同日重算；补齐真实多生命周期回放、数据质量门控、calculable/enabled 覆盖率失败条件、只读事件明细 artifact 及 replay/生产一致性测试；全量 136/136 通过
 - SETUP_03 审计整改 PR #12 已合并；带真实 Secrets 的 3 年只读 replay 在生产参数 `platform_tolerance_pct=0` 下客观为 `events=0`
+- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics（PR #13 已合并）：直接消费统一 CONFIRMED 事件流水；T 日生产 Decision gate 后，仅 `ENTRY_ALLOWED` 在 T+1 Open 尝试三分支执行。真实 Core → ReplayEvent → EXECUTED 集成测试、CONFIRMED → Decision → T+1 守恒漏斗、退出 bar 保守 MFE/MAE 与实际 `observation_days` 口径均已冻结；真实 3 年只读 workflow `32747728644`（9 标的/6037 bars）：生产参数 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；固定 54 组累计 `206 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，计数守恒且不排名、不优化、不改生产参数
 
 ## In Progress
 
-- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics（PR #13 收尾整改完成，待最终审阅）：直接消费 PR #12 统一 CONFIRMED 事件流水；T 日生产 Decision gate 后，仅 `ENTRY_ALLOWED` 在 T+1 Open 尝试三分支执行。已补真实 Core → ReplayEvent → EXECUTED 集成测试、CONFIRMED → Decision → T+1 守恒漏斗、退出 bar 保守 MFE/MAE 与实际 `observation_days` 口径；敏感性字段明确为 `setup_swing_lookback`，固定 54 组仍不排名、不优化、不改生产参数。全量 151/151 通过；真实 3 年只读 workflow `32747728644`（9 标的/6037 bars）成功：生产参数 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；54 组累计 `206 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，29 组有 CONFIRMED、3 组有 ENTRY_ALLOWED，计数全部守恒且 R 统计客观留空
+- Phase 5C SETUP_03 Decision Gate Diagnostics：Decision 同一次生产计算返回原 `Decision` 与只读 `DecisionDiagnostics`，结构化区分 ATR/确认上下文/结构失效/未突破/追高/无目标/RR/OTHER/ENTRY_ALLOWED；ReplayEvent 原样携带 diagnostics，research 固定 54 组只投影、不重算交易条件。workflow 新增逐事件 `setup03_decision_gate_diagnostics.csv` 与逐参数组合 `setup03_decision_gate_summary.csv`，每组强制 `CONFIRMED = ENTRY_ALLOWED + 全部 rejection reason`，未知拒绝显式归入 `OTHER_NO_TRADE`；不排名、不选 best、不修改生产参数或交易行为；全量 164/164 通过
 
 ## Next
 

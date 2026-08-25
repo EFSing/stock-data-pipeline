@@ -15,7 +15,8 @@ from core import Quote, expected_latest_trade_date
 from main import as_bool, beijing_now, trading_parameters
 from providers import QFQ_HISTORY_SOURCES, fetch_with_retry
 from research.backtest.setup03 import (
-    parameter_sensitivity_rows,
+    DECISION_GATE_REASONS,
+    parameter_sensitivity_artifacts,
     research_funnel_counts,
     research_trade_outcomes,
 )
@@ -34,6 +35,10 @@ SKIPPED_PATH = OUTPUT_DIR / "setup03_replay_skipped.csv"
 EVENTS_PATH = OUTPUT_DIR / "setup03_replay_events.csv"
 OUTCOMES_PATH = OUTPUT_DIR / "setup03_trade_outcomes.csv"
 SENSITIVITY_PATH = OUTPUT_DIR / "setup03_parameter_sensitivity.csv"
+DECISION_GATE_DIAGNOSTICS_PATH = (
+    OUTPUT_DIR / "setup03_decision_gate_diagnostics.csv"
+)
+DECISION_GATE_SUMMARY_PATH = OUTPUT_DIR / "setup03_decision_gate_summary.csv"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
@@ -112,6 +117,42 @@ SENSITIVITY_HEADERS = [
     "profit_factor",
     "MFE",
     "MAE",
+    "生产参数版本",
+]
+DECISION_GATE_DIAGNOSTIC_HEADERS = [
+    "symbol",
+    "signal_date",
+    "confirmed_date",
+    "setup_swing_lookback",
+    "platform_window",
+    "platform_tolerance_pct",
+    "breakout_price",
+    "structural_invalidation",
+    "signal_close",
+    "ATR",
+    "decision_action",
+    "decision_gate_reason",
+    "planned_entry",
+    "entry_zone_low",
+    "entry_zone_high",
+    "execution_stop",
+    "T1",
+    "T1_RR",
+    "decision_index",
+    "confirmed_index",
+    "生产参数版本",
+]
+DECISION_GATE_SUMMARY_HEADERS = [
+    "setup_swing_lookback",
+    "platform_window",
+    "platform_tolerance_pct",
+    "CONFIRMED",
+    "ENTRY_ALLOWED",
+    *[
+        field
+        for reason in DECISION_GATE_REASONS
+        for field in (f"{reason.value}_count", f"{reason.value}_ratio")
+    ],
     "生产参数版本",
 ]
 
@@ -237,18 +278,31 @@ def main() -> None:
             outcome_row["参数版本"] = parameter_version
             outcome_rows.append(outcome_row)
 
-    sensitivity_rows = (
-        parameter_sensitivity_rows(
+    if symbol_quotes:
+        parameter_artifacts = parameter_sensitivity_artifacts(
             symbol_quotes,
             risk_capital,
             setup_parameters,
             decision_parameters,
         )
-        if symbol_quotes
-        else []
-    )
-    for sensitivity_row in sensitivity_rows:
-        sensitivity_row["生产参数版本"] = parameter_version
+        sensitivity_rows = [dict(row) for row in parameter_artifacts.sensitivity_rows]
+        decision_gate_rows = [
+            dict(row) for row in parameter_artifacts.decision_gate_rows
+        ]
+        decision_gate_summary_rows = [
+            dict(row) for row in parameter_artifacts.decision_gate_summary_rows
+        ]
+    else:
+        sensitivity_rows = []
+        decision_gate_rows = []
+        decision_gate_summary_rows = []
+    for artifact_rows in (
+        sensitivity_rows,
+        decision_gate_rows,
+        decision_gate_summary_rows,
+    ):
+        for artifact_row in artifact_rows:
+            artifact_row["生产参数版本"] = parameter_version
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     _write_csv(SUMMARY_PATH, rows)
@@ -256,6 +310,16 @@ def main() -> None:
     _write_csv(EVENTS_PATH, event_rows, EVENT_HEADERS)
     _write_csv(OUTCOMES_PATH, outcome_rows, OUTCOME_HEADERS)
     _write_csv(SENSITIVITY_PATH, sensitivity_rows, SENSITIVITY_HEADERS)
+    _write_csv(
+        DECISION_GATE_DIAGNOSTICS_PATH,
+        decision_gate_rows,
+        DECISION_GATE_DIAGNOSTIC_HEADERS,
+    )
+    _write_csv(
+        DECISION_GATE_SUMMARY_PATH,
+        decision_gate_summary_rows,
+        DECISION_GATE_SUMMARY_HEADERS,
+    )
     production_funnel = {
         key: sum(row[key] for row in production_funnel_rows)
         for key in (
@@ -340,6 +404,8 @@ def _print_summary(
     print(f"events_csv={EVENTS_PATH}")
     print(f"outcomes_csv={OUTCOMES_PATH}")
     print(f"sensitivity_csv={SENSITIVITY_PATH}")
+    print(f"decision_gate_diagnostics_csv={DECISION_GATE_DIAGNOSTICS_PATH}")
+    print(f"decision_gate_summary_csv={DECISION_GATE_SUMMARY_PATH}")
     print(f"parameter_version={parameter_version}")
     for row in rows:
         symbol = row["统一代码"]

@@ -37,9 +37,10 @@ from datetime import date
 from enum import Enum
 from itertools import product
 from statistics import fmean
-from typing import Sequence
+from typing import Iterable, Sequence
 
 from core import Quote
+from trading.decision import DecisionGateReason
 from trading.models import DecisionAction, SetupState, validate_quote_series
 from trading.replay import ReplayEvent, SymbolReplayReport, replay_setup03_history
 
@@ -48,6 +49,7 @@ FORWARD_HORIZON = 20
 SENSITIVITY_SWING_LOOKBACKS = (3, 5, 7)
 SENSITIVITY_PLATFORM_WINDOWS = (30, 40, 60)
 SENSITIVITY_PLATFORM_TOLERANCES = (0.005, 0.01, 0.015, 0.02, 0.03, 0.05)
+DECISION_GATE_REASONS = tuple(DecisionGateReason)
 
 
 class ExecutionStatus(str, Enum):
@@ -130,6 +132,15 @@ class Setup03ResearchReport:
         )
 
 
+@dataclass(frozen=True)
+class Setup03ParameterArtifacts:
+    """Unranked Phase 5B metrics plus Phase 5C Decision gate projections."""
+
+    sensitivity_rows: tuple[dict, ...]
+    decision_gate_rows: tuple[dict, ...]
+    decision_gate_summary_rows: tuple[dict, ...]
+
+
 def research_trade_outcomes(
     replay_report: SymbolReplayReport,
     quotes: list[Quote],
@@ -163,7 +174,32 @@ def parameter_sensitivity_rows(
     platform_tolerances: Sequence[float] = SENSITIVITY_PLATFORM_TOLERANCES,
 ) -> list[dict]:
     """Run the declared research grid in stable order without ranking it."""
+    return list(
+        parameter_sensitivity_artifacts(
+            symbol_quotes,
+            risk_capital,
+            production_setup_parameters,
+            decision_parameters,
+            swing_lookbacks,
+            platform_windows,
+            platform_tolerances,
+        ).sensitivity_rows
+    )
+
+
+def parameter_sensitivity_artifacts(
+    symbol_quotes: dict[str, list[Quote]],
+    risk_capital: float,
+    production_setup_parameters: dict,
+    decision_parameters: dict,
+    swing_lookbacks: Sequence[int] = SENSITIVITY_SWING_LOOKBACKS,
+    platform_windows: Sequence[int] = SENSITIVITY_PLATFORM_WINDOWS,
+    platform_tolerances: Sequence[float] = SENSITIVITY_PLATFORM_TOLERANCES,
+) -> Setup03ParameterArtifacts:
+    """Run each grid cell once and project both performance and gate diagnostics."""
     rows: list[dict] = []
+    diagnostic_rows: list[dict] = []
+    diagnostic_summary_rows: list[dict] = []
     input_bar_count = sum(len(quotes) for quotes in symbol_quotes.values())
     for swing_lookback, platform_window, tolerance in product(
         swing_lookbacks, platform_windows, platform_tolerances
@@ -207,6 +243,21 @@ def parameter_sensitivity_rows(
             key: sum(row[key] for row in funnel_rows)
             for key in _FUNNEL_COUNT_FIELDS
         }
+        cell_diagnostics = decision_gate_diagnostic_rows(
+            (replay_report for replay_report, _ in report_pairs),
+            swing_lookback,
+            platform_window,
+            tolerance,
+        )
+        diagnostic_rows.extend(cell_diagnostics)
+        diagnostic_summary_rows.append(
+            decision_gate_summary_row(
+                cell_diagnostics,
+                swing_lookback,
+                platform_window,
+                tolerance,
+            )
+        )
         rows.append(
             {
                 "setup_swing_lookback": swing_lookback,
@@ -220,7 +271,114 @@ def parameter_sensitivity_rows(
                 **_performance_metrics(final_rs, mfe_rs, mae_rs),
             }
         )
+    return Setup03ParameterArtifacts(
+        tuple(rows), tuple(diagnostic_rows), tuple(diagnostic_summary_rows)
+    )
+
+
+def decision_gate_diagnostic_rows(
+    replay_reports: Iterable[SymbolReplayReport],
+    setup_swing_lookback: int,
+    platform_window: int,
+    platform_tolerance_pct: float,
+) -> list[dict]:
+    """Project one conserved row per CONFIRMED event without recalculation."""
+    rows: list[dict] = []
+    for report in replay_reports:
+        for event in report.events:
+            if event.event_type is not SetupState.CONFIRMED:
+                continue
+            decision = event.decision
+            diagnostics = event.decision_diagnostics
+            action = decision.action if decision is not None else None
+            if diagnostics is not None:
+                reason = diagnostics.reason
+            elif action is DecisionAction.ENTRY_ALLOWED:
+                reason = DecisionGateReason.ENTRY_ALLOWED
+            else:
+                # Preserve an unexplained rejection instead of dropping it.
+                reason = DecisionGateReason.OTHER_NO_TRADE
+            if (reason is DecisionGateReason.ENTRY_ALLOWED) != (
+                action is DecisionAction.ENTRY_ALLOWED
+            ):
+                raise ValueError("Decision action and gate reason are inconsistent")
+
+            entry = decision.entry_plan if decision is not None else None
+            targets = decision.targets if decision is not None else ()
+            rr = decision.rr if decision is not None else None
+            ratios = rr.rr_ratios if rr is not None else ()
+            rows.append(
+                {
+                    "symbol": event.symbol,
+                    "signal_date": event.signal_date,
+                    "confirmed_date": event.confirmed_date,
+                    "setup_swing_lookback": setup_swing_lookback,
+                    "platform_window": platform_window,
+                    "platform_tolerance_pct": platform_tolerance_pct,
+                    "breakout_price": event.setup.breakout_price,
+                    "structural_invalidation": event.setup.structural_invalidation,
+                    "signal_close": event.signal_close,
+                    "ATR": diagnostics.atr if diagnostics else event.signal_atr,
+                    "decision_action": action.value if action else None,
+                    "decision_gate_reason": reason.value,
+                    "planned_entry": (
+                        diagnostics.planned_entry
+                        if diagnostics is not None
+                        else (entry.planned_entry if entry else event.signal_close)
+                    ),
+                    "entry_zone_low": (
+                        diagnostics.entry_zone_low
+                        if diagnostics is not None
+                        else (entry.entry_zone_low if entry else None)
+                    ),
+                    "entry_zone_high": (
+                        diagnostics.entry_zone_high
+                        if diagnostics is not None
+                        else (entry.entry_zone_high if entry else None)
+                    ),
+                    "execution_stop": (
+                        diagnostics.execution_stop
+                        if diagnostics is not None
+                        else (decision.execution_stop if decision else None)
+                    ),
+                    "T1": targets[0] if targets else None,
+                    "T1_RR": ratios[0] if ratios else None,
+                    "decision_index": (
+                        diagnostics.decision_index if diagnostics else None
+                    ),
+                    "confirmed_index": event.setup.confirmed_index,
+                }
+            )
     return rows
+
+
+def decision_gate_summary_row(
+    diagnostic_rows: Sequence[dict],
+    setup_swing_lookback: int,
+    platform_window: int,
+    platform_tolerance_pct: float,
+) -> dict:
+    """Aggregate a grid cell and enforce CONFIRMED reason conservation."""
+    counts = Counter(row["decision_gate_reason"] for row in diagnostic_rows)
+    confirmed = len(diagnostic_rows)
+    known_values = {reason.value for reason in DECISION_GATE_REASONS}
+    unknown = sum(count for value, count in counts.items() if value not in known_values)
+    if unknown:
+        raise ValueError("unknown Decision gate reason must be mapped to OTHER_NO_TRADE")
+    row = {
+        "setup_swing_lookback": setup_swing_lookback,
+        "platform_window": platform_window,
+        "platform_tolerance_pct": platform_tolerance_pct,
+        "CONFIRMED": confirmed,
+        "ENTRY_ALLOWED": counts[DecisionGateReason.ENTRY_ALLOWED.value],
+    }
+    for reason in DECISION_GATE_REASONS:
+        count = counts[reason.value]
+        row[f"{reason.value}_count"] = count
+        row[f"{reason.value}_ratio"] = count / confirmed if confirmed else 0.0
+    if confirmed != sum(row[f"{reason.value}_count"] for reason in DECISION_GATE_REASONS):
+        raise ValueError("CONFIRMED count does not conserve across Decision reasons")
+    return row
 
 
 def _simulate_event(

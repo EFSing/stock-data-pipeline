@@ -167,3 +167,17 @@
 **Decision:** Phase 5B 日线 excursion 采用不虚构分钟顺序的保守退出 bar 口径：首次退出之前的 bar 使用完整 high/low；STOP bar 的 adverse excursion 截止 stop，退出 bar 内先后不明的 favorable high 不计；T1 bar 的 favorable excursion 截止 T1，而仍高于 stop 的 low 可能发生在 T1 前，按保守 worst-case 纳入 adverse excursion。退出后的 bar 与越过首个退出障碍后的价格不再计入 MFE/MAE。`observation_days` 表示从 T+1 起到首次退出且包含退出 bar 的实际观察交易日数；无退出时才记录可用 forward bars（最多 20）。
 
 **Reason:** 日线 OHLC 无法证明同一 bar 内 high/low 的先后。直接使用退出 bar 完整极值会出现 stop-first `final_R=-1` 却同时把同 bar 后续高点计入 MFE 的内部矛盾；明确 barrier-capped 口径可复现且不伪造分钟级路径。
+
+---
+
+## 2026-08-25
+
+**Decision:** Phase 5C 将 SETUP_03 Decision gate reason 实现在生产 Decision 计算函数内部：同一次计算返回原有不可变 `Decision` 与只读 `DecisionDiagnostics`。兼容入口 `decide_platform_breakout()` 仍只返回原 `Decision`；事件层把 diagnostics 随统一 CONFIRMED contract 传给 Replay/Research。Research 只投影 reason 与中间值，不复制 ATR、Entry Zone、Target 或 R/R 判断。
+
+**Reason:** Decision action 与拒绝原因必须共享 Single Source of Truth，才能解释 CONFIRMED → NO_TRADE 而不产生规则漂移；将 diagnostics 与 `Decision` 分离也能保证生产对象、Sheet 投影和交易行为完全不变。
+
+---
+
+**Decision:** Phase 5C 固定 54 组网格逐事件只允许一个 reason，逐参数组合强制 `CONFIRMED = ENTRY_ALLOWED + 所有 rejection reason`。缺失或未知诊断显式落入 `OTHER_NO_TRADE`，不得丢样本；结果仅按原网格稳定顺序输出，不排名、不打分、不选最佳参数。
+
+**Reason:** 研究目标是定位新增 CONFIRMED 被哪个生产 gate 拒绝，而不是根据样本内结果调参或放宽规则；显式守恒和 OTHER 兜底可防止无法解释的样本静默消失。
