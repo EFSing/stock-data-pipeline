@@ -27,7 +27,7 @@ V0.2
 
 ## In Progress
 
-- Phase 5C SETUP_03 Decision Gate Diagnostics：Decision 同一次生产计算返回原 `Decision` 与只读 `DecisionDiagnostics`，结构化区分 ATR/确认上下文/结构失效/未突破/追高/无目标/RR/OTHER/ENTRY_ALLOWED；ReplayEvent 原样携带 diagnostics，research 固定 54 组只投影、不重算交易条件。workflow 新增逐事件 `setup03_decision_gate_diagnostics.csv` 与逐参数组合 `setup03_decision_gate_summary.csv`，每组强制 `CONFIRMED = ENTRY_ALLOWED + 全部 rejection reason`，未知拒绝显式归入 `OTHER_NO_TRADE`；不排名、不选 best、不修改生产参数或交易行为；全量 164/164 通过
+- Phase 5C SETUP_03 Decision Gate Diagnostics（PR #14 待审阅）：Decision 同一次生产计算返回原 `Decision` 与只读 `DecisionDiagnostics`，ReplayEvent 原样携带 diagnostics，research 固定 54 组只投影、不重算交易条件；新增逐事件/逐参数组合 CSV，并强制 reason 守恒；全量 164/164 通过。真实 3 年只读 workflow `32821290764` 成功（9/9 标的、6032 bars、skipped=0）：生产参数仍为 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；54 组为 `197 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，27 组有 CONFIRMED、3 组有 ENTRY_ALLOWED。Decision gate 为 `139 ABOVE_ENTRY_ZONE + 54 RR_BELOW_MINIMUM + 4 ENTRY_ALLOWED`，其余 reason（含 OTHER/invalid context）均为 0；不排名、不选 best、不修改生产参数或交易行为
 
 ## Next
 
@@ -45,3 +45,4 @@ V0.2
 - `交易决策` 历史上由 PR #10 写入的状态快照行不会由本整改自动删除；新版本只追加/幂等更新 CONFIRMED 事件，旧行清理需单独审阅后执行
 - Replay 最新日期使用现有保守收盘日判断，异常缺口使用可配置日历日阈值；尚未接入各交易所节假日/停牌日历，真实 workflow 的 skipped 明细仍需人工复核
 - Phase 5B 真实 54 组严格逐日前缀回放约需 14 分钟；当前仅手动 research workflow 使用，后续若扩大标的池需在不改变 as-of/事件语义前提下优化编排性能
+- 真实 replay 的参数哈希只覆盖参数/质量阈值，不覆盖实际输入 OHLC；三年窗口按运行日滚动，且数据源可能在相邻运行间修订同样 bar 数的价格。Phase 5C run `32821290764` 为 197 CONFIRMED，同日 main 对照 run `32822609248` 为 202（均 6032 bars），而前一日 run `32747728644` 为 206（6037 bars）。后续样本外验证前应增加不含凭据的输入序列 hash/manifest，必要时保存可复现的只读输入快照
