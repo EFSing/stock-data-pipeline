@@ -63,6 +63,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── frozen_validation.py # Phase 5E 固定数据集描述性验证
 │   ├── confirmation_diagnostics.py # Phase 5F 确认前守恒漏斗/near-miss
 │   ├── platform_tolerance_sensitivity.py # Phase 5G 单参数平台容差敏感性
+│   ├── platform_structure_calibration.py # Phase 5H 市场分层平台结构校准
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -236,6 +237,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
+- 固定 run `32826696259` 还启用 Phase 5F~5H 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化，不读取 forward return 或 P&L，也不选择 production 参数。
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11
 - Secrets：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`
