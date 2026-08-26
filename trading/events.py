@@ -11,7 +11,10 @@ from datetime import date
 from typing import Collection
 
 from core import Quote
-from trading.decision import decide_platform_breakout
+from trading.decision import (
+    DecisionDiagnostics,
+    decide_platform_breakout_with_diagnostics,
+)
 from trading.indicators import atr
 from trading.models import Decision, Setup, SetupState
 from trading.setup import detect_platform_breakout
@@ -31,6 +34,7 @@ class Setup03Evaluation:
     signal_date: date | None = None
     signal_close: float | None = None
     signal_atr: float | None = None
+    decision_diagnostics: DecisionDiagnostics | None = None
 
 
 def setup03_decision_key(
@@ -126,7 +130,7 @@ def evaluate_setup03_event(
             signal_atr=signal_atr,
         )
 
-    decision = decide_platform_breakout(
+    calculated = decide_platform_breakout_with_diagnostics(
         quotes, setup, risk_capital, **decision_parameters
     )
     return Setup03Evaluation(
@@ -134,8 +138,9 @@ def evaluate_setup03_event(
         event_type,
         event_date,
         confirmed_date,
-        decision,
+        calculated.decision,
         signal_date=signal_date,
         signal_close=signal_close,
         signal_atr=signal_atr,
+        decision_diagnostics=calculated.diagnostics,
     )

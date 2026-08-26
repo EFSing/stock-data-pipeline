@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from core import Quote
 from main import decision_row, evaluate_set03_decision
-from trading.decision import decide_platform_breakout
+from trading.decision import decide_platform_breakout_with_diagnostics
 from trading.events import Setup03Evaluation
 from trading.models import Decision, DecisionAction, Setup, SetupState
 from trading.replay import (
@@ -92,9 +92,14 @@ class Setup03ReplayTests(unittest.TestCase):
 
         def spy_decide(as_of_quotes, setup, risk_capital, **kwargs):
             decision_dates.append(as_of_quotes[-1].trade_date)
-            return decide_platform_breakout(as_of_quotes, setup, risk_capital, **kwargs)
+            return decide_platform_breakout_with_diagnostics(
+                as_of_quotes, setup, risk_capital, **kwargs
+            )
 
-        with patch("trading.events.decide_platform_breakout", side_effect=spy_decide):
+        with patch(
+            "trading.events.decide_platform_breakout_with_diagnostics",
+            side_effect=spy_decide,
+        ):
             report = replay_setup03_history(
                 quotes,
                 risk_capital=1000.0,
@@ -139,9 +144,14 @@ class Setup03ReplayTests(unittest.TestCase):
 
         def spy_decide(as_of_quotes, setup, risk_capital, **kwargs):
             decision_dates.append(as_of_quotes[-1].trade_date)
-            return decide_platform_breakout(as_of_quotes, setup, risk_capital, **kwargs)
+            return decide_platform_breakout_with_diagnostics(
+                as_of_quotes, setup, risk_capital, **kwargs
+            )
 
-        with patch("trading.events.decide_platform_breakout", side_effect=spy_decide):
+        with patch(
+            "trading.events.decide_platform_breakout_with_diagnostics",
+            side_effect=spy_decide,
+        ):
             report = replay_setup03_history(
                 quotes,
                 risk_capital=1000.0,

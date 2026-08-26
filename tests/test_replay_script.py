@@ -42,7 +42,7 @@ class ReplayWorkflowCoverageTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "coverage is zero"):
                 replay_script.main()
 
-        self.assertEqual(write_csv.call_count, 5)
+        self.assertEqual(write_csv.call_count, 7)
         skipped_rows = write_csv.call_args_list[1].args[1]
         self.assertEqual(
             skipped_rows[0]["原因"], "历史数据源Tencent不支持qfq"
@@ -66,6 +66,18 @@ class ReplayWorkflowCoverageTests(unittest.TestCase):
         self.assertIn("skip_gap_below_breakout_count", sensitivity_call.args[2])
         self.assertIn("skip_gap_above_entry_zone_count", sensitivity_call.args[2])
         self.assertIn("executed_count", sensitivity_call.args[2])
+        diagnostics_call = write_csv.call_args_list[5]
+        self.assertEqual(
+            diagnostics_call.args[0], replay_script.DECISION_GATE_DIAGNOSTICS_PATH
+        )
+        self.assertIn("decision_gate_reason", diagnostics_call.args[2])
+        self.assertIn("T1_RR", diagnostics_call.args[2])
+        summary_call = write_csv.call_args_list[6]
+        self.assertEqual(
+            summary_call.args[0], replay_script.DECISION_GATE_SUMMARY_PATH
+        )
+        self.assertIn("RR_BELOW_MINIMUM_count", summary_call.args[2])
+        self.assertIn("RR_BELOW_MINIMUM_ratio", summary_call.args[2])
 
     def test_parameter_version_is_deterministic_and_snapshot_complete(self):
         setup = {"swing_lookback": 5, "platform_window": 40}
