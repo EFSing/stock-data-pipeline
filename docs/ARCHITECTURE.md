@@ -62,6 +62,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── replay_input.py      # canonical input hash / manifest / frozen replay
 │   ├── frozen_validation.py # Phase 5E 固定数据集描述性验证
 │   ├── confirmation_diagnostics.py # Phase 5F 确认前守恒漏斗/near-miss
+│   ├── platform_tolerance_sensitivity.py # Phase 5G 单参数平台容差敏感性
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -172,6 +173,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 只消费 `ReplayDay.setup_diagnostics`，不重算 Swing、Market Structure、平台边界或突破条件
 - 每个 bar 以 production 短路顺序唯一归入 terminal reason，强制 `total bars = 所有 terminal reason 之和`；多条件同时失败只记入不求和的 auxiliary diagnostics
 - 输出平台搜索逐 gate 进入/淘汰/通过数、状态转移分布、逐 bar 操作数和 near-miss 分位数；仅描述冻结 Phase 5E 数据集
+
+### research/platform_tolerance_sensitivity.py
+
+- 仅在 Phase 5E frozen dataset 上按固定顺序回放 `0%、0.5%、1%、1.5%、2%、3%、5%、7.5%、10%`；除 `platform_tolerance_pct` 外全部使用同一 production 参数快照
+- 每档直接调用 `replay_setup03_history()`，消费同源 Setup/Decision diagnostics、CONFIRMED event 与 T+1 execution contract；research 层不复制 Swing、Structure、Decision、RR、Entry/Stop/Target/Execution 公式
+- 输出平台识别、WATCH/ARMED/CONFIRMED/ENTRY_ALLOWED/EXECUTED 完整漏斗、confirmation/decision reason 守恒、标的/市场/年份分布、5/10/20D 描述性 forward return/MFE/MAE 及 high/low span 与集中度稳定性
+- 固定原始 tolerance 顺序，不排名、不打分、不计算最佳参数、不写回生产配置；`0` 的精确相等语义只作为配置默认值审计，与策略参数选择明确分离
 
 ### scripts/run_setup03_replay.py
 

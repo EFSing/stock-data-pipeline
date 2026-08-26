@@ -32,6 +32,10 @@ from research.confirmation_diagnostics import (
     confirmation_gate_artifacts,
     render_confirmation_report,
 )
+from research.platform_tolerance_sensitivity import (
+    platform_tolerance_sensitivity_artifacts,
+    render_platform_tolerance_report,
+)
 from research.replay_input import (
     ManifestChange,
     build_input_manifest,
@@ -78,6 +82,13 @@ CONFIRMATION_GATE_PATH = OUTPUT_DIR / "setup03_确认门诊断_完整漏斗.csv"
 CONFIRMATION_NEAR_MISS_PATH = OUTPUT_DIR / "setup03_确认门诊断_near_miss.csv"
 CONFIRMATION_AUXILIARY_PATH = OUTPUT_DIR / "setup03_确认门诊断_辅助多重失败.csv"
 CONFIRMATION_REPORT_PATH = OUTPUT_DIR / "setup03_确认门诊断报告.md"
+TOLERANCE_FUNNEL_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_完整漏斗.csv"
+TOLERANCE_CONFIRMATION_REASON_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_Confirmation原因.csv"
+TOLERANCE_DECISION_REASON_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_Decision原因.csv"
+TOLERANCE_DISTRIBUTION_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_标的市场年份分布.csv"
+TOLERANCE_FORWARD_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_Forward_MAE_MFE.csv"
+TOLERANCE_STRUCTURE_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_结构稳定性.csv"
+TOLERANCE_REPORT_PATH = OUTPUT_DIR / "setup03_Phase5G平台容差敏感性报告.md"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
@@ -250,6 +261,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         raise ValueError("Phase 5E requires --frozen-input; live history is forbidden")
     if args.phase5f and not args.phase5e:
         raise ValueError("Phase 5F requires --phase5e on the fixed frozen baseline")
+    if args.phase5g and not args.phase5e:
+        raise ValueError("Phase 5G requires --phase5e on the fixed frozen baseline")
     client = SheetsClient()
     config = client.config()
     setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
@@ -431,6 +444,7 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
     input_manifest = build_input_manifest(symbol_quotes)
     phase5e_artifacts = None
     phase5f_artifacts = None
+    phase5g_artifacts = None
     if args.phase5e:
         phase5e_artifacts = frozen_validation_artifacts(
             replay_reports,
@@ -441,6 +455,15 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         )
     if args.phase5f:
         phase5f_artifacts = confirmation_gate_artifacts(replay_reports)
+    if args.phase5g:
+        phase5g_artifacts = platform_tolerance_sensitivity_artifacts(
+            symbol_quotes,
+            risk_capital,
+            setup_parameters,
+            decision_parameters,
+            input_manifest,
+            parameter_version,
+        )
     write_input_manifest(INPUT_MANIFEST_JSON_PATH, input_manifest)
     frozen_manifest = write_frozen_input(FROZEN_INPUT_PATH, symbol_quotes)
     if frozen_manifest != input_manifest:
@@ -516,6 +539,28 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             render_confirmation_report(phase5f_artifacts, input_manifest.aggregate_hash),
             encoding="utf-8",
         )
+    if phase5g_artifacts is not None:
+        _write_csv(TOLERANCE_FUNNEL_PATH, list(phase5g_artifacts.funnel_rows))
+        _write_csv(
+            TOLERANCE_CONFIRMATION_REASON_PATH,
+            list(phase5g_artifacts.confirmation_reason_rows),
+        )
+        _write_csv(
+            TOLERANCE_DECISION_REASON_PATH,
+            list(phase5g_artifacts.decision_reason_rows),
+        )
+        _write_csv(
+            TOLERANCE_DISTRIBUTION_PATH,
+            list(phase5g_artifacts.distribution_rows),
+        )
+        _write_csv(TOLERANCE_FORWARD_PATH, list(phase5g_artifacts.forward_rows))
+        _write_csv(TOLERANCE_STRUCTURE_PATH, list(phase5g_artifacts.structure_rows))
+        TOLERANCE_REPORT_PATH.write_text(
+            render_platform_tolerance_report(
+                phase5g_artifacts, input_manifest.aggregate_hash
+            ),
+            encoding="utf-8",
+        )
     production_funnel = {
         key: sum(row[key] for row in production_funnel_rows)
         for key in (
@@ -549,6 +594,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         print(f"phase5e_report={FROZEN_VALIDATION_REPORT_PATH}")
     if phase5f_artifacts is not None:
         print(f"phase5f_confirmation_report={CONFIRMATION_REPORT_PATH}")
+    if phase5g_artifacts is not None:
+        print(f"phase5g_tolerance_report={TOLERANCE_REPORT_PATH}")
     if enabled_count == 0 or not rows:
         raise RuntimeError(
             "SETUP_03 replay failed: calculable/enabled coverage is zero "
@@ -718,6 +765,11 @@ def _parse_args(argv: tuple[str, ...] | list[str]) -> argparse.Namespace:
         "--phase5f",
         action="store_true",
         help="Run production-path confirmation gate diagnostics on Phase 5E",
+    )
+    parser.add_argument(
+        "--phase5g",
+        action="store_true",
+        help="Run fixed single-parameter platform-tolerance sensitivity on Phase 5E",
     )
     return parser.parse_args(list(argv))
 

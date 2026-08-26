@@ -232,6 +232,18 @@
 
 ---
 
+**Decision:** Phase 5G 只在 Phase 5E/5F 的固定 dataset 与 production 参数版本上改变 `platform_tolerance_pct`，tolerance 顺序固定为 `0%、0.5%、1%、1.5%、2%、3%、5%、7.5%、10%`。每档重新走既有 strict as-of Replay → Setup/Decision → T+1 execution contract，研究层只聚合已有 diagnostics 与事件，不复制任何 Trading Core 公式。
+
+**Reason:** 单参数隔离和同源计算是判断数量、集中度与结构质量随 tolerance 变化的必要条件；固定顺序且不排名可避免把描述性敏感性研究变成样本内优化。
+
+---
+
+**Decision:** `platform_tolerance_pct=0` 在代码中的确定语义是多个 Swing High 与 Swing Low 的归一化 span 必须严格为零（精确相等）。Phase 5G 将“该默认配置是否表达预期的平台语义”与“非零 tolerance 应选何值”视为两个问题：前者可审计，后者本阶段不回答；不自动修改 production 默认值或 Sheets 配置。
+
+**Reason:** 有效的数值输入不等于合理的业务默认值，而确认默认语义异常也不授权根据同一开发数据选择生产策略参数。两者分离可以避免从诊断直接跳到调参或 OOS。
+
+---
+
 ## 2026-08-26
 
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
