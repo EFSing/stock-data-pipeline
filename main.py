@@ -225,6 +225,10 @@ def select_history_series(
     history_quotes = sorted(history_quotes, key=lambda item: item.trade_date)
     if history_quotes[-1].trade_date < chosen.trade_date:
         history_quotes.append(chosen)
+    elif history_quotes[-1].trade_date == chosen.trade_date:
+        # Keep the published raw history consistent with the sanity-aware
+        # quote selected for 最新行情.
+        history_quotes[-1] = chosen
     return history_source, history_quotes
 
 
@@ -285,8 +289,24 @@ def run(group: str) -> None:
 
         primary = latest_quote(primary_quotes)
         verifier = latest_quote(verifier_quotes)
+        primary_sanity_issue = quote_sanity_issue(primary) if primary is not None else None
+        verifier_sanity_issue = quote_sanity_issue(verifier) if verifier is not None else None
         result = validate_quotes(primary, verifier, close_tolerance, volume_tolerance)
         chosen = fresher_quote(primary, verifier)
+        source_selection_note = ""
+        if (
+            chosen is verifier
+            and primary is not None
+            and verifier is not None
+            and primary.trade_date == verifier.trade_date
+            and primary_sanity_issue
+            and not verifier_sanity_issue
+        ):
+            issue = primary_sanity_issue.removeprefix("行情字段异常：")
+            source_selection_note = (
+                f"主数据源{primary.source}字段异常（{issue}），"
+                f"最终行情采用{verifier.source}"
+            )
         if chosen is None:
             log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": "失败", "新增／更新行数": 0, "消息": "；".join(errors)})
             continue
@@ -312,7 +332,13 @@ def run(group: str) -> None:
         actual_verifier_source = verifier.source if verifier is not None else verifier_source
         notes = [
             item for item in
-            (result.note, stale_note, sanity_note, "；".join(fallback_notes))
+            (
+                result.note,
+                stale_note,
+                sanity_note,
+                source_selection_note,
+                "；".join(fallback_notes),
+            )
             if item
         ]
         latest_rows.append({
@@ -333,7 +359,17 @@ def run(group: str) -> None:
             "收盘价差异": result.close_diff, "主源成交量": primary.volume if primary else None,
             "校验源成交量": verifier.volume if verifier else None, "成交量差异": result.volume_diff,
             "日期一致": result.date_match, "价格通过": result.close_pass, "成交量通过": result.volume_pass,
-            "校验状态": displayed_status, "说明": "；".join(item for item in (result.note, stale_note, sanity_note) if item),
+            "校验状态": displayed_status,
+            "说明": "；".join(
+                item
+                for item in (
+                    result.note,
+                    stale_note,
+                    sanity_note,
+                    source_selection_note,
+                )
+                if item
+            ),
         })
         _, history_quotes = select_history_series(
             primary_source, primary_quotes, verifier_source, verifier_quotes, chosen

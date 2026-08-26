@@ -87,6 +87,16 @@ class ValidationTests(unittest.TestCase):
         verifier = quote("校验源")
         self.assertIs(fresher_quote(primary, verifier), primary)
 
+    def test_uses_sane_verifier_when_same_day_primary_open_is_invalid(self):
+        primary = replace(quote("yfinance"), open=102.0, high=101.0)
+        verifier = quote("Tencent")
+        self.assertIs(fresher_quote(primary, verifier), verifier)
+
+    def test_keeps_primary_when_both_same_day_quotes_are_invalid(self):
+        primary = replace(quote("yfinance"), open=102.0, high=101.0)
+        verifier = replace(quote("Tencent"), low=102.0, high=101.0)
+        self.assertIs(fresher_quote(primary, verifier), primary)
+
     def test_expects_same_day_after_weekday_close_buffer(self):
         fetched_at = datetime(2026, 8, 17, 8, 21, tzinfo=timezone.utc)
         self.assertEqual(
@@ -242,6 +252,30 @@ class ValidationTests(unittest.TestCase):
             [item.trade_date for item in result],
             [date(2026, 8, 19), date(2026, 8, 20), date(2026, 8, 21)],
         )
+
+    def test_history_selection_replaces_invalid_same_day_bar_with_chosen_quote(self):
+        invalid_latest = replace(
+            quote("yfinance", day=date(2026, 8, 21)),
+            open=102.0,
+            high=101.0,
+        )
+        history = [
+            quote("yfinance", day=date(2026, 8, 20)),
+            invalid_latest,
+        ]
+        chosen = quote("Tencent", day=date(2026, 8, 21))
+
+        source, result = select_history_series(
+            "yfinance",
+            history,
+            "Tencent",
+            [chosen],
+            chosen,
+        )
+
+        self.assertEqual(source, "yfinance")
+        self.assertIs(result[-1], chosen)
+        self.assertIsNone(quote_sanity_issue(result[-1]))
 
     def test_cn_provider_falls_back_to_tencent(self):
         watch = {"统一代码": "603199.SH", "市场": "CN"}
