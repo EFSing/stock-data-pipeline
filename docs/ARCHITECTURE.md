@@ -64,6 +64,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── confirmation_diagnostics.py # Phase 5F 确认前守恒漏斗/near-miss
 │   ├── platform_tolerance_sensitivity.py # Phase 5G 单参数平台容差敏感性
 │   ├── platform_structure_calibration.py # Phase 5H 市场分层平台结构校准
+│   ├── parameter_freeze.py # Phase 5I 冻结规范读取、完整性校验与冻结前审计
+│   ├── setup03_frozen_spec.json # Phase 5I 机器可读参数 inventory / frozen spec
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -182,6 +184,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 输出平台识别、WATCH/ARMED/CONFIRMED/ENTRY_ALLOWED/EXECUTED 完整漏斗、confirmation/decision reason 守恒、标的/市场/年份分布、5/10/20D 描述性 forward return/MFE/MAE 及 high/low span 与集中度稳定性
 - 固定原始 tolerance 顺序，不排名、不打分、不计算最佳参数、不写回生产配置；`0` 的精确相等语义只作为配置默认值审计，与策略参数选择明确分离
 
+### research/parameter_freeze.py / setup03_frozen_spec.json
+
+- Phase 5I 的 JSON 规范是冻结 inventory、证据身份、治理边界和 `UNRESOLVED` 缺口的单一事实来源；每项明确分类为既有固定、本轮冻结、保留不冻结、废弃、非 SETUP_03 参数或未解决
+- 关键固定值有 canonical SHA-256 完整性合同；同一 freeze version 下修改 dataset、证据序列、固定规则或治理声明会失败，必须显式升级 freeze version 与合同测试
+- 只消费已经生成的 Phase 5G／5H artifact contract，不调用 Replay/Trading Core、不读取 live history 或 OOS；验证 Phase 5G／5H 固定序列与 frozen dataset hash 后输出参数清单、机器规范和中文冻结前审计报告
+- 当前正式参数冻结结论为 `NOT_READY_FOR_FORMAL_PARAMETER_FREEZE`：证据／治理协议已冻结，既有 production 规则保持固定；`platform_tolerance_pct`、lookback/window/proximity 及 market/regime/波动率 production 定义均保留为 `UNRESOLVED`
+
 ### scripts/run_setup03_replay.py
 
 - 由 `.github/workflows/setup03-replay.yml` 手动触发
@@ -191,6 +200,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - Phase 5D 额外输出 JSON/CSV input manifest、deterministic `setup03_replay_input.jsonl.gz` 与 manifest comparison CSV；`--frozen-input` 跳过 live history fetch，精确还原 Quote 后复用同一 Replay/Decision/Research 链
 - `--phase5e` 必须与 `--frozen-input` 同时使用，并且只接受上述固定 dataset/参数版本；使用 frozen manifest 自带的完整 symbol universe，不读取 live historical data，也不运行参数网格
 - `--phase5f` 必须同时启用 `--phase5e`，输出逐 bar terminal reason、完整确认前漏斗、辅助多重失败、near-miss 分布与中文报告
+- `--phase5i` 必须同时启用 frozen input、Phase 5E、Phase 5G 与 Phase 5H；它只审计已有 artifact 并输出 frozen specification，不新增 replay 网格、指标、市场/regime 分层或 stress test
 - 输出 calculable/enabled 覆盖率；enabled=0 或 calculable=0 时先落诊断 artifact 再令 workflow 失败
 
 ## Google Sheets 各表（真实存在）
@@ -237,7 +247,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
-- 固定 run `32826696259` 还启用 Phase 5F~5H 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化，不读取 forward return 或 P&L，也不选择 production 参数。
+- 固定 run `32826696259` 还启用 Phase 5F~5I 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化；Phase 5I 只消费 Phase 5G／5H 现有 artifact 合同并冻结证据边界，不读取 OOS、不新增搜索，也不选择 production 参数。
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11
 - Secrets：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`

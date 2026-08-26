@@ -1,0 +1,300 @@
+{
+  "schema_version": "setup03-frozen-spec-v1",
+  "freeze_version": "SETUP_03-FREEZE-2026-08-26-v1",
+  "rule_version": "SETUP_03-v1",
+  "frozen_at": "2026-08-26",
+  "freeze_decision": "NOT_READY_FOR_FORMAL_PARAMETER_FREEZE",
+  "dataset": {
+    "source_workflow_run_id": 32826696259,
+    "aggregate_hash": "sha256:2b8203468ee22c46bce446ae0aed695fab73c36ae6feab045b19c889f2c54703",
+    "production_parameter_version": "sha256:abe4d3026892",
+    "symbol_count": 9,
+    "bar_count": 6032,
+    "role": "DEVELOPMENT_DIAGNOSTIC_NOT_OOS"
+  },
+  "evidence": {
+    "allowed_phases": ["Phase 5G", "Phase 5H"],
+    "forbidden_inputs": ["OOS", "holdout", "new historical data", "live history"],
+    "selection_metrics_forbidden": ["forward_return", "MFE", "MAE", "win_rate", "P&L"]
+  },
+  "governance": {
+    "parameter_changes_before_oos_forbidden": true,
+    "production_changes_authorized": false,
+    "sheets_changes_authorized": false,
+    "execution_rule_changes_authorized": false,
+    "oos_started": false
+  },
+  "parameter_inventory": [
+    {
+      "id": "frozen_dataset_hash",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "FROZEN_PHASE5I",
+      "value": "sha256:2b8203468ee22c46bce446ae0aed695fab73c36ae6feab045b19c889f2c54703",
+      "semantics": "Phase 5I may consume only the canonical Phase 5E development-diagnostic dataset used by Phase 5G and Phase 5H.",
+      "basis": "Phase 5G and Phase 5H both validated this exact manifest before replay.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "phase5g_platform_tolerance_sequence",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "FROZEN_PHASE5I",
+      "value": [0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.05, 0.075, 0.1],
+      "semantics": "The complete Phase 5G evidence grid; it is evidence identity, not a candidate list for further search.",
+      "basis": "Phase 5G fixed-sequence contract and existing artifacts.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "phase5h_primary_tolerance_sequence",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "FROZEN_PHASE5I",
+      "value": [0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.055],
+      "semantics": "The Phase 5H primary structural study region; no interpolation or additional point is allowed in Phase 5I.",
+      "basis": "Phase 5H fixed primary-region contract and existing artifacts.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "phase5h_stress_boundary",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "FROZEN_PHASE5I",
+      "value": [0.075, 0.1],
+      "semantics": "Phase 5H structural stress boundary only; these values are not production candidates.",
+      "basis": "Phase 5H explicitly separated stress boundaries from the primary region.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "phase5h_realized_volatility_window",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "FROZEN_PHASE5I",
+      "value": 20,
+      "semantics": "Strict-as-of close-to-close realized-volatility diagnostic window.",
+      "basis": "Phase 5H normalization contract; diagnostic only and never used by production Setup.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "phase5h_atr_method",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "FROZEN_PHASE5I",
+      "value": "WILDER_AS_OF_USING_PRODUCTION_ATR_PERIOD",
+      "semantics": "Platform width normalization uses only the Wilder ATR available as of each diagnostic bar.",
+      "basis": "Phase 5H strict-as-of normalization contract.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "allowed_freeze_evidence_phases",
+      "classification": "GOVERNANCE",
+      "status": "FROZEN_PHASE5I",
+      "value": ["Phase 5G", "Phase 5H"],
+      "semantics": "Only already-existing Phase 5G and Phase 5H evidence may support Phase 5I decisions.",
+      "basis": "Phase 5I scope boundary.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "pre_oos_parameter_change_prohibition",
+      "classification": "GOVERNANCE",
+      "status": "FROZEN_PHASE5I",
+      "value": true,
+      "semantics": "No SETUP_03 research parameter may be tuned after this audit and before a separately authorized OOS protocol.",
+      "basis": "Phase 5I closes research freedom without using OOS.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "minimum_confirmed_high_swings",
+      "classification": "FIXED_RULE",
+      "status": "FIXED_EXISTING",
+      "value": 2,
+      "semantics": "At least two as-of confirmed Swing Highs are required for platform evaluation.",
+      "basis": "Existing production SETUP_03 gate; Phase 5I does not reopen or change it.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "minimum_confirmed_low_swings",
+      "classification": "FIXED_RULE",
+      "status": "FIXED_EXISTING",
+      "value": 2,
+      "semantics": "At least two as-of confirmed Swing Lows are required for platform evaluation.",
+      "basis": "Existing production SETUP_03 gate; Phase 5I does not reopen or change it.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "allowed_platform_structure_trends",
+      "classification": "FIXED_RULE",
+      "status": "FIXED_EXISTING",
+      "value": ["RANGE", "TRANSITION"],
+      "semantics": "Only existing RANGE or TRANSITION market structure may pass the platform gate.",
+      "basis": "Existing production SETUP_03 rule; no alternative structure filter was studied in Phase 5G or Phase 5H.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "confirmation_operator",
+      "classification": "FIXED_RULE",
+      "status": "FIXED_EXISTING",
+      "value": "close > breakout_price",
+      "semantics": "Confirmation requires a strict close breakout; equality does not confirm.",
+      "basis": "Existing production state-machine contract.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "structural_invalidation_operator",
+      "classification": "FIXED_RULE",
+      "status": "FIXED_EXISTING",
+      "value": "close < platform_low",
+      "semantics": "Structural failure requires a strict close below the frozen platform low.",
+      "basis": "Existing production state-machine contract.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "terminal_confirmation_event_semantics",
+      "classification": "FIXED_RULE",
+      "status": "FIXED_EXISTING",
+      "value": "NEW_CONFIRMED_TRANSITION_ONLY",
+      "semantics": "Decision and research consume only the bar where confirmed_index equals the current as-of index, not persistent CONFIRMED state days.",
+      "basis": "Existing shared trading.events and replay contract.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "strict_as_of_replay_prefix",
+      "classification": "FIXED_RULE",
+      "status": "FIXED_EXISTING",
+      "value": "quotes[:i+1]",
+      "semantics": "Every historical signal calculation sees only bars available through the replay date.",
+      "basis": "Existing Phase 5A through Phase 5H replay contract.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "platform_tolerance_pct",
+      "classification": "SIGNAL_PARAMETER",
+      "status": "UNRESOLVED",
+      "current_value": 0.0,
+      "semantics": "Maximum normalized span separately allowed among platform Swing Highs and Swing Lows.",
+      "basis": "Phase 5G shows exact-zero degeneracy; Phase 5H shows partial adjacent stability but material date drift, stress fragility, small uneven market coverage and no JP. Existing evidence does not identify one defensible final value.",
+      "missing_evidence": "A separately pre-registered validation design with broader balanced market and regime coverage; Phase 5I must not create it or inspect OOS.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "setup_swing_lookback",
+      "classification": "SIGNAL_PARAMETER",
+      "status": "UNRESOLVED",
+      "current_value": 5,
+      "semantics": "Causal Swing pivot lookback used by SETUP_03.",
+      "basis": "Held constant rather than identified in Phase 5G and Phase 5H.",
+      "missing_evidence": "No Phase 5G or Phase 5H isolated evidence about alternative lookbacks.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "platform_window",
+      "classification": "SIGNAL_PARAMETER",
+      "status": "UNRESOLVED",
+      "current_value": 40,
+      "semantics": "Historical bar window in which as-of confirmed Swing pivots may define a platform.",
+      "basis": "Held constant rather than identified in Phase 5G and Phase 5H.",
+      "missing_evidence": "No Phase 5G or Phase 5H isolated evidence about alternative platform windows.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "arm_proximity_pct",
+      "classification": "SIGNAL_PARAMETER",
+      "status": "UNRESOLVED",
+      "current_value": 0.0,
+      "semantics": "Distance below breakout at which WATCH may become ARMED.",
+      "basis": "Held constant; Phase 5G reported ARMED=0 at every tolerance and Phase 5H did not isolate this parameter.",
+      "missing_evidence": "No Phase 5G or Phase 5H isolated evidence about ARMED proximity semantics.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "market_specific_platform_tolerance",
+      "classification": "SIGNAL_PARAMETER",
+      "status": "UNRESOLVED",
+      "current_value": null,
+      "semantics": "Optional market-specific replacement for the common percentage tolerance; no such rule currently exists.",
+      "basis": "Phase 5H found partial convergence after volatility normalization, small uneven samples and no JP, so market-specific rules are not supported.",
+      "missing_evidence": "Balanced coverage with enough events per market under a pre-registered design.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "regime_specific_platform_rule",
+      "classification": "SIGNAL_PARAMETER",
+      "status": "UNRESOLVED",
+      "current_value": null,
+      "semantics": "Optional regime-specific platform threshold or filter; no such rule currently exists.",
+      "basis": "Phase 5G and Phase 5H did not define or evaluate a regime split.",
+      "missing_evidence": "No allowed Phase 5G or Phase 5H regime evidence exists.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "volatility_normalized_platform_decision_rule",
+      "classification": "SIGNAL_PARAMETER",
+      "status": "UNRESOLVED",
+      "current_value": null,
+      "semantics": "Optional ATR- or realized-volatility-normalized production platform definition; no such rule currently exists.",
+      "basis": "Phase 5H normalization was descriptive only and did not evaluate a production threshold in normalized units.",
+      "missing_evidence": "No allowed evidence maps normalized diagnostics to a causal production threshold.",
+      "affects_setup03_signal": true
+    },
+    {
+      "id": "phase5h_normalized_width_diagnostics",
+      "classification": "RESEARCH_DIAGNOSTIC",
+      "status": "RETAINED_NOT_FROZEN",
+      "value": ["platform_width_ATR", "platform_width_realized_vol"],
+      "semantics": "Descriptive market-comparison outputs retained for audit; they do not participate in Setup decisions.",
+      "basis": "Phase 5H evidence interpretation only.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "phase5g_forward_path_diagnostics",
+      "classification": "RESEARCH_DIAGNOSTIC",
+      "status": "RETAINED_NOT_FROZEN",
+      "value": [5, 10, 20],
+      "semantics": "Forward return, MFE and MAE horizons retained as descriptive artifacts and forbidden for freeze selection.",
+      "basis": "Phase 5G reporting contract; never a selection rule.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "phase5b_54_cell_grid_for_freeze_selection",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "DEPRECATED",
+      "value": null,
+      "semantics": "The older multi-parameter diagnostic grid is not admissible evidence for Phase 5I freeze selection.",
+      "basis": "Phase 5I explicitly limits freeze evidence to Phase 5G and Phase 5H.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "performance_based_parameter_selection",
+      "classification": "RESEARCH_PROTOCOL",
+      "status": "DEPRECATED",
+      "value": false,
+      "semantics": "Selecting parameters from forward return, MFE, MAE, win rate or P&L is prohibited.",
+      "basis": "Phase 5G and Phase 5H are descriptive structural studies, not optimization.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "decision_parameters",
+      "classification": "DECISION_EXECUTION",
+      "status": "OUT_OF_SCOPE_NOT_SETUP03_PARAMETER",
+      "value": {"swing_lookback": 5, "atr_period": 14, "atr_buffer": 0.5, "max_chase_atr": 0.5},
+      "semantics": "Decision, entry-zone and execution-stop parameters act after a CONFIRMED Setup event.",
+      "basis": "They affect ENTRY_ALLOWED/execution but do not define the SETUP_03 signal and Phase 5I cannot change them.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "decision_risk_capital",
+      "classification": "POSITION_SIZING",
+      "status": "OUT_OF_SCOPE_NOT_SETUP03_PARAMETER",
+      "value": "CONFIGURED_EXTERNALLY",
+      "semantics": "Risk capital controls position size after Decision approval.",
+      "basis": "Not a SETUP_03 signal parameter.",
+      "affects_setup03_signal": false
+    },
+    {
+      "id": "replay_quality_gates",
+      "classification": "DATA_QUALITY",
+      "status": "OUT_OF_SCOPE_NOT_SETUP03_PARAMETER",
+      "value": ["minimum_rows", "max_calendar_gap_days", "max_latest_lag_days"],
+      "semantics": "Input-calculability and freshness gates protect replay validity but do not define SETUP_03.",
+      "basis": "Data-quality controls are outside the signal parameter freeze.",
+      "affects_setup03_signal": false
+    }
+  ],
+  "integrity": {
+    "critical_values_sha256": "sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15"
+  }
+}

@@ -258,6 +258,18 @@
 
 ## 2026-08-26
 
+**Decision:** Phase 5I 以版本化、机器可读的 `research/setup03_frozen_spec.json` 作为 SETUP_03 冻结 inventory 与治理边界的单一事实来源。规范固定 Phase 5G／5H 证据身份、Phase 5E dataset hash、已有 strict-as-of 研究协议和 OOS 前禁止继续调参声明；关键值由 canonical SHA-256 完整性合同保护，同一 freeze version 下漂移必须失败。
+
+**Reason:** 冻结阶段首先要关闭可审计的研究自由度并防止证据、样本或协议悄然变化，而不是把分散在代码和 Markdown 中的研究常量当作隐式规范。
+
+---
+
+**Decision:** Phase 5I 的正式参数冻结结论为 `NOT_READY_FOR_FORMAL_PARAMETER_FREEZE`。Phase 5G 只隔离了 `platform_tolerance_pct`，Phase 5H 虽显示主研究区部分相邻稳定，但仍存在事件日期漂移、stress boundary 脆弱、市场覆盖小且不均、无 JP 且无 regime 证据。因此不选择 tolerance，不把保持恒定的 lookback/window/proximity 误称为已有证据支持的冻结，并将相关信号自由度显式标记为 `UNRESOLVED`。
+
+**Reason:** “零容差语义退化”不能推出任一替代值；用同一开发诊断集继续搜索或提前查看 OOS 都会扩大选择偏差。证据不足时冻结治理边界、记录缺口，才符合非优化阶段的因果与审计要求。
+
+---
+
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
 
 **Reason:** yfinance 的 A 股数据连续出现开盘价超出日内最高／最低区间，但收盘价与成交量仍与 Tencent 一致。仅在最终写表后执行合法性检查会让正常腾讯行情无法接替异常主源，并使最新行情与未复权历史不一致。整根 K 线切换可保持 OHLCV 内部一致性，避免逐字段拼接出不存在的行情，同时不放宽质量闸门。
