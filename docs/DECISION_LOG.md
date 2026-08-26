@@ -181,3 +181,21 @@
 **Decision:** Phase 5C 固定 54 组网格逐事件只允许一个 reason，逐参数组合强制 `CONFIRMED = ENTRY_ALLOWED + 所有 rejection reason`。缺失或未知诊断显式落入 `OTHER_NO_TRADE`，不得丢样本；结果仅按原网格稳定顺序输出，不排名、不打分、不选最佳参数。
 
 **Reason:** 研究目标是定位新增 CONFIRMED 被哪个生产 gate 拒绝，而不是根据样本内结果调参或放宽规则；显式守恒和 OTHER 兜底可防止无法解释的样本静默消失。
+
+---
+
+**Decision:** Phase 5D 对真正进入 Historical Replay 的完整 `Quote` 使用版本化 canonical schema `setup03-replay-input-v1`。字符串原样保存、日期使用 ISO-8601、所有数值以 Python `float.hex()` 精确编码；逐 symbol 哈希 canonical bar stream，再对按 symbol 排序的 manifest 计算 dataset aggregate SHA-256。
+
+**Reason:** 十进制 CSV 格式化、字典顺序或不同输出表头都不应影响输入身份；精确浮点编码能检测单根 OHLC/辅助字段的位级修订，排序后的二级哈希同时保证 watchlist 遍历顺序不影响结果。
+
+---
+
+**Decision:** Phase 5D frozen input 使用 artifact-only deterministic gzip JSONL，首行嵌入 input manifest。读取时必须重算并完全匹配 manifest，随后把 Quote 原样送入既有 Replay/Decision/Research 链；workflow 可通过 prior run ID 下载 frozen artifact，禁止在 frozen 模式重新抓取历史行情。
+
+**Reason:** `same input + same config/code = same replay result` 必须能在真实 workflow 中独立验证，而不受上游行情修订或三年滚动窗口影响；artifact 不进入 Git，避免把大型历史数据写入仓库。
+
+---
+
+**Decision:** manifest comparison 对每个 symbol 采用稳定的主分类优先级：added/removed → bar count → date range → same-count content hash → identical，并始终保留前后 count/range/hash 供审阅。
+
+**Reason:** 一次变化可能同时影响数量与日期；单一优先分类便于自动汇总，而保留全部前后字段不会丢失次级差异信息。

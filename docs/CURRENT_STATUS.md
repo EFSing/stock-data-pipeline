@@ -28,6 +28,7 @@ V0.2
 ## In Progress
 
 - Phase 5C SETUP_03 Decision Gate Diagnostics（PR #14 待审阅）：Decision 同一次生产计算返回原 `Decision` 与只读 `DecisionDiagnostics`，ReplayEvent 原样携带 diagnostics，research 固定 54 组只投影、不重算交易条件；新增逐事件/逐参数组合 CSV，并强制 reason 守恒；全量 164/164 通过。真实 3 年只读 workflow `32821290764` 成功（9/9 标的、6032 bars、skipped=0）：生产参数仍为 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；54 组为 `197 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，27 组有 CONFIRMED、3 组有 ENTRY_ALLOWED。Decision gate 为 `139 ABOVE_ENTRY_ZONE + 54 RR_BELOW_MINIMUM + 4 ENTRY_ALLOWED`，其余 reason（含 OTHER/invalid context）均为 0；不排名、不选 best、不修改生产参数或交易行为
+- Phase 5D Replay Input Reproducibility（PR #15，基于待合并 PR #14 的堆叠开发）：对实际进入 replay 的完整 Quote 生成逐 symbol/全数据集 SHA-256 manifest；支持六类显式 manifest diff、确定性 frozen input、跳过 live fetch 的 frozen replay 与 artifact 间自动比较。任何 frozen 内容与嵌入 manifest 不一致时 fail fast；`artifacts/` 已加入 gitignore。全量 172/172 通过。真实 live runs `32826696259` / `32828129539` 均成功：均为 9 symbols / 6032 bars、bar count 与日期范围相同，但 aggregate hash 由 `sha256:2b8203…c54703` 变为 `sha256:8166e1…09e36`，6 symbols 为 `CONTENT_CHANGED_WITH_SAME_BAR_COUNT`，grid funnel 由 `207 CONFIRMED → 4 ENTRY_ALLOWED → 0 EXECUTED` 变为 `200 → 4 → 0`。frozen run `32829662164` 从首轮 artifact 重放成功：9/9 `IDENTICAL`，aggregate/frozen bytes/六份核心报告 hash 与 funnel 全部一致，验证 same input + same config/code 可重复
 
 ## Next
 
@@ -45,4 +46,4 @@ V0.2
 - `交易决策` 历史上由 PR #10 写入的状态快照行不会由本整改自动删除；新版本只追加/幂等更新 CONFIRMED 事件，旧行清理需单独审阅后执行
 - Replay 最新日期使用现有保守收盘日判断，异常缺口使用可配置日历日阈值；尚未接入各交易所节假日/停牌日历，真实 workflow 的 skipped 明细仍需人工复核
 - Phase 5B 真实 54 组严格逐日前缀回放约需 14 分钟；当前仅手动 research workflow 使用，后续若扩大标的池需在不改变 as-of/事件语义前提下优化编排性能
-- 真实 replay 的参数哈希只覆盖参数/质量阈值，不覆盖实际输入 OHLC；三年窗口按运行日滚动，且数据源可能在相邻运行间修订同样 bar 数的价格。Phase 5C run `32821290764` 为 197 CONFIRMED，同日 main 对照 run `32822609248` 为 202（均 6032 bars），而前一日 run `32747728644` 为 206（6037 bars）。后续样本外验证前应增加不含凭据的输入序列 hash/manifest，必要时保存可复现的只读输入快照
+- 三年 live replay 仍按运行日滚动，数据源也可能修订历史 OHLC；Phase 5D 可准确识别、冻结并重放输入，但不会阻止上游修订。manifest/frozen input 当前随 GitHub artifact retention 生命周期保存，长期样本外基准需另行决定保留策略

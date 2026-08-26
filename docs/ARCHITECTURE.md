@@ -58,6 +58,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── scripts/
 │   └── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
 ├── research/
+│   ├── replay_input.py      # canonical input hash / manifest / frozen replay
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -146,12 +147,21 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `parameter_sensitivity_artifacts()` 对固定 54 组每格只运行一次 Replay，同时投影 Phase 5B sensitivity 与 Phase 5C gate 明细/汇总；Research 不重算 ATR / Entry Zone / Target / R/R
 - gate 汇总覆盖 `ATR_UNAVAILABLE` / `BELOW_STRUCTURAL_INVALIDATION` / `BELOW_BREAKOUT` / `ABOVE_ENTRY_ZONE` / `NO_VALID_TARGET` / `RR_BELOW_MINIMUM` / `FUTURE_OR_INVALID_CONFIRMATION_CONTEXT` / `OTHER_NO_TRADE` / `ENTRY_ALLOWED`，每组强制计数守恒
 
+### research/replay_input.py
+
+- `canonical_bar()`：对真正进入 replay 的完整 `Quote` 字段做 `setup03-replay-input-v1` canonical projection；日期使用 ISO，所有浮点数使用精确 `float.hex()`，拒绝 NaN/Infinity
+- `build_input_manifest()`：输入先通过 Trading Core 严格序列校验；逐 symbol 对 canonical bar stream 计算完整 SHA-256，再按 symbol 排序计算 dataset aggregate hash
+- manifest 同时记录每个 symbol 的 bar count、起止日期、input hash，以及总 symbol/bar count 与 aggregate hash；JSON 用于机器比较，CSV 用于人工审阅
+- `compare_input_manifests()`：稳定区分 `IDENTICAL` / `BAR_COUNT_CHANGED` / `DATE_RANGE_CHANGED` / `CONTENT_CHANGED_WITH_SAME_BAR_COUNT` / `SYMBOL_ADDED` / `SYMBOL_REMOVED`
+- `write_frozen_input()` / `read_frozen_input()`：以固定 mtime/filename 的 gzip JSONL 保存 canonical Quote；读取时重算 manifest 并与嵌入值完全比对，内容损坏或漂移立即失败
+
 ### scripts/run_setup03_replay.py
 
 - 由 `.github/workflows/setup03-replay.yml` 手动触发
 - 复用 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` secrets 读取 `自选清单` 与 `参数设置`
 - 使用生产参数原值和 `自选清单.历史数据源` 抓取最近 3 年前复权历史，并保留数据源原始顺序供质量门控检查
 - 输出 summary / skipped / replay events / trade outcomes / parameter sensitivity，并新增 `setup03_decision_gate_diagnostics.csv` 与 `setup03_decision_gate_summary.csv` 两类只读 artifact；事件明细与研究结果含生产参数哈希版本，零事件运行仍可复现；不写任何生产 Sheet
+- Phase 5D 额外输出 JSON/CSV input manifest、deterministic `setup03_replay_input.jsonl.gz` 与 manifest comparison CSV；`--frozen-input` 跳过 live history fetch，精确还原 Quote 后复用同一 Replay/Decision/Research 链
 - 输出 calculable/enabled 覆盖率；enabled=0 或 calculable=0 时先落诊断 artifact 再令 workflow 失败
 
 ## Google Sheets 各表（真实存在）
@@ -197,7 +207,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
-- `setup03-replay.yml`：仅 `workflow_dispatch`，运行 `python scripts/run_setup03_replay.py`，输出 Phase 5A 回放、Phase 5B research 与 Phase 5C Decision gate CSV artifact；失败时仍上传诊断文件
+- `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；失败时仍上传诊断文件
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11
 - Secrets：`GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`
@@ -206,7 +216,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ## 配置文件
 
 - `requirements.txt`：baostock、gspread、google-auth、pandas、yfinance（+ tzdata 供 Windows 本地开发）
-- `.gitignore`：`__pycache__/`、`.pytest_cache/`、`.venv/`、`.env`、`service-account*.json`
+- `.gitignore`：`__pycache__/`、`.pytest_cache/`、`.venv/`、`.env`、`service-account*.json`、`artifacts/`
 - 无 pyproject.toml / setup.py
 
 ## 数据源
