@@ -21,6 +21,13 @@ from research.backtest.setup03 import (
     research_funnel_counts,
     research_trade_outcomes,
 )
+from research.frozen_validation import (
+    PHASE5E_DATASET_HASH,
+    PHASE5E_SOURCE_RUN_ID,
+    frozen_validation_artifacts,
+    render_frozen_validation_report,
+    validate_phase5e_baseline,
+)
 from research.replay_input import (
     ManifestChange,
     build_input_manifest,
@@ -54,6 +61,13 @@ INPUT_MANIFEST_JSON_PATH = OUTPUT_DIR / "setup03_replay_input_manifest.json"
 INPUT_MANIFEST_CSV_PATH = OUTPUT_DIR / "setup03_replay_input_manifest.csv"
 FROZEN_INPUT_PATH = OUTPUT_DIR / "setup03_replay_input.jsonl.gz"
 INPUT_COMPARISON_PATH = OUTPUT_DIR / "setup03_replay_input_comparison.csv"
+FROZEN_VALIDATION_SUMMARY_PATH = OUTPUT_DIR / "setup03_冻结验证_核心统计.csv"
+FROZEN_VALIDATION_REASONS_PATH = OUTPUT_DIR / "setup03_冻结验证_Decision原因.csv"
+FROZEN_VALIDATION_DISTRIBUTION_PATH = OUTPUT_DIR / "setup03_冻结验证_分布.csv"
+FROZEN_VALIDATION_CONCENTRATION_PATH = OUTPUT_DIR / "setup03_冻结验证_集中度.csv"
+FROZEN_VALIDATION_SIGNAL_PATH_PATH = OUTPUT_DIR / "setup03_冻结验证_信号后路径.csv"
+FROZEN_VALIDATION_FORWARD_PATH = OUTPUT_DIR / "setup03_冻结验证_Forward_MAE_MFE.csv"
+FROZEN_VALIDATION_REPORT_PATH = OUTPUT_DIR / "setup03_冻结验证报告.md"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
@@ -193,13 +207,37 @@ INPUT_COMPARISON_HEADERS = [
     "previous_input_hash",
     "current_input_hash",
 ]
+FROZEN_VALIDATION_SIGNAL_PATH_HEADERS = [
+    "统一代码",
+    "市场",
+    "信号日期",
+    "年份",
+    "季度",
+    "信号收盘价",
+    "可用后续交易日",
+    *[
+        field
+        for horizon in (5, 10, 20)
+        for field in (
+            f"{horizon}D完整",
+            f"{horizon}D_forward_return",
+            f"{horizon}D_MFE",
+            f"{horizon}D_MAE",
+        )
+    ],
+]
 
 
 def main(argv: tuple[str, ...] | list[str] = ()) -> None:
     args = _parse_args(argv)
     frozen_symbol_quotes = None
+    frozen_input_manifest = None
     if args.frozen_input is not None:
-        frozen_symbol_quotes, _ = read_frozen_input(args.frozen_input)
+        frozen_symbol_quotes, frozen_input_manifest = read_frozen_input(
+            args.frozen_input
+        )
+    if args.phase5e and frozen_symbol_quotes is None:
+        raise ValueError("Phase 5E requires --frozen-input; live history is forbidden")
     client = SheetsClient()
     config = client.config()
     setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
@@ -231,6 +269,9 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         max_gap_days,
         max_latest_lag_days,
     )
+    if args.phase5e:
+        assert frozen_input_manifest is not None
+        validate_phase5e_baseline(frozen_input_manifest, parameter_version)
 
     rows: list[dict] = []
     skipped: list[dict] = []
@@ -238,15 +279,31 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
     outcome_rows: list[dict] = []
     production_funnel_rows: list[dict[str, int]] = []
     symbol_quotes: dict[str, list[Quote]] = {}
+    replay_reports = {}
+    research_reports = {}
     enabled_count = 0
-    for watch in client.records("自选清单"):
+    if args.phase5e:
+        assert frozen_symbol_quotes is not None
+        watch_rows = [
+            {
+                "启用": True,
+                "统一代码": symbol,
+                "名称": quotes[0].name,
+                "市场": quotes[0].market,
+                "历史数据源": quotes[0].source,
+            }
+            for symbol, quotes in sorted(frozen_symbol_quotes.items())
+        ]
+    else:
+        watch_rows = client.records("自选清单")
+    for watch in watch_rows:
         symbol = str(watch.get("统一代码") or "").strip()
         if not as_bool(watch.get("启用")):
             skipped.append({"统一代码": symbol, "启用": False, "原因": "未启用"})
             continue
         enabled_count += 1
         historical_source = str(watch.get("历史数据源") or "").strip()
-        if historical_source not in QFQ_HISTORY_SOURCES:
+        if not args.phase5e and historical_source not in QFQ_HISTORY_SOURCES:
             skipped.append(
                 {
                     "统一代码": symbol,
@@ -256,12 +313,12 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             )
             continue
         try:
-            expected_latest_date = expected_latest_trade_date(
-                str(watch["时区"]),
-                str(watch["收盘时间"]),
-                fetched_at,
-            )
             if frozen_symbol_quotes is None:
+                expected_latest_date = expected_latest_trade_date(
+                    str(watch["时区"]),
+                    str(watch["收盘时间"]),
+                    fetched_at,
+                )
                 quotes = fetch_with_retry(
                     historical_source,
                     watch,
@@ -279,6 +336,7 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
                 if symbol not in frozen_symbol_quotes:
                     raise ValueError(f"frozen input is missing enabled symbol: {symbol}")
                 quotes = list(frozen_symbol_quotes[symbol])
+                expected_latest_date = quotes[-1].trade_date
                 quality_as_of_date = quotes[-1].trade_date
                 quality_expected_latest_date = quotes[-1].trade_date
             validate_replay_history(
@@ -319,6 +377,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         )
         symbol_quotes[symbol] = quotes
         research_report = research_trade_outcomes(report, quotes)
+        replay_reports[symbol] = report
+        research_reports[symbol] = research_report
         symbol_funnel = research_funnel_counts(report, research_report)
         row.update(symbol_funnel)
         production_funnel_rows.append(symbol_funnel)
@@ -329,7 +389,7 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             outcome_row["参数版本"] = parameter_version
             outcome_rows.append(outcome_row)
 
-    if symbol_quotes:
+    if symbol_quotes and not args.phase5e:
         parameter_artifacts = parameter_sensitivity_artifacts(
             symbol_quotes,
             risk_capital,
@@ -357,6 +417,15 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     input_manifest = build_input_manifest(symbol_quotes)
+    phase5e_artifacts = None
+    if args.phase5e:
+        phase5e_artifacts = frozen_validation_artifacts(
+            replay_reports,
+            research_reports,
+            symbol_quotes,
+            input_manifest,
+            parameter_version,
+        )
     write_input_manifest(INPUT_MANIFEST_JSON_PATH, input_manifest)
     frozen_manifest = write_frozen_input(FROZEN_INPUT_PATH, symbol_quotes)
     if frozen_manifest != input_manifest:
@@ -392,6 +461,36 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         comparison_data,
         INPUT_COMPARISON_HEADERS,
     )
+    if phase5e_artifacts is not None:
+        _write_csv(
+            FROZEN_VALIDATION_SUMMARY_PATH,
+            list(phase5e_artifacts.summary_rows),
+        )
+        _write_csv(
+            FROZEN_VALIDATION_REASONS_PATH,
+            list(phase5e_artifacts.decision_reason_rows),
+        )
+        _write_csv(
+            FROZEN_VALIDATION_DISTRIBUTION_PATH,
+            list(phase5e_artifacts.distribution_rows),
+        )
+        _write_csv(
+            FROZEN_VALIDATION_CONCENTRATION_PATH,
+            list(phase5e_artifacts.concentration_rows),
+        )
+        _write_csv(
+            FROZEN_VALIDATION_SIGNAL_PATH_PATH,
+            list(phase5e_artifacts.signal_path_rows),
+            FROZEN_VALIDATION_SIGNAL_PATH_HEADERS,
+        )
+        _write_csv(
+            FROZEN_VALIDATION_FORWARD_PATH,
+            list(phase5e_artifacts.forward_summary_rows),
+        )
+        FROZEN_VALIDATION_REPORT_PATH.write_text(
+            render_frozen_validation_report(phase5e_artifacts),
+            encoding="utf-8",
+        )
     production_funnel = {
         key: sum(row[key] for row in production_funnel_rows)
         for key in (
@@ -416,6 +515,13 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         comparison_data,
         args.frozen_input is not None,
     )
+    if phase5e_artifacts is not None:
+        print(
+            "phase5e_frozen_validation: "
+            f"source_run_id={PHASE5E_SOURCE_RUN_ID}, "
+            f"dataset_hash={PHASE5E_DATASET_HASH}"
+        )
+        print(f"phase5e_report={FROZEN_VALIDATION_REPORT_PATH}")
     if enabled_count == 0 or not rows:
         raise RuntimeError(
             "SETUP_03 replay failed: calculable/enabled coverage is zero "
@@ -575,6 +681,11 @@ def _parse_args(argv: tuple[str, ...] | list[str]) -> argparse.Namespace:
         "--compare-manifest",
         type=Path,
         help="Compare the current input manifest with a prior manifest JSON",
+    )
+    parser.add_argument(
+        "--phase5e",
+        action="store_true",
+        help="Run descriptive Phase 5E validation on the fixed frozen baseline",
     )
     return parser.parse_args(list(argv))
 
