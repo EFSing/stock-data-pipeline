@@ -20,8 +20,9 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
         → Tencent / Sina 快照回退 (CN/HK/US)
         ↓
     validate_quotes(primary, verifier)              [core]
-    quote_sanity_issue(chosen)                      [core]
-    fresher_quote(primary, verifier)                [core]
+    quote_sanity_issue(primary / verifier)           [core]
+    fresher_quote(primary, verifier)                 [core: 日期优先；同日质量优先]
+    quote_sanity_issue(chosen)                       [core]
     select_history_series(...)                      [main]
     fetch_with_retry(历史数据源, "qfq")             [providers]
         → 仅 yfinance / BaoStock；不使用快照源
@@ -85,7 +86,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 - `Quote` / `ValidationResult` 数据类
 - `validate_quotes()`：双源校验（日期、收盘价、成交量容差）
-- `relative_diff()`、`fresher_quote()`、`latest_quote()`
+- `relative_diff()`、`latest_quote()`
+- `fresher_quote()`：先比较交易日期；同日主源字段异常而校验源正常时采用校验源，两源均正常或均异常时保持主源
 - `market_close_confirmed()`、`expected_latest_trade_date()`：收盘时间与时区判断
 - `quote_sanity_issue()`：OHLCV 字段一致性检查
 - 依赖：仅标准库
@@ -232,7 +234,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 | 市场 | 主源 | 校验源 | 快照回退 |
 |---|---|---|---|
-| A股 (CN) | yfinance | BaoStock | Tencent / Sina |
+| A股 (CN) | yfinance | Tencent | Tencent / Sina |
 | 港股 (HK) | yfinance | Tencent / Sina | Tencent / Sina |
 | 美股 (US) | yfinance | Tencent / Sina | Tencent / Sina |
 | 日股 (JP) | yfinance | 无 | 无 |

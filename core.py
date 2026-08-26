@@ -120,12 +120,21 @@ def latest_quote(quotes: list[Quote]) -> Optional[Quote]:
 
 
 def fresher_quote(primary: Optional[Quote], verifier: Optional[Quote]) -> Optional[Quote]:
-    """Prefer the quote with the newest trade date, keeping primary on ties."""
+    """Prefer freshness first, then a sane verifier over an invalid primary."""
     if primary is None:
         return verifier
-    if verifier is None or primary.trade_date >= verifier.trade_date:
+    if verifier is None:
         return primary
-    return verifier
+    if primary.trade_date > verifier.trade_date:
+        return primary
+    if verifier.trade_date > primary.trade_date:
+        return verifier
+
+    primary_issue = quote_sanity_issue(primary)
+    verifier_issue = quote_sanity_issue(verifier)
+    if primary_issue and not verifier_issue:
+        return verifier
+    return primary
 
 
 def quote_sanity_issue(quote: Quote) -> Optional[str]:

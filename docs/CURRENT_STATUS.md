@@ -12,6 +12,7 @@ V0.2
 - 多市场行情抓取（A股/港股/美股/日股/瑞典股）
 - 数据源回退链（yfinance → YahooChart / BaoStock → Tencent/Sina 快照）
 - 双源校验（日期、收盘价、成交量容差）
+- 行情来源质量选择：同日主源 OHLCV 异常、校验源正常时，整根行情采用校验源，并同步替换未复权历史末根 K 线；两源均异常时继续待复核
 - Google Sheets 写入（最新行情 / 历史行情_未复权 / 历史行情_前复权 / 校验记录 / 运行日志）
 - GitHub Actions 定时任务（亚洲 / 欧美两个工作流）
 - CI Test Gate：`.github/workflows/ci.yml`，PR 与 main push 自动跑 unittest
