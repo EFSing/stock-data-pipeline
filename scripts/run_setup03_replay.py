@@ -36,6 +36,10 @@ from research.platform_tolerance_sensitivity import (
     platform_tolerance_sensitivity_artifacts,
     render_platform_tolerance_report,
 )
+from research.platform_structure_calibration import (
+    platform_structure_calibration_artifacts,
+    render_platform_structure_report,
+)
 from research.replay_input import (
     ManifestChange,
     build_input_manifest,
@@ -89,6 +93,11 @@ TOLERANCE_DISTRIBUTION_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_标的
 TOLERANCE_FORWARD_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_Forward_MAE_MFE.csv"
 TOLERANCE_STRUCTURE_PATH = OUTPUT_DIR / "setup03_平台容差敏感性_结构稳定性.csv"
 TOLERANCE_REPORT_PATH = OUTPUT_DIR / "setup03_Phase5G平台容差敏感性报告.md"
+STRUCTURE_MARKET_PATH = OUTPUT_DIR / "setup03_Phase5H市场标准化结构.csv"
+STRUCTURE_STABILITY_PATH = OUTPUT_DIR / "setup03_Phase5H相邻容差稳定性.csv"
+STRUCTURE_EVENT_CHANGE_PATH = OUTPUT_DIR / "setup03_Phase5H事件新增消失日期漂移.csv"
+STRUCTURE_CONCENTRATION_PATH = OUTPUT_DIR / "setup03_Phase5H集中度.csv"
+STRUCTURE_REPORT_PATH = OUTPUT_DIR / "setup03_Phase5H平台结构校准报告.md"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
@@ -263,6 +272,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         raise ValueError("Phase 5F requires --phase5e on the fixed frozen baseline")
     if args.phase5g and not args.phase5e:
         raise ValueError("Phase 5G requires --phase5e on the fixed frozen baseline")
+    if args.phase5h and not args.phase5e:
+        raise ValueError("Phase 5H requires --phase5e on the fixed frozen baseline")
     client = SheetsClient()
     config = client.config()
     setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
@@ -445,6 +456,7 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
     phase5e_artifacts = None
     phase5f_artifacts = None
     phase5g_artifacts = None
+    phase5h_artifacts = None
     if args.phase5e:
         phase5e_artifacts = frozen_validation_artifacts(
             replay_reports,
@@ -457,6 +469,15 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         phase5f_artifacts = confirmation_gate_artifacts(replay_reports)
     if args.phase5g:
         phase5g_artifacts = platform_tolerance_sensitivity_artifacts(
+            symbol_quotes,
+            risk_capital,
+            setup_parameters,
+            decision_parameters,
+            input_manifest,
+            parameter_version,
+        )
+    if args.phase5h:
+        phase5h_artifacts = platform_structure_calibration_artifacts(
             symbol_quotes,
             risk_capital,
             setup_parameters,
@@ -561,6 +582,17 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             ),
             encoding="utf-8",
         )
+    if phase5h_artifacts is not None:
+        _write_csv(STRUCTURE_MARKET_PATH, list(phase5h_artifacts.market_rows))
+        _write_csv(STRUCTURE_STABILITY_PATH, list(phase5h_artifacts.stability_rows))
+        _write_csv(STRUCTURE_EVENT_CHANGE_PATH, list(phase5h_artifacts.event_change_rows))
+        _write_csv(STRUCTURE_CONCENTRATION_PATH, list(phase5h_artifacts.concentration_rows))
+        STRUCTURE_REPORT_PATH.write_text(
+            render_platform_structure_report(
+                phase5h_artifacts, input_manifest.aggregate_hash
+            ),
+            encoding="utf-8",
+        )
     production_funnel = {
         key: sum(row[key] for row in production_funnel_rows)
         for key in (
@@ -596,6 +628,8 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         print(f"phase5f_confirmation_report={CONFIRMATION_REPORT_PATH}")
     if phase5g_artifacts is not None:
         print(f"phase5g_tolerance_report={TOLERANCE_REPORT_PATH}")
+    if phase5h_artifacts is not None:
+        print(f"phase5h_structure_report={STRUCTURE_REPORT_PATH}")
     if enabled_count == 0 or not rows:
         raise RuntimeError(
             "SETUP_03 replay failed: calculable/enabled coverage is zero "
@@ -770,6 +804,11 @@ def _parse_args(argv: tuple[str, ...] | list[str]) -> argparse.Namespace:
         "--phase5g",
         action="store_true",
         help="Run fixed single-parameter platform-tolerance sensitivity on Phase 5E",
+    )
+    parser.add_argument(
+        "--phase5h",
+        action="store_true",
+        help="Run market-layered platform-structure calibration on Phase 5E",
     )
     return parser.parse_args(list(argv))
 

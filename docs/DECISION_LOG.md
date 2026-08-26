@@ -244,6 +244,18 @@
 
 ---
 
+**Decision:** Phase 5H 固定研究 `2.5%、3%、3.5%、4%、4.5%、5%、5.5%`，并仅以 `7.5%、10%` 作为结构压力测试边界。每档继续通过 production strict as-of Replay/Setup 路径；市场比较必须同时报告绝对计数与每千 bar 发生率，不读取 forward return、MFE、MAE、胜率或 P&L。
+
+**Reason:** Phase 5H 的问题是固定 percentage tolerance 是否在不同市场表达一致结构，而不是样本内参数优化；发生率标准化可把 watchlist bars composition 与结构偏置分开。
+
+---
+
+**Decision:** Phase 5H 的波动标准化只使用截至诊断 bar 的 Wilder ATR 与 20 日 close-to-close 实现波动率。相邻 tolerance 的精确稳定性以 `symbol + CONFIRMED date` 计算 Jaccard/retention；另在同一 symbol 内最近日期一对一匹配报告 date drift。即使发现市场异质性，本阶段也不实施 market-specific tolerance。
+
+**Reason:** as-of 标准化避免未来波动泄漏；同时保留精确事件集合与日期漂移可以区分事件新增/消失和同一标的信号时间移动。市场专属定义需要独立阶段与预先冻结设计，不能由当前开发样本直接决定。
+
+---
+
 ## 2026-08-26
 
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
