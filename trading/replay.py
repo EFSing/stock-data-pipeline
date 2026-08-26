@@ -14,6 +14,7 @@ from core import Quote
 from trading.decision import DecisionDiagnostics
 from trading.events import evaluate_setup03_event
 from trading.models import Decision, DecisionAction, Setup, SetupState, validate_quote_series
+from trading.setup import SetupDiagnostics
 
 
 REPLAY_SETUP_STATES = (
@@ -33,6 +34,7 @@ class ReplayDay:
     confirmed_event: bool = False
     failed_event: bool = False
     decision_action: DecisionAction | None = None
+    setup_diagnostics: SetupDiagnostics | None = None
 
 
 @dataclass(frozen=True)
@@ -169,6 +171,7 @@ def replay_setup03_history(
                 confirmed_event,
                 failed_event,
                 decision_action,
+                evaluation.setup_diagnostics,
             )
         )
 
