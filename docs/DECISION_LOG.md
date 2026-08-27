@@ -343,3 +343,9 @@
 **Decision:** HiThink Financial API 先作为 CN Research Data Provider 做只读 capability/provenance smoke test，不修改生产腾讯/新浪逻辑。2026-08-27 17:52:18 +08:00 的 7 个 bounded GET probe 均 HTTP 200 但 `code=2003`；未配置 `HITHINK_FINANCE_API_KEY`，因此当前仅证明 endpoint/auth error envelope，不能证明代码表、指数成分、market dump、复权因子或交易日历的数据权限与 as-of semantics。原始响应已保存并计算 SHA-256，market dump 未下载。
 
 **Reason:** API Key/额外 entitlement 缺失时必须 fail closed；不得用未授权响应伪造 source metadata、历史成分 snapshot 或 Phase 5K data。后续只有在真实 key/授权可用、响应 `code=0` 且保留 source timestamp/as-of/raw hash 后，才可另行审阅是否进入 Phase 5K-A1。
+
+---
+
+**Amendment:** 2026-08-27 18:16:12 +08:00 在标准与提升权限执行上下文重跑 HiThink bounded GET smoke test；runner 在 Process/User/Machine scope 均未看到 `HITHINK_FINANCE_API_KEY`，未读取或输出任何 Key 内容。7/7 endpoint 均 HTTP 200 / `code=2003`，因此权限、数据字段与 source timestamp/as-of semantics 仍未证明。该环境传播 blocker 必须先解决，不能把未授权响应作为 `code=0` 能力结论，也不能开始 Phase 5K-A1。
+
+**Reason:** 用户环境变量可能在桌面进程启动后才配置，或存在于不同执行上下文；在没有 Key 到达 runner 的情况下，必须保持 fail closed 并保留 raw response hash，而不是请求用户在聊天中粘贴凭证。
