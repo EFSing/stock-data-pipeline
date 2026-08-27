@@ -270,6 +270,50 @@
 
 ---
 
+## 2026-08-27
+
+**Decision:** Phase 5J 预注册并冻结 SETUP_03 structural validation protocol，机器可读单一事实来源为 `research/setup03_structural_validation_protocol.json`，版本为 `SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1`，最终状态固定为 `VALIDATION_PROTOCOL_REGISTERED_NOT_EXECUTED`。protocol 记录父级 Phase 5I `SETUP_03-FREEZE-2026-08-26-v1` 及 critical-values integrity identity `sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15`。
+
+**Reason:** Phase 5I 只关闭研究自由度并确认尚不足以正式冻结参数；Phase 5J 的职责是先把未来 validation 的样本、门槛、选择顺序和禁区写成不可悄然漂移的 contract，而不是用新的历史数据或 replay 先行试验。
+
+---
+
+**Decision:** Phase 5K future development-validation 的正式 production tolerance 候选严格限定为 `3.0%、4.0%、5.0%`；`2.5%、5.5%、7.5%、10.0%` 只能作为 diagnostic/stress boundaries，`3.5%、4.5%` 及其他未列值不得成为 production candidate。`setup_swing_lookback=5` 与 `platform_window=40` 仅保留 v1 incumbent design constant，不声明最优；market-specific、regime-specific、volatility-normalized production rule v1 禁用。
+
+**Reason:** 这是将 Phase 5I 的 unresolved 状态收敛为预注册的验证问题边界，不把历史研究网格或诊断边界误写成生产候选，也不在 validation 前扩大参数自由度。
+
+---
+
+**Decision:** 未来 development-validation dataset 固定覆盖 CN/HK/US/JP/SE，每市场至少 8 个标的、总计至少 40 个标的、每市场目标至少约 6000 个有效日 K bars。标的必须在看到 SETUP_03 输出前按市场、流动性、历史长度、数据完整性等非信号元数据确定；symbol manifest 必须先冻结并 SHA-256 hash，再允许 Phase 5K 获取和分析行情；任何根据 SETUP_03 结果替换、增加或删除标的均禁止；覆盖不足返回 `INSUFFICIENT_COVERAGE`。该数据集属于 development validation，不是最终 OOS。
+
+**Reason:** 预先冻结 universe 和 manifest identity 才能把结构稳定性证据与信号驱动的样本选择分离；小于预注册覆盖要求时应报告证据不足，不能静默改变样本。
+
+---
+
+**Decision:** Phase 5K 结构门槛固定为：每市场每候选至少 8 个 CONFIRMED；相邻正式候选 CONFIRMED Jaccard ≥60%、retention ≥80%；匹配事件日期漂移 median ≤5、P90 ≤15 个交易日；市场 CONFIRMED 事件集中度 ≤35%；标的 CONFIRMED 事件集中度 ≤25%；相邻正式候选每千 bar CONFIRMED 发生率相对增幅 ≤50%。market/symbol concentration 必须对 3%/4%/5% 每个 candidate 分别计算，denominator 分别是该 candidate 在全部五个市场/全部 validation symbols 的 CONFIRMED，不得合并候选事件。样本不足使用 `INSUFFICIENT_VALIDATION_EVIDENCE`，其余门槛失败使用 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，均不得根据结果调节。
+
+**Reason:** 这些门槛覆盖 evidence sufficiency、相邻稳定性、时间漂移、市场/标的集中度和 bar-normalized 增长；将缺少样本与结构失败分开，避免把不可判断误报成通过或失败。
+
+---
+
+**Decision:** 正式参数选择预注册为 lexicographic conservative rule，并固定 candidate qualification semantics：3% 必须满足 3% 自身全部 candidate-level thresholds 及 3%→4% 全部 adjacent-pair thresholds；4% 必须满足 4% 自身全部 candidate-level thresholds 及 3%→4%、4%→5% 两侧全部 adjacent-pair thresholds；5% 必须满足 5% 自身全部 candidate-level thresholds 及 4%→5% 全部 adjacent-pair thresholds。按 3%→4%→5% 顺序选择首个 qualified candidate；三者均不满足为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，主要因样本不足无法判断为 `INSUFFICIENT_VALIDATION_EVIDENCE`。禁止使用 forward return、MFE、MAE、win rate、P&L 或任何收益指标，也不从 market/regime 结果生成 production 参数。
+
+**Reason:** 先满足约束再取最小可行候选，保持参数选择的保守、可复现和与收益表现解耦；Phase 5J 只注册规则，不执行选择。
+
+---
+
+**Amendment:** 为消除 protocol-governance 歧义，Phase 5J v1 的 canonical protocol hash 由 `sha256:b0fe288b66ff5a86b127d57c1cb2493b583d252dcb169edbc86fab52830948bd` 绑定到 `SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1` 的不可变 version/hash contract。loader 同时验证 stored hash 与当前内容重算值一致，以及 version 对应的 pinned hash 一致；因此只改保护字段并重算 JSON 内 hash、但不升级 version 的内容必须失败。parent identity 还必须与实际 `research/setup03_frozen_spec.json` 的 `freeze_version`、`freeze_decision`、`critical_values_sha256` 三项一致。
+
+**Reason:** integrity envelope 只能发现未同步 hash；显式 version/hash contract 才能阻止同一 protocol version 下的同步重算漂移，并把 Phase 5I parent identity 绑定到实际文件。
+
+---
+
+**Decision:** `arm_proximity_pct=0` 在 Phase 5J 只接受 AST 静态依赖审计。审计确认它只影响 WATCH/ARMED proximity threshold transitions、ARMED/WATCH diagnostics、参数校验和传递；正式 `close_t > breakout_price`、`close_t < structural_invalidation` 以及 `trading.events` 的 CONFIRMED terminal event predicate 不依赖该值。因此 v1 保持关闭；若未来代码审计发现其影响正式 CONFIRMED terminal semantics，必须停止并另行报告，不得自行设计替代值。
+
+**Reason:** ARMED 是正式确认之前的中间状态；在没有证据证明 terminal semantics 改变前，静态审计足以支持保持现状，但不授权做数据研究或改 Trading Core。
+
+---
+
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
 
 **Reason:** yfinance 的 A 股数据连续出现开盘价超出日内最高／最低区间，但收盘价与成交量仍与 Tencent 一致。仅在最终写表后执行合法性检查会让正常腾讯行情无法接替异常主源，并使最新行情与未复权历史不一致。整根 K 线切换可保持 OHLCV 内部一致性，避免逐字段拼接出不存在的行情，同时不放宽质量闸门。

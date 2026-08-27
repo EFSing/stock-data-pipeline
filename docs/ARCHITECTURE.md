@@ -66,6 +66,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── platform_structure_calibration.py # Phase 5H 市场分层平台结构校准
 │   ├── parameter_freeze.py # Phase 5I 冻结规范读取、完整性校验与冻结前审计
 │   ├── setup03_frozen_spec.json # Phase 5I 机器可读参数 inventory / frozen spec
+│   ├── structural_validation_protocol.py # Phase 5J 结构验证协议读取/完整性校验/静态审计
+│   ├── setup03_structural_validation_protocol.json # Phase 5J 机器可读结构验证协议
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -191,6 +193,16 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 只消费已经生成的 Phase 5G／5H artifact contract，不调用 Replay/Trading Core、不读取 live history 或 OOS；验证 Phase 5G／5H 固定序列与 frozen dataset hash 后输出参数清单、机器规范和中文冻结前审计报告
 - 当前正式参数冻结结论为 `NOT_READY_FOR_FORMAL_PARAMETER_FREEZE`：证据／治理协议已冻结，既有 production 规则保持固定；`platform_tolerance_pct`、lookback/window/proximity 及 market/regime/波动率 production 定义均保留为 `UNRESOLVED`
 
+### research/structural_validation_protocol.py / setup03_structural_validation_protocol.json
+
+- Phase 5J 只注册未来 SETUP_03 structural validation protocol，最终状态固定为 `VALIDATION_PROTOCOL_REGISTERED_NOT_EXECUTED`；模块只读取 JSON、验证完整性并对现有 `trading/setup.py` / `trading/events.py` 做 AST 静态依赖审计，不调用 Replay、Trading Core、行情源或 Sheets
+- protocol 记录父级 Phase 5I 的实际 `research/setup03_frozen_spec.json` identity：`freeze_version=SETUP_03-FREEZE-2026-08-26-v1`、`freeze_decision=NOT_READY_FOR_FORMAL_PARAMETER_FREEZE` 及 `critical_values_sha256=sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15`；canonical SHA-256 先验证 JSON 内容与 stored hash 一致，再由不可变的 `protocol_version -> expected hash` contract 验证唯一版本绑定，因此即使同步重算 hash，同一 version 的内容漂移也会失败；真正修改协议必须显式升级 version 并更新 version/hash contract
+- 正式 production tolerance 仅允许 `3.0%、4.0%、5.0%`；`2.5%、5.5%、7.5%、10.0%` 仅为诊断/压力边界，`3.5%、4.5%` 等任何未列入正式集合的值不得成为 production candidate。`setup_swing_lookback=5` 与 `platform_window=40` 保留为 v1 incumbent design constants，不声明最优；market-specific、regime-specific、volatility-normalized production rule 均在 v1 禁用
+- 未来 development-validation dataset 预注册 CN/HK/US/JP/SE，每市场至少 8 个标的、合计至少 40 个标的、每市场目标至少约 6000 个有效日 K bars；标的必须在看到 SETUP_03 输出前按非信号元数据确定，symbol manifest 必须在 Phase 5K 获取行情前冻结并哈希，任何依据信号替换/增删标的均禁止，覆盖不足返回 `INSUFFICIENT_COVERAGE`。该集不是最终 OOS
+- Phase 5K 结构门槛固定为每市场每候选至少 8 个 CONFIRMED、相邻候选 Jaccard ≥60%、retention ≥80%、匹配日期漂移 median ≤5/P90 ≤15 个交易日、市场事件集中度 ≤35%、标的事件集中度 ≤25%、相邻候选每千 bar CONFIRMED 发生率增幅 ≤50%；其中 market/symbol concentration 对 3%/4%/5% 每个 candidate 独立计算，denominator 分别是该 candidate 在全部五个市场/全部 validation symbols 的 CONFIRMED，绝不合并候选事件；样本不足与门槛失败分别使用预注册状态，不得根据结果调整门槛
+- 正式选择规则为 lexicographic conservative，并使用预注册 qualification matrix：3% 必须通过自身 candidate-level thresholds 加 3%→4% 全部 adjacent-pair thresholds；4% 必须通过自身 candidate-level thresholds 加 3%→4% 与 4%→5% 两侧 thresholds；5% 必须通过自身 candidate-level thresholds 加 4%→5% thresholds。按 3%→4%→5% 顺序选择首个 qualified candidate；全部不满足为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，主要因样本不足为 `INSUFFICIENT_VALIDATION_EVIDENCE`。禁止使用 forward return、MFE、MAE、win rate、P&L 或任何收益指标，不生成 market/regime-specific production 参数
+- `arm_proximity_pct=0` 只做静态代码依赖审计：它影响 WATCH/ARMED proximity 状态转移、ARMED/WATCH diagnostics 及参数传递，但严格 `close_t > breakout_price`、`close_t < structural_invalidation` 和 `trading.events` 的 CONFIRMED terminal event predicate 不依赖它；因此 v1 保持关闭，不改变正式 terminal semantics
+
 ### scripts/run_setup03_replay.py
 
 - 由 `.github/workflows/setup03-replay.yml` 手动触发
@@ -201,6 +213,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `--phase5e` 必须与 `--frozen-input` 同时使用，并且只接受上述固定 dataset/参数版本；使用 frozen manifest 自带的完整 symbol universe，不读取 live historical data，也不运行参数网格
 - `--phase5f` 必须同时启用 `--phase5e`，输出逐 bar terminal reason、完整确认前漏斗、辅助多重失败、near-miss 分布与中文报告
 - `--phase5i` 必须同时启用 frozen input、Phase 5E、Phase 5G 与 Phase 5H；它只审计已有 artifact 并输出 frozen specification，不新增 replay 网格、指标、市场/regime 分层或 stress test
+- Phase 5J 不新增 workflow flag，也不接入 `scripts/run_setup03_replay.py`；其 protocol loader/static audit 不执行 validation，不抓取 live/new historical data，不访问最终 OOS，不修改 production SETUP_03、Trading Core、Decision、execution 或 Google Sheets
 - 输出 calculable/enabled 覆盖率；enabled=0 或 calculable=0 时先落诊断 artifact 再令 workflow 失败
 
 ## Google Sheets 各表（真实存在）
