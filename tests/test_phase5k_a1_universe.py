@@ -14,12 +14,16 @@ from research.phase5k_a1_universe import (
     CN_COHORTS,
     CN_MAIN_ACTIVE,
     CN_REGISTERED_INACTIVE,
+    LEGACY_MANIFEST_PATH,
+    LEGACY_MANIFEST_VERSION,
     MANIFEST_PATH,
     MANIFEST_STATUS,
     MANIFEST_VERSION,
     PINNED_MANIFEST_SHA256_BY_VERSION,
     RESERVE_TARGETS,
     SNAPSHOT_DIR,
+    SP500_PROXY_SOURCE_IDENTITY,
+    SP500_SPDJI_SOURCE_IDENTITY,
     CN_PRIMARY_QUOTAS,
     HITHINK_API_KEY_ENV,
     US_PRIMARY_QUOTAS,
@@ -160,6 +164,72 @@ class Phase5KA1UniverseTests(unittest.TestCase):
             if row["market"] == "CN":
                 self.assertIn(row["board_status"], CN_MAIN_ACTIVE)
 
+    def test_production_sp500_provenance_is_not_wikimedia_and_is_approved(self):
+        manifest = load_manifest()
+        records = [record for record in manifest["source_snapshot_identities"] if record["cohort"] == "SP500"]
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["source_identity"], SP500_PROXY_SOURCE_IDENTITY)
+        self.assertIn(record["source_identity"], {SP500_PROXY_SOURCE_IDENTITY, SP500_SPDJI_SOURCE_IDENTITY})
+        self.assertNotIn("WIKIMEDIA", record["source_identity"])
+        self.assertNotIn("wikipedia", record["parser"].lower())
+        self.assertEqual(record["source_role"], "CURRENT_UNIVERSE_PROXY")
+        self.assertEqual(record["proxy_for"], "S&P500")
+        self.assertFalse(record["official_constituent_snapshot"])
+        self.assertTrue(record["provenance_limitation"])
+        self.assertEqual(
+            manifest["sp500_provenance"]["selected_source_identity"],
+            SP500_PROXY_SOURCE_IDENTITY,
+        )
+
+    def test_old_v1_hash_and_source_remain_immutable(self):
+        legacy = json.loads(LEGACY_MANIFEST_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(legacy["manifest_version"], LEGACY_MANIFEST_VERSION)
+        self.assertEqual(
+            legacy["integrity"]["manifest_sha256"],
+            PINNED_MANIFEST_SHA256_BY_VERSION[LEGACY_MANIFEST_VERSION],
+        )
+        self.assertEqual(manifest_integrity_hash(legacy), legacy["integrity"]["manifest_sha256"])
+        self.assertEqual(load_manifest(LEGACY_MANIFEST_PATH), legacy)
+        legacy_sp500 = next(
+            record for record in legacy["source_snapshot_identities"] if record["cohort"] == "SP500"
+        )
+        self.assertIn("WIKIMEDIA", legacy_sp500["source_identity"])
+
+    def test_new_v2_version_and_hash_are_pinned_and_distinct_from_v1(self):
+        active = load_manifest()
+        self.assertEqual(active["manifest_version"], MANIFEST_VERSION)
+        self.assertEqual(active["integrity"]["manifest_sha256"], PINNED_MANIFEST_SHA256_BY_VERSION[MANIFEST_VERSION])
+        self.assertNotEqual(
+            active["integrity"]["manifest_sha256"],
+            PINNED_MANIFEST_SHA256_BY_VERSION[LEGACY_MANIFEST_VERSION],
+        )
+        self.assertEqual(active["schema_version"], "setup03-phase5k-a1-universe-manifest-v2")
+
+    def test_ivv_proxy_provenance_has_retrieval_contract_hash_count_parser_and_limit(self):
+        manifest = load_manifest()
+        record = next(
+            item for item in manifest["source_snapshot_identities"] if item["cohort"] == "SP500"
+        )
+        self.assertEqual(record["endpoint"], "https://www.ishares.com/us/products/239726/ishares-core-s-p-500-etf/latest-holdings.csv")
+        self.assertRegex(record["retrieval_timestamp"], r"^2026-08-27T22:17:46\+08:00$")
+        self.assertTrue(record["raw_snapshot_sha256"].startswith("sha256:"))
+        self.assertEqual(record["constituent_count"], 504)
+        self.assertEqual(record["parser"], "ishares_holdings_csv_equity_rows_v1")
+        self.assertTrue(record["provenance_limitation"])
+        selection = manifest["sp500_provenance"]
+        self.assertEqual(selection["selected_source_class"], "OFFICIAL_ETF_ISSUER_HOLDINGS_PROXY")
+        self.assertTrue(selection["proxy_selected"])
+        self.assertTrue(selection["preferred_retrieval_contract"])
+        self.assertEqual(
+            selection["preferred_source_outcome"],
+            "UNAVAILABLE_FOR_RELIABLE_COMPLETE_MACHINE_RETRIEVAL",
+        )
+
+    def test_active_v2_bundle_is_the_only_rebuild_input(self):
+        with self.assertRaisesRegex(SnapshotError, "only the active v2 source bundle"):
+            rebuild_frozen_manifest(Path("research/snapshots/phase5k_a1_cn_us_2026-08-27-v1"))
+
     def test_cn_and_us_duplicate_attribution_uses_first_declared_cohort(self):
         cn, us = _synthetic_cohorts()
         baseline = build_manifest(cn, us, generated_at="2026-08-27T00:00:00+08:00")
@@ -212,7 +282,10 @@ class Phase5KA1UniverseTests(unittest.TestCase):
             copied = Path(directory) / "bundle"
             shutil.copytree(SNAPSHOT_DIR, copied)
             provenance = json.loads((copied / "snapshot_provenance.json").read_text(encoding="utf-8"))
-            raw_name = Path(provenance["source_snapshots"][0]["raw_snapshot_path"]).name
+            ivv_record = next(
+                record for record in provenance["source_snapshots"] if record["source_id"] == "SP500_PROXY_IVV_ISHARES"
+            )
+            raw_name = Path(ivv_record["raw_snapshot_path"]).name
             raw_path = copied / raw_name
             raw_path.write_bytes(raw_path.read_bytes() + b"\n")
             with self.assertRaisesRegex(RuntimeError, "source snapshot hash changed"):

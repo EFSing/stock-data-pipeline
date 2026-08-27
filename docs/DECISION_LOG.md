@@ -362,6 +362,18 @@
 
 **Reason:** A1 必须使用实际抓取日的 current constituent/holding snapshot，并把 endpoint、retrieval timestamp、source/API timestamp、HTTP/API state、raw path、raw SHA-256 和 count 固定在 provenance 中。CN board classifier 只保留 SSE/SZSE Main Board common A shares；实际排除且保持 registered inactive 的 STAR/ChiNext 数量分别为 CSI300 `20/34`、CSI500 `72/69`、CSI1000 `122/233`（STAR/ChiNext）。
 
+---
+
+**Amendment:** 2026-08-27 22:18:08 +08:00 对 S&P Dow Jones Indices 公共 S&P 500 页面执行 bounded retrieval probe。页面可访问并提供指数说明/Full Constituents List 入口，但返回内容未满足完整机器可读 `Constituent`/`Symbol` 表且至少 400 行的冻结合同；因此不能将该页面当作可重复的完整 constituent snapshot，也不能继续把 Wikimedia/Wikipedia 作为 authoritative production provenance。
+
+**Decision:** 保留原 `SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v1` 及其 canonical SHA-256 `sha256:4a33391d57488937bcdd7e501ca65a2ae3dc1c5475e41203f22bbe2e03c057eb` 和 v1 Wikimedia raw snapshot 作为历史审计 artifact，但 v1 不得参与新的 manifest generation。新 v2 bundle 采用 iShares IVV 官方 issuer holdings 作为明确 proxy，source identity 固定为 `S&P500_UNIVERSE_PROXY_IVV_OFFICIAL_HOLDINGS`，source class 为 `OFFICIAL_ETF_ISSUER_HOLDINGS_PROXY`，不得称为 official S&P 500 constituents。
+
+**Evidence:** IVV raw endpoint 为 `https://www.ishares.com/us/products/239726/ishares-core-s-p-500-etf/latest-holdings.csv`，retrieval timestamp `2026-08-27T22:17:46+08:00`，Fund Holdings as of `Aug 25, 2026`，HTTP 200，parser `ishares_holdings_csv_equity_rows_v1`，504 equity holdings / 508 parsed holding rows，raw SHA-256 `sha256:633cc4df8492582d847030b3aaf10134792cbb2de1722088bb6dfb2c967bb7b5`。provenance 明确记录 IVV 可能含 cash/derivatives/temporary positions 或 issuer/share-class differences，且 holdings 可能不同于 index roster。
+
+**Decision:** 生成新的 `SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v2`，canonical SHA-256 为 `sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433`；v1 与 v2 分别由 version → hash contract 锁定，v2 rebuild 只接受 v2 source bundle，Wikimedia source 无法进入新的 frozen manifest。CN CSI300/500/1000 scope、CN quota `12/14/14`、US quota `12/10/8/10`、canonical identity first-attribution、SHA-256 deterministic ranking、每市场 `40 PRIMARY + 20 RESERVE` 及 Phase 5J-v2、SETUP_03 frozen parameters/structure thresholds 全部保持不变。
+
+**Reason:** Source provenance 改变属于 immutable governance 的新版本，不得静默覆盖 v1；明确 proxy 身份、raw evidence、retrieval contract 与 limitation，才能保留可审计性并避免把 ETF holdings 误报为指数官方成分。该 amendment 仍只做 metadata/universe freeze，不读取 OHLCV、不运行 Phase 5K、SETUP_03、CONFIRMED、return/MFE/MAE/P&L、final OOS、Sheets 或 Phase 5K-B。
+
 **Decision:** A1 selection spec `SETUP_03-CN-US-UNIVERSE-SELECTION-2026-08-27-v1` 固定 seed `SETUP_03-CN-US-FIXED-SHA256-SEED-2026-08-27-v1`，canonical ranking 为 `SHA256(fixed_seed|market|cohort|canonical_symbol)` digest ascending、同 digest 以 canonical symbol ascending；CN cohort 顺序为 `CSI300 → CSI500 → CSI1000`，US 为 `SP500 → NASDAQ100 → SOX → IGV`。cross-cohort duplicate 使用 v2 注册的 canonical identity，由 first declared cohort attribution；每个 identity 在同一 market 最多出现一次。A1 selection spec canonical SHA-256 为 `sha256:327e8f20b7ff3464d5bd8b44133ed1fc4633f143ca38e3a2cdeeeb216559b30f`。
 
 **Reason:** 选择只使用 source-provided membership 与 canonical identity，不使用 SETUP_03 output、WATCH/ARMED/CONFIRMED、历史 OHLCV、forward return、MFE/MAE、win rate、P&L、profit factor、expectancy 或 signal frequency。Primary quota 固定 CN `12/14/14`、US `12/10/8/10`；完成各市场 40 PRIMARY 后，按相同 first-attributed cohort/hash 顺序冻结 20 RESERVE。

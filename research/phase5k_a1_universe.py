@@ -34,24 +34,40 @@ from research.structural_validation_protocol_v2 import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SELECTION_SPEC_PATH = Path(__file__).with_name("phase5k_a1_selection_spec.json")
-SNAPSHOT_DIR = Path(__file__).with_name("snapshots") / "phase5k_a1_cn_us_2026-08-27-v1"
+SNAPSHOT_DIR = Path(__file__).with_name("snapshots") / "phase5k_a1_cn_us_2026-08-27-v2"
 SNAPSHOT_PROVENANCE_PATH = SNAPSHOT_DIR / "snapshot_provenance.json"
-MANIFEST_PATH = Path(__file__).with_name("phase5k_a1_universe_manifest.json")
+MANIFEST_PATH = Path(__file__).with_name("phase5k_a1_universe_manifest_v2.json")
+LEGACY_SNAPSHOT_DIR = Path(__file__).with_name("snapshots") / "phase5k_a1_cn_us_2026-08-27-v1"
+LEGACY_MANIFEST_PATH = Path(__file__).with_name("phase5k_a1_universe_manifest.json")
 
-MANIFEST_SCHEMA_VERSION = "setup03-phase5k-a1-universe-manifest-v1"
-MANIFEST_VERSION = "SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v1"
+MANIFEST_SCHEMA_VERSION = "setup03-phase5k-a1-universe-manifest-v2"
+MANIFEST_VERSION = "SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v2"
+LEGACY_MANIFEST_VERSION = "SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v1"
 MANIFEST_STATUS = "MANIFEST_FROZEN_NOT_FETCHED"
 SELECTION_SPEC_VERSION = "SETUP_03-CN-US-UNIVERSE-SELECTION-2026-08-27-v1"
 PINNED_SELECTION_SPEC_SHA256 = "sha256:327e8f20b7ff3464d5bd8b44133ed1fc4633f143ca38e3a2cdeeeb216559b30f"
 PINNED_MANIFEST_SHA256_BY_VERSION = MappingProxyType(
-    {MANIFEST_VERSION: "sha256:4a33391d57488937bcdd7e501ca65a2ae3dc1c5475e41203f22bbe2e03c057eb"}
+    {
+        LEGACY_MANIFEST_VERSION: "sha256:4a33391d57488937bcdd7e501ca65a2ae3dc1c5475e41203f22bbe2e03c057eb",
+        MANIFEST_VERSION: "sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433",
+    }
 )
 
 HITHINK_BASE_URL = "https://fuyao.aicubes.cn"
 HITHINK_API_KEY_ENV = "HITHINK_FINANCE_API_KEY"
-SP500_URL = (
-    "https://en.wikipedia.org/w/api.php?"
-    "action=parse&page=List_of_S%26P_500_companies&prop=text&format=json&formatversion=2"
+SP500_SPDJI_URL = "https://www.spglobal.com/spdji/en/indices/equity/sp-500/"
+SP500_IVV_HOLDINGS_URL = "https://www.ishares.com/us/products/239726/ishares-core-s-p-500-etf/latest-holdings.csv"
+SP500_PROXY_SOURCE_IDENTITY = "S&P500_UNIVERSE_PROXY_IVV_OFFICIAL_HOLDINGS"
+SP500_SPDJI_SOURCE_IDENTITY = "S&P-DJI-OFFICIAL-SP500-CONSTITUENTS"
+SP500_PROXY_LIMITATION = (
+    "IVV is an official iShares issuer holdings snapshot for a fund that seeks to track the S&P 500. "
+    "It is an explicit proxy, not official S&P 500 constituent data: holdings may include cash, derivatives, "
+    "temporary positions, or issuer/share-class representation differences and may differ from the index roster."
+)
+SP500_SPDJI_PROBE_CONTRACT = (
+    "GET the public S&P DJI S&P 500 index page and require a complete machine-readable constituent table "
+    "with Constituent/Symbol fields and at least 400 rows; a page shell, top-10-only response, or an "
+    "unavailable client-side full-list payload is not sufficient."
 )
 NASDAQ_WEIGHTING_URL = "https://indexes.nasdaq.com/Index/WeightingData"
 IGV_HOLDINGS_URL = (
@@ -387,6 +403,38 @@ def parse_sp500_payload(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     raise SnapshotError("S&P 500 source table with Symbol/Security headers was not found")
 
 
+def parse_sp500_spdji_payload(raw: bytes) -> list[dict[str, Any]]:
+    """Parse only a complete S&P DJI HTML constituent table.
+
+    The public page may expose a shell or only top constituents.  The strict
+    row-count contract makes that an explicit fallback condition rather than
+    silently treating a partial page as the index roster.
+    """
+    try:
+        html = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SnapshotError("S&P DJI source is not valid UTF-8 HTML") from exc
+    parser = _SP500TableParser()
+    parser.feed(html)
+    for table in parser.tables:
+        if not table:
+            continue
+        header = [cell.strip() for cell in table[0]]
+        if "Constituent" not in header or "Symbol" not in header:
+            continue
+        rows = []
+        for values in table[1:]:
+            if len(values) < len(header):
+                continue
+            row = dict(zip(header, values))
+            if row.get("Constituent") and row.get("Symbol"):
+                rows.append({"Symbol": row["Symbol"], "Security": row["Constituent"], "Sector": row.get("Sector*", "")})
+        if len(rows) < 400:
+            raise SnapshotError("S&P DJI source did not provide a complete constituent table")
+        return rows
+    raise SnapshotError("S&P DJI source has no complete Constituent/Symbol table")
+
+
 def _canonical_us_ticker(raw: Any, source_id: str) -> str:
     symbol = str(raw or "").strip().upper().replace("/", ".")
     if not symbol or not re.fullmatch(r"[A-Z0-9][A-Z0-9.\-]*", symbol):
@@ -424,7 +472,7 @@ def parse_nasdaq_weighting_payload(payload: Mapping[str, Any], source_id: str) -
     return list(rows)
 
 
-def parse_igv_holdings_payload(raw: bytes) -> tuple[list[dict[str, Any]], str | None, int]:
+def parse_ishares_holdings_payload(raw: bytes) -> tuple[list[dict[str, Any]], str | None, int]:
     text = raw.decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(text)))
     header_index = next((i for i, row in enumerate(rows) if row and row[0] == "Ticker"), None)
@@ -441,6 +489,9 @@ def parse_igv_holdings_payload(raw: bytes) -> tuple[list[dict[str, Any]], str | 
             as_of = row[1]
             break
     return equity_rows, as_of, len(parsed)
+
+
+parse_igv_holdings_payload = parse_ishares_holdings_payload
 
 
 def _rank_key(row: Mapping[str, Any], *, fixed_seed: str, market: str, cohort: str) -> tuple[str, str]:
@@ -506,6 +557,7 @@ def build_manifest(
     us_cohorts: Mapping[str, Sequence[Mapping[str, Any]]],
     *,
     source_snapshots: Sequence[Mapping[str, Any]] = (),
+    source_selection: Mapping[str, Any] | None = None,
     parent_protocol: Mapping[str, Any] | None = None,
     selection_spec: Mapping[str, Any] | None = None,
     generated_at: str | None = None,
@@ -556,6 +608,7 @@ def build_manifest(
             "phase5j_status": parent["phase5j_status"],
         },
         "source_snapshot_identities": [dict(item) for item in source_snapshots],
+        "sp500_provenance": dict(source_selection or {}),
         "snapshot_bundle_status": "FROZEN_RAW_SOURCE_SNAPSHOTS_ONLY",
         "cohort_definitions": {
             "CN": {
@@ -568,11 +621,12 @@ def build_manifest(
             "US": {
                 "cohorts": list(US_COHORTS),
                 "source_roles": {
-                    "SP500": "authoritative_public_current_constituent_table",
+                    "SP500": "official_etf_issuer_holdings_proxy",
                     "NASDAQ100": "Nasdaq_Global_Index_Watch_official_weighting_components",
                     "SOX": "Nasdaq_Global_Index_Watch_official_weighting_components",
                     "IGV": "iShares_official_current_holdings",
                 },
+                "SP500_proxy_limitation": SP500_PROXY_LIMITATION,
             },
         },
         "quota_rules": {
@@ -627,14 +681,18 @@ def build_manifest(
 
 
 def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
-    if manifest.get("manifest_version") != MANIFEST_VERSION:
+    version = manifest.get("manifest_version")
+    if version not in PINNED_MANIFEST_SHA256_BY_VERSION:
         raise ValueError("unexpected A1 manifest version")
     stored = manifest.get("integrity", {}).get("manifest_sha256")
     actual = manifest_integrity_hash(manifest)
     if stored != actual:
         raise ValueError("A1 manifest integrity mismatch")
-    if stored != PINNED_MANIFEST_SHA256_BY_VERSION.get(MANIFEST_VERSION):
+    if stored != PINNED_MANIFEST_SHA256_BY_VERSION[version]:
         raise ValueError("A1 manifest version is bound to a different canonical hash")
+    expected_schema = MANIFEST_SCHEMA_VERSION if version == MANIFEST_VERSION else "setup03-phase5k-a1-universe-manifest-v1"
+    if manifest.get("schema_version") != expected_schema:
+        raise ValueError("A1 manifest schema version changed")
     parent = manifest.get("parent_protocol", {})
     if parent.get("version") != EXPECTED_PROTOCOL_VERSION:
         raise ValueError("A1 manifest parent protocol version changed")
@@ -647,6 +705,22 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
     snapshots = manifest.get("source_snapshot_identities")
     if not isinstance(snapshots, list) or len(snapshots) != 7:
         raise ValueError("A1 manifest must contain exactly 7 source snapshot identities")
+    sp500_records = [record for record in snapshots if record.get("cohort") == "SP500"]
+    if len(sp500_records) != 1:
+        raise ValueError("A1 manifest must contain exactly one SP500 source snapshot")
+    sp500 = sp500_records[0]
+    if version == MANIFEST_VERSION:
+        if sp500.get("source_identity") not in {SP500_SPDJI_SOURCE_IDENTITY, SP500_PROXY_SOURCE_IDENTITY}:
+            raise ValueError("frozen S&P 500 source identity is not an approved source class")
+        if sp500.get("source_identity") == SP500_PROXY_SOURCE_IDENTITY:
+            if sp500.get("source_role") != "CURRENT_UNIVERSE_PROXY":
+                raise ValueError("IVV S&P 500 proxy role is missing")
+            if sp500.get("proxy_for") != "S&P500" or not sp500.get("provenance_limitation"):
+                raise ValueError("IVV S&P 500 proxy limitation is missing")
+        if "WIKIMEDIA" in str(sp500.get("source_identity", "")).upper() or "wikipedia" in str(sp500.get("parser", "")).lower():
+            raise ValueError("production S&P 500 provenance cannot be Wikimedia")
+    elif sp500.get("source_identity") != "WIKIMEDIA-SP500-CURRENT-CONSTITUENTS-AUTHORITATIVE-PUBLIC-REFERENCE":
+        raise ValueError("legacy v1 S&P 500 audit source changed")
     controls = manifest.get("phase5k_controls", {})
     for key in ("historical_ohlcv_fetched", "validation_ohlcv_fetched", "setup03_evaluator_called", "setup03_output_accessed", "final_oos_accessed"):
         if controls.get(key) is not False:
@@ -700,11 +774,20 @@ def _raw_path_from_record(record: Mapping[str, Any], bundle_dir: Path) -> Path:
 def load_snapshot_bundle(bundle_dir: Path = SNAPSHOT_DIR) -> tuple[dict[str, Any], dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
     provenance_path = bundle_dir / "snapshot_provenance.json"
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    if provenance.get("snapshot_bundle_version") != "SETUP_03-CN-US-OFFICIAL-SNAPSHOT-BUNDLE-2026-08-27-v2":
+        raise SnapshotError("only the active v2 source bundle may generate a new manifest")
     records = provenance.get("source_snapshots")
     if not isinstance(records, list) or len(records) != 7:
         raise SnapshotError("A1 frozen source bundle must contain exactly 7 source snapshots")
     cn: dict[str, list[dict[str, Any]]] = {}
     us: dict[str, list[dict[str, Any]]] = {}
+    sp500_records = [record for record in records if record.get("cohort") == "SP500"]
+    if len(sp500_records) != 1:
+        raise SnapshotError("active source bundle must contain exactly one SP500 source snapshot")
+    if sp500_records[0].get("source_identity") not in {SP500_SPDJI_SOURCE_IDENTITY, SP500_PROXY_SOURCE_IDENTITY}:
+        raise SnapshotError("active S&P 500 source is not an approved source class")
+    if "WIKIMEDIA" in str(sp500_records[0].get("source_identity", "")).upper():
+        raise SnapshotError("Wikimedia cannot participate in a new manifest generation")
     for record in records:
         raw_path = _raw_path_from_record(record, bundle_dir)
         raw = raw_path.read_bytes()
@@ -724,12 +807,20 @@ def load_snapshot_bundle(bundle_dir: Path = SNAPSHOT_DIR) -> tuple[dict[str, Any
             cohort = str(record["cohort"])
             eligible, _ = filter_cn_cohort_items(cohort, items)
             cn[cohort] = eligible
-        elif parser == "wikipedia_sp500_mediawiki_html_v1":
-            payload = _response_payload(raw, source_id)
-            rows = parse_sp500_payload(payload)
+        elif parser == "sp_dji_sp500_html_table_v1":
+            rows = parse_sp500_spdji_payload(raw)
             if len(rows) != record.get("constituent_count"):
                 raise SnapshotError(f"source constituent count changed: {source_id}")
             us["SP500"] = _us_rows("SP500", rows, source_id)
+        elif parser == "ishares_holdings_csv_equity_rows_v1" and record.get("cohort") == "SP500":
+            if record.get("source_identity") != SP500_PROXY_SOURCE_IDENTITY:
+                raise SnapshotError("SP500 iShares holdings source identity changed")
+            if record.get("source_role") != "CURRENT_UNIVERSE_PROXY":
+                raise SnapshotError("SP500 iShares holdings proxy role changed")
+            holdings, _, _ = parse_ishares_holdings_payload(raw)
+            if len(holdings) != record.get("constituent_count"):
+                raise SnapshotError(f"source holding count changed: {source_id}")
+            us["SP500"] = _us_rows("SP500", holdings, source_id)
         elif parser == "nasdaq_weighting_components_v1":
             payload = _response_payload(raw, source_id)
             cohort = str(record["cohort"])
@@ -742,7 +833,7 @@ def load_snapshot_bundle(bundle_dir: Path = SNAPSHOT_DIR) -> tuple[dict[str, Any
         elif parser == "ishares_holdings_csv_equity_rows_v1":
             if record.get("api_success_state") != "HTTP_200_SOURCE_PAYLOAD_OK":
                 raise SnapshotError(f"iShares source success state changed: {source_id}")
-            holdings, _, _ = parse_igv_holdings_payload(raw)
+            holdings, _, _ = parse_ishares_holdings_payload(raw)
             if len(holdings) != record.get("constituent_count"):
                 raise SnapshotError(f"source holding count changed: {source_id}")
             us["IGV"] = _us_rows("IGV", holdings, source_id)
@@ -763,6 +854,7 @@ def rebuild_frozen_manifest(
         cn,
         us,
         source_snapshots=provenance["source_snapshots"],
+        source_selection=provenance.get("sp500_source_selection"),
         generated_at=provenance["manifest_generated_at"],
     )
     if manifest_path is not None:
@@ -855,32 +947,106 @@ def fetch_current_snapshots(output_dir: Path = SNAPSHOT_DIR) -> dict[str, Any]:
         record["official_index_symbol"] = index_symbol
         records.append(record)
 
-    retrieved_at = _iso_now()
-    status, raw, error = _fetch_raw(
-        SP500_URL,
-        headers={"Accept": "application/json", "User-Agent": "stock-data-pipeline/phase5k-a1"},
+    sp500_probe_at = _iso_now()
+    sp500_status, sp500_raw, sp500_error = _fetch_raw(
+        SP500_SPDJI_URL,
+        headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": "stock-data-pipeline/phase5k-a1"},
     )
-    if error or status != 200:
-        raise SnapshotError("S&P 500 source transport failed")
-    payload = _response_payload(raw, "SP500")
-    rows = parse_sp500_payload(payload)
-    raw_path = output_dir / "06_sp500_constituents.json"
-    _write_raw(raw_path, raw)
-    record = _snapshot_record(
-        source_id="SP500_WIKIPEDIA",
-        source_identity="WIKIMEDIA-SP500-CURRENT-CONSTITUENTS-AUTHORITATIVE-PUBLIC-REFERENCE",
-        endpoint=SP500_URL,
-        method="GET",
-        retrieval_timestamp=retrieved_at,
-        raw_path=raw_path,
-        raw=raw,
-        http_status=status,
-        api_success_state="HTTP_200_SOURCE_PAYLOAD_OK",
-        constituent_count=len(rows),
-        parser="wikipedia_sp500_mediawiki_html_v1",
-    )
-    record["cohort"] = "SP500"
-    records.append(record)
+    sp500_probe = {
+        "source_identity": SP500_SPDJI_SOURCE_IDENTITY,
+        "endpoint": SP500_SPDJI_URL,
+        "http_method": "GET",
+        "retrieval_timestamp": sp500_probe_at,
+        "retrieval_contract": SP500_SPDJI_PROBE_CONTRACT,
+    }
+    official_rows: list[dict[str, Any]] | None = None
+    if sp500_status == 200 and not sp500_error:
+        try:
+            official_rows = parse_sp500_spdji_payload(sp500_raw)
+        except SnapshotError as exc:
+            sp500_probe["outcome"] = "UNAVAILABLE_FOR_RELIABLE_COMPLETE_MACHINE_RETRIEVAL"
+            sp500_probe["failure_reason"] = str(exc)
+        else:
+            sp500_probe["outcome"] = "COMPLETE_MACHINE_READABLE_CONSTITUENT_SNAPSHOT"
+    else:
+        sp500_probe["outcome"] = "UNAVAILABLE_FOR_RELIABLE_COMPLETE_MACHINE_RETRIEVAL"
+        sp500_probe["failure_reason"] = sp500_error or f"HTTP status {sp500_status}"
+
+    if official_rows is not None:
+        raw_path = output_dir / "06_sp500_spdji_constituents.html"
+        _write_raw(raw_path, sp500_raw)
+        record = _snapshot_record(
+            source_id="SP500_SPDJI_OFFICIAL",
+            source_identity=SP500_SPDJI_SOURCE_IDENTITY,
+            endpoint=SP500_SPDJI_URL,
+            method="GET",
+            retrieval_timestamp=sp500_probe_at,
+            raw_path=raw_path,
+            raw=sp500_raw,
+            http_status=sp500_status,
+            api_success_state="HTTP_200_COMPLETE_CONSTITUENT_TABLE",
+            constituent_count=len(official_rows),
+            parser="sp_dji_sp500_html_table_v1",
+        )
+        record["cohort"] = "SP500"
+        records.append(record)
+        sp500_source_selection = {
+            "preferred_source_identity": SP500_SPDJI_SOURCE_IDENTITY,
+            "preferred_endpoint": SP500_SPDJI_URL,
+            "preferred_retrieval_contract": SP500_SPDJI_PROBE_CONTRACT,
+            "preferred_source_outcome": sp500_probe["outcome"],
+            "selected_source_identity": SP500_SPDJI_SOURCE_IDENTITY,
+            "selected_source_class": "OFFICIAL_SPDJI_COMPLETE_CONSTITUENT_SNAPSHOT",
+            "proxy_selected": False,
+            "provenance_limitation": "Official S&P DJI constituent table as retrieved; index methodology, licensing, and public endpoint availability remain external dependencies.",
+            "probe": sp500_probe,
+        }
+    else:
+        retrieved_at = _iso_now()
+        status, raw, error = _fetch_raw(
+            SP500_IVV_HOLDINGS_URL,
+            headers={"Accept": "text/csv,*/*", "User-Agent": "stock-data-pipeline/phase5k-a1"},
+        )
+        if error or status != 200:
+            raise SnapshotError("S&P 500 proxy IVV source transport failed")
+        holdings, as_of, total_rows = parse_ishares_holdings_payload(raw)
+        raw_path = output_dir / "06_sp500_proxy_ivv_holdings.csv"
+        _write_raw(raw_path, raw)
+        record = _snapshot_record(
+            source_id="SP500_PROXY_IVV_ISHARES",
+            source_identity=SP500_PROXY_SOURCE_IDENTITY,
+            source_role="CURRENT_UNIVERSE_PROXY",
+            endpoint=SP500_IVV_HOLDINGS_URL,
+            method="GET",
+            retrieval_timestamp=retrieved_at,
+            raw_path=raw_path,
+            raw=raw,
+            http_status=status,
+            api_success_state="HTTP_200_SOURCE_PAYLOAD_OK",
+            constituent_count=len(holdings),
+            parser="ishares_holdings_csv_equity_rows_v1",
+            api_data_timestamp=as_of,
+            api_data_timestamp_field="Fund Holdings as of",
+        )
+        record["cohort"] = "SP500"
+        record["proxy_for"] = "S&P500"
+        record["proxy_type"] = "OFFICIAL_ETF_ISSUER_HOLDINGS"
+        record["official_constituent_snapshot"] = False
+        record["provenance_limitation"] = SP500_PROXY_LIMITATION
+        record["fund_ticker"] = "IVV"
+        record["raw_holding_row_count"] = total_rows
+        records.append(record)
+        sp500_source_selection = {
+            "preferred_source_identity": SP500_SPDJI_SOURCE_IDENTITY,
+            "preferred_endpoint": SP500_SPDJI_URL,
+            "preferred_retrieval_contract": SP500_SPDJI_PROBE_CONTRACT,
+            "preferred_source_outcome": sp500_probe["outcome"],
+            "selected_source_identity": SP500_PROXY_SOURCE_IDENTITY,
+            "selected_source_class": "OFFICIAL_ETF_ISSUER_HOLDINGS_PROXY",
+            "proxy_selected": True,
+            "provenance_limitation": SP500_PROXY_LIMITATION,
+            "probe": sp500_probe,
+        }
 
     retrieved_at = _iso_now()
     status, raw, error = _fetch_raw(
@@ -889,7 +1055,7 @@ def fetch_current_snapshots(output_dir: Path = SNAPSHOT_DIR) -> dict[str, Any]:
     )
     if error or status != 200:
         raise SnapshotError("IGV source transport failed")
-    holdings, as_of, total_rows = parse_igv_holdings_payload(raw)
+    holdings, as_of, total_rows = parse_ishares_holdings_payload(raw)
     raw_path = output_dir / "07_igv_holdings.csv"
     _write_raw(raw_path, raw)
     record = _snapshot_record(
@@ -914,11 +1080,12 @@ def fetch_current_snapshots(output_dir: Path = SNAPSHOT_DIR) -> dict[str, Any]:
 
     records.sort(key=lambda record: record["source_id"])
     provenance = {
-        "snapshot_bundle_version": "SETUP_03-CN-US-OFFICIAL-SNAPSHOT-BUNDLE-2026-08-27-v1",
+        "snapshot_bundle_version": "SETUP_03-CN-US-OFFICIAL-SNAPSHOT-BUNDLE-2026-08-27-v2",
         "parent_protocol_version": EXPECTED_PROTOCOL_VERSION,
         "parent_protocol_sha256": PINNED_PROTOCOL_SHA256_BY_VERSION[EXPECTED_PROTOCOL_VERSION],
         "retrieval_scope": "current constituent/holding snapshots only; no historical OHLCV",
         "manifest_generated_at": _iso_now(),
+        "sp500_source_selection": sp500_source_selection,
         "source_snapshots": records,
     }
     SNAPSHOT_PROVENANCE_PATH_LOCAL = output_dir / "snapshot_provenance.json"
