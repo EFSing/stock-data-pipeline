@@ -1,0 +1,39 @@
+{
+  "schema_version": "setup03-cn-us-universe-selection-spec-v1",
+  "selection_spec_version": "SETUP_03-CN-US-UNIVERSE-SELECTION-2026-08-27-v1",
+  "parent_protocol_version": "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US",
+  "fixed_seed": "SETUP_03-CN-US-FIXED-SHA256-SEED-2026-08-27-v1",
+  "ranking": {
+    "algorithm": "SHA-256",
+    "input_template": "fixed_seed|market|cohort|canonical_symbol",
+    "sort_order": "digest_ascending_then_canonical_symbol_ascending",
+    "ranking_is_cohort_local": true,
+    "selection_inputs_are_non_signal_only": true
+  },
+  "cohort_order": {
+    "CN": ["CSI300", "CSI500", "CSI1000"],
+    "US": ["SP500", "NASDAQ100", "SOX", "IGV"]
+  },
+  "primary_quota": {
+    "CN": {"CSI300": 12, "CSI500": 14, "CSI1000": 14},
+    "US": {"SP500": 12, "NASDAQ100": 10, "SOX": 8, "IGV": 10}
+  },
+  "reserve_rule": {
+    "total_by_market": {"CN": 20, "US": 20},
+    "selection_order": "remaining_first-attributed_members_in_cohort_order_and_same_cohort_hash_order"
+  },
+  "duplicate_attribution": {
+    "CN_identity": "canonical_symbol",
+    "US_identity": "canonical_issuer_share_class_identity",
+    "rule": "claim each identity in the first declared cohort before considering later cohorts; one identity can appear at most once in a market"
+  },
+  "cn_board_scope": {
+    "active": ["SSE_MAIN_BOARD_COMMON_A", "SZSE_MAIN_BOARD_COMMON_A"],
+    "registered_inactive": ["CN_STAR_REGISTERED_INACTIVE", "CN_CHINEXT_REGISTERED_INACTIVE"],
+    "inactive_never_enters_primary_or_reserve": true
+  },
+  "aggregate_diagnostic_instruments": ["QQQ", "SOX_INDEX", "IGV_ETF"],
+  "integrity": {
+    "selection_spec_sha256": "sha256:327e8f20b7ff3464d5bd8b44133ed1fc4633f143ca38e3a2cdeeeb216559b30f"
+  }
+}

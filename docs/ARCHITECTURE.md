@@ -226,6 +226,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 使用生产参数原值和 `自选清单.历史数据源` 抓取最近 3 年前复权历史，并保留数据源原始顺序供质量门控检查
 - 输出 summary / skipped / replay events / trade outcomes / parameter sensitivity，并新增 `setup03_decision_gate_diagnostics.csv` 与 `setup03_decision_gate_summary.csv` 两类只读 artifact；事件明细与研究结果含生产参数哈希版本，零事件运行仍可复现；不写任何生产 Sheet
 - Phase 5D 额外输出 JSON/CSV input manifest、deterministic `setup03_replay_input.jsonl.gz` 与 manifest comparison CSV；`--frozen-input` 跳过 live history fetch，精确还原 Quote 后复用同一 Replay/Decision/Research 链
+- `research/phase5k_a1_universe.py` 只读取已 pin 的 Phase 5J-v2 与 A1 selection spec，保存 CN/US 当前 universe 原始快照并生成 `MANIFEST_FROZEN_NOT_FETCHED`；不导入行情、Replay、Trading Core、Decision、SETUP_03 或 Sheets
+- `research/snapshots/phase5k_a1_cn_us_2026-08-27-v1/` 保存七个 source raw payload 与 provenance；`research/phase5k_a1_universe_manifest.json` 只包含 40 CN PRIMARY + 20 CN RESERVE、40 US PRIMARY + 20 US RESERVE；QQQ、SOX index、IGV ETF 仅记录为 aggregate diagnostics
 - `--phase5e` 必须与 `--frozen-input` 同时使用，并且只接受上述固定 dataset/参数版本；使用 frozen manifest 自带的完整 symbol universe，不读取 live historical data，也不运行参数网格
 - `--phase5f` 必须同时启用 `--phase5e`，输出逐 bar terminal reason、完整确认前漏斗、辅助多重失败、near-miss 分布与中文报告
 - `--phase5i` 必须同时启用 frozen input、Phase 5E、Phase 5G 与 Phase 5H；它只审计已有 artifact 并输出 frozen specification，不新增 replay 网格、指标、市场/regime 分层或 stress test

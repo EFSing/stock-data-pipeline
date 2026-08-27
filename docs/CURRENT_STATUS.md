@@ -39,6 +39,7 @@ V0.2
 - PR #24 收尾审计：PR #24 已关闭且未合并，`research/phase5k-a0-metadata-provenance-foundation` branch 与 head `497bf541e5b92454d4866a066e09364ecdbede4c` 保留为历史治理证据；五市场 metadata framework 不进入新的生产路径。
 - Phase 5J-v2 CN/US scope revision（本独立分支，未合并）：以 `research/setup03_structural_validation_protocol_v2.json` 注册 CN/US scope、CN Main Board active / STAR-ChiNext inactive、CN/US quota/dedup、独立 qualification 与移除 market concentration gate；v1 protocol 不改，最终状态为 `SCOPE_REVISION_REGISTERED_NOT_EXECUTED`。
 - HiThink CN API capability/provenance smoke test（本独立分支）：2026-08-27 18:34:47 +08:00 在网络可用执行上下文重跑代码表、CSI300/500/1000 成分、market-dump 签名端点、复权因子和交易日历；7/7 HTTP 200 且 `code=0`，三条指数端点实际返回 300/500/1000 条当前成分，dump 签名地址可取得但未下载。复权接口仅观察到 `ex_date_ms` 事件字段，未证明预计算 factor 公式；交易日历返回 243 个交易日（2025-08-27 至 2026-08-27），不足以单独覆盖 protocol 要求的每市场约 6000 根有效日 K。结论：`HITHINK_CN_RESEARCH_DATA_PROVIDER_NOT_READY`，不启动 Phase 5K-A1。
+- Phase 5K-A1 CN/US Official Universe Snapshot & Manifest Freeze（本独立分支，未合并）：使用实际当前抓取（不是 2026-08-26 历史成分）保存 HiThink CSI300/500/1000、Nasdaq NDX/SOX、Wikipedia S&P 500 权威公开表、iShares IGV holdings 七份 raw snapshots 及 provenance；全部 source HTTP 200，HiThink 三源均 `code=0`。以独立机器可读 A1 selection spec 固定 SHA-256 seed/ranking、v2 cohort 顺序与 canonical identity dedup，冻结 80 PRIMARY + 40 RESERVE，manifest `sha256:4a33391d57488937bcdd7e501ca65a2ae3dc1c5475e41203f22bbe2e03c057eb`，状态 `MANIFEST_FROZEN_NOT_FETCHED`。未读取 validation OHLCV、未调用 SETUP_03、未访问收益指标/OOS、未修改 v1/v2 protocol、production 或 Sheets。
 
 ## Next
 
