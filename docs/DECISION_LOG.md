@@ -317,3 +317,41 @@
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
 
 **Reason:** yfinance 的 A 股数据连续出现开盘价超出日内最高／最低区间，但收盘价与成交量仍与 Tencent 一致。仅在最终写表后执行合法性检查会让正常腾讯行情无法接替异常主源，并使最新行情与未复权历史不一致。整根 K 线切换可保持 OHLCV 内部一致性，避免逐字段拼接出不存在的行情，同时不放宽质量闸门。
+
+---
+
+## 2026-08-27
+
+**Decision:** PR #24 的 metadata-only foundation 保留为历史治理证据但不合并；PR #24 已关闭且未合并，branch `research/phase5k-a0-metadata-provenance-foundation` 与 head `497bf541e5b92454d4866a066e09364ecdbede4c` 不删除。后续不再追求五市场完整 security-master provenance framework 作为生产路径。
+
+**Reason:** PR #24 正确记录了 `METADATA_PROVENANCE_UNAVAILABLE` 与 fail-closed 边界，但当前业务 deployment scope 已收缩为 CN/US；关闭并保留 branch/PR 证据可以审计历史判断，同时避免把五市场未证明框架扩张进 main。
+
+---
+
+**Decision:** 建立独立 Phase 5J-v2 scope revision，protocol version 为 `SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US`。validation markets 固定为 CN/US；HK/JP/SE 排除。CN 只启用 SSE/SZSE Main Board common A shares，STAR/ChiNext 分别注册为 `CN_STAR_REGISTERED_INACTIVE` / `CN_CHINEXT_REGISTERED_INACTIVE`，不得进入 Phase 5K、OHLCV 或 qualification，未来启用必须升级 protocol version。
+
+**Reason:** 这是在任何 Phase 5K validation data 或 SETUP_03 output 被查看前记录的 deployment scope revision，不是结果驱动删样本。v1 五市场 protocol 保持为历史注册证据，不被直接继续使用或原地修改。
+
+---
+
+**Decision:** Phase 5J-v2 保持 production tolerance candidates `3%/4%/5%`、`setup_swing_lookback=5`、`platform_window=40`、`arm_proximity_pct=0`、Jaccard/retention/drift/rate、symbol concentration、`LEXICOGRAPHIC_CONSERVATIVE` 与 qualification matrix；移除原五市场 market concentration gate，改为 CN 与 US 各自独立满足剩余结构门槛，禁止市场间补偿。CN primary quota 为 CSI300/500/1000 `12/14/14`，US primary quota 为 S&P500/Nasdaq-100/SOX/IGV `12/10/8/10`；两市场目标均为 `40 PRIMARY/20 RESERVE`。QQQ、SOX index、IGV ETF 只允许 aggregate diagnostics。
+
+**Reason:** v2 只修订 deployment scope 与在两市场下可满足的 concentration semantics，不重新搜索 structural thresholds/tolerance，不读取收益指标，不运行 validation 或正式参数选择。
+
+---
+
+**Decision:** HiThink Financial API 先作为 CN Research Data Provider 做只读 capability/provenance smoke test，不修改生产腾讯/新浪逻辑。2026-08-27 17:52:18 +08:00 的 7 个 bounded GET probe 均 HTTP 200 但 `code=2003`；未配置 `HITHINK_FINANCE_API_KEY`，因此当前仅证明 endpoint/auth error envelope，不能证明代码表、指数成分、market dump、复权因子或交易日历的数据权限与 as-of semantics。原始响应已保存并计算 SHA-256，market dump 未下载。
+
+**Reason:** API Key/额外 entitlement 缺失时必须 fail closed；不得用未授权响应伪造 source metadata、历史成分 snapshot 或 Phase 5K data。后续只有在真实 key/授权可用、响应 `code=0` 且保留 source timestamp/as-of/raw hash 后，才可另行审阅是否进入 Phase 5K-A1。
+
+---
+
+**Amendment:** 2026-08-27 18:16:12 +08:00 在标准与提升权限执行上下文重跑 HiThink bounded GET smoke test；runner 在 Process/User/Machine scope 均未看到 `HITHINK_FINANCE_API_KEY`，未读取或输出任何 Key 内容。7/7 endpoint 均 HTTP 200 / `code=2003`，因此权限、数据字段与 source timestamp/as-of semantics 仍未证明。该环境传播 blocker 必须先解决，不能把未授权响应作为 `code=0` 能力结论，也不能开始 Phase 5K-A1。
+
+**Reason:** 用户环境变量可能在桌面进程启动后才配置，或存在于不同执行上下文；在没有 Key 到达 runner 的情况下，必须保持 fail closed 并保留 raw response hash，而不是请求用户在聊天中粘贴凭证。
+
+---
+
+**Amendment:** 2026-08-27 18:34:47 +08:00 在网络可用执行上下文重跑同一 7 个 bounded GET probes；7/7 均 HTTP 200 / `code=0`。A 股代码表 bounded probe 返回 1 条，CSI300/500/1000 分别返回 300/500/1000 条当前成分；market-dump endpoint 返回短期签名地址元数据（300 秒）但未下载；复权接口返回 `ex_date_ms` 与公司行动字段但未提供明确预计算 adjustment factor/公式；交易日历返回 243 个交易日，覆盖 2025-08-27 至 2026-08-27，未证明约 6000 根有效日 K 的 CN validation coverage。原始响应仅保留在 ignored local artifact 并计算 SHA-256，API Key 未打印、记录或提交。结论维持 `HITHINK_CN_RESEARCH_DATA_PROVIDER_NOT_READY`，不生成 Phase 5K-A1 manifest、不下载/构建 Phase 5K dataset、不运行 SETUP_03、不访问最终 OOS。
+
+**Reason:** `HTTP 200 + code=0` 证明五项接口组当前可访问，但 adjustment-factor semantics 与 validation-range calendar coverage 仍不足以证明 Phase 5K 数据提供能力；必须继续 fail closed。
