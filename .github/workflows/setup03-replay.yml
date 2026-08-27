@@ -36,7 +36,7 @@ jobs:
           if [ -n "$FROZEN_INPUT_RUN_ID" ]; then
             phase5e_args=()
             if [ "$FROZEN_INPUT_RUN_ID" = "32826696259" ]; then
-              phase5e_args+=(--phase5e --phase5f --phase5g --phase5h)
+              phase5e_args+=(--phase5e --phase5f --phase5g --phase5h --phase5i)
             fi
             python scripts/run_setup03_replay.py \
               --frozen-input previous-artifact/setup03_replay_input.jsonl.gz \

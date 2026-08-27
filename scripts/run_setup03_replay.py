@@ -40,6 +40,10 @@ from research.platform_structure_calibration import (
     platform_structure_calibration_artifacts,
     render_platform_structure_report,
 )
+from research.parameter_freeze import (
+    phase5i_freeze_artifacts,
+    serialize_frozen_spec,
+)
 from research.replay_input import (
     ManifestChange,
     build_input_manifest,
@@ -98,6 +102,9 @@ STRUCTURE_STABILITY_PATH = OUTPUT_DIR / "setup03_Phase5H相邻容差稳定性.cs
 STRUCTURE_EVENT_CHANGE_PATH = OUTPUT_DIR / "setup03_Phase5H事件新增消失日期漂移.csv"
 STRUCTURE_CONCENTRATION_PATH = OUTPUT_DIR / "setup03_Phase5H集中度.csv"
 STRUCTURE_REPORT_PATH = OUTPUT_DIR / "setup03_Phase5H平台结构校准报告.md"
+FREEZE_INVENTORY_PATH = OUTPUT_DIR / "setup03_Phase5I参数清单.csv"
+FROZEN_SPEC_PATH = OUTPUT_DIR / "setup03_Phase5I冻结规范.json"
+FREEZE_AUDIT_REPORT_PATH = OUTPUT_DIR / "setup03_Phase5I冻结前审计报告.md"
 EVENT_HEADERS = [
     "统一代码",
     "交易日期",
@@ -274,6 +281,12 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         raise ValueError("Phase 5G requires --phase5e on the fixed frozen baseline")
     if args.phase5h and not args.phase5e:
         raise ValueError("Phase 5H requires --phase5e on the fixed frozen baseline")
+    if args.phase5i and frozen_symbol_quotes is None:
+        raise ValueError("Phase 5I requires --frozen-input; live history is forbidden")
+    if args.phase5i and not (args.phase5e and args.phase5g and args.phase5h):
+        raise ValueError(
+            "Phase 5I requires --phase5e --phase5g --phase5h existing evidence"
+        )
     client = SheetsClient()
     config = client.config()
     setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
@@ -457,6 +470,7 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
     phase5f_artifacts = None
     phase5g_artifacts = None
     phase5h_artifacts = None
+    phase5i_artifacts = None
     if args.phase5e:
         phase5e_artifacts = frozen_validation_artifacts(
             replay_reports,
@@ -484,6 +498,13 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             decision_parameters,
             input_manifest,
             parameter_version,
+        )
+    if args.phase5i:
+        assert phase5g_artifacts is not None and phase5h_artifacts is not None
+        phase5i_artifacts = phase5i_freeze_artifacts(
+            phase5g_artifacts,
+            phase5h_artifacts,
+            input_manifest.aggregate_hash,
         )
     write_input_manifest(INPUT_MANIFEST_JSON_PATH, input_manifest)
     frozen_manifest = write_frozen_input(FROZEN_INPUT_PATH, symbol_quotes)
@@ -593,6 +614,16 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
             ),
             encoding="utf-8",
         )
+    if phase5i_artifacts is not None:
+        _write_csv(FREEZE_INVENTORY_PATH, list(phase5i_artifacts.inventory_rows))
+        FROZEN_SPEC_PATH.write_text(
+            serialize_frozen_spec(phase5i_artifacts.specification),
+            encoding="utf-8",
+        )
+        FREEZE_AUDIT_REPORT_PATH.write_text(
+            phase5i_artifacts.audit_report,
+            encoding="utf-8",
+        )
     production_funnel = {
         key: sum(row[key] for row in production_funnel_rows)
         for key in (
@@ -630,6 +661,13 @@ def main(argv: tuple[str, ...] | list[str] = ()) -> None:
         print(f"phase5g_tolerance_report={TOLERANCE_REPORT_PATH}")
     if phase5h_artifacts is not None:
         print(f"phase5h_structure_report={STRUCTURE_REPORT_PATH}")
+    if phase5i_artifacts is not None:
+        print(
+            "phase5i_parameter_freeze: "
+            f"decision={phase5i_artifacts.specification['freeze_decision']}, "
+            f"dataset_hash={input_manifest.aggregate_hash}"
+        )
+        print(f"phase5i_freeze_audit_report={FREEZE_AUDIT_REPORT_PATH}")
     if enabled_count == 0 or not rows:
         raise RuntimeError(
             "SETUP_03 replay failed: calculable/enabled coverage is zero "
@@ -809,6 +847,11 @@ def _parse_args(argv: tuple[str, ...] | list[str]) -> argparse.Namespace:
         "--phase5h",
         action="store_true",
         help="Run market-layered platform-structure calibration on Phase 5E",
+    )
+    parser.add_argument(
+        "--phase5i",
+        action="store_true",
+        help="Audit and freeze the existing Phase 5G/5H evidence boundary",
     )
     return parser.parse_args(list(argv))
 
