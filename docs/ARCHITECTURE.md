@@ -70,6 +70,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── setup03_structural_validation_protocol.json # Phase 5J 机器可读结构验证协议
 │   ├── structural_validation_protocol_v2.py # Phase 5J-v2 CN/US scope revision loader
 │   ├── setup03_structural_validation_protocol_v2.json # Phase 5J-v2 CN/US scope contract
+│   ├── phase5k_b0_dataset_contract.py # Phase 5K-B0 获取契约/标准化/QC/覆盖纯校验
+│   ├── phase5k_b0_dataset_acquisition_contract.json # Phase 5K-B0 机器可读冻结契约
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -212,6 +214,14 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - CN 使用 CSI300/500/1000（primary quota 12/14/14），US 使用 S&P500/Nasdaq-100/SOX/IGV（primary quota 12/10/8/10）；两市场各为 40 primary / 20 reserve，跨 universe/cohort 重复按预注册 canonical identity 规则只计一次，选择不能依赖 SETUP_03 输出或收益指标
 - QQQ、SOX index、IGV ETF 仅为 aggregate diagnostics，不计入 equity sample minimum、不参与 qualification、不决定 tolerance；5J-v2 移除五市场 market concentration gate，并要求 CN 与 US 各自独立满足全部剩余结构门槛，禁止市场间补偿
 - 3%/4%/5%、lookback=5、window=40、arm proximity=0、Jaccard/retention/drift/rate、symbol concentration、qualification matrix 与收益指标禁用规则保持锁定；不重新搜索 thresholds 或 tolerance
+
+### research/phase5k_b0_dataset_contract.py / phase5k_b0_dataset_acquisition_contract.json
+
+- Phase 5K-B0 只冻结未来 development-validation 日 K 数据集的 acquisition contract，状态为 `DATASET_ACQUISITION_CONTRACT_FROZEN_NOT_ACQUIRED`；loader 会实际读取并校验 Phase 5J-v2 protocol `sha256:d7b216…451aa0` 与 A1 v2 manifest `sha256:ded740…68433`，不调用行情源或 SETUP_03
+- 日期窗口固定为证券本地交易日 `2017-01-01` 至 `2026-08-26`（inclusive）；CN 只允许 `HITHINK_A_SHARE_HISTORICAL_FORWARD_ADJUSTED` 的 `/api/a-share/prices/historical`、`1d`、`forward`；US 只允许 `IBKR_TWS_API_ADJUSTED_LAST`、`STK`、`1 day`、`ADJUSTED_LAST`、`useRTH=1`、`keepUpToDate=false`，并预注册固定 calendar-year chunks；不允许 provider fallback 或混用 adjusted/unadjusted semantics
+- canonical schema 固定为 `market/canonical_symbol/date/open/high/low/close/volume/source_provider/adjustment_mode`；raw response 与 request/provenance metadata 分开保存。OHLC、日期、volume、重复值及 `DATA_CONFLICT_FAIL_CLOSED` 均由纯校验函数 fail closed，绝不 forward-fill、interpolate、补 synthetic bar 或跨市场补行
+- reserve 只能在 SETUP_03 evaluation 前因机器可读客观数据失败激活，并严格遵循 A1 `manifest_rank`；CN/US 各自目标 `40 PRIMARY`、`20 RESERVE`，每市场至少 8 valid symbols、至少 6000 valid daily K bars、总计至少 40 valid symbols，任何市场不得互相补偿。warmup 记录 `platform_window=40`、`setup_swing_lookback=5`，前缀 warmup 不计 evaluable state day
+- B1 manifest schema 预注册 per-symbol raw/normalized hash、QC、bar count/date range、replacement audit、market totals 与 aggregate hash；B1 成功状态为 `DEVELOPMENT_VALIDATION_DATASET_FROZEN_NOT_EVALUATED`，B0 不生成该状态
 
 ### scripts/hithink_cn_capability_smoke_test.py / docs/HITHINK_CN_API_CAPABILITY_SMOKE_TEST.md
 

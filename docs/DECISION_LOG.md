@@ -381,3 +381,25 @@
 **Decision:** 冻结 manifest `SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v1`，canonical SHA-256 为 `sha256:4a33391d57488937bcdd7e501ca65a2ae3dc1c5475e41203f22bbe2e03c057eb`，parent identity 为 Phase 5J-v2 `SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US` / `sha256:d7b216b43980fbedb4f24a389891141931092a78063f5203f79a97e8bd451aa0`。manifest 使用不可变 version → pinned hash contract；测试证明修改内容后同步重算内部 hash、version 不变仍 fail；从 frozen raw snapshots + provenance deterministic rebuild 可 exact reproduce manifest。manifest status 固定为 `MANIFEST_FROZEN_NOT_FETCHED`。QQQ、SOX index、IGV ETF 只记录为 `AGGREGATE_DIAGNOSTIC_ONLY`，不计入 40 US equities、不参与 qualification 或 ranking。
 
 **Reason:** 双层 version/hash pinning 能同时发现未同步 hash 与同版本内容漂移；raw snapshot hash 校验能阻止输入文件在 freeze 后被静默替换。Phase 5K-A1 完成后停止，不下载 validation OHLCV、不构建 Phase 5K dataset、不运行 SETUP_03、不访问 CONFIRMED/收益指标/最终 OOS、不修改 production SETUP_03、Trading Core、Decision、execution 或 Google Sheets。
+
+---
+
+**Decision:** Phase 5K-B0 将 development-validation dataset acquisition 冻结为机器可读 contract `SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v1`，canonical SHA-256 为 `sha256:daed425278bf7b2cca00ede87b56dddc3bc9d47be51508a6800369105f2da039`，状态固定为 `DATASET_ACQUISITION_CONTRACT_FROZEN_NOT_ACQUIRED`。contract loader 必须实际读取并验证 Phase 5J-v2 `SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US` / `sha256:d7b216b43980fbedb4f24a389891141931092a78063f5203f79a97e8bd451aa0` 与 A1 v2 `SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v2` / `sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433`；同 version 即使同步重算内部 hash 也必须 fail。
+
+**Reason:** B0 的职责是先冻结数据获取与数据质量边界，隔离后续历史样本获取与任何信号/收益观察。父级 protocol 与 A1 roster identity 若不绑定到实际 pinned files，B1 可能在错误 scope、错误 universe 或隐式规则下取得数据。
+
+**Decision:** validation 日期固定为证券本地交易日 `2017-01-01` 至 `2026-08-26` inclusive；CN 只使用 `HITHINK_A_SHARE_HISTORICAL_FORWARD_ADJUSTED` 的 `/api/a-share/prices/historical`、`interval=1d`、`adjust=forward`；US 只使用 `IBKR_TWS_API_ADJUSTED_LAST` 的 `STK`、`1 day`、`ADJUSTED_LAST`、`useRTH=1`、`end cutoff=2026-08-26`、`keepUpToDate=false`，并预注册 2017 至 2026 的固定 calendar-year chunks。CN API key 只允许通过 `HITHINK_FINANCE_API_KEY` 环境变量提供；任何 key 都不得打印、记录或提交。US 的 canonical symbol→conId/primaryExchange/currency/request contract 及 API/TWS version 必须在 B1 首次历史请求前 resolve、冻结和写入 manifest；在 identity、权限、历史数据或 ADJUSTED_LAST 不可证明时，状态为 `US_PROVIDER_NOT_READY`，不得 fallback。
+
+**Reason:** 两个市场的 corporate-action semantics 必须分别固定为 HiThink forward-adjusted OHLC 与 IBKR ADJUSTED_LAST，不能将未复权价格或其他 provider 的历史结果混入正式 validation。预注册请求窗口避免根据返回结果动态挑选更有利的时间段；B0 不伪造尚未发生的 IBKR contract identity/version。
+
+**Decision:** canonical bar schema 固定为 `market/canonical_symbol/date/open/high/low/close/volume/source_provider/adjustment_mode`，raw response 与 request/provenance metadata 单独保存。每条 bar 必须通过 local-date、finite positive OHLC、OHLC ordering、non-negative volume、end-date、唯一日期校验；完全一致的 normalized duplicate 可 deterministic dedupe，价格或 OHLCV 冲突一律 `DATA_CONFLICT_FAIL_CLOSED`。没有记录即没有 bar，禁止 forward-fill、interpolation、previous-close suspension substitution、synthetic bar 和跨市场 calendar 补行。
+
+**Reason:** 统一 schema 和 fail-closed QC 能保留 provider 的事实边界，不把缺失或冲突数据静默转换成可交易的观测；raw bytes/hash 与 normalized hash 分开，才能同时审计来源证据和标准化结果。
+
+**Decision:** RESERVE 只能在任何 SETUP_03 evaluation 前因机器可读客观数据失败激活，原因限于 `SYMBOL_NOT_RESOLVABLE`、`PROVIDER_NO_DATA`、`FATAL_OHLC_INTEGRITY_FAILURE`、`DUPLICATE_IDENTITY_CONFLICT`、`INSUFFICIENT_FOR_REQUIRED_WARMUP`，并严格按 A1 frozen `manifest_rank` 顺序激活；CONFIRMED 数量、信号质量、收益、MFE/MAE、胜率、P&L 或参数结果不得触发替换。CN/US 各自目标 `40 PRIMARY`、`20 RESERVE`；每市场至少 8 valid symbols、至少 6000 valid daily K bars、总计至少 40 valid symbols，市场之间不得补偿。reserve 用尽或目标 roster 不足时为 `TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW`，coverage 不足时为 `INSUFFICIENT_COVERAGE`，均不得自动降低门槛或进入 evaluation。
+
+**Reason:** 将 replacement 绑定到预注册的客观数据失败和冻结 rank，才能阻止 validation universe 被信号结果选择；CN/US 独立 gates 保留 coverage failure 的真实归因，不让一个市场的数量掩盖另一个市场的不足。
+
+**Decision:** B0 记录 `platform_window=40` 与 `setup_swing_lookback=5` 的 warmup dependency，排除 dependency prefix 后才允许形成 evaluable state day；历史不足以形成至少一个 evaluable bar 时为 `INSUFFICIENT_FOR_REQUIRED_WARMUP`，不得因上市较晚人工延长历史。B1 成功后的预注册状态为 `DEVELOPMENT_VALIDATION_DATASET_FROZEN_NOT_EVALUATED`，但 B0 不生成该状态；B0 期间不获取正式 validation OHLCV、不运行 SETUP_03、不查看 CONFIRMED/return/MFE/MAE/win rate/P&L、不修改 production/Trading Core/Decision/execution/Sheets，也不启动 final OOS。
+
+**Reason:** warmup 是数据可用性前置条件，不是信号筛选条件；把它与 B1 的数据集 freeze 状态分开，可以在不接触 SETUP_03 output 的情况下先冻结可复现的获取和 QC contract。
