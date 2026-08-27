@@ -68,6 +68,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── setup03_frozen_spec.json # Phase 5I 机器可读参数 inventory / frozen spec
 │   ├── structural_validation_protocol.py # Phase 5J 结构验证协议读取/完整性校验/静态审计
 │   ├── setup03_structural_validation_protocol.json # Phase 5J 机器可读结构验证协议
+│   ├── metadata_provenance.py # Phase 5K-A0 canonical metadata / snapshot verifier
+│   ├── metadata_provenance_registry.json # 五市场 metadata source capability/provenance audit
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -202,6 +204,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - Phase 5K 结构门槛固定为每市场每候选至少 8 个 CONFIRMED、相邻候选 Jaccard ≥60%、retention ≥80%、匹配日期漂移 median ≤5/P90 ≤15 个交易日、市场事件集中度 ≤35%、标的事件集中度 ≤25%、相邻候选每千 bar CONFIRMED 发生率增幅 ≤50%；其中 market/symbol concentration 对 3%/4%/5% 每个 candidate 独立计算，denominator 分别是该 candidate 在全部五个市场/全部 validation symbols 的 CONFIRMED，绝不合并候选事件；样本不足与门槛失败分别使用预注册状态，不得根据结果调整门槛
 - 正式选择规则为 lexicographic conservative，并使用预注册 qualification matrix：3% 必须通过自身 candidate-level thresholds 加 3%→4% 全部 adjacent-pair thresholds；4% 必须通过自身 candidate-level thresholds 加 3%→4% 与 4%→5% 两侧 thresholds；5% 必须通过自身 candidate-level thresholds 加 4%→5% thresholds。按 3%→4%→5% 顺序选择首个 qualified candidate；全部不满足为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，主要因样本不足为 `INSUFFICIENT_VALIDATION_EVIDENCE`。禁止使用 forward return、MFE、MAE、win rate、P&L 或任何收益指标，不生成 market/regime-specific production 参数
 - `arm_proximity_pct=0` 只做静态代码依赖审计：它影响 WATCH/ARMED proximity 状态转移、ARMED/WATCH diagnostics 及参数传递，但严格 `close_t > breakout_price`、`close_t < structural_invalidation` 和 `trading.events` 的 CONFIRMED terminal event predicate 不依赖它；因此 v1 保持关闭，不改变正式 terminal semantics
+
+### research/metadata_provenance.py / metadata_provenance_registry.json
+
+- Phase 5K-A0 只审计 security metadata source，不读取历史 OHLCV，不运行 Replay/SETUP_03，不访问最终 OOS，不生成 symbol manifest，也不参与 production 决策
+- canonical schema 统一覆盖 security identity、exchange、security type、primary listing、listing date、active status、issuer/share-class identity、sector/industry、provider availability，以及可选的 source-provided liquidity metadata；每个字段必须有 source identity、retrieval timestamp、as-of semantics、raw snapshot hash、derivation 和 `manual=false`
+- source registry 明确记录 CN/HK/US/JP/SE 的 market-specific source identity、实际 retrieval mechanism、cutoff compatibility、license/availability、程序化复现性和逐字段覆盖状态；当前任何市场缺少完整可证明覆盖时，fail closed 为 `METADATA_PROVENANCE_UNAVAILABLE`
+- `freeze_metadata_snapshot()` 与 `reproduce_canonical_records()` 对 raw source payload 和 canonical records 计算 SHA-256，并验证同一 frozen snapshot 的 canonical records 完全一致；本阶段因为结论 unavailable 不冻结 selection-driving security metadata，也不生成 70-symbol manifest
 
 ### scripts/run_setup03_replay.py
 

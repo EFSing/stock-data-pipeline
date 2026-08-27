@@ -37,6 +37,8 @@ V0.2
 - Phase 5I Parameter Freeze Audit（基于已合并 PR #19 的独立分支）：新增机器可读 `setup03_frozen_spec.json`、完整 parameter inventory、critical-values hash 合同和中文冻结前审计。只接受 Phase 5G／5H 已有 artifact 与固定 Phase 5E dataset，不新增指标／分层／stress／网格，不读取 OOS。冻结的是 dataset/证据序列/严格 as-of 诊断协议和 OOS 前禁止继续调参的治理边界；既有 terminal/confirmation/structure 规则保持固定但不由 Phase 5I 改动。正式参数冻结结论为 `NOT_READY_FOR_FORMAL_PARAMETER_FREEZE`：`platform_tolerance_pct`、setup lookback/window/proximity、market/regime/波动率 production 定义全部明确为 `UNRESOLVED`。
 - Phase 5J SETUP_03 Structural Validation Protocol Freeze（PR #22，待合并）：新增版本化机器可读 `setup03_structural_validation_protocol.json` 与只读 loader/static AST audit；protocol version 仍为 `SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1`，canonical integrity hash 更新为 `sha256:b0fe288b66ff5a86b127d57c1cb2493b583d252dcb169edbc86fab52830948bd`，并由不可变 version/hash contract 锁定，同一 v1 即使修改内容后同步重算 hash 仍会失败。parent identity 同时从实际 `research/setup03_frozen_spec.json` 校验 `freeze_version=SETUP_03-FREEZE-2026-08-26-v1`、`freeze_decision=NOT_READY_FOR_FORMAL_PARAMETER_FREEZE` 与 `critical_values_sha256=sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15`。正式候选仅 3.0%/4.0%/5.0%，2.5%/5.5%/7.5%/10.0% 仅诊断边界；lookback=5、window=40 仅保留 incumbent design constant，不声明最优，market/regime/波动率 production 规则禁用。market/symbol concentration 改为每个 candidate 独立计算，不合并三候选事件；qualification matrix 明确 3% 绑定自身 thresholds+3%→4%、4% 绑定自身 thresholds+两侧 pair、5% 绑定自身 thresholds+4%→5%。已预注册 CN/HK/US/JP/SE、每市场≥8/总计≥40 标的及每市场约 6000 有效日 K bars 的 development-validation manifest 规则，但本阶段不执行 validation、不选择正式参数、不抓取数据、不接触最终 OOS。最终状态：`VALIDATION_PROTOCOL_REGISTERED_NOT_EXECUTED`。
 
+- Phase 5K-A0 Development-Validation Metadata Provenance Foundation（本独立分支/PR）：建立统一 `canonical-security-metadata-v1`、逐字段 provenance contract、raw snapshot/canonical SHA-256 重放验证，以及 CN/HK/US/JP/SE 官方/候选 source registry；只审计 metadata，不读取任何 validation OHLCV、SETUP_03 output 或最终 OOS，不生成 manifest。由于五市场均至少存在 listing/identity/classification/as-of/provider availability/raw snapshot 的未证明缺口，最终结论为 `METADATA_PROVENANCE_UNAVAILABLE`，无人工补值。
+
 ## Next
 
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
@@ -56,4 +58,4 @@ V0.2
 - 三年 live replay 仍按运行日滚动，数据源也可能修订历史 OHLC；Phase 5D 可准确识别、冻结并重放输入，但不会阻止上游修订。manifest/frozen input 当前随 GitHub artifact retention 生命周期保存，长期样本外基准需另行决定保留策略
 - Phase 5E 固定集已经用于 Phase 5B~5E 开发诊断，不能再作为最终样本外保留集；最终 OOS universe、时间边界与保留策略尚未定义，本阶段明确不启动
 - Phase 5E workflow 仍需只读 Google Sheets 获取生产参数；真实 run 首次 attempt 曾遇到 Google API HTTP 503，原 run 重跑后成功。当前未新增 Sheets 初始化重试，外部服务瞬时不可用仍可能令手动诊断失败
-- Phase 5K 尚未开始；其 development-validation 标的、manifest hash 与结构证据必须按 Phase 5J protocol 先冻结，不能用 SETUP_03 输出补足覆盖或替换标的；最终 OOS 仍未启动且禁止访问
+- Phase 5K-A0 已完成 source audit 但不可用；后续 development-validation 标的、manifest hash 与结构证据仍必须按 Phase 5J protocol 先冻结，不能用 SETUP_03 输出补足覆盖或替换标的；最终 OOS 仍未启动且禁止访问

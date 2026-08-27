@@ -1,0 +1,496 @@
+{
+  "schema_version": "metadata-provenance-source-registry-v1",
+  "audit_version": "PHASE5K-A0-METADATA-PROVENANCE-2026-08-27-v1",
+  "scope": {
+    "markets": ["CN", "HK", "US", "JP", "SE"],
+    "metadata_only": true,
+    "historical_ohlcv_accessed": false,
+    "setup03_output_accessed": false,
+    "final_oos_accessed": false,
+    "formal_symbol_manifest_generated": false,
+    "production_code_touched": false
+  },
+  "markets": ["CN", "HK", "US", "JP", "SE"],
+  "required_canonical_fields": [
+    "security_identity",
+    "exchange",
+    "security_type",
+    "primary_listing",
+    "listing_date",
+    "active_status",
+    "issuer_share_class_identity",
+    "sector",
+    "industry",
+    "provider_availability"
+  ],
+  "optional_canonical_fields": ["liquidity_metadata"],
+  "selection_driving_metadata_policy": {
+    "manual_values_present": false,
+    "manual_fill_allowed": false,
+    "unverifiable_values_allowed": false,
+    "forbidden_derived_values": [
+      "liquidity_rank",
+      "history_length",
+      "history_completeness",
+      "any_ranking_from_historical_bars"
+    ],
+    "liquidity_policy": "Only source-provided, source-timestamped liquidity fields may be recorded; no rank or proxy is calculated in Phase 5K-A0."
+  },
+  "metadata_vs_historical_ohlcv_boundary": {
+    "security_metadata": "Identity, venue, instrument classification, listing lifecycle, issuer/share-class identity, sector/industry, provider lookup availability, and source-provided liquidity attributes.",
+    "historical_ohlcv": "Any dated open/high/low/close/volume series, bar count, history completeness, return, MFE, MAE, P&L, or ranking computed from bars.",
+    "phase_rule": "No historical OHLCV retrieval, inspection, transformation, or derived selection field is permitted in this phase."
+  },
+  "sources": [
+    {
+      "source_id": "CN-SSE-STOCK-DIRECTORY",
+      "provider_source_name": "Shanghai Stock Exchange — Stock Directory / Equities search",
+      "source_role": "official_exchange_security_directory",
+      "official_urls": ["https://www.sse.com.cn/assortment/stock/home/"],
+      "retrieval_mechanism": "HTTPS GET the public equities page, submit the visible code/name search form, and capture the returned rendered record. The public page does not document a stable bulk endpoint or historical as-of parameter.",
+      "source_timestamp_as_of_semantics": "Current exchange directory/search state; publication timestamp and historical cutoff are not exposed as a stable record-level field.",
+      "information_cutoff_compatibility": "CURRENT_ONLY; arbitrary Phase 5 cutoff cannot be reproduced from the public mechanism.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "No stable bulk payload and no historical cutoff contract were established."
+      },
+      "license_availability_constraints": "Public website access; exchange disclaimer applies. Bulk/reference data licensing was not established.",
+      "programmatically_reproducible": false,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Code and security name search fields are visible."},
+        "exchange": {"status": "VERIFIED", "note": "SSE directory context identifies the exchange."},
+        "security_type": {"status": "NOT_PROVEN", "note": "Equities page exists, but complete instrument-type field coverage for all listed records was not established."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "The public search does not establish primary-listing semantics for cross-listed instruments."},
+        "listing_date": {"status": "NOT_PROVEN", "note": "A complete current directory field and reproducible historical cutoff were not established."},
+        "active_status": {"status": "NOT_PROVEN", "note": "Active and suspended/terminated views exist, but a single complete machine-readable status snapshot was not established."},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN", "note": "Issuer/share-class identity and an immutable crosswalk were not established."},
+        "sector": {"status": "NOT_PROVEN", "note": "Industry classification navigation exists, but a complete record-level sector export was not established."},
+        "industry": {"status": "NOT_PROVEN", "note": "Industry classification navigation exists, but a complete record-level industry export was not established."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "Exchange directory does not attest availability in the project's yfinance/YahooChart/BaoStock provider chain."},
+        "liquidity_metadata": {"status": "NOT_AVAILABLE", "note": "No source-provided liquidity attribute was frozen; no bars were used."}
+      }
+    },
+    {
+      "source_id": "CN-SZSE-LISTED-COMPANY-INFO",
+      "provider_source_name": "Shenzhen Stock Exchange — Listed company / stock information",
+      "source_role": "official_exchange_security_directory",
+      "official_urls": ["https://www.szse.cn/market/stock/company/", "https://www.szse.cn/disclosure/notice/company/index.html"],
+      "retrieval_mechanism": "HTTPS GET the official listed-company page or dated listing/termination notice and parse the returned HTML/PDF link. The public pages expose search and notices, not a stable complete security-master download with a cutoff parameter.",
+      "source_timestamp_as_of_semantics": "Current search state for the directory; individual listing/termination notices have publication dates but do not form a complete current master without a separately frozen corpus.",
+      "information_cutoff_compatibility": "CURRENT_ONLY for the directory; notice dates are event dates and cannot alone prove a complete as-of master.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "A complete, machine-readable, reproducible current security snapshot was not established."
+      },
+      "license_availability_constraints": "Public website access; SZSE/SSIC data-service licensing and terms may apply to structured data.",
+      "programmatically_reproducible": false,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Listed-company pages and notices identify code/name."},
+        "exchange": {"status": "VERIFIED", "note": "SZSE source context identifies the exchange."},
+        "security_type": {"status": "NOT_PROVEN", "note": "Stock and listed-company pages do not establish full security-type coverage for the universe."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Cross-listing and primary-listing semantics are not established by the public directory."},
+        "listing_date": {"status": "DERIVABLE", "note": "Individual listing notices contain dates, but a complete reproducible event corpus/current master was not established."},
+        "active_status": {"status": "NOT_PROVEN", "note": "Listing and termination notices exist, but status reconstruction requires a complete frozen event corpus."},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN", "note": "Issuer/share-class identity crosswalk was not established."},
+        "sector": {"status": "NOT_PROVEN", "note": "SZSE information services describe GICS/CSRC business data, but public complete snapshot access was not established."},
+        "industry": {"status": "NOT_PROVEN", "note": "SZSE information services describe GICS/CSRC business data, but public complete snapshot access was not established."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "SZSE source does not attest the project's provider lookup availability."},
+        "liquidity_metadata": {"status": "NOT_AVAILABLE", "note": "No source-provided liquidity attribute was frozen; no bars were used."}
+      }
+    },
+    {
+      "source_id": "HK-HKEX-FULL-SECURITIES-LIST",
+      "provider_source_name": "Hong Kong Exchanges and Clearing — Full List of Securities",
+      "source_role": "official_exchange_security_directory",
+      "official_urls": ["https://www.hkex.com.hk/Services/Trading/Securities/Securities-Lists?sc_lang=en"],
+      "retrieval_mechanism": "HTTPS GET the Full List of Securities download exposed by the HKEX Securities Lists page, retain the exact downloaded file bytes, and parse the documented delimited layout. File layout changes are announced by HKEX circulars.",
+      "source_timestamp_as_of_semantics": "Current full list with a publisher/file date; it is a current-state list and does not advertise arbitrary historical cutoff retrieval.",
+      "information_cutoff_compatibility": "CURRENT_ONLY unless dated files are independently archived before the Phase 5 cutoff.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "The source is machine-readable, but a dated raw file was not frozen in this audit because full canonical field coverage remains incomplete."
+      },
+      "license_availability_constraints": "Public list download; HKEX terms, file-layout notices, and any market-data licensing constraints apply.",
+      "programmatically_reproducible": true,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Full list identifies listed securities by counter/code and name."},
+        "exchange": {"status": "VERIFIED", "note": "HKEX/SEHK list context identifies the venue."},
+        "security_type": {"status": "DERIVABLE", "note": "List categories/remarks distinguish stocks, ETPs, warrants, funds and other instruments, subject to layout version."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "A full-list row does not prove primary versus secondary/cross listing."},
+        "listing_date": {"status": "NOT_AVAILABLE", "note": "Full current list does not provide a complete listing-date field; the separate newly-listed page covers only a recent window."},
+        "active_status": {"status": "VERIFIED", "note": "Inclusion in the current full trading list is evidence of current list membership, not a historical status series."},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN", "note": "Counter identity and issuer/share-class identity crosswalk are not complete in the public list."},
+        "sector": {"status": "NOT_AVAILABLE", "note": "No complete sector field was established in the public full-list layout."},
+        "industry": {"status": "NOT_AVAILABLE", "note": "No complete industry field was established in the public full-list layout."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "HKEX list does not attest availability in the project's yfinance/YahooChart provider chain."},
+        "liquidity_metadata": {"status": "NOT_PROVEN", "note": "Board lot and eligibility flags are not liquidity measures; no liquidity field was used."}
+      }
+    },
+    {
+      "source_id": "HK-HKEX-LISTED-COMPANY-SEARCH",
+      "provider_source_name": "HKEXnews — Listed Company Information Search",
+      "source_role": "official_issuer_information_search",
+      "official_urls": ["https://www.hkexnews.hk/index.htm"],
+      "retrieval_mechanism": "HTTPS GET the current securities/company search interface and retrieve issuer disclosure pages by security code/name. Results are query-driven pages/documents rather than a documented complete security-master API.",
+      "source_timestamp_as_of_semantics": "Each disclosure has its own publication date; the search result is not a complete point-in-time security master.",
+      "information_cutoff_compatibility": "RECORD_DATE_ONLY; cannot prove complete market membership at an arbitrary cutoff.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "Issuer documents are not a complete canonical security metadata snapshot."
+      },
+      "license_availability_constraints": "Public disclosure search; HKEXnews terms and document-specific use constraints apply.",
+      "programmatically_reproducible": false,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Issuer disclosures identify company/security codes."},
+        "exchange": {"status": "VERIFIED", "note": "HKEX listing context is explicit."},
+        "security_type": {"status": "DERIVABLE", "note": "Disclosure/listing documents can identify the instrument type when present."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Requires cross-listing-aware issuer/security reconciliation."},
+        "listing_date": {"status": "DERIVABLE", "note": "New-listing documents can state dates, but coverage is not a complete current universe."},
+        "active_status": {"status": "NOT_PROVEN", "note": "Disclosure search does not itself provide a complete active/inactive master."},
+        "issuer_share_class_identity": {"status": "DERIVABLE", "note": "Issuer and class descriptions may be present in documents, but no complete normalized crosswalk was established."},
+        "sector": {"status": "NOT_PROVEN", "note": "Issuer business descriptions are not a controlled complete sector taxonomy."},
+        "industry": {"status": "NOT_PROVEN", "note": "Issuer business descriptions are not a controlled complete industry taxonomy."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "Disclosure search does not attest provider symbol lookup availability."},
+        "liquidity_metadata": {"status": "NOT_AVAILABLE", "note": "No liquidity attribute was used."}
+      }
+    },
+    {
+      "source_id": "US-SEC-ISSUER-SUBMISSIONS",
+      "provider_source_name": "U.S. Securities and Exchange Commission — EDGAR Submissions API",
+      "source_role": "official_regulatory_issuer_metadata",
+      "official_urls": ["https://www.sec.gov/search-filings/edgar-application-programming-interfaces", "https://data.sec.gov/submissions/"],
+      "retrieval_mechanism": "HTTPS GET the SEC ticker/exchange mapping and each issuer's 10-digit CIK submissions JSON with a compliant User-Agent; retain exact JSON response bytes and request timestamp. The SEC documents real-time updates and nightly bulk archives.",
+      "source_timestamp_as_of_semantics": "Real-time filing dissemination for submissions, with a retrieval timestamp; the payload is current and not a historical point-in-time reconstruction unless archived.",
+      "information_cutoff_compatibility": "RETRIEVAL_TIMESTAMP_ONLY; nightly bulk archives provide versioned snapshots but not arbitrary retroactive cutoff reconstruction from the current API.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "A US metadata snapshot was not frozen because the public API does not supply all required listing/share-class/provider fields."
+      },
+      "license_availability_constraints": "Public SEC data; automated access must comply with SEC fair-access/privacy guidance and User-Agent requirements.",
+      "programmatically_reproducible": true,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "CIK, ticker, and issuer name metadata are available."},
+        "exchange": {"status": "VERIFIED", "note": "Ticker/exchange metadata is available in SEC mappings/submissions."},
+        "security_type": {"status": "NOT_PROVEN", "note": "Issuer submissions are not a complete security-type master for every listed class."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Exchange arrays/tickers do not establish primary listing for every issuer/class."},
+        "listing_date": {"status": "NOT_AVAILABLE", "note": "Submissions API does not provide a complete authoritative security listing-date field."},
+        "active_status": {"status": "NOT_PROVEN", "note": "Recent submissions and ticker mappings are not an explicit complete active-status contract."},
+        "issuer_share_class_identity": {"status": "DERIVABLE", "note": "CIK and filing metadata support issuer identity, but a complete class-level immutable crosswalk is not guaranteed."},
+        "sector": {"status": "DERIVABLE", "note": "SIC metadata can be mapped deterministically to a declared taxonomy, but this is not a complete sector field for all securities."},
+        "industry": {"status": "DERIVABLE", "note": "SIC metadata can be mapped deterministically to a declared taxonomy, but this is not a complete industry field for all securities."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "SEC issuer metadata does not attest availability in the project's market-data providers."},
+        "liquidity_metadata": {"status": "NOT_AVAILABLE", "note": "No liquidity field was used and no bars were accessed."}
+      }
+    },
+    {
+      "source_id": "US-NASDAQ-TRADER-SYMBOL-DIRECTORY",
+      "provider_source_name": "Nasdaq Trader — Symbol Directory (nasdaqlisted.txt / otherlisted.txt)",
+      "source_role": "official_exchange_symbol_directory",
+      "official_urls": ["https://nasdaqtrader.com/Trader.aspx?id=SymbolDirDefs", "ftp://ftp.nasdaqtrader.com/symboldirectory"],
+      "retrieval_mechanism": "HTTPS/anonymous FTP GET the published delimited symbol directory file, retain exact bytes, parse the file-creation timestamp row, and reject files without that row.",
+      "source_timestamp_as_of_semantics": "Publisher file creation time and current daily directory state; no arbitrary historical file selection contract was established.",
+      "information_cutoff_compatibility": "DAILY_CURRENT_ONLY unless the exact dated file is independently archived.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "Directory is reproducible for current files but lacks complete listing date, sector, class identity, and provider availability fields."
+      },
+      "license_availability_constraints": "Public symbol directory; Nasdaq Trader terms distinguish public events from potentially licensed data products. Commercial redistribution requires separate review.",
+      "programmatically_reproducible": true,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Symbol and security name are defined fields."},
+        "exchange": {"status": "VERIFIED", "note": "Other-listed file includes exchange; Nasdaq-listed file includes Nasdaq market category."},
+        "security_type": {"status": "DERIVABLE", "note": "ETF/test-issue and directory category flags support limited instrument filtering."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Directory venue fields do not establish primary listing across venues."},
+        "listing_date": {"status": "NOT_AVAILABLE", "note": "Symbol directory definition has no complete listing-date field."},
+        "active_status": {"status": "DERIVABLE", "note": "Current inclusion plus financial status supports a limited current-state test, not a full lifecycle status."},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN", "note": "Security name/symbol is not an immutable issuer/share-class identity."},
+        "sector": {"status": "NOT_AVAILABLE", "note": "No sector field in the symbol directory."},
+        "industry": {"status": "NOT_AVAILABLE", "note": "No industry field in the symbol directory."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "Nasdaq Trader directory does not attest availability in the project's providers."},
+        "liquidity_metadata": {"status": "NOT_PROVEN", "note": "Round lot is a trading attribute, not a liquidity measure; no liquidity field was used."}
+      }
+    },
+    {
+      "source_id": "US-NYSE-GROUP-SECURITY-MASTER",
+      "provider_source_name": "NYSE Group Security Master",
+      "source_role": "official_exchange_reference_data_specification",
+      "official_urls": ["https://www.nyse.com/publicdocs/nyse/data/NYSE_Group_Security_Master_Spec_v4.0.pdf"],
+      "retrieval_mechanism": "Licensed NYSE Group Security Master file delivery; parse the licensed delimited/XML/CSV payload according to the versioned specification and retain the exact delivered bytes.",
+      "source_timestamp_as_of_semantics": "Exchange security-master current-day fields; listing date is initial NYSE Group listing date, with a documented first-trade fallback for non-NYSE Group securities.",
+      "information_cutoff_compatibility": "CURRENT_DELIVERY_ONLY; historical cutoff requires separately retained licensed files.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "Specification confirms fields, but the licensed raw file was not available for a reproducible public snapshot."
+      },
+      "license_availability_constraints": "Specification describes NYSE proprietary/licensed reference data; access and redistribution require a separate NYSE data agreement.",
+      "programmatically_reproducible": null,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "The specification describes security master identifiers/symbol fields."},
+        "exchange": {"status": "VERIFIED", "note": "Listing/trading venue fields are specified."},
+        "security_type": {"status": "DERIVABLE", "note": "Security and ETP classification fields are specified."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Master fields do not by themselves establish global primary listing semantics."},
+        "listing_date": {"status": "VERIFIED", "note": "Listing Date is an explicit specified field with scope caveat."},
+        "active_status": {"status": "VERIFIED", "note": "Security status fields are specified for current records."},
+        "issuer_share_class_identity": {"status": "DERIVABLE", "note": "Issuer/security master fields support identity but class reconciliation still requires a stated crosswalk."},
+        "sector": {"status": "DERIVABLE", "note": "FTSE ICB sector code is specified, with best-effort/blank caveats."},
+        "industry": {"status": "DERIVABLE", "note": "FTSE ICB industry code is specified, with best-effort/blank caveats."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "NYSE reference data does not attest the project's provider lookup availability."},
+        "liquidity_metadata": {"status": "NOT_PROVEN", "note": "Shares outstanding/public float are not a frozen liquidity ranking and were not used."}
+      }
+    },
+    {
+      "source_id": "JP-JPX-LISTED-COMPANY-SEARCH",
+      "provider_source_name": "Japan Exchange Group — Listed Company Search",
+      "source_role": "official_exchange_issuer_metadata",
+      "official_urls": ["https://www.jpx.co.jp/english/listing/co-search/01.html"],
+      "retrieval_mechanism": "HTTPS GET the public company-search interface and retrieve the record associated with a securities code. The page documents code, ISIN, market segment, industry, listed exchange, listing date, alerts, and share counts, but not a documented bulk API.",
+      "source_timestamp_as_of_semantics": "Search data is updated daily; fields have item-specific update timing and current-state semantics.",
+      "information_cutoff_compatibility": "CURRENT_ONLY unless every exact returned record is independently archived with its retrieval timestamp.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "Public field coverage is strong but bulk, as-of, active-status, and provider-availability completeness were not proven."
+      },
+      "license_availability_constraints": "Public web search with JPX disclaimer; JPX reference master/data-feed products are separately described as paid services.",
+      "programmatically_reproducible": false,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Code and ISIN are documented fields."},
+        "exchange": {"status": "VERIFIED", "note": "Listed exchange is a documented field."},
+        "security_type": {"status": "DERIVABLE", "note": "Market/product context and issue records support limited classification, not a complete all-instrument type contract."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Listed exchange is not identical to a global primary-listing assertion."},
+        "listing_date": {"status": "VERIFIED", "note": "Date of listing is a documented field."},
+        "active_status": {"status": "NOT_PROVEN", "note": "Alerts and current search results help, but a complete explicit active-status snapshot was not established."},
+        "issuer_share_class_identity": {"status": "DERIVABLE", "note": "ISIN plus issuer/company fields support deterministic identity, but full class semantics need a declared crosswalk."},
+        "sector": {"status": "DERIVABLE", "note": "Industry is documented; a separate sector taxonomy is not guaranteed."},
+        "industry": {"status": "VERIFIED", "note": "Industry is a documented field."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "JPX search does not attest availability in the project's providers."},
+        "liquidity_metadata": {"status": "NOT_PROVEN", "note": "Listed shares/investment unit are not liquidity measures; no liquidity field was used."}
+      }
+    },
+    {
+      "source_id": "JP-JPX-TSE-LISTED-ISSUES",
+      "provider_source_name": "Japan Exchange Group — monthly List of TSE-listed Issues / JPX Data Portal",
+      "source_role": "official_exchange_security_directory",
+      "official_urls": ["https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"],
+      "retrieval_mechanism": "HTTPS GET the dated monthly Excel or use the JPX Data Portal full-CSV download, retain exact bytes, and parse the versioned file. The monthly page explicitly states prior month-end coverage and points to a portal for a full CSV including recent delistings.",
+      "source_timestamp_as_of_semantics": "Dated month-end snapshot or portal retrieval timestamp; monthly list is not a daily arbitrary cutoff.",
+      "information_cutoff_compatibility": "MONTH_END_ONLY for the published Excel; portal cutoff/version semantics require separate confirmation.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "A dated file was not frozen because complete canonical fields and provider availability remain unproven."
+      },
+      "license_availability_constraints": "Public monthly overview with disclaimer; JPX Data Portal/reference data terms and paid-data boundaries require review before commercial use.",
+      "programmatically_reproducible": true,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Dated issue list identifies TSE-listed issues."},
+        "exchange": {"status": "VERIFIED", "note": "TSE listing context is explicit."},
+        "security_type": {"status": "DERIVABLE", "note": "Issue-list categories support common-stock/product filtering with file-version checks."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "TSE listing does not alone prove primary listing for cross-listed issuers."},
+        "listing_date": {"status": "VERIFIED", "note": "JPX states the portal can provide TSE listing dates, including recent delisted issues."},
+        "active_status": {"status": "DERIVABLE", "note": "Current list membership plus delisting exclusions support a dated current-state test, not a complete lifecycle field."},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN", "note": "The monthly overview does not establish a complete immutable issuer/share-class crosswalk."},
+        "sector": {"status": "NOT_PROVEN", "note": "Industry-sector statistics are separate from the complete issue list."},
+        "industry": {"status": "NOT_PROVEN", "note": "The list itself does not establish a complete industry field."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "JPX directory does not attest the project's provider lookup availability."},
+        "liquidity_metadata": {"status": "NOT_PROVEN", "note": "Market-cap/turnover ranking products are separate and were not used."}
+      }
+    },
+    {
+      "source_id": "SE-NASDAQ-STOCKHOLM-SHARES-SCREENER",
+      "provider_source_name": "Nasdaq — European Markets Shares Screener / Nasdaq Stockholm",
+      "source_role": "official_exchange_market_directory",
+      "official_urls": ["https://www.nasdaq.com/european-market-activity/shares", "https://www.nasdaqomxnordic.com/shares/listed-companies/stockholm"],
+      "retrieval_mechanism": "HTTPS GET the public shares screener page and inspect its rendered table/network payload. The public page is interactive and the audited view did not expose a stable complete raw security-master download.",
+      "source_timestamp_as_of_semantics": "Current interactive market view; no public record-level as-of version or historical cutoff was established.",
+      "information_cutoff_compatibility": "CURRENT_ONLY; not sufficient for a reproducible historical cutoff.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "The public screener did not expose a complete stable raw payload during audit."
+      },
+      "license_availability_constraints": "Public page has Nasdaq terms; Nasdaq Nordic reference/data products may require licensing. Commercial use must be reviewed.",
+      "programmatically_reproducible": false,
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED", "note": "Screener/latest-listing view exposes symbol/instrument identity for displayed rows."},
+        "exchange": {"status": "VERIFIED", "note": "Nasdaq Stockholm market context is explicit."},
+        "security_type": {"status": "DERIVABLE", "note": "Shares/ETP product context supports limited classification."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Market display does not establish primary listing for cross-listed issuers."},
+        "listing_date": {"status": "DERIVABLE", "note": "Nasdaq listing notices can provide individual first-day dates, not a complete current universe."},
+        "active_status": {"status": "NOT_PROVEN", "note": "Interactive display is not a documented complete active-status master."},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN", "note": "Displayed symbol/name is not an immutable issuer/share-class crosswalk."},
+        "sector": {"status": "NOT_PROVEN", "note": "A complete public sector field/export was not established."},
+        "industry": {"status": "NOT_PROVEN", "note": "A complete public industry field/export was not established."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "Nasdaq public screener does not attest availability in the project's yfinance/YahooChart providers."},
+        "liquidity_metadata": {"status": "NOT_AVAILABLE", "note": "No source-provided liquidity field was frozen; no bars were used."}
+      }
+    },
+    {
+      "source_id": "SE-NASDAQ-NORDIC-REFERENCE-MASTER",
+      "provider_source_name": "Nasdaq Nordic — licensed reference/security master data",
+      "source_role": "official_exchange_reference_data_specification",
+      "official_urls": ["https://www.nasdaq.com/products/european-markets/main-market", "https://www.nasdaq.com/market-regulation/nordics/stockholm"],
+      "retrieval_mechanism": "Licensed Nasdaq Nordic reference-data delivery or an authenticated machine-readable exchange feed, retaining exact delivered bytes and provider version/as-of metadata.",
+      "source_timestamp_as_of_semantics": "Provider-defined current/reference-data effective date; exact file semantics depend on the licensed product and contract.",
+      "information_cutoff_compatibility": "UNKNOWN until a licensed delivery contract and retained historical files are available.",
+      "raw_snapshot_identity": {
+        "status": "NOT_FROZEN",
+        "snapshot_version": null,
+        "sha256": null,
+        "reason": "The required licensed reference master was not available in this workspace."
+      },
+      "license_availability_constraints": "Access is subject to Nasdaq data-product licensing and account entitlements; no licensed credentials or files may be embedded in this repository.",
+      "programmatically_reproducible": null,
+      "field_coverage": {
+        "security_identity": {"status": "NOT_PROVEN", "note": "Specification/marketing pages do not expose the licensed payload fields needed for this audit."},
+        "exchange": {"status": "NOT_PROVEN", "note": "The venue is known, but payload-level field coverage was not available."},
+        "security_type": {"status": "NOT_PROVEN", "note": "Payload-level security-type coverage was not available."},
+        "primary_listing": {"status": "NOT_PROVEN", "note": "Payload-level primary-listing semantics were not available."},
+        "listing_date": {"status": "NOT_PROVEN", "note": "Payload-level listing-date coverage was not available."},
+        "active_status": {"status": "NOT_PROVEN", "note": "Payload-level active-status coverage was not available."},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN", "note": "Payload-level issuer/share-class coverage was not available."},
+        "sector": {"status": "NOT_PROVEN", "note": "Payload-level sector coverage was not available."},
+        "industry": {"status": "NOT_PROVEN", "note": "Payload-level industry coverage was not available."},
+        "provider_availability": {"status": "NOT_AVAILABLE", "note": "The reference master does not attest the project's downstream provider availability."},
+        "liquidity_metadata": {"status": "NOT_PROVEN", "note": "No licensed liquidity field was available for audit."}
+      }
+    }
+  ],
+  "market_assessments": {
+    "CN": {
+      "source_ids": ["CN-SSE-STOCK-DIRECTORY", "CN-SZSE-LISTED-COMPANY-INFO"],
+      "as_of_capability": "CURRENT_ONLY_WITHOUT_COMPLETE_REPRODUCIBLE_BULK_CUTOFF",
+      "raw_security_metadata_snapshot": {"status": "NOT_FROZEN", "sha256": null},
+      "manual_values_present": false,
+      "liquidity_metadata": {"status": "NOT_USED", "reason": "No source-provided, timestamped liquidity field passed the audit; no bars were accessed."},
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED"},
+        "exchange": {"status": "VERIFIED"},
+        "security_type": {"status": "NOT_PROVEN"},
+        "primary_listing": {"status": "NOT_PROVEN"},
+        "listing_date": {"status": "NOT_PROVEN"},
+        "active_status": {"status": "NOT_PROVEN"},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN"},
+        "sector": {"status": "NOT_PROVEN"},
+        "industry": {"status": "NOT_PROVEN"},
+        "provider_availability": {"status": "NOT_AVAILABLE"},
+        "liquidity_metadata": {"status": "NOT_AVAILABLE"}
+      },
+      "conclusion": "METADATA_PROVENANCE_UNAVAILABLE",
+      "reason": "No complete public source set with a reproducible cutoff, issuer/share-class crosswalk, sector/industry coverage, provider availability and frozen raw snapshot was established."
+    },
+    "HK": {
+      "source_ids": ["HK-HKEX-FULL-SECURITIES-LIST", "HK-HKEX-LISTED-COMPANY-SEARCH"],
+      "as_of_capability": "CURRENT_LIST_PLUS_RECORD_DATES_NOT_COMPLETE_POINT_IN_TIME_MASTER",
+      "raw_security_metadata_snapshot": {"status": "NOT_FROZEN", "sha256": null},
+      "manual_values_present": false,
+      "liquidity_metadata": {"status": "NOT_USED", "reason": "Board lot/eligibility flags are not liquidity ranking; no bars were accessed."},
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED"},
+        "exchange": {"status": "VERIFIED"},
+        "security_type": {"status": "DERIVABLE"},
+        "primary_listing": {"status": "NOT_PROVEN"},
+        "listing_date": {"status": "NOT_PROVEN"},
+        "active_status": {"status": "VERIFIED"},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN"},
+        "sector": {"status": "NOT_PROVEN"},
+        "industry": {"status": "NOT_PROVEN"},
+        "provider_availability": {"status": "NOT_AVAILABLE"},
+        "liquidity_metadata": {"status": "NOT_PROVEN"}
+      },
+      "conclusion": "METADATA_PROVENANCE_UNAVAILABLE",
+      "reason": "HKEX public sources do not jointly provide a complete current/cutoff-compatible listing date, primary-listing, issuer/share-class, sector/industry and provider-availability record."
+    },
+    "US": {
+      "source_ids": ["US-SEC-ISSUER-SUBMISSIONS", "US-NASDAQ-TRADER-SYMBOL-DIRECTORY", "US-NYSE-GROUP-SECURITY-MASTER"],
+      "as_of_capability": "MIXED_CURRENT_API_DAILY_DIRECTORY_AND_LICENSED_CURRENT_MASTER",
+      "raw_security_metadata_snapshot": {"status": "NOT_FROZEN", "sha256": null},
+      "manual_values_present": false,
+      "liquidity_metadata": {"status": "NOT_USED", "reason": "Shares/round-lot fields are not liquidity ranking; no bars were accessed."},
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED"},
+        "exchange": {"status": "VERIFIED"},
+        "security_type": {"status": "DERIVABLE"},
+        "primary_listing": {"status": "NOT_PROVEN"},
+        "listing_date": {"status": "NOT_PROVEN"},
+        "active_status": {"status": "NOT_PROVEN"},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN"},
+        "sector": {"status": "DERIVABLE"},
+        "industry": {"status": "DERIVABLE"},
+        "provider_availability": {"status": "NOT_AVAILABLE"},
+        "liquidity_metadata": {"status": "NOT_PROVEN"}
+      },
+      "conclusion": "METADATA_PROVENANCE_UNAVAILABLE",
+      "reason": "Public SEC/Nasdaq files miss complete listing-date, class-level and provider-availability contracts; the NYSE master is licensed and was not available to freeze."
+    },
+    "JP": {
+      "source_ids": ["JP-JPX-LISTED-COMPANY-SEARCH", "JP-JPX-TSE-LISTED-ISSUES"],
+      "as_of_capability": "DAILY_SEARCH_OR_MONTH_END_LIST_WITHOUT_COMPLETE_PROVIDER_CUTOFF",
+      "raw_security_metadata_snapshot": {"status": "NOT_FROZEN", "sha256": null},
+      "manual_values_present": false,
+      "liquidity_metadata": {"status": "NOT_USED", "reason": "Listed shares/investment unit are not a liquidity ranking; no bars were accessed."},
+      "field_coverage": {
+        "security_identity": {"status": "VERIFIED"},
+        "exchange": {"status": "VERIFIED"},
+        "security_type": {"status": "DERIVABLE"},
+        "primary_listing": {"status": "NOT_PROVEN"},
+        "listing_date": {"status": "VERIFIED"},
+        "active_status": {"status": "NOT_PROVEN"},
+        "issuer_share_class_identity": {"status": "DERIVABLE"},
+        "sector": {"status": "DERIVABLE"},
+        "industry": {"status": "VERIFIED"},
+        "provider_availability": {"status": "NOT_AVAILABLE"},
+        "liquidity_metadata": {"status": "NOT_PROVEN"}
+      },
+      "conclusion": "METADATA_PROVENANCE_UNAVAILABLE",
+      "reason": "JPX public records cover many identity/date/classification fields, but a complete active-status, primary-listing, provider-availability and frozen raw snapshot contract was not established."
+    },
+    "SE": {
+      "source_ids": ["SE-NASDAQ-STOCKHOLM-SHARES-SCREENER", "SE-NASDAQ-NORDIC-REFERENCE-MASTER"],
+      "as_of_capability": "PUBLIC_CURRENT_VIEW_OR_LICENSED_REFERENCE_MASTER_NOT_AVAILABLE",
+      "raw_security_metadata_snapshot": {"status": "NOT_FROZEN", "sha256": null},
+      "manual_values_present": false,
+      "liquidity_metadata": {"status": "NOT_USED", "reason": "No verified source-provided liquidity field was available; no bars were accessed."},
+      "field_coverage": {
+        "security_identity": {"status": "NOT_PROVEN"},
+        "exchange": {"status": "VERIFIED"},
+        "security_type": {"status": "DERIVABLE"},
+        "primary_listing": {"status": "NOT_PROVEN"},
+        "listing_date": {"status": "NOT_PROVEN"},
+        "active_status": {"status": "NOT_PROVEN"},
+        "issuer_share_class_identity": {"status": "NOT_PROVEN"},
+        "sector": {"status": "NOT_PROVEN"},
+        "industry": {"status": "NOT_PROVEN"},
+        "provider_availability": {"status": "NOT_AVAILABLE"},
+        "liquidity_metadata": {"status": "NOT_PROVEN"}
+      },
+      "conclusion": "METADATA_PROVENANCE_UNAVAILABLE",
+      "reason": "The public Nasdaq Stockholm view is interactive/current-only and the complete reference master is licensed/unavailable, so the required fields and raw snapshot cannot be proven."
+    }
+  },
+  "raw_security_metadata_snapshot": {
+    "status": "NOT_CREATED",
+    "reason": "Final conclusion is unavailable; no selection-driving security metadata snapshot or symbol manifest may be frozen in this phase."
+  },
+  "final_conclusion": "METADATA_PROVENANCE_UNAVAILABLE",
+  "integrity": {
+    "registry_sha256": "sha256:2e579340cb17b96ed122e21eedca1340116a42991f5d4d4c4357ed7eac2e33f2"
+  }
+}

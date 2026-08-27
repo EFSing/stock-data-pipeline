@@ -317,3 +317,23 @@
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
 
 **Reason:** yfinance 的 A 股数据连续出现开盘价超出日内最高／最低区间，但收盘价与成交量仍与 Tencent 一致。仅在最终写表后执行合法性检查会让正常腾讯行情无法接替异常主源，并使最新行情与未复权历史不一致。整根 K 线切换可保持 OHLCV 内部一致性，避免逐字段拼接出不存在的行情，同时不放宽质量闸门。
+
+---
+
+## 2026-08-27
+
+**Decision:** Phase 5K-A0 建立独立的 `canonical-security-metadata-v1` schema 和逐字段 provenance contract。security metadata 与 historical OHLCV 严格分离；canonical record 只允许由 source payload 直接提供或通过已声明的确定性映射产生，每个 selection-driving field 必须带 provider/source name、实际 retrieval mechanism 对应的 raw snapshot identity、retrieved timestamp、as-of semantics、derivation 和 `manual=false`。
+
+**Reason:** PR #23 的 manifest freeze 无法证明 selection-driving metadata provenance。没有字段级来源、截止语义和原始快照身份，就不能证明标的选择在看到 SETUP_03 output 之前是可审计且可重复的；尤其不得用历史 K 线补造流动性、历史长度、完整性或排名。
+
+---
+
+**Decision:** Phase 5K-A0 允许 market-specific metadata adapters，但所有市场必须输出同一 canonical schema；source registry 明确记录 CN/HK/US/JP/SE 的 source identity、实际抓取机制、时间/as-of 能力、cutoff compatibility、license/availability、程序化复现性和逐字段 `VERIFIED`/`DERIVABLE`/`NOT_PROVEN`/`NOT_AVAILABLE`。
+
+**Reason:** 五个市场的交易所与监管资料粒度、接口形态和许可边界不同，强行使用一个未验证的全局 source 会掩盖缺口。统一 schema 加逐市场 source identity 可以支持后续合法的 adapters，同时 fail closed 防止“字段看起来齐全”被误认为 provenance 已证明。
+
+---
+
+**Decision:** Phase 5K-A0 最终结论固定为 `METADATA_PROVENANCE_UNAVAILABLE`。CN/HK/US/JP/SE 均至少存在一个未证明的完整字段/as-of/provider availability/raw snapshot 条件；不冻结 selection-driving security metadata、不生成 70-symbol manifest、不读取 Phase 5K validation OHLCV、SETUP_03 output 或最终 OOS。`freeze_metadata_snapshot()` 与 `reproduce_canonical_records()` 仅提供后续 READY 时的 raw/canonical SHA-256 和同快照确定性重放门槛。
+
+**Reason:** 证据不足时报告 unavailable 比手工补值或用 OHLCV 反推 metadata 更可审计；READY 只能在五市场均有完整非人工 provenance、可复现 cutoff、冻结 raw snapshot/hash 且同快照 canonical records 完全一致时宣布。
