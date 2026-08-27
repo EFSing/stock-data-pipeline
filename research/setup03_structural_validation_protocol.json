@@ -1,0 +1,298 @@
+{
+  "schema_version": "setup03-structural-validation-protocol-v1",
+  "protocol_version": "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1",
+  "phase": "Phase 5J",
+  "setup_type": "SETUP_03",
+  "phase5j_status": "VALIDATION_PROTOCOL_REGISTERED_NOT_EXECUTED",
+  "parent_phase5i": {
+    "spec_path": "research/setup03_frozen_spec.json",
+    "schema_version": "setup03-frozen-spec-v1",
+    "freeze_version": "SETUP_03-FREEZE-2026-08-26-v1",
+    "freeze_decision": "NOT_READY_FOR_FORMAL_PARAMETER_FREEZE",
+    "integrity": {
+      "algorithm": "SHA-256",
+      "identity_field": "critical_values_sha256",
+      "critical_values_sha256": "sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15"
+    }
+  },
+  "scope": {
+    "purpose": "Register the next-stage SETUP_03 structural validation protocol without executing validation.",
+    "validation_executed": false,
+    "new_historical_data_acquired": false,
+    "final_oos_accessed": false,
+    "formal_parameter_selected": false
+  },
+  "production_tolerance_policy": {
+    "allowed_candidate_values_pct": [
+      0.03,
+      0.04,
+      0.05
+    ],
+    "allowed_candidate_display": [
+      "3.0%",
+      "4.0%",
+      "5.0%"
+    ],
+    "candidate_order": [
+      0.03,
+      0.04,
+      0.05
+    ],
+    "diagnostic_stress_boundaries_pct": [
+      0.025,
+      0.055,
+      0.075,
+      0.10
+    ],
+    "diagnostic_stress_boundary_display": [
+      "2.5%",
+      "5.5%",
+      "7.5%",
+      "10.0%"
+    ],
+    "stress_boundaries_are_production_candidates": false,
+    "all_unlisted_tolerance_values_are_production_candidates": false,
+    "forbidden_as_production_candidate_values_pct": [
+      0.025,
+      0.035,
+      0.045,
+      0.055,
+      0.075,
+      0.10
+    ]
+  },
+  "parameter_policy": {
+    "setup_swing_lookback": {
+      "v1_incumbent_design_constant": 5,
+      "search_in_phase5j": false,
+      "claim_of_optimality": false,
+      "policy": "Retain as incumbent design constant; do not re-search and do not call it optimal."
+    },
+    "platform_window": {
+      "v1_incumbent_design_constant": 40,
+      "search_in_phase5j": false,
+      "claim_of_optimality": false,
+      "policy": "Retain as incumbent design constant; do not re-search and do not call it optimal."
+    },
+    "market_specific_platform_tolerance": {
+      "v1_enabled": false,
+      "production_candidate_allowed": false,
+      "policy": "Disabled in v1; no market-specific production parameter may be derived."
+    },
+    "regime_specific_platform_rule": {
+      "v1_enabled": false,
+      "production_candidate_allowed": false,
+      "policy": "Disabled in v1; no regime-specific production rule may be derived."
+    },
+    "volatility_normalized_platform_decision_rule": {
+      "v1_enabled": false,
+      "production_candidate_allowed": false,
+      "policy": "Disabled in v1; Phase 5H normalization remains diagnostic only."
+    },
+    "arm_proximity_pct": {
+      "v1_value": 0.0,
+      "research_mode": "STATIC_CODE_DEPENDENCY_AUDIT_ONLY",
+      "data_research_allowed": false,
+      "formal_confirmed_terminal_semantics_affected": false,
+      "v1_keep_closed": true,
+      "audit_conclusion": "V1_KEEP_CLOSED_ARMED_WARNING_ONLY_NO_CONFIRMED_TERMINAL_CHANGE"
+    }
+  },
+  "arm_proximity_static_audit": {
+    "source_files": [
+      "trading/setup.py",
+      "trading/events.py"
+    ],
+    "method": "AST-only dependency audit; no quote construction, replay, or production function execution.",
+    "observed_effect_scope": [
+      "WATCH/ARMED proximity threshold transitions",
+      "ARMED_NOT_BREAKOUT and WATCH_BELOW_ARM_THRESHOLD diagnostics",
+      "parameter validation and forwarding"
+    ],
+    "independent_formal_predicates": [
+      "close_t > breakout_price",
+      "close_t < structural_invalidation",
+      "setup.state is SetupState.CONFIRMED",
+      "setup.confirmed_index == current_index"
+    ],
+    "conclusion": "V1_KEEP_CLOSED_ARMED_WARNING_ONLY_NO_CONFIRMED_TERMINAL_CHANGE"
+  },
+  "development_validation_dataset": {
+    "role": "DEVELOPMENT_VALIDATION_NOT_FINAL_OOS",
+    "markets": [
+      "CN",
+      "HK",
+      "US",
+      "JP",
+      "SE"
+    ],
+    "coverage_requirements": {
+      "per_market_symbol_count_minimum": 8,
+      "total_symbol_count_minimum": 40,
+      "per_market_valid_daily_k_bars_target_minimum": 6000,
+      "bar_type": "valid daily K bars",
+      "failure_status": "INSUFFICIENT_COVERAGE"
+    },
+    "symbol_selection_rules": {
+      "selection_must_precede_setup03_output": true,
+      "selection_stage": "Before any SETUP_03 output is observed.",
+      "allowed_non_signal_metadata": [
+        "market",
+        "liquidity",
+        "history_length",
+        "data_completeness"
+      ],
+      "signal_dependent_selection": false,
+      "replace_add_or_remove_after_setup03_output": false,
+      "coverage_shortfall_may_be_repaired_from_signal_results": false
+    },
+    "symbol_manifest": {
+      "must_be_frozen_before_phase5k_acquisition": true,
+      "must_be_hashed_before_phase5k_acquisition": true,
+      "hash_algorithm": "SHA-256",
+      "hash_field": "symbol_manifest_sha256",
+      "manifest_is_authoritative_for_phase5k": true,
+      "output_dependent_mutation_forbidden": true
+    }
+  },
+  "structural_validation_thresholds": [
+    {
+      "id": "minimum_confirmed_events_per_market_candidate",
+      "metric": "CONFIRMED event count",
+      "scope": "each validation market x each production candidate",
+      "operator": ">=",
+      "threshold": 8,
+      "unit": "events",
+      "failure_status": "INSUFFICIENT_VALIDATION_EVIDENCE",
+      "interpretation": "Fewer than 8 CONFIRMED events cannot support a market/candidate structural conclusion."
+    },
+    {
+      "id": "adjacent_confirmed_jaccard",
+      "metric": "CONFIRMED event-set Jaccard",
+      "scope": "each adjacent production candidate pair: 3.0%->4.0% and 4.0%->5.0%",
+      "operator": ">=",
+      "threshold": 0.60,
+      "unit": "ratio",
+      "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
+    },
+    {
+      "id": "adjacent_confirmed_retention",
+      "metric": "CONFIRMED event retention from lower candidate",
+      "scope": "each adjacent production candidate pair: 3.0%->4.0% and 4.0%->5.0%",
+      "operator": ">=",
+      "threshold": 0.80,
+      "unit": "ratio",
+      "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
+    },
+    {
+      "id": "matched_confirmed_event_date_drift_median",
+      "metric": "matched CONFIRMED event date drift",
+      "scope": "each adjacent production candidate pair",
+      "operator": "<=",
+      "threshold": 5,
+      "unit": "trading days",
+      "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE",
+      "matching_rule": "One-to-one nearest-date matching within the same symbol; trading-day distance is measured on that symbol's ordered valid-bar index."
+    },
+    {
+      "id": "matched_confirmed_event_date_drift_p90",
+      "metric": "matched CONFIRMED event date drift",
+      "scope": "each adjacent production candidate pair",
+      "operator": "<=",
+      "threshold": 15,
+      "unit": "trading days",
+      "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE",
+      "matching_rule": "Use the same matched event pairs and trading-day distance as the median threshold."
+    },
+    {
+      "id": "maximum_market_confirmed_concentration",
+      "metric": "market share of all CONFIRMED events",
+      "scope": "each market across the three production candidates",
+      "operator": "<=",
+      "threshold": 0.35,
+      "unit": "ratio",
+      "denominator": "All CONFIRMED events across all five markets and all three production candidates.",
+      "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
+    },
+    {
+      "id": "maximum_symbol_confirmed_concentration",
+      "metric": "symbol share of all CONFIRMED events",
+      "scope": "each symbol across the three production candidates",
+      "operator": "<=",
+      "threshold": 0.25,
+      "unit": "ratio",
+      "denominator": "All CONFIRMED events across all symbols and all three production candidates.",
+      "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
+    },
+    {
+      "id": "adjacent_confirmed_rate_relative_increase",
+      "metric": "CONFIRMED events per 1000 valid daily K bars relative increase",
+      "scope": "each adjacent production candidate pair: 3.0%->4.0% and 4.0%->5.0%",
+      "operator": "<=",
+      "threshold": 0.50,
+      "unit": "relative ratio",
+      "formula": "(higher_candidate_rate - lower_candidate_rate) / lower_candidate_rate",
+      "zero_baseline_rule": "If lower_candidate_rate is zero and higher_candidate_rate is positive, the threshold fails; zero to zero is treated as zero increase.",
+      "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
+    }
+  ],
+  "parameter_selection_rule": {
+    "type": "LEXICOGRAPHIC_CONSERVATIVE",
+    "selection_is_not_executed_in_phase5j": true,
+    "ordered_candidates_pct": [
+      0.03,
+      0.04,
+      0.05
+    ],
+    "rules": [
+      {
+        "condition": "3.0% satisfies every required structural threshold and has sufficient evidence",
+        "selected_tolerance_pct": 0.03
+      },
+      {
+        "condition": "3.0% does not satisfy every threshold, and 4.0% satisfies every required structural threshold and has sufficient evidence",
+        "selected_tolerance_pct": 0.04
+      },
+      {
+        "condition": "3.0% and 4.0% do not satisfy every threshold, and 5.0% satisfies every required structural threshold and has sufficient evidence",
+        "selected_tolerance_pct": 0.05
+      }
+    ],
+    "all_candidates_fail_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE",
+    "primarily_insufficient_evidence_status": "INSUFFICIENT_VALIDATION_EVIDENCE",
+    "performance_metrics_used": false,
+    "market_specific_or_regime_specific_selection": false
+  },
+  "forbidden_metrics": [
+    "forward_return",
+    "MFE",
+    "MAE",
+    "win_rate",
+    "P&L",
+    "profit_factor",
+    "expectancy",
+    "any_return_metric"
+  ],
+  "prohibitions": {
+    "replay_execution": true,
+    "live_fetch": true,
+    "new_historical_data_fetch": true,
+    "new_parameter_grid": true,
+    "production_setup03_modification": true,
+    "trading_core_modification": true,
+    "decision_or_execution_modification": true,
+    "google_sheets_write": true,
+    "final_oos_access": true,
+    "final_oos_start": true,
+    "formal_production_parameter_selection": true,
+    "new_production_candidate": true,
+    "market_specific_production_parameter": true,
+    "regime_specific_production_parameter": true,
+    "selection_by_forbidden_metrics": true
+  },
+  "integrity": {
+    "algorithm": "SHA-256",
+    "canonicalization": "JSON with ensure_ascii=false, sort_keys=true, separators=(',', ':'), hashing the complete top-level object after removing only integrity.",
+    "protocol_sha256": "sha256:2109b7aa9f9245e2772131766efc75ee4bb747d46e36573fb609271696d0e7f8"
+  }
+}
