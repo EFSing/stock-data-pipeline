@@ -1,0 +1,258 @@
+{
+  "schema_version": "setup03-structural-validation-protocol-v2",
+  "protocol_version": "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US",
+  "phase": "Phase 5J-v2",
+  "setup_type": "SETUP_03",
+  "phase5j_status": "SCOPE_REVISION_REGISTERED_NOT_EXECUTED",
+  "parent_phase5j_v1": {
+    "protocol_version": "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1",
+    "protocol_sha256": "sha256:b0fe288b66ff5a86b127d57c1cb2493b583d252dcb169edbc86fab52830948bd",
+    "base_commit": "46f0ebb82cb8c6747fe464287dfc962c61bbe088"
+  },
+  "parent_phase5i": {
+    "freeze_version": "SETUP_03-FREEZE-2026-08-26-v1",
+    "freeze_decision": "NOT_READY_FOR_FORMAL_PARAMETER_FREEZE",
+    "critical_values_sha256": "sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15"
+  },
+  "scope": {
+    "validation_markets": ["CN", "US"],
+    "excluded_markets": ["HK", "JP", "SE"],
+    "deployment_scope_change": {
+      "effective_before_phase5k_data_or_setup03_output": true,
+      "reason": "Deployment scope was reduced to CN and US before any Phase 5K validation data or SETUP_03 output was viewed; this is not result-driven sample deletion.",
+      "formal_validation_dataset_markets": ["CN", "US"]
+    },
+    "validation_executed": false,
+    "phase5k_validation_ohlcv_accessed": false,
+    "setup03_output_accessed": false,
+    "confirmed_events_accessed": false,
+    "final_oos_accessed": false,
+    "formal_parameter_selected": false,
+    "production_configuration_modified": false,
+    "thresholds_or_tolerance_researched": false
+  },
+  "market_scope": {
+    "CN": {
+      "enabled_venues": [
+        {
+          "venue_id": "SSE_MAIN_BOARD",
+          "status": "CN_SSE_MAIN_BOARD_ACTIVE",
+          "eligible_security_type": "COMMON_A_SHARE"
+        },
+        {
+          "venue_id": "SZSE_MAIN_BOARD",
+          "status": "CN_SZSE_MAIN_BOARD_ACTIVE",
+          "eligible_security_type": "COMMON_A_SHARE"
+        }
+      ],
+      "registered_inactive_venues": [
+        {
+          "venue_id": "SSE_STAR_MARKET",
+          "status": "CN_STAR_REGISTERED_INACTIVE",
+          "eligible_for_phase5k": false,
+          "eligible_for_ohlcv": false,
+          "eligible_for_qualification": false,
+          "activation_requires_protocol_version_upgrade": true
+        },
+        {
+          "venue_id": "SZSE_CHINEXT",
+          "status": "CN_CHINEXT_REGISTERED_INACTIVE",
+          "eligible_for_phase5k": false,
+          "eligible_for_ohlcv": false,
+          "eligible_for_qualification": false,
+          "activation_requires_protocol_version_upgrade": true
+        }
+      ],
+      "candidate_universes": [
+        {"id": "CSI300", "source_index_code": "000300.SH", "primary_quota": 12},
+        {"id": "CSI500", "source_index_code": "000905.SH", "primary_quota": 14},
+        {"id": "CSI1000", "source_index_code": "000852.SH", "primary_quota": 14}
+      ],
+      "filter": "Retain only currently tradable common A shares listed on SSE Main Board or SZSE Main Board.",
+      "primary_target": 40,
+      "reserve_target": 20,
+      "overlap_rule": "A cross-index duplicate is one canonical security; attribute it to the first listed universe in CSI300, CSI500, CSI1000 order and fill each quota with the next eligible unassigned member in that universe.",
+      "selection_inputs": "Only pre-registered non-signal metadata and source-provided index membership; never SETUP_03 output, CONFIRMED events, returns, MFE, MAE, win rate, P&L, profit factor, or expectancy."
+    },
+    "US": {
+      "candidate_universes": [
+        {"id": "SP500", "source_index_code": "SP500", "primary_quota": 12},
+        {"id": "NASDAQ100", "source_index_code": "NASDAQ100", "primary_quota": 10},
+        {"id": "SOX", "source_index_code": "SOX", "primary_quota": 8},
+        {"id": "IGV", "source_index_code": "IGV_HOLDINGS", "primary_quota": 10}
+      ],
+      "primary_target": 40,
+      "reserve_target": 20,
+      "overlap_rule": "A cross-cohort duplicate is one canonical issuer/share-class security; attribute it to the first listed cohort in SP500, NASDAQ100, SOX, IGV order and fill each quota with the next eligible unassigned member in that cohort.",
+      "deduplication_key": "canonical_issuer_share_class_identity",
+      "selection_inputs": "Only pre-registered non-signal metadata and source-provided cohort membership; never SETUP_03 output, CONFIRMED events, returns, MFE, MAE, win rate, P&L, profit factor, or expectancy."
+    }
+  },
+  "aggregate_diagnostic_instruments": {
+    "instruments": ["QQQ", "SOX_INDEX", "IGV_ETF"],
+    "role": "AGGREGATE_DIAGNOSTIC_ONLY",
+    "counts_toward_equity_sample_minimum": false,
+    "counts_toward_candidate_qualification": false,
+    "may_determine_tolerance": false
+  },
+  "production_tolerance_policy": {
+    "allowed_candidate_values_pct": [0.03, 0.04, 0.05],
+    "diagnostic_stress_boundaries_pct": [0.025, 0.055, 0.075, 0.1],
+    "stress_boundaries_are_production_candidates": false,
+    "all_unlisted_tolerance_values_are_production_candidates": false,
+    "search_in_phase5j_v2": false
+  },
+  "parameter_policy": {
+    "setup_swing_lookback": {
+      "v1_incumbent_design_constant": 5,
+      "search_in_phase5j_v2": false,
+      "claim_of_optimality": false
+    },
+    "platform_window": {
+      "v1_incumbent_design_constant": 40,
+      "search_in_phase5j_v2": false,
+      "claim_of_optimality": false
+    },
+    "arm_proximity_pct": {
+      "v1_value": 0.0,
+      "research_mode": "STATIC_CODE_DEPENDENCY_AUDIT_ONLY",
+      "v1_keep_closed": true,
+      "formal_confirmed_terminal_semantics_affected": false
+    },
+    "market_specific_platform_tolerance": {
+      "v1_enabled": false,
+      "production_candidate_allowed": false
+    },
+    "regime_specific_platform_rule": {
+      "v1_enabled": false,
+      "production_candidate_allowed": false
+    },
+    "volatility_normalized_platform_decision_rule": {
+      "v1_enabled": false,
+      "production_candidate_allowed": false
+    }
+  },
+  "development_validation_dataset": {
+    "role": "DEVELOPMENT_VALIDATION_NOT_FINAL_OOS",
+    "markets": ["CN", "US"],
+    "coverage_requirements": {
+      "per_market_symbol_count_minimum": 8,
+      "total_symbol_count_minimum": 40,
+      "per_market_valid_daily_k_bars_target_minimum": 6000,
+      "failure_status": "INSUFFICIENT_COVERAGE"
+    },
+    "symbol_selection_rules": {
+      "selection_must_precede_setup03_output": true,
+      "selection_must_precede_phase5k_ohlcv_access": true,
+      "signal_dependent_selection": false,
+      "replace_add_or_remove_after_setup03_output": false,
+      "market_qualification_is_independent": true,
+      "market_compensation_allowed": false
+    },
+    "symbol_manifest": {
+      "must_be_frozen_before_phase5k_acquisition": true,
+      "must_be_hashed_before_phase5k_acquisition": true,
+      "must_use_current_snapshot_only_when_source_lacks_historical_membership": true,
+      "historical_membership_may_be_fabricated": false
+    }
+  },
+  "structural_validation_thresholds": [
+    {
+      "id": "minimum_confirmed_events_per_market_candidate",
+      "operator": ">=",
+      "threshold": 8,
+      "scope": "each market independently, each production candidate",
+      "failure_status": "INSUFFICIENT_VALIDATION_EVIDENCE"
+    },
+    {
+      "id": "adjacent_confirmed_jaccard",
+      "operator": ">=",
+      "threshold": 0.6,
+      "scope": "each market independently, adjacent production candidates"
+    },
+    {
+      "id": "adjacent_confirmed_retention",
+      "operator": ">=",
+      "threshold": 0.8,
+      "scope": "each market independently, adjacent production candidates"
+    },
+    {
+      "id": "matched_confirmed_event_date_drift_median",
+      "operator": "<=",
+      "threshold": 5,
+      "unit": "trading_days",
+      "scope": "each market independently, adjacent production candidates"
+    },
+    {
+      "id": "matched_confirmed_event_date_drift_p90",
+      "operator": "<=",
+      "threshold": 15,
+      "unit": "trading_days",
+      "scope": "each market independently, adjacent production candidates"
+    },
+    {
+      "id": "maximum_symbol_confirmed_concentration",
+      "operator": "<=",
+      "threshold": 0.25,
+      "scope": "each market independently, each production candidate across that market's validation symbols",
+      "aggregation": "PER_MARKET_PER_CANDIDATE_INDEPENDENT",
+      "candidate_event_sets_must_not_be_combined": true
+    },
+    {
+      "id": "adjacent_confirmed_rate_relative_increase",
+      "operator": "<=",
+      "threshold": 0.5,
+      "scope": "each market independently, adjacent production candidates"
+    }
+  ],
+  "parameter_selection_rule": {
+    "type": "LEXICOGRAPHIC_CONSERVATIVE",
+    "ordered_candidates_pct": [0.03, 0.04, 0.05],
+    "qualification_semantics": "A candidate qualifies only when all candidate-level thresholds and all adjacent-pair thresholds assigned by the matrix pass independently in CN and independently in US; no market may compensate for another.",
+    "candidate_qualification_matrix": [
+      {
+        "candidate_pct": 0.03,
+        "candidate_level_threshold_ids": ["minimum_confirmed_events_per_market_candidate", "maximum_symbol_confirmed_concentration"],
+        "adjacent_pair_threshold_ids": ["adjacent_confirmed_jaccard", "adjacent_confirmed_retention", "matched_confirmed_event_date_drift_median", "matched_confirmed_event_date_drift_p90", "adjacent_confirmed_rate_relative_increase"],
+        "adjacent_pairs": [[0.03, 0.04]]
+      },
+      {
+        "candidate_pct": 0.04,
+        "candidate_level_threshold_ids": ["minimum_confirmed_events_per_market_candidate", "maximum_symbol_confirmed_concentration"],
+        "adjacent_pair_threshold_ids": ["adjacent_confirmed_jaccard", "adjacent_confirmed_retention", "matched_confirmed_event_date_drift_median", "matched_confirmed_event_date_drift_p90", "adjacent_confirmed_rate_relative_increase"],
+        "adjacent_pairs": [[0.03, 0.04], [0.04, 0.05]]
+      },
+      {
+        "candidate_pct": 0.05,
+        "candidate_level_threshold_ids": ["minimum_confirmed_events_per_market_candidate", "maximum_symbol_confirmed_concentration"],
+        "adjacent_pair_threshold_ids": ["adjacent_confirmed_jaccard", "adjacent_confirmed_retention", "matched_confirmed_event_date_drift_median", "matched_confirmed_event_date_drift_p90", "adjacent_confirmed_rate_relative_increase"],
+        "adjacent_pairs": [[0.04, 0.05]]
+      }
+    ],
+    "selection_is_not_executed_in_phase5j_v2": true,
+    "all_candidates_fail_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE",
+    "primarily_insufficient_evidence_status": "INSUFFICIENT_VALIDATION_EVIDENCE",
+    "performance_metrics_used": false,
+    "market_specific_or_regime_specific_selection": false
+  },
+  "forbidden_metrics": ["forward_return", "forward_returns", "MFE", "MAE", "win_rate", "P&L", "profit_factor", "expectancy"],
+  "prohibitions": {
+    "replay_execution": true,
+    "live_fetch": true,
+    "new_historical_data_fetch": true,
+    "formal_phase5k_dataset_generation": true,
+    "symbol_manifest_generation": true,
+    "new_parameter_grid": true,
+    "production_setup03_modification": true,
+    "trading_core_modification": true,
+    "decision_or_execution_modification": true,
+    "google_sheets_write": true,
+    "final_oos_access": true,
+    "final_oos_start": true,
+    "formal_production_parameter_selection": true,
+    "new_production_candidate": true
+  },
+  "integrity": {
+    "protocol_sha256": "sha256:d7b216b43980fbedb4f24a389891141931092a78063f5203f79a97e8bd451aa0"
+  }
+}

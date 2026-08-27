@@ -68,6 +68,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── setup03_frozen_spec.json # Phase 5I 机器可读参数 inventory / frozen spec
 │   ├── structural_validation_protocol.py # Phase 5J 结构验证协议读取/完整性校验/静态审计
 │   ├── setup03_structural_validation_protocol.json # Phase 5J 机器可读结构验证协议
+│   ├── structural_validation_protocol_v2.py # Phase 5J-v2 CN/US scope revision loader
+│   ├── setup03_structural_validation_protocol_v2.json # Phase 5J-v2 CN/US scope contract
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -202,6 +204,20 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - Phase 5K 结构门槛固定为每市场每候选至少 8 个 CONFIRMED、相邻候选 Jaccard ≥60%、retention ≥80%、匹配日期漂移 median ≤5/P90 ≤15 个交易日、市场事件集中度 ≤35%、标的事件集中度 ≤25%、相邻候选每千 bar CONFIRMED 发生率增幅 ≤50%；其中 market/symbol concentration 对 3%/4%/5% 每个 candidate 独立计算，denominator 分别是该 candidate 在全部五个市场/全部 validation symbols 的 CONFIRMED，绝不合并候选事件；样本不足与门槛失败分别使用预注册状态，不得根据结果调整门槛
 - 正式选择规则为 lexicographic conservative，并使用预注册 qualification matrix：3% 必须通过自身 candidate-level thresholds 加 3%→4% 全部 adjacent-pair thresholds；4% 必须通过自身 candidate-level thresholds 加 3%→4% 与 4%→5% 两侧 thresholds；5% 必须通过自身 candidate-level thresholds 加 4%→5% thresholds。按 3%→4%→5% 顺序选择首个 qualified candidate；全部不满足为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，主要因样本不足为 `INSUFFICIENT_VALIDATION_EVIDENCE`。禁止使用 forward return、MFE、MAE、win rate、P&L 或任何收益指标，不生成 market/regime-specific production 参数
 - `arm_proximity_pct=0` 只做静态代码依赖审计：它影响 WATCH/ARMED proximity 状态转移、ARMED/WATCH diagnostics 及参数传递，但严格 `close_t > breakout_price`、`close_t < structural_invalidation` 和 `trading.events` 的 CONFIRMED terminal event predicate 不依赖它；因此 v1 保持关闭，不改变正式 terminal semantics
+
+### research/structural_validation_protocol_v2.py / setup03_structural_validation_protocol_v2.json
+
+- Phase 5J-v2 是独立的 scope revision，保留 v1 文件和 v1 hash 不变；它只注册 CN/US validation scope，不执行 validation、Replay、SETUP_03、OOS 或正式参数选择
+- CN 只启用 SSE Main Board / SZSE Main Board common A shares；`CN_STAR_REGISTERED_INACTIVE` 与 `CN_CHINEXT_REGISTERED_INACTIVE` 保留为注册入口但禁止进入 Phase 5K、OHLCV 和 qualification，激活必须升级 protocol version
+- CN 使用 CSI300/500/1000（primary quota 12/14/14），US 使用 S&P500/Nasdaq-100/SOX/IGV（primary quota 12/10/8/10）；两市场各为 40 primary / 20 reserve，跨 universe/cohort 重复按预注册 canonical identity 规则只计一次，选择不能依赖 SETUP_03 输出或收益指标
+- QQQ、SOX index、IGV ETF 仅为 aggregate diagnostics，不计入 equity sample minimum、不参与 qualification、不决定 tolerance；5J-v2 移除五市场 market concentration gate，并要求 CN 与 US 各自独立满足全部剩余结构门槛，禁止市场间补偿
+- 3%/4%/5%、lookback=5、window=40、arm proximity=0、Jaccard/retention/drift/rate、symbol concentration、qualification matrix 与收益指标禁用规则保持锁定；不重新搜索 thresholds 或 tolerance
+
+### scripts/hithink_cn_capability_smoke_test.py / docs/HITHINK_CN_API_CAPABILITY_SMOKE_TEST.md
+
+- 仅对 HiThink Financial API 做 bounded GET capability/provenance smoke test；API Key 只从 `HITHINK_FINANCE_API_KEY` 环境变量读取，不写日志/代码/报告
+- market-dump 只探测签名端点，不跟随下载 URL；不会生成 Phase 5K manifest、validation OHLCV、SETUP_03 output 或 OOS
+- 保存 exact raw response 并计算 SHA-256；成功能力必须同时满足 HTTP 200 与 response `code=0`，`code=2003` 只能记录为未授权/无权限，不能当作数据能力已证明
 
 ### scripts/run_setup03_replay.py
 
