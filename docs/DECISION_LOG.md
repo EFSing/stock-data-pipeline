@@ -403,3 +403,17 @@
 **Decision:** B0 记录 `platform_window=40` 与 `setup_swing_lookback=5` 的 warmup dependency，排除 dependency prefix 后才允许形成 evaluable state day；历史不足以形成至少一个 evaluable bar 时为 `INSUFFICIENT_FOR_REQUIRED_WARMUP`，不得因上市较晚人工延长历史。B1 成功后的预注册状态为 `DEVELOPMENT_VALIDATION_DATASET_FROZEN_NOT_EVALUATED`，但 B0 不生成该状态；B0 期间不获取正式 validation OHLCV、不运行 SETUP_03、不查看 CONFIRMED/return/MFE/MAE/win rate/P&L、不修改 production/Trading Core/Decision/execution/Sheets，也不启动 final OOS。
 
 **Reason:** warmup 是数据可用性前置条件，不是信号筛选条件；把它与 B1 的数据集 freeze 状态分开，可以在不接触 SETUP_03 output 的情况下先冻结可复现的获取和 QC contract。
+
+---
+
+**Decision:** 在不修改 v1 historical audit evidence 的前提下，PR #27 将 active B0 acquisition contract 升级为 `SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v2`，canonical SHA-256 固定为 `sha256:0fdfef827d48ef6deec8e58c1de1e0e470d3adb6567a1e74d25c44d8a3137588`；v1 `sha256:daed425278bf7b2cca00ede87b56dddc3bc9d47be51508a6800369105f2da039` 仅作 immutable historical audit evidence。B1 后续必须绑定 active v2，不能回退 v1。
+
+**Decision:** CN wire contract 固定为 HiThink `/api/a-share/prices/historical` 的 `thscode=<canonical symbol>`、`interval=1d`、`start=1483200000000`、`end=1787759999999`、`adjust=forward`。`2017-01-01 00:00:00.000 Asia/Shanghai` 与 `2026-08-26 23:59:59.999 Asia/Shanghai` 先按固定 Asia/Shanghai wall-clock 解释并转换为 integer Unix ms；B1 返回后仍按 security-local date `2017-01-01 <= date <= 2026-08-26` 做 deterministic inclusive filter。该 conversion timezone/rule 属于 B0 v2，不由 B1 临时决定。
+
+**Decision:** US wire contract 固定 Contract 的 `conId`（B1 前唯一 resolved/frozen）、`secType=STK`、`exchange=SMART`、`primaryExchange`（resolved/frozen）与 `currency`（resolved/frozen），并固定 `reqHistoricalData(endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate, keepUpToDate, chartOptions)` 为预注册 chunk end date `23:59:59 US/Eastern`、`1 Y`、`1 day`、`ADJUSTED_LAST`、`1`、`1`、`false`、`[]`。API version field、TWS version field、`B1_IBKR_RESOLVED_CONTRACT_DETAILS` identity source 与 US/Eastern timezone semantics 均必须在首次 history request 前冻结。2017–2026 chunks 不能只记录日期；返回数据严格按 chunk local-date inclusive range filter，overlap 只允许 exact deterministic dedupe，冲突 fail closed。
+
+**Decision:** final roster 只允许已经通过同一 provider/QC/warmup validation 的 `VALID_ACCEPTED` symbols。PRIMARY 失败只按 A1 frozen reserve rank 激活，reserve 也必须通过相同 validation，直到形成每市场 40 个 accepted symbols 或 reserve 耗尽；目标未达时为 `TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW`。新增 invariant `final_roster_count == valid_symbols`，不一致为 `FINAL_ROSTER_VALIDITY_MISMATCH` 并 fail closed；因此 `final_roster_count=40` 且 `valid_symbols=8` 不得 `COVERAGE_OK`。
+
+**Decision:** Phase 5J-v2 hard evidence minimum（每市场至少 8 valid symbols、总计至少 40、每市场至少 6000 bars）与 Phase 5K-B dataset readiness target（CN/US 各 40 valid accepted symbols）独立保留。hard minimum 通过不再自动覆盖 40-valid-symbol readiness gate；只有两市场 final roster 与 valid accepted symbols 均为 40、且各自满足 6000 bars，才具备 dataset readiness。整个 hardening 仍不获取正式 OHLCV、不运行 SETUP_03、不开始 B1、不访问 CONFIRMED/收益指标/OOS、不修改 production/Sheets。
+
+**Reason:** 这些变更只冻结 acquisition wire semantics、local-date filtering、accepted-roster identity 与 fail-closed readiness governance，避免 B1 依赖抽象日期、动态 IBKR duration、未验证 reserve 或仅满足 development minimum 的伪 40-roster；不把任何数据结果或信号结果引入 acquisition contract。

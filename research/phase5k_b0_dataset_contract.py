@@ -8,21 +8,25 @@ the A1 roster have been independently reviewed.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import hashlib
 import json
 import math
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+from zoneinfo import ZoneInfo
 
 from research.phase5k_a1_universe import load_manifest
 from research.structural_validation_protocol_v2 import load_protocol
 
 
-CONTRACT_PATH = Path(__file__).with_name("phase5k_b0_dataset_acquisition_contract.json")
-CONTRACT_SCHEMA_VERSION = "setup03-phase5k-b0-dataset-acquisition-contract-v1"
-CONTRACT_VERSION = "SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v1"
+HISTORICAL_CONTRACT_V1_PATH = Path(__file__).with_name("phase5k_b0_dataset_acquisition_contract.json")
+CONTRACT_PATH = Path(__file__).with_name("phase5k_b0_dataset_acquisition_contract_v2.json")
+CONTRACT_SCHEMA_VERSION = "setup03-phase5k-b0-dataset-acquisition-contract-v2"
+CONTRACT_VERSION = "SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v2"
 CONTRACT_STATUS = "DATASET_ACQUISITION_CONTRACT_FROZEN_NOT_ACQUIRED"
+HISTORICAL_CONTRACT_V1_VERSION = "SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v1"
+HISTORICAL_CONTRACT_V1_SHA256 = "sha256:daed425278bf7b2cca00ede87b56dddc3bc9d47be51508a6800369105f2da039"
 
 EXPECTED_PROTOCOL_VERSION = "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US"
 EXPECTED_PROTOCOL_SHA256 = "sha256:d7b216b43980fbedb4f24a389891141931092a78063f5203f79a97e8bd451aa0"
@@ -32,6 +36,8 @@ EXPECTED_MANIFEST_STATUS = "MANIFEST_FROZEN_NOT_FETCHED"
 
 DATE_START = date(2017, 1, 1)
 DATE_END = date(2026, 8, 26)
+CN_CONVERSION_TIMEZONE = "Asia/Shanghai"
+US_CONVERSION_TIMEZONE = "US/Eastern"
 VALIDATION_MARKETS = ("CN", "US")
 TARGET_ROSTER_BY_MARKET = {"CN": 40, "US": 40}
 RESERVE_TARGET_BY_MARKET = {"CN": 20, "US": 20}
@@ -46,6 +52,37 @@ PROVIDER_BY_MARKET = {
     "US": "IBKR_TWS_API_ADJUSTED_LAST",
 }
 ADJUSTMENT_MODE_BY_MARKET = {"CN": "forward", "US": "ADJUSTED_LAST"}
+VALID_ACCEPTED_STATUS = "VALID_ACCEPTED"
+FINAL_ROSTER_VALIDITY_MISMATCH_STATUS = "FINAL_ROSTER_VALIDITY_MISMATCH"
+TARGET_ROSTER_SHORTFALL_STATUS = "TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW"
+INSUFFICIENT_COVERAGE_STATUS = "INSUFFICIENT_COVERAGE"
+DATASET_READINESS_STATUS = "DATASET_READINESS_OK"
+
+
+class ContractViolation(ValueError):
+    """Raised when a B0 contract, bar, roster, or coverage invariant fails."""
+
+
+def local_datetime_to_unix_ms(value: datetime, timezone_name: str) -> int:
+    """Convert a naive local wall-clock datetime to deterministic Unix ms."""
+    if value.tzinfo is not None:
+        raise ContractViolation("wire boundary must be a naive local datetime")
+    local = value.replace(tzinfo=ZoneInfo(timezone_name))
+    utc = local.astimezone(timezone.utc)
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    delta = utc - epoch
+    return (delta.days * 86_400_000) + (delta.seconds * 1_000) + (delta.microseconds // 1_000)
+
+
+CN_WIRE_START_MS = local_datetime_to_unix_ms(
+    datetime(2017, 1, 1, 0, 0, 0, 0), CN_CONVERSION_TIMEZONE
+)
+CN_WIRE_END_MS = local_datetime_to_unix_ms(
+    datetime(2026, 8, 26, 23, 59, 59, 999_000), CN_CONVERSION_TIMEZONE
+)
+IBKR_DURATION_STR = "1 Y"
+IBKR_BAR_SIZE_SETTING = "1 day"
+IBKR_WHAT_TO_SHOW = "ADJUSTED_LAST"
 
 CANONICAL_BAR_FIELDS = (
     "market",
@@ -82,10 +119,6 @@ FORBIDDEN_REPLACEMENT_REASONS = (
 )
 
 
-class ContractViolation(ValueError):
-    """Raised when a B0 contract, bar, roster, or coverage invariant fails."""
-
-
 def _canonical_json(value: Mapping[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -100,6 +133,17 @@ def contract_integrity_hash(contract: Mapping[str, Any]) -> str:
 
 def serialize_contract(contract: Mapping[str, Any]) -> str:
     return json.dumps(contract, ensure_ascii=False, indent=2) + "\n"
+
+
+def _validate_historical_v1(path: Path = HISTORICAL_CONTRACT_V1_PATH) -> dict[str, Any]:
+    historical = json.loads(path.read_text(encoding="utf-8"))
+    if historical.get("contract_version") != HISTORICAL_CONTRACT_V1_VERSION:
+        raise ContractViolation("historical B0 v1 contract version changed")
+    if historical.get("integrity", {}).get("contract_sha256") != HISTORICAL_CONTRACT_V1_SHA256:
+        raise ContractViolation("historical B0 v1 stored hash changed")
+    if contract_integrity_hash(historical) != HISTORICAL_CONTRACT_V1_SHA256:
+        raise ContractViolation("historical B0 v1 canonical hash changed")
+    return historical
 
 
 def _validate_parent_bindings(contract: Mapping[str, Any]) -> None:
@@ -133,6 +177,7 @@ def _validate_contract_shape(contract: Mapping[str, Any]) -> None:
         "contract_version",
         "phase",
         "status",
+        "historical_contract_v1",
         "parent_protocol",
         "parent_a1_manifest",
         "date_window",
@@ -152,6 +197,14 @@ def _validate_contract_shape(contract: Mapping[str, Any]) -> None:
     missing = required.difference(contract)
     if missing:
         raise ContractViolation(f"B0 contract missing keys: {sorted(missing)}")
+    historical = contract["historical_contract_v1"]
+    if (
+        historical["version"] != HISTORICAL_CONTRACT_V1_VERSION
+        or historical["sha256"] != HISTORICAL_CONTRACT_V1_SHA256
+        or historical["path"] != "research/phase5k_b0_dataset_acquisition_contract.json"
+    ):
+        raise ContractViolation("historical B0 v1 binding changed")
+    _validate_historical_v1()
     if contract["schema_version"] != CONTRACT_SCHEMA_VERSION:
         raise ContractViolation("B0 contract schema version changed")
     if contract["contract_version"] != CONTRACT_VERSION:
@@ -184,26 +237,73 @@ def _validate_contract_shape(contract: Mapping[str, Any]) -> None:
 
     providers = contract["providers"]
     cn = providers["CN"]
+    cn_request = cn["request_contract"]
     if (
         cn["provider_id"] != "HITHINK_A_SHARE_HISTORICAL_FORWARD_ADJUSTED"
         or cn["endpoint_path"] != "/api/a-share/prices/historical"
-        or cn["request_contract"]["interval"] != "1d"
-        or cn["request_contract"]["adjust"] != "forward"
+        or cn_request["wire_parameters"] != ["thscode", "interval", "start", "end", "adjust"]
+        or cn_request["thscode_binding"] != "canonical_symbol"
+        or cn_request["interval"] != "1d"
+        or cn_request["start"] != CN_WIRE_START_MS
+        or cn_request["end"] != CN_WIRE_END_MS
+        or cn_request["adjust"] != "forward"
+        or cn_request["conversion_timezone"] != CN_CONVERSION_TIMEZONE
+        or cn_request["response_local_date_filter"] != {
+            "field": "security_local_exchange_trading_date",
+            "start_date": DATE_START.isoformat(),
+            "end_date": DATE_END.isoformat(),
+            "inclusive": True,
+        }
         or cn["api_key_env"] != "HITHINK_FINANCE_API_KEY"
+        or cn["formal_fallback_allowed"] is not False
     ):
         raise ContractViolation("CN provider contract changed")
     us = providers["US"]
+    us_request = us["request_contract"]
+    us_contract = us["contract_wire_fields"]
     if (
         us["provider_id"] != "IBKR_TWS_API_ADJUSTED_LAST"
-        or us["request_contract"]["security_type"] != "STK"
-        or us["request_contract"]["bar_size"] != "1 day"
-        or us["request_contract"]["what_to_show"] != "ADJUSTED_LAST"
-        or us["request_contract"]["use_rth"] != 1
-        or us["request_contract"]["keep_up_to_date"] is not False
-        or us["request_contract"]["end_cutoff"] != DATE_END.isoformat()
+        or us_contract != {
+            "symbol": "canonical_symbol",
+            "conId": "B1-resolved-unique-conId-frozen-before-first-history-request",
+            "secType": "STK",
+            "exchange": "SMART",
+            "primaryExchange": "B1-resolved-frozen-primaryExchange",
+            "currency": "B1-resolved-frozen-currency",
+        }
+        or us_request["wire_parameters"] != [
+            "endDateTime", "durationStr", "barSizeSetting", "whatToShow",
+            "useRTH", "formatDate", "keepUpToDate", "chartOptions",
+        ]
+        or us_request["barSizeSetting"] != IBKR_BAR_SIZE_SETTING
+        or us_request["whatToShow"] != IBKR_WHAT_TO_SHOW
+        or us_request["useRTH"] != 1
+        or us_request["formatDate"] != 1
+        or us_request["keepUpToDate"] is not False
+        or us_request["chartOptions"] != []
+        or us_request["timezone"] != US_CONVERSION_TIMEZONE
+        or us_request["durationStr"] != IBKR_DURATION_STR
         or us["identity_resolution"]["required_before_first_history_request"] is not True
+        or us["identity_resolution"]["api_version_field"] != "api_version"
+        or us["identity_resolution"]["tws_version_field"] != "tws_version"
+        or us["identity_resolution"]["contract_identity_source"] != "B1_IBKR_RESOLVED_CONTRACT_DETAILS"
+        or us["identity_resolution"]["freeze_before_first_history_request"] is not True
+        or us["calendar_chunking"]["dynamic_return_driven_chunk_selection"] is not False
+        or us["calendar_chunking"]["overlap_rule"] != "only exact normalized duplicate bars may be deduplicated deterministically; any conflict fails closed"
     ):
         raise ContractViolation("US provider contract changed")
+    chunks = us["calendar_chunking"]["chunks"]
+    if tuple(
+        {"chunk_id": row["chunk_id"], "start_date": row["start_date"], "end_date": row["end_date"]}
+        for row in chunks
+    ) != IBKR_CALENDAR_CHUNKS or any(
+        row["wire"] != {
+            "endDateTime": build_ibkr_req_historical_data_wire(row)["endDateTime"],
+            "durationStr": build_ibkr_req_historical_data_wire(row)["durationStr"],
+        }
+        for row in chunks
+    ):
+        raise ContractViolation("IBKR calendar chunk wire conversion changed")
 
     coverage = contract["coverage_rules"]
     if (
@@ -214,6 +314,9 @@ def _validate_contract_shape(contract: Mapping[str, Any]) -> None:
         or coverage["minimum_valid_symbols_total"] != MIN_VALID_SYMBOLS_TOTAL
         or coverage["minimum_valid_daily_bars_per_market"] != MIN_VALID_DAILY_BARS_PER_MARKET
         or coverage["market_compensation_allowed"] is not False
+        or coverage["final_roster_must_contain_only_valid_accepted_symbols"] is not True
+        or coverage["final_roster_count_equals_valid_symbols_invariant"] is not True
+        or coverage["dataset_readiness_requires_target_roster_per_market"] is not True
     ):
         raise ContractViolation("coverage requirements changed")
 
@@ -239,19 +342,26 @@ def _validate_contract_shape(contract: Mapping[str, Any]) -> None:
     b1 = contract["b1_manifest_schema"]
     if b1["success_status"] != "DEVELOPMENT_VALIDATION_DATASET_FROZEN_NOT_EVALUATED":
         raise ContractViolation("B1 success status changed")
+    if b1["must_bind_active_contract_version"] != CONTRACT_VERSION:
+        raise ContractViolation("B1 must bind the active B0 v2 contract")
     if b1["must_not_be_generated_in_b0"] is not True:
         raise ContractViolation("B0 must not generate B1 status was weakened")
 
 
 # This is intentionally a literal immutable version/hash contract.  Once the
 # JSON is finalized, changing content requires a new contract version.
-PINNED_CONTRACT_SHA256 = "sha256:daed425278bf7b2cca00ede87b56dddc3bc9d47be51508a6800369105f2da039"
+PINNED_CONTRACT_SHA256 = "sha256:0fdfef827d48ef6deec8e58c1de1e0e470d3adb6567a1e74d25c44d8a3137588"
 
 
 def load_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:
     contract = json.loads(path.read_text(encoding="utf-8"))
     _validate_contract_shape(contract)
     return contract
+
+
+def load_historical_contract_v1(path: Path = HISTORICAL_CONTRACT_V1_PATH) -> dict[str, Any]:
+    """Load only the immutable v1 audit evidence, never as the active contract."""
+    return _validate_historical_v1(path)
 
 
 def _as_local_date(value: Any, field: str) -> date:
@@ -265,6 +375,124 @@ def _as_local_date(value: Any, field: str) -> date:
         except ValueError as exc:
             raise ContractViolation(f"{field} is not an ISO date") from exc
     raise ContractViolation(f"{field} is not an ISO date")
+
+
+def build_cn_wire_request(canonical_symbol: str) -> dict[str, Any]:
+    """Return the exact frozen HiThink query parameters for one symbol."""
+    if not isinstance(canonical_symbol, str) or not canonical_symbol:
+        raise ContractViolation("CN wire request requires a canonical symbol")
+    return {
+        "thscode": canonical_symbol,
+        "interval": "1d",
+        "start": CN_WIRE_START_MS,
+        "end": CN_WIRE_END_MS,
+        "adjust": "forward",
+    }
+
+
+def filter_security_local_date_rows(
+    rows: Iterable[Mapping[str, Any]],
+    start_date: date | str,
+    end_date: date | str,
+) -> list[Mapping[str, Any]]:
+    """Apply the final inclusive security-local date filter without filling rows."""
+    start = _as_local_date(start_date, "filter start_date")
+    end = _as_local_date(end_date, "filter end_date")
+    if start > end:
+        raise ContractViolation("local date filter range is inverted")
+    filtered: list[Mapping[str, Any]] = []
+    for row in rows:
+        row_date = _as_local_date(row["date"], "row date")
+        if start <= row_date <= end:
+            filtered.append(row)
+    return filtered
+
+
+def filter_cn_response_rows(rows: Iterable[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    """Filter a HiThink response after converting its date to the local date."""
+    return filter_security_local_date_rows(rows, DATE_START, DATE_END)
+
+
+def _registered_ibkr_chunks() -> tuple[dict[str, str], ...]:
+    chunks: list[dict[str, str]] = []
+    for year in range(DATE_START.year, DATE_END.year + 1):
+        chunk_start = date(year, 1, 1)
+        chunk_end = DATE_END if year == DATE_END.year else date(year, 12, 31)
+        chunks.append({
+            "chunk_id": str(year),
+            "start_date": chunk_start.isoformat(),
+            "end_date": chunk_end.isoformat(),
+        })
+    return tuple(chunks)
+
+
+IBKR_CALENDAR_CHUNKS = _registered_ibkr_chunks()
+
+
+def _registered_ibkr_chunk(chunk: Mapping[str, Any]) -> dict[str, str]:
+    chunk_id = str(chunk.get("chunk_id", ""))
+    expected = next((row for row in IBKR_CALENDAR_CHUNKS if row["chunk_id"] == chunk_id), None)
+    if expected is None or {
+        "chunk_id": chunk_id,
+        "start_date": _as_local_date(chunk.get("start_date"), "chunk start_date").isoformat(),
+        "end_date": _as_local_date(chunk.get("end_date"), "chunk end_date").isoformat(),
+    } != expected:
+        raise ContractViolation("IBKR calendar chunk is not the pre-registered deterministic chunk")
+    return expected
+
+
+def build_ibkr_contract_wire(
+    canonical_symbol: str,
+    con_id: int,
+    primary_exchange: str,
+    currency: str,
+) -> dict[str, Any]:
+    """Return the resolved/frozen IBKR Contract fields used by B1."""
+    if not isinstance(canonical_symbol, str) or not canonical_symbol:
+        raise ContractViolation("IBKR contract requires a canonical symbol")
+    if isinstance(con_id, bool) or not isinstance(con_id, int) or con_id <= 0:
+        raise ContractViolation("IBKR contract requires a positive unique conId")
+    if not isinstance(primary_exchange, str) or not primary_exchange:
+        raise ContractViolation("IBKR contract requires a frozen primaryExchange")
+    if not isinstance(currency, str) or not currency:
+        raise ContractViolation("IBKR contract requires a frozen currency")
+    return {
+        "symbol": canonical_symbol,
+        "conId": con_id,
+        "secType": "STK",
+        "exchange": "SMART",
+        "primaryExchange": primary_exchange,
+        "currency": currency,
+    }
+
+
+def build_ibkr_req_historical_data_wire(chunk: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the complete deterministic reqHistoricalData argument contract."""
+    registered = _registered_ibkr_chunk(chunk)
+    return {
+        "endDateTime": f"{registered['end_date'].replace('-', '')} 23:59:59 {US_CONVERSION_TIMEZONE}",
+        "durationStr": IBKR_DURATION_STR,
+        "barSizeSetting": IBKR_BAR_SIZE_SETTING,
+        "whatToShow": IBKR_WHAT_TO_SHOW,
+        "useRTH": 1,
+        "formatDate": 1,
+        "keepUpToDate": False,
+        "chartOptions": [],
+    }
+
+
+def build_ibkr_wire_request(
+    canonical_symbol: str,
+    con_id: int,
+    primary_exchange: str,
+    currency: str,
+    chunk: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the frozen Contract plus reqHistoricalData wire arguments."""
+    return {
+        "contract": build_ibkr_contract_wire(canonical_symbol, con_id, primary_exchange, currency),
+        "reqHistoricalData": build_ibkr_req_historical_data_wire(chunk),
+    }
 
 
 def _finite_number(value: Any, field: str) -> float:
@@ -358,6 +586,30 @@ def normalize_bars(bars: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return deduplicate_bars(bars)
 
 
+def filter_ibkr_chunk_rows(
+    rows: Iterable[Mapping[str, Any]],
+    chunk: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    """Strictly filter one IBKR response to its pre-registered local-date chunk."""
+    registered = _registered_ibkr_chunk(chunk)
+    return filter_security_local_date_rows(
+        rows,
+        registered["start_date"],
+        registered["end_date"],
+    )
+
+
+def merge_ibkr_chunk_bars(
+    rows_by_chunk: Mapping[str, Iterable[Mapping[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Filter all registered chunks, then exact-dedupe overlaps or fail conflicts."""
+    rows: list[Mapping[str, Any]] = []
+    for chunk in IBKR_CALENDAR_CHUNKS:
+        chunk_rows = rows_by_chunk.get(chunk["chunk_id"], ())
+        rows.extend(filter_ibkr_chunk_rows(chunk_rows, chunk))
+    return deduplicate_bars(rows)
+
+
 def reserve_rows_for_failures(
     manifest: Mapping[str, Any],
     market: str,
@@ -392,32 +644,65 @@ def reserve_rows_for_failures(
 def build_final_roster(
     manifest: Mapping[str, Any],
     market: str,
-    failures_by_symbol: Mapping[str, str],
+    validation_status_by_symbol: Mapping[str, str],
     *,
     setup03_evaluation_started: bool = False,
 ) -> list[dict[str, Any]]:
-    """Build a market roster and enforce the 40-symbol lock before B1."""
-    replacement_rows = reserve_rows_for_failures(
-        manifest,
-        market,
-        failures_by_symbol,
-        setup03_evaluation_started=setup03_evaluation_started,
+    """Build a final roster from symbols that passed the same B1 validation.
+
+    ``validation_status_by_symbol`` must contain every primary and every reserve
+    considered by the frozen roster.  Only ``VALID_ACCEPTED`` rows can enter the
+    result; objective failures activate the next frozen-rank reserve, whose own
+    provider/QC/warmup result must also be ``VALID_ACCEPTED``.
+    """
+    if setup03_evaluation_started:
+        raise ContractViolation("FINAL_DATASET_ROSTER_LOCKED")
+    if market not in VALIDATION_MARKETS:
+        raise ContractViolation("unsupported final roster market")
+
+    market_rows = [row for row in manifest["symbols"] if row.get("market") == market]
+    primary = sorted(
+        (row for row in market_rows if row.get("intended_role") == "PRIMARY"),
+        key=lambda row: row["manifest_rank"],
     )
-    rows = [
-        dict(row)
-        for row in manifest["symbols"]
-        if row.get("market") == market
-        and row.get("intended_role") == "PRIMARY"
-        and row["canonical_symbol"] not in failures_by_symbol
-    ]
-    final = rows + replacement_rows
+    reserves = sorted(
+        (row for row in market_rows if row.get("intended_role") == "RESERVE"),
+        key=lambda row: row["manifest_rank"],
+    )
+    final: list[dict[str, Any]] = []
+    reserve_index = 0
+
+    def status_for(row: Mapping[str, Any]) -> str:
+        symbol = row["canonical_symbol"]
+        if symbol not in validation_status_by_symbol:
+            raise ContractViolation("FINAL_ROSTER_VALIDATION_REQUIRED")
+        status = validation_status_by_symbol[symbol]
+        if status != VALID_ACCEPTED_STATUS and status not in ALLOWED_REPLACEMENT_REASONS:
+            raise ContractViolation("FINAL_ROSTER_VALIDATION_INVALID_FAIL_CLOSED")
+        return status
+
+    for row in primary:
+        if status_for(row) == VALID_ACCEPTED_STATUS:
+            final.append(dict(row))
+            continue
+        while reserve_index < len(reserves):
+            reserve = reserves[reserve_index]
+            reserve_index += 1
+            if status_for(reserve) == VALID_ACCEPTED_STATUS:
+                final.append(dict(reserve))
+                break
+        else:
+            raise ContractViolation(TARGET_ROSTER_SHORTFALL_STATUS)
+
     if len(final) != TARGET_ROSTER_BY_MARKET[market]:
-        raise ContractViolation("TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW")
+        raise ContractViolation(TARGET_ROSTER_SHORTFALL_STATUS)
+    if any(status_for(row) != VALID_ACCEPTED_STATUS for row in final):
+        raise ContractViolation(FINAL_ROSTER_VALIDITY_MISMATCH_STATUS)
     return final
 
 
 def evaluate_coverage(metrics_by_market: Mapping[str, Mapping[str, int]]) -> dict[str, Any]:
-    """Apply independent market gates and never compensate one market with another."""
+    """Apply hard minimum and 40-valid-symbol readiness gates independently."""
     market_results: dict[str, dict[str, Any]] = {}
     for market in VALIDATION_MARKETS:
         if market not in metrics_by_market:
@@ -430,10 +715,16 @@ def evaluate_coverage(metrics_by_market: Mapping[str, Mapping[str, int]]) -> dic
         roster = int(metrics["final_roster_count"])
         symbols = int(metrics["valid_symbols"])
         bars = int(metrics["valid_daily_bars"])
-        if roster < TARGET_ROSTER_BY_MARKET[market]:
-            status = "TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW"
-        elif symbols < MIN_VALID_SYMBOLS_PER_MARKET or bars < MIN_VALID_DAILY_BARS_PER_MARKET:
-            status = "INSUFFICIENT_COVERAGE"
+        meets_hard_minimums = (
+            symbols >= MIN_VALID_SYMBOLS_PER_MARKET
+            and bars >= MIN_VALID_DAILY_BARS_PER_MARKET
+        )
+        if roster != symbols:
+            status = FINAL_ROSTER_VALIDITY_MISMATCH_STATUS
+        elif roster < TARGET_ROSTER_BY_MARKET[market]:
+            status = TARGET_ROSTER_SHORTFALL_STATUS
+        elif not meets_hard_minimums:
+            status = INSUFFICIENT_COVERAGE_STATUS
         else:
             status = "COVERAGE_OK"
         market_results[market] = {
@@ -442,21 +733,35 @@ def evaluate_coverage(metrics_by_market: Mapping[str, Mapping[str, int]]) -> dic
             "valid_symbols": symbols,
             "valid_daily_bars": bars,
             "meets_market_minimums": status == "COVERAGE_OK",
+            "meets_hard_minimums": meets_hard_minimums,
+            "dataset_readiness": status == "COVERAGE_OK" and symbols == TARGET_ROSTER_BY_MARKET[market],
         }
     total_symbols = sum(row["valid_symbols"] for row in market_results.values())
     statuses = [row["status"] for row in market_results.values()]
-    if "TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW" in statuses:
-        status = "TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW"
-    elif "INSUFFICIENT_COVERAGE" in statuses or total_symbols < MIN_VALID_SYMBOLS_TOTAL:
-        status = "INSUFFICIENT_COVERAGE"
+    if FINAL_ROSTER_VALIDITY_MISMATCH_STATUS in statuses:
+        status = FINAL_ROSTER_VALIDITY_MISMATCH_STATUS
+    elif TARGET_ROSTER_SHORTFALL_STATUS in statuses:
+        status = TARGET_ROSTER_SHORTFALL_STATUS
+    elif INSUFFICIENT_COVERAGE_STATUS in statuses or total_symbols < MIN_VALID_SYMBOLS_TOTAL:
+        status = INSUFFICIENT_COVERAGE_STATUS
     else:
         status = "COVERAGE_OK"
+    hard_minimum_eligible = all(
+        row["meets_hard_minimums"] for row in market_results.values()
+    ) and total_symbols >= MIN_VALID_SYMBOLS_TOTAL
+    dataset_readiness_eligible = all(
+        row["dataset_readiness"] for row in market_results.values()
+    )
     return {
         "status": status,
-        "eligible": status == "COVERAGE_OK",
+        "eligible": dataset_readiness_eligible and status == "COVERAGE_OK",
         "valid_symbols_total": total_symbols,
         "market_results": market_results,
         "market_compensation_allowed": False,
+        "hard_minimum_status": "HARD_MINIMUM_OK" if hard_minimum_eligible else INSUFFICIENT_COVERAGE_STATUS,
+        "hard_minimum_eligible": hard_minimum_eligible,
+        "dataset_readiness_status": DATASET_READINESS_STATUS if dataset_readiness_eligible else status,
+        "dataset_readiness_eligible": dataset_readiness_eligible and status == "COVERAGE_OK",
     }
 
 
@@ -485,25 +790,50 @@ def evaluable_bars_after_warmup(
 __all__ = [
     "ALLOWED_REPLACEMENT_REASONS",
     "CANONICAL_BAR_FIELDS",
+    "CN_CONVERSION_TIMEZONE",
+    "CN_WIRE_END_MS",
+    "CN_WIRE_START_MS",
     "CONTRACT_PATH",
     "CONTRACT_SCHEMA_VERSION",
     "CONTRACT_STATUS",
     "CONTRACT_VERSION",
     "ContractViolation",
+    "DATASET_READINESS_STATUS",
     "DATE_END",
     "DATE_START",
     "EXPECTED_MANIFEST_SHA256",
     "EXPECTED_MANIFEST_VERSION",
     "EXPECTED_PROTOCOL_SHA256",
     "EXPECTED_PROTOCOL_VERSION",
+    "FINAL_ROSTER_VALIDITY_MISMATCH_STATUS",
     "FORBIDDEN_REPLACEMENT_REASONS",
+    "HISTORICAL_CONTRACT_V1_PATH",
+    "HISTORICAL_CONTRACT_V1_SHA256",
+    "HISTORICAL_CONTRACT_V1_VERSION",
+    "IBKR_BAR_SIZE_SETTING",
+    "IBKR_CALENDAR_CHUNKS",
+    "IBKR_DURATION_STR",
+    "IBKR_WHAT_TO_SHOW",
     "PINNED_CONTRACT_SHA256",
+    "TARGET_ROSTER_SHORTFALL_STATUS",
+    "US_CONVERSION_TIMEZONE",
+    "VALID_ACCEPTED_STATUS",
     "build_final_roster",
+    "build_cn_wire_request",
+    "build_ibkr_contract_wire",
+    "build_ibkr_req_historical_data_wire",
+    "build_ibkr_wire_request",
     "contract_integrity_hash",
     "deduplicate_bars",
     "evaluable_bars_after_warmup",
     "evaluate_coverage",
+    "filter_cn_response_rows",
+    "filter_ibkr_chunk_rows",
+    "filter_security_local_date_rows",
     "load_contract",
+    "load_historical_contract_v1",
+    "local_datetime_to_unix_ms",
+    "merge_ibkr_chunk_bars",
     "normalize_bar",
     "normalize_bars",
     "required_warmup_bars",
