@@ -349,3 +349,9 @@
 **Amendment:** 2026-08-27 18:16:12 +08:00 在标准与提升权限执行上下文重跑 HiThink bounded GET smoke test；runner 在 Process/User/Machine scope 均未看到 `HITHINK_FINANCE_API_KEY`，未读取或输出任何 Key 内容。7/7 endpoint 均 HTTP 200 / `code=2003`，因此权限、数据字段与 source timestamp/as-of semantics 仍未证明。该环境传播 blocker 必须先解决，不能把未授权响应作为 `code=0` 能力结论，也不能开始 Phase 5K-A1。
 
 **Reason:** 用户环境变量可能在桌面进程启动后才配置，或存在于不同执行上下文；在没有 Key 到达 runner 的情况下，必须保持 fail closed 并保留 raw response hash，而不是请求用户在聊天中粘贴凭证。
+
+---
+
+**Amendment:** 2026-08-27 18:34:47 +08:00 在网络可用执行上下文重跑同一 7 个 bounded GET probes；7/7 均 HTTP 200 / `code=0`。A 股代码表 bounded probe 返回 1 条，CSI300/500/1000 分别返回 300/500/1000 条当前成分；market-dump endpoint 返回短期签名地址元数据（300 秒）但未下载；复权接口返回 `ex_date_ms` 与公司行动字段但未提供明确预计算 adjustment factor/公式；交易日历返回 243 个交易日，覆盖 2025-08-27 至 2026-08-27，未证明约 6000 根有效日 K 的 CN validation coverage。原始响应仅保留在 ignored local artifact 并计算 SHA-256，API Key 未打印、记录或提交。结论维持 `HITHINK_CN_RESEARCH_DATA_PROVIDER_NOT_READY`，不生成 Phase 5K-A1 manifest、不下载/构建 Phase 5K dataset、不运行 SETUP_03、不访问最终 OOS。
+
+**Reason:** `HTTP 200 + code=0` 证明五项接口组当前可访问，但 adjustment-factor semantics 与 validation-range calendar coverage 仍不足以证明 Phase 5K 数据提供能力；必须继续 fail closed。
