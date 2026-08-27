@@ -1,11 +1,13 @@
 import ast
 import copy
 import json
+import os
 from pathlib import Path
 import random
 import shutil
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from research.phase5k_a1_universe import (
     AGGREGATE_DIAGNOSTIC_INSTRUMENTS,
@@ -19,10 +21,13 @@ from research.phase5k_a1_universe import (
     RESERVE_TARGETS,
     SNAPSHOT_DIR,
     CN_PRIMARY_QUOTAS,
+    HITHINK_API_KEY_ENV,
     US_PRIMARY_QUOTAS,
     US_COHORTS,
+    SnapshotError,
     build_manifest,
     cn_board_status,
+    fetch_current_snapshots,
     filter_cn_cohort_items,
     load_manifest,
     load_selection_spec,
@@ -99,6 +104,13 @@ class Phase5KA1UniverseTests(unittest.TestCase):
             self.assertEqual(payload["code"], 0)
             self.assertEqual(len(payload["data"]["item"]), record["constituent_count"])
             self.assertTrue(record["raw_snapshot_sha256"].startswith("sha256:"))
+
+    def test_missing_hithink_key_fails_closed_before_any_cn_request(self):
+        with patch.dict(os.environ, {HITHINK_API_KEY_ENV: ""}, clear=False):
+            with patch("research.phase5k_a1_universe._fetch_raw") as fetch_raw:
+                with self.assertRaisesRegex(SnapshotError, "HITHINK_FINANCE_API_KEY is not configured"):
+                    fetch_current_snapshots(Path("unused-a1-output"))
+                fetch_raw.assert_not_called()
 
     def test_cn_main_board_filter_excludes_star_and_chinext_as_registered_inactive(self):
         items = [
