@@ -203,6 +203,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 正式选择规则为 lexicographic conservative，并使用预注册 qualification matrix：3% 必须通过自身 candidate-level thresholds 加 3%→4% 全部 adjacent-pair thresholds；4% 必须通过自身 candidate-level thresholds 加 3%→4% 与 4%→5% 两侧 thresholds；5% 必须通过自身 candidate-level thresholds 加 4%→5% thresholds。按 3%→4%→5% 顺序选择首个 qualified candidate；全部不满足为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，主要因样本不足为 `INSUFFICIENT_VALIDATION_EVIDENCE`。禁止使用 forward return、MFE、MAE、win rate、P&L 或任何收益指标，不生成 market/regime-specific production 参数
 - `arm_proximity_pct=0` 只做静态代码依赖审计：它影响 WATCH/ARMED proximity 状态转移、ARMED/WATCH diagnostics 及参数传递，但严格 `close_t > breakout_price`、`close_t < structural_invalidation` 和 `trading.events` 的 CONFIRMED terminal event predicate 不依赖它；因此 v1 保持关闭，不改变正式 terminal semantics
 
+### research/development_validation_symbol_manifest.py / development_validation_symbol_manifest.json
+
+- Phase 5K-A 只接受 provider metadata snapshot，按 primary listing、active status、listing age、普通权益 security type、provider metadata availability、US ADR/CN ST 排除规则做资格过滤；不导入 providers、Replay、Trading Core、Decision 或 SETUP_03 evaluator
+- 每个市场固定 14 个标的（10 PRIMARY、4 RESERVE），先按 issuer/share-class 去重，再按 liquidity rank 升序、history length 降序、canonical symbol lexical order 排名，并执行 broad-sector 最多 2 个的 cap；输入顺序不影响结果
+- frozen JSON 记录 Phase 5J 实际 protocol version/hash、2026-08-26 information cutoff、2018-01-01～2026-08-26 validation window、future active hard minimum 和 `MANIFEST_FROZEN_NOT_FETCHED` 状态；它是 Phase 5K 获取行情前的 authoritative manifest
+- manifest loader 先调用 Phase 5J loader 验证实际 protocol 与 Phase 5I parent identity，再验证自身 canonical SHA-256 和不可变 `manifest_version -> hash` contract；修改内容后同步重算内部 hash 但不升级 version 必须失败
+
 ### scripts/run_setup03_replay.py
 
 - 由 `.github/workflows/setup03-replay.yml` 手动触发

@@ -317,3 +317,19 @@
 **Decision:** 最新未复权行情选择采用“日期优先、同日质量优先”：交易日期不同时仍采用较新来源；交易日期相同时，若主源 OHLCV 内部异常而校验源正常，则整根行情采用校验源，并同步替换未复权历史序列的同日末根 K 线；两源均正常或均异常时保持主源。双源日期、收盘价与成交量校验规则不变。
 
 **Reason:** yfinance 的 A 股数据连续出现开盘价超出日内最高／最低区间，但收盘价与成交量仍与 Tencent 一致。仅在最终写表后执行合法性检查会让正常腾讯行情无法接替异常主源，并使最新行情与未复权历史不一致。整根 K 线切换可保持 OHLCV 内部一致性，避免逐字段拼接出不存在的行情，同时不放宽质量闸门。
+
+---
+
+## 2026-08-27
+
+**Decision:** Phase 5K-A 冻结 development-validation symbol manifest `SETUP_03-DEVELOPMENT-VALIDATION-SYMBOL-MANIFEST-2026-08-27-v1`。universe 固定为 CN/HK/US/JP/SE 各 14 个标的，其中 1～10 为 `PRIMARY`、11～14 为 `RESERVE`；未来 active hard minimum 固定为每市场 8、全市场 40，broad sector cap 固定为每市场 2。information cutoff 为 2026-08-26，validation window 为 2018-01-01～2026-08-26，状态为 `MANIFEST_FROZEN_NOT_FETCHED`。
+
+**Reason:** 在任何 Phase 5K historical OHLCV 或 SETUP_03 output 之前锁定样本、身份和覆盖下限，确保后续结构证据不会通过信号结果替换、增加或删除标的；reserve 只作为预先排名的治理角色，不是结果驱动的补样本机制。
+
+**Decision:** Phase 5K-A 选择仅使用 provider metadata：market、exchange、security type、primary listing、listing date、active status、liquidity metadata、history length、sector/industry、issuer identity、share class 与 metadata availability。资格过滤排除非普通权益证券、非 primary/inactive/超龄标的、US ADR、CN ST/*ST 及 provider metadata 不支持者；同 issuer/同市场 share class 先按注册 ranking 决定唯一 winner，再执行 sector cap。ranking 固定为 liquidity rank 升序、history length 降序、canonical symbol lexical 升序。
+
+**Reason:** 选择必须与 WATCH/ARMED/CONFIRMED、SETUP_03 输出、收益、MFE/MAE、胜率、P&L、信号频率及任何 forward 结果解耦；同一 metadata 集合的原始输入顺序变化不得改变 manifest content 或 identity。
+
+**Decision:** frozen manifest 的 parent identity 必须来自实际 Phase 5J loader 验证后的 protocol version/hash，而非只复制 JSON 字段；manifest 自身以 canonical SHA-256 计算，并由不可变 `manifest_version → pinned SHA-256` 合同保护。同步重算内部 hash 但不升级 version 的内容变化必须 fail。
+
+**Reason:** 双层 identity 同时防止未同步 hash 和同版本同步重算漂移；Phase 5K-A 只建立并冻结样本，不抓取 validation OHLCV、不构建 dataset、不运行 SETUP_03、不选择正式参数、不访问最终 OOS。
