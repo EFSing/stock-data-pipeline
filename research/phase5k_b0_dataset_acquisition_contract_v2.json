@@ -1,0 +1,352 @@
+{
+  "schema_version": "setup03-phase5k-b0-dataset-acquisition-contract-v2",
+  "contract_version": "SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v2",
+  "phase": "Phase 5K-B0",
+  "status": "DATASET_ACQUISITION_CONTRACT_FROZEN_NOT_ACQUIRED",
+  "historical_contract_v1": {
+    "path": "research/phase5k_b0_dataset_acquisition_contract.json",
+    "version": "SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v1",
+    "sha256": "sha256:daed425278bf7b2cca00ede87b56dddc3bc9d47be51508a6800369105f2da039"
+  },
+  "parent_protocol": {
+    "version": "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US",
+    "sha256": "sha256:d7b216b43980fbedb4f24a389891141931092a78063f5203f79a97e8bd451aa0",
+    "status": "SCOPE_REVISION_REGISTERED_NOT_EXECUTED"
+  },
+  "parent_a1_manifest": {
+    "version": "SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v2",
+    "sha256": "sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433",
+    "status": "MANIFEST_FROZEN_NOT_FETCHED"
+  },
+  "date_window": {
+    "start_date": "2017-01-01",
+    "end_date": "2026-08-26",
+    "inclusive": true,
+    "date_semantics": "security_local_exchange_trading_date",
+    "conversion_timezone": "Asia/Shanghai for CN wire boundaries; US/Eastern for US wire boundaries",
+    "wire_boundary_conversion": {
+      "timezone": "Asia/Shanghai",
+      "rule": "interpret the frozen local wall-clock boundary in Asia/Shanghai, then convert to integer Unix milliseconds",
+      "start_local": "2017-01-01 00:00:00.000 Asia/Shanghai",
+      "start_unix_ms": 1483200000000,
+      "end_local": "2026-08-26 23:59:59.999 Asia/Shanghai",
+      "end_unix_ms": 1787759999999
+    },
+    "freeze_reason": [
+      "end_date is the most recent common CN/US market date completed before the Phase 5K-A1 freeze",
+      "start_date is within the HiThink historical window of at most ten years",
+      "the long window is for structural stability validation and was not selected from any signal or performance output"
+    ],
+    "post_freeze_window_change": "forbidden_even_if_confirmed_count_is_low"
+  },
+  "providers": {
+    "CN": {
+      "provider_id": "HITHINK_A_SHARE_HISTORICAL_FORWARD_ADJUSTED",
+      "endpoint_path": "/api/a-share/prices/historical",
+      "api_key_env": "HITHINK_FINANCE_API_KEY",
+      "request_contract": {
+        "method": "GET",
+        "endpoint_path": "/api/a-share/prices/historical",
+        "wire_parameters": ["thscode", "interval", "start", "end", "adjust"],
+        "thscode_binding": "canonical_symbol",
+        "interval": "1d",
+        "start": 1483200000000,
+        "end": 1787759999999,
+        "adjust": "forward",
+        "conversion_timezone": "Asia/Shanghai",
+        "conversion_rule": "start 2017-01-01 00:00:00.000 and end 2026-08-26 23:59:59.999 are interpreted in Asia/Shanghai and converted to integer Unix milliseconds",
+        "response_local_date_filter": {
+          "field": "security_local_exchange_trading_date",
+          "start_date": "2017-01-01",
+          "end_date": "2026-08-26",
+          "inclusive": true
+        },
+        "local_exchange_date_assignment": true
+      },
+      "adjustment_semantics": "HiThink forward-adjusted OHLC",
+      "formal_fallback_allowed": false,
+      "required_per_symbol_artifacts": [
+        "exact_request_contract",
+        "retrieval_timestamp",
+        "data_timestamp",
+        "exact_raw_response_bytes",
+        "raw_response_sha256",
+        "bar_count",
+        "first_date",
+        "last_date"
+      ]
+    },
+    "US": {
+      "provider_id": "IBKR_TWS_API_ADJUSTED_LAST",
+      "identity_resolution": {
+        "required_before_first_history_request": true,
+        "identity_key": "canonical_symbol_to_unique_ibkr_contract",
+        "required_fields": [
+          "canonical_symbol",
+          "conId",
+          "primaryExchange",
+          "currency",
+          "request_contract"
+        ],
+        "api_version_field": "api_version",
+        "tws_version_field": "tws_version",
+        "contract_identity_source": "B1_IBKR_RESOLVED_CONTRACT_DETAILS",
+        "freeze_before_first_history_request": true,
+        "api_version_required_before_first_history_request": true,
+        "tws_version_required_before_first_history_request": true,
+        "ambiguous_or_unresolved_identity_status": "US_PROVIDER_NOT_READY"
+      },
+      "contract_wire_fields": {
+        "symbol": "canonical_symbol",
+        "conId": "B1-resolved-unique-conId-frozen-before-first-history-request",
+        "secType": "STK",
+        "exchange": "SMART",
+        "primaryExchange": "B1-resolved-frozen-primaryExchange",
+        "currency": "B1-resolved-frozen-currency"
+      },
+      "request_contract": {
+        "wire_parameters": [
+          "endDateTime", "durationStr", "barSizeSetting", "whatToShow",
+          "useRTH", "formatDate", "keepUpToDate", "chartOptions"
+        ],
+        "endDateTime": "registered chunk end date 23:59:59 US/Eastern",
+        "durationStr": "1 Y",
+        "barSizeSetting": "1 day",
+        "whatToShow": "ADJUSTED_LAST",
+        "useRTH": 1,
+        "formatDate": 1,
+        "keepUpToDate": false,
+        "chartOptions": [],
+        "timezone": "US/Eastern",
+        "local_exchange_date_assignment": true
+      },
+      "adjustment_semantics": "IBKR ADJUSTED_LAST",
+      "formal_fallback_allowed": false,
+      "fallback_failure_statuses": [
+        "US_PROVIDER_NOT_READY",
+        "NO_IBKR_PERMISSION",
+        "NO_HISTORICAL_DATA",
+        "ADJUSTED_LAST_UNAVAILABLE",
+        "CONTRACT_IDENTITY_NOT_UNIQUE"
+      ],
+      "calendar_chunking": {
+        "strategy": "pre_registered_deterministic_calendar_year_chunks",
+        "dynamic_return_driven_chunk_selection": false,
+        "chunk_wire_conversion_rule": "endDateTime is chunk end date at 23:59:59 US/Eastern; durationStr is fixed at 1 Y; response is strictly filtered to inclusive chunk local dates",
+        "overlap_rule": "only exact normalized duplicate bars may be deduplicated deterministically; any conflict fails closed",
+        "chunks": [
+          {"chunk_id": "2017", "start_date": "2017-01-01", "end_date": "2017-12-31", "wire": {"endDateTime": "20171231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2018", "start_date": "2018-01-01", "end_date": "2018-12-31", "wire": {"endDateTime": "20181231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2019", "start_date": "2019-01-01", "end_date": "2019-12-31", "wire": {"endDateTime": "20191231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2020", "start_date": "2020-01-01", "end_date": "2020-12-31", "wire": {"endDateTime": "20201231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2021", "start_date": "2021-01-01", "end_date": "2021-12-31", "wire": {"endDateTime": "20211231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2022", "start_date": "2022-01-01", "end_date": "2022-12-31", "wire": {"endDateTime": "20221231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2023", "start_date": "2023-01-01", "end_date": "2023-12-31", "wire": {"endDateTime": "20231231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2024", "start_date": "2024-01-01", "end_date": "2024-12-31", "wire": {"endDateTime": "20241231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2025", "start_date": "2025-01-01", "end_date": "2025-12-31", "wire": {"endDateTime": "20251231 23:59:59 US/Eastern", "durationStr": "1 Y"}},
+          {"chunk_id": "2026", "start_date": "2026-01-01", "end_date": "2026-08-26", "wire": {"endDateTime": "20260826 23:59:59 US/Eastern", "durationStr": "1 Y"}}
+        ]
+      },
+      "required_per_symbol_artifacts": [
+        "resolved_contract_identity",
+        "api_version",
+        "tws_version",
+        "exact_request_contract_per_chunk",
+        "retrieval_timestamp",
+        "data_timestamp",
+        "exact_raw_response_bytes_per_chunk",
+        "raw_response_sha256_per_chunk",
+        "bar_count",
+        "first_date",
+        "last_date"
+      ]
+    }
+  },
+  "canonical_bar_schema": {
+    "fields": [
+      "market",
+      "canonical_symbol",
+      "date",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "source_provider",
+      "adjustment_mode"
+    ],
+    "field_types": {
+      "market": "string",
+      "canonical_symbol": "string",
+      "date": "ISO-8601 security local trading date",
+      "open": "finite positive number",
+      "high": "finite positive number",
+      "low": "finite positive number",
+      "close": "finite positive number",
+      "volume": "finite number >= 0",
+      "source_provider": "string",
+      "adjustment_mode": "provider-declared string"
+    },
+    "raw_source_metadata_is_separate": true,
+    "forward_fill_allowed": false,
+    "interpolation_allowed": false,
+    "synthetic_bars_allowed": false
+  },
+  "raw_source_metadata": {
+    "stored_separately_from_canonical_bars": true,
+    "exact_raw_response_required": true,
+    "required_fields": [
+      "market",
+      "canonical_symbol",
+      "provider_identity",
+      "request_contract",
+      "retrieval_timestamp",
+      "data_timestamp",
+      "raw_response_storage",
+      "raw_response_sha256",
+      "bar_count",
+      "first_date",
+      "last_date"
+    ],
+    "secret_policy": "API keys and credentials are never printed, logged, serialized, or committed"
+  },
+  "qc_rules": {
+    "date_unique_per_canonical_symbol": true,
+    "date_must_be_within_inclusive_window": true,
+    "ohlc_finite": true,
+    "ohlc_positive": true,
+    "low_le_open_le_high": true,
+    "low_le_close_le_high": true,
+    "low_le_high": true,
+    "volume_rule": "finite and >= 0; missing volume is not allowed by either frozen provider contract",
+    "post_end_date_bar_action": "FAIL_CLOSED",
+    "invalid_ohlc_status": "INVALID_OHLC_FAIL_CLOSED"
+  },
+  "duplicate_rules": {
+    "key": ["market", "canonical_symbol", "date"],
+    "exact_normalized_value_duplicate": "deterministically_dedupe",
+    "price_field_conflict": "DATA_CONFLICT_FAIL_CLOSED",
+    "any_non_identical_ohlcv_duplicate": "DATA_CONFLICT_FAIL_CLOSED",
+    "manual_row_choice_allowed": false
+  },
+  "missing_bar_rules": {
+    "no_record_means_no_bar": true,
+    "forward_fill_allowed": false,
+    "interpolation_allowed": false,
+    "previous_close_substitution_for_suspension": false,
+    "cross_market_calendar_row_injection_allowed": false,
+    "missing_date_is_not_an_integrity_failure_by_itself": true
+  },
+  "reserve_activation_rules": {
+    "primary_target_by_market": {"CN": 40, "US": 40},
+    "reserve_rank_source": "A1 frozen manifest_rank within the same market",
+    "strict_frozen_rank_order": true,
+    "reserve_requires_same_provider_qc_warmup_validation": true,
+    "final_roster_definition": "only symbols with VALID_ACCEPTED status after provider/QC/warmup validation",
+    "allowed_replacement_reasons": [
+      "SYMBOL_NOT_RESOLVABLE",
+      "PROVIDER_NO_DATA",
+      "FATAL_OHLC_INTEGRITY_FAILURE",
+      "DUPLICATE_IDENTITY_CONFLICT",
+      "INSUFFICIENT_FOR_REQUIRED_WARMUP"
+    ],
+    "forbidden_signal_or_performance_reasons": [
+      "CONFIRMED_COUNT",
+      "SIGNAL_QUALITY",
+      "PERFORMANCE",
+      "RETURN",
+      "MFE",
+      "MAE",
+      "WIN_RATE",
+      "P_AND_L",
+      "PARAMETER_RESULT"
+    ],
+    "reserve_exhausted_status": "TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW",
+    "final_roster_lock_status": "FINAL_DATASET_ROSTER_LOCKED",
+    "replacement_after_setup03_evaluation": false
+  },
+  "coverage_rules": {
+    "markets": ["CN", "US"],
+    "target_roster_by_market": {"CN": 40, "US": 40},
+    "reserve_target_by_market": {"CN": 20, "US": 20},
+    "minimum_valid_symbols_per_market": 8,
+    "minimum_valid_symbols_total": 40,
+    "minimum_valid_daily_bars_per_market": 6000,
+    "market_compensation_allowed": false,
+    "final_roster_must_contain_only_valid_accepted_symbols": true,
+    "final_roster_count_equals_valid_symbols_invariant": true,
+    "dataset_readiness_requires_target_roster_per_market": true,
+    "hard_minimum_is_independent_from_dataset_readiness": true,
+    "insufficient_coverage_status": "INSUFFICIENT_COVERAGE",
+    "target_roster_shortfall_status": "TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW",
+    "final_roster_validity_mismatch_status": "FINAL_ROSTER_VALIDITY_MISMATCH",
+    "dataset_readiness_status": "DATASET_READINESS_OK",
+    "enter_setup03_when_target_or_hard_minimum_fails": false
+  },
+  "warmup_rules": {
+    "platform_window": 40,
+    "setup_swing_lookback": 5,
+    "excluded_prefix_bars": 40,
+    "warmup_dependency": "max(platform_window, 2 * setup_swing_lookback)",
+    "warmup_bars_count_as_evaluable_state_days": false,
+    "insufficient_history_reason": "INSUFFICIENT_FOR_REQUIRED_WARMUP",
+    "at_least_one_evaluable_bar_required": true
+  },
+  "b1_manifest_schema": {
+    "schema_version": "setup03-phase5k-b1-development-validation-dataset-manifest-v1",
+    "success_status": "DEVELOPMENT_VALIDATION_DATASET_FROZEN_NOT_EVALUATED",
+    "must_bind_active_contract_version": "SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v2",
+    "must_not_be_generated_in_b0": true,
+    "required_fields": [
+      "schema_version",
+      "contract_version",
+      "final_roster",
+      "replacement_audit",
+      "per_symbol_records",
+      "market_bar_totals",
+      "aggregate_dataset_sha256",
+      "integrity"
+    ],
+    "per_symbol_required_fields": [
+      "market",
+      "canonical_symbol",
+      "provider_identity",
+      "request_metadata",
+      "raw_sha256",
+      "normalized_sha256",
+      "bar_count",
+      "first_date",
+      "last_date",
+      "qc_result"
+    ],
+    "replacement_audit_required_fields": [
+      "failed_primary_symbol",
+      "reason",
+      "activated_reserve_symbol",
+      "reserve_manifest_rank"
+    ]
+  },
+  "forbidden_metrics_and_actions": [
+    "CONFIRMED",
+    "return",
+    "MFE",
+    "MAE",
+    "win rate",
+    "P&L",
+    "parameter search",
+    "production parameter modification",
+    "SETUP_03 evaluation",
+    "Trading Core",
+    "Decision",
+    "execution",
+    "Google Sheets",
+    "final OOS",
+    "formal validation OHLCV fetch",
+    "automatic provider fallback"
+  ],
+  "integrity": {
+    "hash_algorithm": "SHA-256",
+    "canonicalization": "UTF-8 JSON, sorted keys, compact separators, excluding integrity envelope",
+    "contract_sha256": "sha256:0fdfef827d48ef6deec8e58c1de1e0e470d3adb6567a1e74d25c44d8a3137588"
+  }
+}
