@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 
@@ -20,6 +21,29 @@ SETUP_SOURCE_PATH = PROJECT_ROOT / "trading" / "setup.py"
 EVENTS_SOURCE_PATH = PROJECT_ROOT / "trading" / "events.py"
 
 PROTOCOL_STATUS = "VALIDATION_PROTOCOL_REGISTERED_NOT_EXECUTED"
+EXPECTED_PROTOCOL_VERSION = (
+    "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1"
+)
+# This is an immutable version -> canonical-content contract.  The JSON
+# integrity field detects an unsynchronized stored hash; this contract also
+# rejects a changed payload whose new hash was written back under the same
+# protocol version.
+PINNED_PROTOCOL_SHA256_BY_VERSION = MappingProxyType(
+    {
+        EXPECTED_PROTOCOL_VERSION: (
+            "sha256:b0fe288b66ff5a86b127d57c1cb2493b583d252dcb169edbc86fab52830948bd"
+        ),
+    }
+)
+EXPECTED_PARENT_PHASE5I_IDENTITY = MappingProxyType(
+    {
+        "freeze_version": "SETUP_03-FREEZE-2026-08-26-v1",
+        "freeze_decision": "NOT_READY_FOR_FORMAL_PARAMETER_FREEZE",
+        "critical_values_sha256": (
+            "sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15"
+        ),
+    }
+)
 PRODUCTION_TOLERANCES = (0.03, 0.04, 0.05)
 DIAGNOSTIC_STRESS_BOUNDARIES = (0.025, 0.055, 0.075, 0.10)
 VALIDATION_MARKETS = ("CN", "HK", "US", "JP", "SE")
@@ -40,6 +64,36 @@ REQUIRED_THRESHOLD_IDS = {
     "maximum_symbol_confirmed_concentration",
     "adjacent_confirmed_rate_relative_increase",
 }
+CONCENTRATION_THRESHOLD_IDS = {
+    "maximum_market_confirmed_concentration",
+    "maximum_symbol_confirmed_concentration",
+}
+EXPECTED_CANDIDATE_LEVEL_THRESHOLD_IDS = (
+    "minimum_confirmed_events_per_market_candidate",
+    "maximum_market_confirmed_concentration",
+    "maximum_symbol_confirmed_concentration",
+)
+EXPECTED_ADJACENT_PAIR_THRESHOLD_IDS = (
+    "adjacent_confirmed_jaccard",
+    "adjacent_confirmed_retention",
+    "matched_confirmed_event_date_drift_median",
+    "matched_confirmed_event_date_drift_p90",
+    "adjacent_confirmed_rate_relative_increase",
+)
+EXPECTED_CANDIDATE_QUALIFICATION_MATRIX = (
+    {
+        "candidate_pct": 0.03,
+        "adjacent_pairs": ((0.03, 0.04),),
+    },
+    {
+        "candidate_pct": 0.04,
+        "adjacent_pairs": ((0.03, 0.04), (0.04, 0.05)),
+    },
+    {
+        "candidate_pct": 0.05,
+        "adjacent_pairs": ((0.04, 0.05),),
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -185,6 +239,16 @@ def _validate_protocol(protocol: dict[str, Any]) -> None:
         raise ValueError(
             "structural validation protocol integrity mismatch; same-version changes fail"
         )
+    protocol_version = protocol["protocol_version"]
+    pinned_hash = PINNED_PROTOCOL_SHA256_BY_VERSION.get(protocol_version)
+    if pinned_hash is None:
+        raise ValueError(
+            "structural validation protocol version has no pinned canonical hash contract"
+        )
+    if expected_hash != pinned_hash:
+        raise ValueError(
+            "structural validation protocol version is bound to a different canonical hash"
+        )
 
     if protocol["phase5j_status"] != PROTOCOL_STATUS:
         raise ValueError("Phase 5J protocol status must remain not executed")
@@ -192,14 +256,18 @@ def _validate_protocol(protocol: dict[str, Any]) -> None:
         raise ValueError("protocol phase/setup identity mismatch")
 
     parent = protocol["parent_phase5i"]
-    if parent["freeze_version"] != "SETUP_03-FREEZE-2026-08-26-v1":
-        raise ValueError("Phase 5I parent freeze version mismatch")
-    if parent["integrity"]["critical_values_sha256"] != (
-        "sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15"
-    ):
-        raise ValueError("Phase 5I parent integrity identity mismatch")
-    if parent["freeze_decision"] != "NOT_READY_FOR_FORMAL_PARAMETER_FREEZE":
-        raise ValueError("Phase 5I parent freeze decision mismatch")
+    actual_parent = _load_actual_phase5i_spec()
+    for field in ("freeze_version", "freeze_decision"):
+        if actual_parent[field] != EXPECTED_PARENT_PHASE5I_IDENTITY[field]:
+            raise ValueError(f"actual Phase 5I spec {field} does not match its frozen identity")
+        if parent[field] != actual_parent[field]:
+            raise ValueError(f"Phase 5J parent {field} does not match actual Phase 5I spec")
+    actual_critical_hash = actual_parent["integrity"]["critical_values_sha256"]
+    declared_critical_hash = parent["integrity"]["critical_values_sha256"]
+    if actual_critical_hash != EXPECTED_PARENT_PHASE5I_IDENTITY["critical_values_sha256"]:
+        raise ValueError("actual Phase 5I spec critical-values identity mismatch")
+    if declared_critical_hash != actual_critical_hash:
+        raise ValueError("Phase 5J parent critical-values identity does not match actual Phase 5I spec")
 
     policy = protocol["production_tolerance_policy"]
     candidates = tuple(policy["allowed_candidate_values_pct"])
@@ -281,6 +349,7 @@ def _validate_protocol(protocol: dict[str, Any]) -> None:
     for row in thresholds:
         if (row["operator"], row["threshold"]) != expected_values[row["id"]]:
             raise ValueError(f"structural threshold changed: {row['id']}")
+    _validate_concentration_thresholds(thresholds)
     minimum = next(
         row for row in thresholds if row["id"] == "minimum_confirmed_events_per_market_candidate"
     )
@@ -298,6 +367,7 @@ def _validate_protocol(protocol: dict[str, Any]) -> None:
         raise ValueError("insufficient-evidence status changed")
     if selection_rule["performance_metrics_used"] or selection_rule["market_specific_or_regime_specific_selection"]:
         raise ValueError("selection rule may not use performance or market/regime parameters")
+    _validate_candidate_qualification_matrix(selection_rule)
 
     if not REQUIRED_FORBIDDEN_METRICS.issubset(set(protocol["forbidden_metrics"])):
         raise ValueError("required forbidden performance metrics are missing")
@@ -318,6 +388,70 @@ def _validate_protocol(protocol: dict[str, Any]) -> None:
     }
     if any(not prohibitions.get(key, False) for key in required_prohibitions):
         raise ValueError("Phase 5J prohibition was weakened")
+
+
+def _load_actual_phase5i_spec() -> dict[str, Any]:
+    """Load the repository's actual Phase 5I spec for parent identity checks."""
+    from research.parameter_freeze import load_frozen_spec
+
+    return load_frozen_spec(PROJECT_ROOT / "research" / "setup03_frozen_spec.json")
+
+
+def _validate_concentration_thresholds(thresholds: list[dict[str, Any]]) -> None:
+    by_id = {row["id"]: row for row in thresholds}
+    expected = {
+        "maximum_market_confirmed_concentration": {
+            "scope": (
+                "each production candidate independently; each market within that candidate "
+                "across all five validation markets"
+            ),
+            "denominator": (
+                "For each candidate, all CONFIRMED events in that candidate across all five "
+                "validation markets; candidate event sets must never be combined."
+            ),
+        },
+        "maximum_symbol_confirmed_concentration": {
+            "scope": (
+                "each production candidate independently; each symbol within that candidate "
+                "across all validation symbols"
+            ),
+            "denominator": (
+                "For each candidate, all CONFIRMED events in that candidate across all "
+                "validation symbols; candidate event sets must never be combined."
+            ),
+        },
+    }
+    for threshold_id, fields in expected.items():
+        row = by_id[threshold_id]
+        if row.get("aggregation") != "PER_CANDIDATE_INDEPENDENT":
+            raise ValueError(f"{threshold_id} must be evaluated per candidate")
+        if row.get("candidate_event_sets_must_not_be_combined") is not True:
+            raise ValueError(f"{threshold_id} must not combine candidate event sets")
+        for field, value in fields.items():
+            if row.get(field) != value:
+                raise ValueError(f"{threshold_id} {field} semantics changed")
+
+
+def _validate_candidate_qualification_matrix(selection_rule: dict[str, Any]) -> None:
+    if selection_rule.get("qualification_semantics") != (
+        "A candidate qualifies only when all of its candidate-level thresholds and all "
+        "adjacent-pair thresholds assigned by the matrix pass; a pair is attributed to "
+        "every candidate listed by the matrix."
+    ):
+        raise ValueError("candidate qualification semantics changed")
+    matrix = selection_rule.get("candidate_qualification_matrix")
+    if not isinstance(matrix, list) or len(matrix) != len(EXPECTED_CANDIDATE_QUALIFICATION_MATRIX):
+        raise ValueError("candidate qualification matrix changed")
+    for row, expected in zip(matrix, EXPECTED_CANDIDATE_QUALIFICATION_MATRIX):
+        if row.get("candidate_pct") != expected["candidate_pct"]:
+            raise ValueError("candidate qualification candidate changed")
+        if tuple(row.get("candidate_level_threshold_ids", ())) != EXPECTED_CANDIDATE_LEVEL_THRESHOLD_IDS:
+            raise ValueError("candidate-level threshold attribution changed")
+        if tuple(row.get("adjacent_pair_threshold_ids", ())) != EXPECTED_ADJACENT_PAIR_THRESHOLD_IDS:
+            raise ValueError("adjacent-pair threshold attribution changed")
+        actual_pairs = tuple(tuple(pair) for pair in row.get("adjacent_pairs", ()))
+        if actual_pairs != expected["adjacent_pairs"]:
+            raise ValueError("adjacent-pair candidate qualification mapping changed")
 
 def _find_function(tree: ast.AST, name: str) -> ast.FunctionDef:
     for node in ast.walk(tree):

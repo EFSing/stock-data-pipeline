@@ -290,15 +290,21 @@
 
 ---
 
-**Decision:** Phase 5K 结构门槛固定为：每市场每候选至少 8 个 CONFIRMED；相邻正式候选 CONFIRMED Jaccard ≥60%、retention ≥80%；匹配事件日期漂移 median ≤5、P90 ≤15 个交易日；市场 CONFIRMED 事件集中度 ≤35%；标的 CONFIRMED 事件集中度 ≤25%；相邻正式候选每千 bar CONFIRMED 发生率相对增幅 ≤50%。样本不足使用 `INSUFFICIENT_VALIDATION_EVIDENCE`，其余门槛失败使用 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，均不得根据结果调节。
+**Decision:** Phase 5K 结构门槛固定为：每市场每候选至少 8 个 CONFIRMED；相邻正式候选 CONFIRMED Jaccard ≥60%、retention ≥80%；匹配事件日期漂移 median ≤5、P90 ≤15 个交易日；市场 CONFIRMED 事件集中度 ≤35%；标的 CONFIRMED 事件集中度 ≤25%；相邻正式候选每千 bar CONFIRMED 发生率相对增幅 ≤50%。market/symbol concentration 必须对 3%/4%/5% 每个 candidate 分别计算，denominator 分别是该 candidate 在全部五个市场/全部 validation symbols 的 CONFIRMED，不得合并候选事件。样本不足使用 `INSUFFICIENT_VALIDATION_EVIDENCE`，其余门槛失败使用 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，均不得根据结果调节。
 
 **Reason:** 这些门槛覆盖 evidence sufficiency、相邻稳定性、时间漂移、市场/标的集中度和 bar-normalized 增长；将缺少样本与结构失败分开，避免把不可判断误报成通过或失败。
 
 ---
 
-**Decision:** 正式参数选择预注册为 lexicographic conservative rule：3% 满足全部门槛则选 3%，否则检查 4%，否则检查 5%；三者均不满足为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，主要因样本不足无法判断为 `INSUFFICIENT_VALIDATION_EVIDENCE`。禁止使用 forward return、MFE、MAE、win rate、P&L 或任何收益指标，也不从 market/regime 结果生成 production 参数。
+**Decision:** 正式参数选择预注册为 lexicographic conservative rule，并固定 candidate qualification semantics：3% 必须满足 3% 自身全部 candidate-level thresholds 及 3%→4% 全部 adjacent-pair thresholds；4% 必须满足 4% 自身全部 candidate-level thresholds 及 3%→4%、4%→5% 两侧全部 adjacent-pair thresholds；5% 必须满足 5% 自身全部 candidate-level thresholds 及 4%→5% 全部 adjacent-pair thresholds。按 3%→4%→5% 顺序选择首个 qualified candidate；三者均不满足为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`，主要因样本不足无法判断为 `INSUFFICIENT_VALIDATION_EVIDENCE`。禁止使用 forward return、MFE、MAE、win rate、P&L 或任何收益指标，也不从 market/regime 结果生成 production 参数。
 
 **Reason:** 先满足约束再取最小可行候选，保持参数选择的保守、可复现和与收益表现解耦；Phase 5J 只注册规则，不执行选择。
+
+---
+
+**Amendment:** 为消除 protocol-governance 歧义，Phase 5J v1 的 canonical protocol hash 由 `sha256:b0fe288b66ff5a86b127d57c1cb2493b583d252dcb169edbc86fab52830948bd` 绑定到 `SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1` 的不可变 version/hash contract。loader 同时验证 stored hash 与当前内容重算值一致，以及 version 对应的 pinned hash 一致；因此只改保护字段并重算 JSON 内 hash、但不升级 version 的内容必须失败。parent identity 还必须与实际 `research/setup03_frozen_spec.json` 的 `freeze_version`、`freeze_decision`、`critical_values_sha256` 三项一致。
+
+**Reason:** integrity envelope 只能发现未同步 hash；显式 version/hash contract 才能阻止同一 protocol version 下的同步重算漂移，并把 Phase 5I parent identity 绑定到实际文件。
 
 ---
 

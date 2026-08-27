@@ -8,6 +8,12 @@ import unittest
 from research.parameter_freeze import load_frozen_spec
 from research.structural_validation_protocol import (
     DIAGNOSTIC_STRESS_BOUNDARIES,
+    EXPECTED_PARENT_PHASE5I_IDENTITY,
+    EXPECTED_PROTOCOL_VERSION,
+    EXPECTED_CANDIDATE_LEVEL_THRESHOLD_IDS,
+    EXPECTED_ADJACENT_PAIR_THRESHOLD_IDS,
+    EXPECTED_CANDIDATE_QUALIFICATION_MATRIX,
+    PINNED_PROTOCOL_SHA256_BY_VERSION,
     PRODUCTION_TOLERANCES,
     PROTOCOL_PATH,
     PROTOCOL_STATUS,
@@ -19,15 +25,14 @@ from research.structural_validation_protocol import (
 )
 
 
-EXPECTED_PROTOCOL_VERSION = (
-    "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v1"
-)
-
-
 class StructuralValidationProtocolTests(unittest.TestCase):
     def test_protocol_is_versioned_complete_and_not_executed(self):
         protocol = load_protocol()
         self.assertEqual(protocol["protocol_version"], EXPECTED_PROTOCOL_VERSION)
+        self.assertEqual(
+            protocol["integrity"]["protocol_sha256"],
+            PINNED_PROTOCOL_SHA256_BY_VERSION[EXPECTED_PROTOCOL_VERSION],
+        )
         self.assertEqual(protocol["phase5j_status"], PROTOCOL_STATUS)
         self.assertEqual(tuple(protocol["production_tolerance_policy"]["allowed_candidate_values_pct"]), PRODUCTION_TOLERANCES)
         self.assertEqual(tuple(protocol["production_tolerance_policy"]["diagnostic_stress_boundaries_pct"]), DIAGNOSTIC_STRESS_BOUNDARIES)
@@ -40,6 +45,18 @@ class StructuralValidationProtocolTests(unittest.TestCase):
         self.assertEqual(
             protocol["parent_phase5i"]["integrity"]["critical_values_sha256"],
             load_frozen_spec()["integrity"]["critical_values_sha256"],
+        )
+        self.assertEqual(
+            protocol["parent_phase5i"]["freeze_decision"],
+            load_frozen_spec()["freeze_decision"],
+        )
+        self.assertEqual(
+            {
+                "freeze_version": load_frozen_spec()["freeze_version"],
+                "freeze_decision": load_frozen_spec()["freeze_decision"],
+                "critical_values_sha256": load_frozen_spec()["integrity"]["critical_values_sha256"],
+            },
+            dict(EXPECTED_PARENT_PHASE5I_IDENTITY),
         )
         self.assertFalse(protocol["scope"]["validation_executed"])
         self.assertFalse(protocol["scope"]["final_oos_accessed"])
@@ -76,6 +93,25 @@ class StructuralValidationProtocolTests(unittest.TestCase):
         self.assertEqual((thresholds["maximum_market_confirmed_concentration"]["operator"], thresholds["maximum_market_confirmed_concentration"]["threshold"]), ("<=", 0.35))
         self.assertEqual((thresholds["maximum_symbol_confirmed_concentration"]["operator"], thresholds["maximum_symbol_confirmed_concentration"]["threshold"]), ("<=", 0.25))
         self.assertEqual((thresholds["adjacent_confirmed_rate_relative_increase"]["operator"], thresholds["adjacent_confirmed_rate_relative_increase"]["threshold"]), ("<=", 0.50))
+        self.assertEqual(
+            thresholds["maximum_market_confirmed_concentration"]["scope"],
+            "each production candidate independently; each market within that candidate across all five validation markets",
+        )
+        self.assertEqual(
+            thresholds["maximum_market_confirmed_concentration"]["denominator"],
+            "For each candidate, all CONFIRMED events in that candidate across all five validation markets; candidate event sets must never be combined.",
+        )
+        self.assertEqual(
+            thresholds["maximum_symbol_confirmed_concentration"]["scope"],
+            "each production candidate independently; each symbol within that candidate across all validation symbols",
+        )
+        self.assertEqual(
+            thresholds["maximum_symbol_confirmed_concentration"]["denominator"],
+            "For each candidate, all CONFIRMED events in that candidate across all validation symbols; candidate event sets must never be combined.",
+        )
+        for threshold_id in ("maximum_market_confirmed_concentration", "maximum_symbol_confirmed_concentration"):
+            self.assertEqual(thresholds[threshold_id]["aggregation"], "PER_CANDIDATE_INDEPENDENT")
+            self.assertTrue(thresholds[threshold_id]["candidate_event_sets_must_not_be_combined"])
 
     def test_selection_rule_is_conservative_and_does_not_use_returns(self):
         protocol = load_protocol()
@@ -87,6 +123,18 @@ class StructuralValidationProtocolTests(unittest.TestCase):
         self.assertTrue(rule["selection_is_not_executed_in_phase5j"])
         self.assertFalse(rule["performance_metrics_used"])
         self.assertFalse(rule["market_specific_or_regime_specific_selection"])
+        self.assertEqual(
+            rule["candidate_qualification_matrix"],
+            [
+                {
+                    "candidate_pct": candidate["candidate_pct"],
+                    "candidate_level_threshold_ids": list(EXPECTED_CANDIDATE_LEVEL_THRESHOLD_IDS),
+                    "adjacent_pair_threshold_ids": list(EXPECTED_ADJACENT_PAIR_THRESHOLD_IDS),
+                    "adjacent_pairs": [list(pair) for pair in candidate["adjacent_pairs"]],
+                }
+                for candidate in EXPECTED_CANDIDATE_QUALIFICATION_MATRIX
+            ],
+        )
         self.assertEqual(protocol["parameter_policy"]["setup_swing_lookback"]["v1_incumbent_design_constant"], 5)
         self.assertEqual(protocol["parameter_policy"]["platform_window"]["v1_incumbent_design_constant"], 40)
         self.assertFalse(protocol["parameter_policy"]["setup_swing_lookback"]["claim_of_optimality"])
@@ -118,6 +166,23 @@ class StructuralValidationProtocolTests(unittest.TestCase):
                 else:
                     mutate(changed)
                 self._assert_integrity_rejects(changed)
+
+    def test_recomputed_hash_without_version_upgrade_is_rejected(self):
+        protocol = load_protocol()
+        changed = copy.deepcopy(protocol)
+        changed["parameter_policy"]["platform_window"]["policy"] = (
+            "Changed protected policy text while retaining the v1 protocol version."
+        )
+        changed["integrity"]["protocol_sha256"] = protocol_integrity_hash(changed)
+        self.assertNotEqual(
+            changed["integrity"]["protocol_sha256"],
+            PINNED_PROTOCOL_SHA256_BY_VERSION[EXPECTED_PROTOCOL_VERSION],
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "recomputed_same_version.json"
+            path.write_text(json.dumps(changed), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "bound to a different canonical hash"):
+                load_protocol(path)
 
     def test_arm_proximity_static_audit_does_not_touch_terminal_semantics(self):
         audit = audit_arm_proximity_dependency()

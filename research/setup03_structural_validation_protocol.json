@@ -207,21 +207,25 @@
     {
       "id": "maximum_market_confirmed_concentration",
       "metric": "market share of all CONFIRMED events",
-      "scope": "each market across the three production candidates",
+      "scope": "each production candidate independently; each market within that candidate across all five validation markets",
       "operator": "<=",
       "threshold": 0.35,
       "unit": "ratio",
-      "denominator": "All CONFIRMED events across all five markets and all three production candidates.",
+      "denominator": "For each candidate, all CONFIRMED events in that candidate across all five validation markets; candidate event sets must never be combined.",
+      "aggregation": "PER_CANDIDATE_INDEPENDENT",
+      "candidate_event_sets_must_not_be_combined": true,
       "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
     },
     {
       "id": "maximum_symbol_confirmed_concentration",
       "metric": "symbol share of all CONFIRMED events",
-      "scope": "each symbol across the three production candidates",
+      "scope": "each production candidate independently; each symbol within that candidate across all validation symbols",
       "operator": "<=",
       "threshold": 0.25,
       "unit": "ratio",
-      "denominator": "All CONFIRMED events across all symbols and all three production candidates.",
+      "denominator": "For each candidate, all CONFIRMED events in that candidate across all validation symbols; candidate event sets must never be combined.",
+      "aggregation": "PER_CANDIDATE_INDEPENDENT",
+      "candidate_event_sets_must_not_be_combined": true,
       "failure_status": "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
     },
     {
@@ -244,17 +248,75 @@
       0.04,
       0.05
     ],
+    "qualification_semantics": "A candidate qualifies only when all of its candidate-level thresholds and all adjacent-pair thresholds assigned by the matrix pass; a pair is attributed to every candidate listed by the matrix.",
+    "candidate_qualification_matrix": [
+      {
+        "candidate_pct": 0.03,
+        "candidate_level_threshold_ids": [
+          "minimum_confirmed_events_per_market_candidate",
+          "maximum_market_confirmed_concentration",
+          "maximum_symbol_confirmed_concentration"
+        ],
+        "adjacent_pair_threshold_ids": [
+          "adjacent_confirmed_jaccard",
+          "adjacent_confirmed_retention",
+          "matched_confirmed_event_date_drift_median",
+          "matched_confirmed_event_date_drift_p90",
+          "adjacent_confirmed_rate_relative_increase"
+        ],
+        "adjacent_pairs": [
+          [0.03, 0.04]
+        ]
+      },
+      {
+        "candidate_pct": 0.04,
+        "candidate_level_threshold_ids": [
+          "minimum_confirmed_events_per_market_candidate",
+          "maximum_market_confirmed_concentration",
+          "maximum_symbol_confirmed_concentration"
+        ],
+        "adjacent_pair_threshold_ids": [
+          "adjacent_confirmed_jaccard",
+          "adjacent_confirmed_retention",
+          "matched_confirmed_event_date_drift_median",
+          "matched_confirmed_event_date_drift_p90",
+          "adjacent_confirmed_rate_relative_increase"
+        ],
+        "adjacent_pairs": [
+          [0.03, 0.04],
+          [0.04, 0.05]
+        ]
+      },
+      {
+        "candidate_pct": 0.05,
+        "candidate_level_threshold_ids": [
+          "minimum_confirmed_events_per_market_candidate",
+          "maximum_market_confirmed_concentration",
+          "maximum_symbol_confirmed_concentration"
+        ],
+        "adjacent_pair_threshold_ids": [
+          "adjacent_confirmed_jaccard",
+          "adjacent_confirmed_retention",
+          "matched_confirmed_event_date_drift_median",
+          "matched_confirmed_event_date_drift_p90",
+          "adjacent_confirmed_rate_relative_increase"
+        ],
+        "adjacent_pairs": [
+          [0.04, 0.05]
+        ]
+      }
+    ],
     "rules": [
       {
-        "condition": "3.0% satisfies every required structural threshold and has sufficient evidence",
+        "condition": "3.0% satisfies its candidate-level thresholds and its 3.0%->4.0% adjacent-pair thresholds under the qualification matrix, with sufficient evidence",
         "selected_tolerance_pct": 0.03
       },
       {
-        "condition": "3.0% does not satisfy every threshold, and 4.0% satisfies every required structural threshold and has sufficient evidence",
+        "condition": "3.0% is not qualified, and 4.0% satisfies its candidate-level thresholds and both adjacent-pair threshold sets (3.0%->4.0% and 4.0%->5.0%) under the qualification matrix, with sufficient evidence",
         "selected_tolerance_pct": 0.04
       },
       {
-        "condition": "3.0% and 4.0% do not satisfy every threshold, and 5.0% satisfies every required structural threshold and has sufficient evidence",
+        "condition": "3.0% and 4.0% are not qualified, and 5.0% satisfies its candidate-level thresholds and its 4.0%->5.0% adjacent-pair thresholds under the qualification matrix, with sufficient evidence",
         "selected_tolerance_pct": 0.05
       }
     ],
@@ -293,6 +355,6 @@
   "integrity": {
     "algorithm": "SHA-256",
     "canonicalization": "JSON with ensure_ascii=false, sort_keys=true, separators=(',', ':'), hashing the complete top-level object after removing only integrity.",
-    "protocol_sha256": "sha256:2109b7aa9f9245e2772131766efc75ee4bb747d46e36573fb609271696d0e7f8"
+    "protocol_sha256": "sha256:b0fe288b66ff5a86b127d57c1cb2493b583d252dcb169edbc86fab52830948bd"
   }
 }
