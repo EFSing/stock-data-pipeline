@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+from concurrent.futures import ProcessPoolExecutor
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -25,7 +27,11 @@ from research.development_dataset import (
 )
 from research.replay_input import ReplayInputManifest, build_input_manifest
 from trading.models import DecisionAction, SetupState
-from trading.replay import SymbolReplayReport, replay_setup03_history
+from trading.replay import (
+    SymbolReplayReport,
+    replay_parity_mismatches,
+    replay_setup03_history,
+)
 from trading.setup import SetupGateReason
 
 
@@ -376,6 +382,99 @@ def _validate_setup_parameters(setup_parameters: Mapping[str, Any]) -> None:
             raise ValueError(f"development evidence requires fixed {key}={value}")
 
 
+def run_precompute_replay_parity(
+    symbol_quotes: Mapping[str, list[Quote]],
+    *,
+    output_dir: Path,
+    setup_parameters: Mapping[str, Any],
+    decision_parameters: Mapping[str, Any],
+    risk_capital: float = RISK_CAPITAL,
+) -> dict[str, Any]:
+    """Run full baseline/precomputed parity across every bar and tolerance."""
+    tasks = [
+        (symbol, quotes, dict(setup_parameters), dict(decision_parameters), risk_capital)
+        for symbol, quotes in sorted(symbol_quotes.items())
+    ]
+    rows: list[dict[str, Any]] = []
+    mismatches: list[dict[str, Any]] = []
+    max_workers = min(8, max(1, os.cpu_count() or 1), len(tasks))
+    if max_workers == 1:
+        results = [_precompute_parity_symbol_task(task) for task in tasks]
+    else:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(_precompute_parity_symbol_task, tasks))
+    for symbol_rows, symbol_mismatches in results:
+        rows.extend(symbol_rows)
+        mismatches.extend(symbol_mismatches)
+    rows.sort(key=lambda row: (row["platform_tolerance_pct"], row["symbol"]))
+    total_mismatches = sum(row["mismatch_count"] for row in rows)
+    result = {
+        "schema_version": "setup03-replay-precompute-parity-v1",
+        "parity_version": "SETUP_03-REPLAY-PRECOMPUTE-PARITY-2026-08-28-v1",
+        "artifact_labels": list(DEVELOPMENT_LABELS),
+        "scope": {
+            "symbol_count": len(symbol_quotes),
+            "tolerance_count": len(TOLERANCE_SEQUENCE),
+            "tolerance_sequence": list(TOLERANCE_SEQUENCE),
+            "bar_comparison": True,
+            "setup_state_and_operands": True,
+            "decision_and_reason": True,
+        },
+        "status": "PASS" if total_mismatches == 0 else "MISMATCH_BASELINE_REQUIRED",
+        "optimization_enabled": total_mismatches == 0,
+        "total_mismatch_count": total_mismatches,
+        "rows": rows,
+        "mismatches": mismatches,
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "precompute_replay_parity.json"
+    json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    csv_path = output_dir / "precompute_replay_parity.csv"
+    _write_csv(csv_path, rows)
+    result["json_path"] = str(json_path.relative_to(output_dir)).replace("\\", "/")
+    result["json_sha256"] = _sha256_file(json_path)
+    result["csv_path"] = str(csv_path.relative_to(output_dir)).replace("\\", "/")
+    result["csv_sha256"] = _sha256_file(csv_path)
+    return result
+
+
+def _precompute_parity_symbol_task(
+    task: tuple[str, list[Quote], dict[str, Any], dict[str, Any], float],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    symbol, quotes, setup_parameters, decision_parameters, risk_capital = task
+    rows: list[dict[str, Any]] = []
+    mismatches: list[dict[str, Any]] = []
+    for tolerance in TOLERANCE_SEQUENCE:
+        parameters = dict(setup_parameters)
+        parameters["platform_tolerance_pct"] = tolerance
+        baseline = replay_setup03_history(
+            quotes, risk_capital, parameters, decision_parameters,
+            precompute_swings=False,
+        )
+        optimized = replay_setup03_history(
+            quotes, risk_capital, parameters, decision_parameters,
+            precompute_swings=True,
+        )
+        differences = replay_parity_mismatches(baseline, optimized)
+        rows.append({
+            "platform_tolerance_pct": tolerance,
+            "market": quotes[0].market,
+            "symbol": symbol,
+            "bar_count": len(quotes),
+            "baseline_event_count": len(baseline.events),
+            "precomputed_event_count": len(optimized.events),
+            "mismatch_count": len(differences),
+            "status": "IDENTICAL" if not differences else "MISMATCH",
+        })
+        for difference in differences[:50]:
+            mismatches.append({
+                "platform_tolerance_pct": tolerance,
+                "symbol": symbol,
+                **difference,
+            })
+    return rows, mismatches
+
+
 def run_development_stability(
     symbol_quotes: dict[str, list[Quote]],
     *,
@@ -384,6 +483,8 @@ def run_development_stability(
     setup_parameters: Mapping[str, Any] | None = None,
     decision_parameters: Mapping[str, Any] | None = None,
     risk_capital: float = RISK_CAPITAL,
+    precompute_swings: bool = True,
+    precompute_parity: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate the complete structural evidence pack without outcome metrics."""
     setup = dict(setup_parameters or {
@@ -418,7 +519,7 @@ def run_development_stability(
                 risk_capital,
                 parameters,
                 decision,
-                precompute_swings=True,
+                precompute_swings=precompute_swings,
             )
             for symbol, quotes in sorted(symbol_quotes.items())
         }
@@ -522,6 +623,7 @@ def run_development_stability(
             "formal_phase5k_validation": False,
             "ibkr_used": False,
         },
+        "precompute_replay_parity": dict(precompute_parity) if precompute_parity else None,
         "files": files,
     }
     evidence_manifest["integrity"] = {

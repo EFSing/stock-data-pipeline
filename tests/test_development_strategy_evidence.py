@@ -1,6 +1,7 @@
 import copy
 from datetime import date, timedelta
 import json
+import math
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -9,10 +10,16 @@ import pandas as pd
 
 from core import Quote
 from research.development_dataset import (
+    CN_DEVELOPMENT_ADJUSTMENT_MODE,
+    CN_DEVELOPMENT_PROVIDER_ID,
     DEVELOPMENT_ADJUSTMENT_MODE,
     DEVELOPMENT_PROVIDER_ID,
+    NUMERICAL_ORDERING_COMPARISON,
+    NUMERICAL_ORDERING_MAX_ULPS,
     _normalize_frame,
     acquire_symbol,
+    baostock_wire_symbol,
+    ieee754_ulp_distance,
 )
 from research.development_universe import (
     A1_MANIFEST_PATH,
@@ -22,6 +29,10 @@ from research.development_universe import (
     manifest_integrity_hash,
 )
 from trading.replay import replay_setup03_history
+from trading.setup import (
+    detect_platform_breakout_history_with_diagnostics,
+    detect_platform_breakout_with_diagnostics,
+)
 
 
 def _quotes(count=100):
@@ -126,8 +137,87 @@ class DevelopmentDatasetTests(unittest.TestCase):
             self.assertIn("DATA_CONFLICT_FAIL_CLOSED", acquired.dataset_row["qc_reason"])
             self.assertEqual(acquired.quotes, ())
 
+    def test_baostock_mapping_and_blank_suspension_volume_are_explicit(self):
+        self.assertEqual(baostock_wire_symbol("601390.SH"), "sh.601390")
+        self.assertEqual(baostock_wire_symbol("000027.SZ"), "sz.000027")
+        frame = pd.DataFrame(
+            {
+                "Date": ["2022-04-06"],
+                "Open": [10.0],
+                "High": [10.0],
+                "Low": [10.0],
+                "Close": [10.0],
+                "Volume": [""],
+                "amount": [""],
+                "turn": [""],
+                "pctChg": [""],
+            }
+        ).set_index("Date")
+        quotes, normalized, metadata = _normalize_frame(
+            {**self._row(), "market": "CN", "canonical_symbol": "000065.SZ"},
+            frame,
+            provider_id=CN_DEVELOPMENT_PROVIDER_ID,
+            adjustment_mode=CN_DEVELOPMENT_ADJUSTMENT_MODE,
+        )
+        self.assertEqual(len(quotes), 1)
+        self.assertEqual(normalized[0]["volume"], 0.0)
+        self.assertEqual(
+            metadata["source_blank_suspension_volume_zero_count"], 1
+        )
+        self.assertEqual(quotes[0].source, CN_DEVELOPMENT_PROVIDER_ID)
+
+    def test_numeric_ordering_rule_accepts_only_the_registered_ulp_boundary(self):
+        high = 100.0
+        within = high
+        for _ in range(NUMERICAL_ORDERING_MAX_ULPS):
+            within = math.nextafter(within, math.inf)
+        frame = pd.DataFrame(
+            {
+                "Date": ["2017-01-03"],
+                "Open": [90.0],
+                "High": [high],
+                "Low": [80.0],
+                "Close": [within],
+                "Volume": [100.0],
+            }
+        ).set_index("Date")
+        _, normalized, metadata = _normalize_frame(
+            self._row(),
+            frame,
+            numeric_ordering_rule={**NUMERICAL_ORDERING_COMPARISON, "enabled": True},
+        )
+        self.assertEqual(ieee754_ulp_distance(within, high), NUMERICAL_ORDERING_MAX_ULPS)
+        self.assertEqual(len(normalized), 1)
+        self.assertEqual(metadata["numeric_ordering_tolerance_hit_count"], 1)
+
+        beyond = math.nextafter(within, math.inf)
+        frame["Close"] = [beyond]
+        with self.assertRaisesRegex(ValueError, "invalid OHLC ordering"):
+            _normalize_frame(
+                self._row(),
+                frame,
+                numeric_ordering_rule={**NUMERICAL_ORDERING_COMPARISON, "enabled": True},
+            )
+
 
 class ReplayOptimizationTests(unittest.TestCase):
+    def test_history_snapshots_match_each_as_of_prefix(self):
+        setup = {
+            "swing_lookback": 5,
+            "platform_window": 40,
+            "platform_tolerance_pct": 0.05,
+            "arm_proximity_pct": 0.0,
+        }
+        quotes = _quotes()
+        history = detect_platform_breakout_history_with_diagnostics(quotes, **setup)
+        for index, expected_quotes in enumerate(
+            (quotes[:index + 1] for index in range(len(quotes)))
+        ):
+            expected = detect_platform_breakout_with_diagnostics(
+                expected_quotes, **setup
+            )
+            self.assertEqual(history[index], expected)
+
     def test_precomputed_swings_preserve_existing_replay_result(self):
         setup = {
             "swing_lookback": 5,

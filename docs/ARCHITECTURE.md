@@ -225,6 +225,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - reserve 只能在 SETUP_03 evaluation 前因机器可读客观 provider/QC/warmup failure 激活，并严格遵循 A1 `manifest_rank`；reserve 也必须通过同一 validation，final roster 只包含 `VALID_ACCEPTED` symbols。`final_roster_count == valid_symbols` 是 fail-closed invariant；CN/US 各自目标为 40 valid accepted symbols，未达到时为 `TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW`
 - Phase 5J-v2 的 8 symbols/market、40 symbols total、6000 bars/market hard minimum 与 40-valid-symbol-per-market dataset-readiness target 分开计算；hard minimum 通过不得覆盖 readiness gate。B1 manifest schema 预注册 per-symbol raw/normalized hash、QC、bar count/date range、replacement audit、market totals 与 aggregate hash，并必须绑定 active B0 v2；B1 成功状态为 `DEVELOPMENT_VALIDATION_DATASET_FROZEN_NOT_EVALUATED`，B0 不生成该状态
 
+### research/development_dataset.py / scripts/run_development_strategy_stability.py
+
+- PR #29 的 development-only dataset v2 使用固定 CN/US development universe；CN 统一走 `BAOSTOCK_DEVELOPMENT_QFQ`（`query_history_k_data_plus`、`frequency=d`、`adjustflag=2`），US 走 `YFINANCE_DEVELOPMENT_HISTORICAL`（`auto_adjust=True`、`repair=False`），两者均固定 local-date window `2017-01-01` 至 `2026-08-26` inclusive；该 provider split 不改变 production provider fallback chain，也不进入 formal Phase 5K-B1
+- immutable v1 OHLC failure audit 只读 v1 adjusted artifact，并以同日 yfinance `auto_adjust=False/actions=True/repair=False` raw bar 做对照；所有 violation 保存 machine-readable JSON/CSV。`OHLC_ORDERING_NUMERICAL_COMPARISON-IEEE754-ULP-2026-08-28-v1` 只作为 QC comparison（最大 8 ULP），不 clip/round/fill/mutate source prices；material violation 仍 fail closed
+- v2 manifest 固定 raw request/provenance、normalized/raw hash、QC、缺失日期不推断、无 provider fallback/history splice/synthetic bar。BaoStock 已存在且 OHLC 有效、四价相等、activity fields 全空的 suspension row 只规范 `volume=0`，不创建 row/date
+- `run_development_strategy_stability.py` 先完成 v1 diagnostic，再生成 v2 dataset、结构 evidence 与 `precompute_swings=False/True` 全量 parity；parity 覆盖 40 symbols × 7 tolerances、每根 bar 的 Setup/diagnostics/event/Decision，任何 mismatch 必须保持 baseline semantics
+
 ### scripts/hithink_cn_capability_smoke_test.py / docs/HITHINK_CN_API_CAPABILITY_SMOKE_TEST.md
 
 - 仅对 HiThink Financial API 做 bounded GET capability/provenance smoke test；API Key 只从 `HITHINK_FINANCE_API_KEY` 环境变量读取，不写日志/代码/报告

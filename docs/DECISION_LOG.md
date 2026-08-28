@@ -429,3 +429,13 @@
 **Decision:** 从上述冻结 valid subset 生成 structure-only evidence pack，固定 lookback `5`、window `40`、arm `0`；tolerances 为 production `3%/4%/5%`，stress-only `2.5%/5.5%/7.5%/10%`。报告只包含 coverage、state/terminal conservation、funnel、sensitivity、concentration、event frequency、adjacent stability、QC exclusions 与 sparse/zero evidence；不计算 forward return、MFE/MAE、P&L、OOS 或 formal validation。由于 development dataset coverage shortfall，最终状态为 `BLOCKER_DEVELOPMENT_YFINANCE_COVERAGE_SHORTFALL`，不把结构统计升级为策略或参数决策。
 
 **Decision:** 修复 HiThink capability smoke test 的环境隔离：测试显式覆盖 key absent/present 两种环境，验证 configured key 仅传入 probe 且不出现在 serialized report；runtime semantics 与实际 API capability 未修改。
+
+---
+
+**Decision:** PR #29 continuation 对 immutable development dataset v1 的 14 个 `invalid OHLC ordering` symbols 做只读逐 bar yfinance raw 对照审计。审计固定读取 v1 adjusted artifact，不改写 v1；同日 raw 请求使用 `auto_adjust=False`、`actions=True`、`repair=False`，并记录 adjusted/raw OHLC、violation type、absolute/relative violation、IEEE-754 binary64 ULP distance、raw validity、raw/adjusted Close、implied adjustment factor、corporate actions 与 adjustment reconstruction ULP。30 个 violating bars 中 4 个为 `NUMERIC_ADJUSTMENT_ROUNDING_ONLY`，26 个为 `MATERIAL_PROVIDER_OR_RAW_OHLC`；仅对前者允许新增版本化 QC comparison rule `OHLC_ORDERING_NUMERICAL_COMPARISON-IEEE754-ULP-2026-08-28-v1`，上限 8 ULP、不得修改价格，material violation 继续 fail closed。
+
+**Decision:** 因 CN yfinance material/raw OHLC ordering 问题仍造成 coverage shortfall，development-only dataset v2 采用统一 CN BaoStock qfq（`query_history_k_data_plus`、`frequency=d`、`adjustflag=2`、canonical `.SH/.SZ` 映射为 `sh./sz.`）与 US yfinance historical 的 provider split。请求窗口和 local-date semantics 固定为 2017-01-01 至 2026-08-26 inclusive；raw request、wire fields、raw/normalized hash、QC 和禁止事项均写入 v2 manifest。BaoStock 已返回的 valid-OHLC、blank activity suspension rows 只规范为 volume=0，不创建日期或 synthetic bar；不使用 Tencent/Sina 历史、不插值、不 forward-fill、不拼接 history、不按 signal 选择或替换 symbol。
+
+**Evidence:** v2 aggregate normalized dataset SHA-256 为 `sha256:c9b3a4db8158da66f0030746498a692920fe95d72bdacc32499d1ab70c150356`，40/40 symbols、84,284 bars 通过 QC（CN 20/40,873；US 20/43,411），状态为 `DEVELOPMENT_DATASET_READY_FOR_STABILITY_DIAGNOSTICS`。结构证据固定 lookback=5、window=40、arm proximity=0，覆盖 production 3%/4%/5% 与 stress-only 2.5%/5.5%/7.5%/10%，不包含 returns、MFE、MAE、P&L、winrate 或 final OOS。`precompute_swings=False` 与 `True` 完成 40 symbols × 7 tolerances、逐 bar Setup/diagnostics/event/Decision parity，280 cells 全部 0 mismatch；最终状态为 `READY_FOR_STRATEGY_RESEARCH_DECISION`。
+
+**Boundary:** 本轮不运行 Phase 5K formal validation、Phase 5K-B1、final OOS 或 strategy auto-selection；A1/B0/Phase 5J formal artifacts 与 v1 dataset artifact 保持不变。PR #29 不创建新 PR、不 merge；PR #28 仍为 deferred/closed 历史治理状态。下一步停止在策略研究决策点，等待研究设计者决定是否修改策略逻辑或另行注册研究设计。
