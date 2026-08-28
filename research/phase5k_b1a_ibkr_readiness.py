@@ -58,6 +58,15 @@ IDENTITY_AMBIGUOUS_STATUS = "CONTRACT_IDENTITY_NOT_UNIQUE"
 HEAD_READY_STATUS = "UNIQUE_RESOLVED_ADJUSTED_LAST_READY"
 HEAD_UNAVAILABLE_STATUS = "ADJUSTED_LAST_UNAVAILABLE"
 PERMISSION_STATUS = "NO_IBKR_PERMISSION"
+FROZEN_CANDIDATE_STATUSES = frozenset(
+    {
+        IDENTITY_NOT_RESOLVABLE_STATUS,
+        IDENTITY_AMBIGUOUS_STATUS,
+        HEAD_READY_STATUS,
+        HEAD_UNAVAILABLE_STATUS,
+        PERMISSION_STATUS,
+    }
+)
 
 REQ_CONTRACT_DETAILS = "reqContractDetails"
 REQ_HEAD_TIMESTAMP = "reqHeadTimeStamp"
@@ -109,6 +118,9 @@ PERMISSION_ERROR_FRAGMENTS = (
     "not authorized",
 )
 REQUEST_TERMINAL_ERROR_CODES = frozenset({162, 200, 321, 354, 420, 10167, 10276})
+# IBKR sends normal farm-status notices through error(reqId=-1).  They must
+# not be mistaken for transport failure before nextValidId or between probes.
+NON_FAILURE_SYSTEM_ERROR_CODES = frozenset({2104, 2106, 2107, 2108, 2158})
 
 
 class ReadinessError(RuntimeError):
@@ -711,12 +723,17 @@ def _readiness_summary(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
     primary = counts("PRIMARY")
     reserve = counts("RESERVE")
+    all_60_terminal = len(records) == 60 and all(
+        row.get("readiness_status") in FROZEN_CANDIDATE_STATUSES for row in records
+    )
     return {
         "primary_40": primary,
         "reserve_20": reserve,
         "total_candidate_pool": sum(row["readiness_status"] == HEAD_READY_STATUS for row in records),
         "all_60_unique_resolved": all(row["identity_status"] == IDENTITY_UNIQUE_STATUS for row in records),
         "all_60_adjusted_last_ready": all(row["readiness_status"] == HEAD_READY_STATUS for row in records),
+        "all_60_terminal": all_60_terminal,
+        "provider_capture_complete": all_60_terminal,
     }
 
 
@@ -730,12 +747,14 @@ def build_readiness_manifest(
 ) -> dict[str, Any]:
     """Build the B1-A snapshot without promoting or replacing any roster row."""
     summary = _readiness_summary(records)
-    all_ready = summary["all_60_unique_resolved"] and summary["all_60_adjusted_last_ready"]
+    capture_complete = summary["provider_capture_complete"]
     manifest: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "version": MANIFEST_VERSION,
         "phase": "Phase 5K-B1-A",
-        "status": FROZEN_STATUS if all_ready else PROVIDER_NOT_READY_STATUS,
+        # This is the provider-level capture result. Formal acceptance still
+        # requires the immutable version pin and validate_manifest().
+        "status": FROZEN_STATUS if capture_complete else PROVIDER_NOT_READY_STATUS,
         "freeze_artifact_status": FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS,
         "parent_b0": {
             "version": b0["contract_version"],
@@ -853,7 +872,7 @@ def validate_manifest(
         IDENTITY_AMBIGUOUS_STATUS,
         PERMISSION_STATUS,
     }
-    allowed_readiness = allowed_identity | {HEAD_READY_STATUS, HEAD_UNAVAILABLE_STATUS}
+    allowed_readiness = FROZEN_CANDIDATE_STATUSES
     for row in candidates:
         if row.get("identity_status") not in allowed_identity:
             raise ValueError("B1-A readiness manifest contains an invalid identity status")
@@ -861,6 +880,20 @@ def validate_manifest(
             raise ValueError("B1-A readiness manifest contains an invalid readiness status")
     if manifest.get("status") not in {FROZEN_STATUS, PROVIDER_NOT_READY_STATUS}:
         raise ValueError("B1-A readiness manifest status is invalid")
+    summary = manifest.get("readiness_summary")
+    expected_capture_complete = all(
+        row.get("readiness_status") in FROZEN_CANDIDATE_STATUSES for row in candidates
+    )
+    if (
+        not isinstance(summary, Mapping)
+        or summary.get("all_60_terminal") is not expected_capture_complete
+        or summary.get("provider_capture_complete") is not expected_capture_complete
+    ):
+        raise ValueError("B1-A provider capture completeness summary is invalid")
+    if manifest["status"] == FROZEN_STATUS and not expected_capture_complete:
+        raise ValueError("B1-A frozen provider status requires terminal status for all 60 candidates")
+    if manifest["status"] == PROVIDER_NOT_READY_STATUS and expected_capture_complete:
+        raise ValueError("B1-A provider-not-ready status contradicts a complete candidate capture")
     if manifest.get("symbol_normalization_rule") != dict(NORMALIZATION_RULE):
         raise ValueError("B1-A symbol normalization rule changed")
     probe_contract = manifest.get("reqHeadTimeStamp_contract", {})
@@ -896,6 +929,35 @@ def write_manifest(path: Path, manifest: Mapping[str, Any]) -> None:
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def accept_frozen_manifest(manifest: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Accept a live capture only after the committed immutable pin validates."""
+    if manifest.get("status") != FROZEN_STATUS:
+        raise ReadinessError(PROVIDER_NOT_READY_STATUS, "provider readiness capture is incomplete")
+    try:
+        # Do not accept a caller-supplied self-hash here. The production gate
+        # must use the immutable version->SHA contract committed in this module.
+        validate_manifest(manifest)
+    except (TypeError, ValueError) as exc:
+        raise ReadinessError(
+            FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS,
+            "provider readiness capture has not passed immutable pin validation",
+        ) from exc
+    return manifest
+
+
+def _transport_blocker(response: Mapping[str, Any], operation: str) -> str | None:
+    """Return a provider-level blocker for a non-terminal API response."""
+    if not isinstance(response, Mapping):
+        return f"{operation} response is not machine-readable"
+    if response.get("transport_error"):
+        return f"{operation} transport failure"
+    if response.get("provider_error"):
+        return f"{operation} provider failure"
+    if response.get("terminal") is not True or response.get("completed") is False:
+        return f"{operation} did not receive a terminal response"
+    return None
+
+
 def run_readiness(session: ReadinessSession) -> dict[str, Any]:
     """Resolve all A1 US candidates and probe ADJUSTED_LAST capability."""
     b0, a1 = validate_parent_pins()
@@ -908,6 +970,9 @@ def run_readiness(session: ReadinessSession) -> dict[str, Any]:
         identity_request_time = datetime.now(timezone.utc).isoformat(timespec="seconds")
         record = _candidate_record(row, normalized_symbol, identity_request_time)
         response = session.resolve_contract(canonical_symbol, normalized_symbol)
+        blocker = _transport_blocker(response, REQ_CONTRACT_DETAILS)
+        if blocker:
+            raise ReadinessError(PROVIDER_NOT_READY_STATUS, blocker)
         resolution = resolve_identity_candidates(
             canonical_symbol,
             response.get("details", []),
@@ -926,7 +991,11 @@ def run_readiness(session: ReadinessSession) -> dict[str, Any]:
             records.append(record)
             continue
         identity = dict(resolution["identity"])
-        probe = dict(session.probe_head_timestamp(identity))
+        probe_response = session.probe_head_timestamp(identity)
+        blocker = _transport_blocker(probe_response, REQ_HEAD_TIMESTAMP)
+        if blocker:
+            raise ReadinessError(PROVIDER_NOT_READY_STATUS, blocker)
+        probe = dict(probe_response)
         probe["whatToShow"] = WHAT_TO_SHOW
         probe["useRTH"] = USE_RTH
         probe["formatDate"] = FORMAT_DATE
@@ -949,6 +1018,8 @@ class _PendingRequest:
         self.details: list[Any] = []
         self.errors: list[dict[str, Any]] = []
         self.head_timestamp: str | None = None
+        self.terminal_response = False
+        self.transport_error: dict[str, Any] | None = None
 
 
 def _load_official_ibapi(config: ConnectionConfig) -> tuple[Any, Any, Any, dict[str, Any]]:
@@ -1008,6 +1079,15 @@ class OfficialIbapiSession:
                 self.pending: dict[int, _PendingRequest] = {}
                 self.pending_lock = threading.Lock()
 
+            def _fail_transport(self, error: Mapping[str, Any]) -> None:
+                failure = dict(error)
+                with self.pending_lock:
+                    session.connection_error = failure
+                    for pending in self.pending.values():
+                        pending.transport_error = dict(failure)
+                        pending.event.set()
+                    self.ready_event.set()
+
             def nextValidId(self, orderId: int) -> None:  # noqa: N802 - official ibapi callback
                 self.ready_event.set()
 
@@ -1021,6 +1101,7 @@ class OfficialIbapiSession:
                 with self.pending_lock:
                     pending = self.pending.get(reqId)
                     if pending is not None:
+                        pending.terminal_response = True
                         pending.event.set()
 
             def headTimestamp(self, reqId: int, headTimestamp: str) -> None:  # noqa: N802, A002
@@ -1028,7 +1109,14 @@ class OfficialIbapiSession:
                     pending = self.pending.get(reqId)
                     if pending is not None:
                         pending.head_timestamp = str(headTimestamp)
+                        pending.terminal_response = True
                         pending.event.set()
+
+            def connectionClosed(self) -> None:  # noqa: N802
+                self._fail_transport({
+                    "status": "CONNECTION_LOST",
+                    "message": "IBKR API connection closed",
+                })
 
             def error(
                 self,
@@ -1038,6 +1126,7 @@ class OfficialIbapiSession:
                 errorString: str,
                 advancedOrderRejectJson: str = "",
             ) -> None:  # noqa: N802, N803
+                error: dict[str, Any] | None = None
                 with self.pending_lock:
                     pending = self.pending.get(reqId)
                     if pending is not None:
@@ -1047,13 +1136,18 @@ class OfficialIbapiSession:
                             "message": _safe_text(errorString),
                         })
                         if reqId >= 0 and errorCode in REQUEST_TERMINAL_ERROR_CODES:
+                            pending.terminal_response = True
                             pending.event.set()
-                    elif reqId < 0:
-                        session.connection_error = {
+                    elif reqId < 0 and errorCode not in NON_FAILURE_SYSTEM_ERROR_CODES:
+                        error = {
                             "error_time": errorTime,
                             "code": errorCode,
                             "message": _safe_text(errorString),
                         }
+                    else:
+                        error = None
+                if error is not None:
+                    self._fail_transport(error)
 
         self._Contract = Contract
         self._app = App()
@@ -1072,7 +1166,7 @@ class OfficialIbapiSession:
             raise ReadinessError(CONNECTION_NOT_READY_STATUS, "IBKR TWS/IB Gateway connection failed") from exc
         self._thread = threading.Thread(target=self._app.run, name="ibkr-readiness-api", daemon=True)
         self._thread.start()
-        if not self._app.ready_event.wait(self._timeout):
+        if not self._app.ready_event.wait(self._timeout) or self._app.connection_error is not None:
             self.close()
             raise ReadinessError(CONNECTION_NOT_READY_STATUS, "IBKR nextValidId was not received before timeout")
         return self
@@ -1125,9 +1219,41 @@ class OfficialIbapiSession:
         wire = build_contract_request(canonical_symbol)["contract"]
         wire["symbol"] = ibkr_symbol
         try:
-            self._app.reqContractDetails(request_id, self._contract_object(wire))
-            pending.event.wait(self._timeout)
-            return {"details": list(pending.details), "errors": list(pending.errors)}
+            try:
+                self._app.reqContractDetails(request_id, self._contract_object(wire))
+            except Exception:
+                return {
+                    "details": [],
+                    "errors": [],
+                    "terminal": False,
+                    "transport_error": {
+                        "status": "REQUEST_SUBMISSION_FAILED",
+                        "message": "IBKR contract-details request could not be submitted",
+                    },
+                }
+            completed = pending.event.wait(self._timeout)
+            if pending.transport_error:
+                return {
+                    "details": [],
+                    "errors": [],
+                    "terminal": False,
+                    "transport_error": dict(pending.transport_error),
+                }
+            if not completed or not pending.terminal_response:
+                return {
+                    "details": [],
+                    "errors": [],
+                    "terminal": False,
+                    "transport_error": {
+                        "status": "REQUEST_TIMEOUT",
+                        "message": "IBKR contract-details request did not reach a terminal response",
+                    },
+                }
+            return {
+                "details": list(pending.details),
+                "errors": list(pending.errors),
+                "terminal": True,
+            }
         finally:
             with self._app.pending_lock:
                 self._app.pending.pop(request_id, None)
@@ -1141,10 +1267,42 @@ class OfficialIbapiSession:
         request_timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
         try:
             contract = self._contract_object(request["contract"])
-            self._app.reqHeadTimestamp(request_id, contract, WHAT_TO_SHOW, USE_RTH, FORMAT_DATE)
+            try:
+                self._app.reqHeadTimestamp(request_id, contract, WHAT_TO_SHOW, USE_RTH, FORMAT_DATE)
+            except Exception:
+                return {
+                    "request_timestamp": request_timestamp,
+                    "success": False,
+                    "head_timestamp": None,
+                    "terminal": False,
+                    "transport_error": {
+                        "status": "REQUEST_SUBMISSION_FAILED",
+                        "message": "IBKR head-timestamp request could not be submitted",
+                    },
+                }
             completed = pending.event.wait(self._timeout)
+            if pending.transport_error:
+                return {
+                    "request_timestamp": request_timestamp,
+                    "success": False,
+                    "head_timestamp": None,
+                    "terminal": False,
+                    "transport_error": dict(pending.transport_error),
+                }
+            if not completed or not pending.terminal_response:
+                return {
+                    "request_timestamp": request_timestamp,
+                    "success": False,
+                    "head_timestamp": None,
+                    "terminal": False,
+                    "transport_error": {
+                        "status": "REQUEST_TIMEOUT",
+                        "message": "IBKR head-timestamp request did not reach a terminal response",
+                    },
+                }
             response: dict[str, Any] = {
                 "request_timestamp": request_timestamp,
+                "terminal": True,
                 "success": bool(completed and pending.head_timestamp and not pending.errors),
                 "head_timestamp": pending.head_timestamp,
             }
@@ -1190,6 +1348,7 @@ __all__ = [
     "build_contract_request",
     "build_head_timestamp_request",
     "build_readiness_manifest",
+    "accept_frozen_manifest",
     "canonical_json",
     "contract_details_snapshot",
     "load_us_candidates",

@@ -13,6 +13,7 @@ from research.phase5k_b1a_ibkr_readiness import (
     DEFAULT_MANIFEST_PATH,
     ConnectionConfig,
     FROZEN_STATUS,
+    accept_frozen_manifest,
     OfficialIbapiSession,
     ReadinessError,
     run_readiness,
@@ -29,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
         with OfficialIbapiSession(config) as session:
             manifest = run_readiness(session)
         write_manifest(args.output, manifest)
+        accept_frozen_manifest(manifest)
     except ReadinessError as exc:
         print(exc.status)
         return 2

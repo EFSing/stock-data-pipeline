@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from research.phase5k_b1a_ibkr_readiness import (
     API_PROVENANCE_FILE_ENV,
     API_PYTHON_PATH_ENV,
+    accept_frozen_manifest,
     B0_SHA256,
     B0_VERSION,
     CURRENCY,
@@ -113,15 +114,34 @@ class _FakeSession:
         return self.metadata
 
     def resolve_contract(self, canonical_symbol, ibkr_symbol):
-        return self.details_by_symbol.get(canonical_symbol, {"details": [], "errors": []})
+        response = self.details_by_symbol.get(canonical_symbol, {"details": [], "errors": []})
+        if "terminal" not in response:
+            response = {**response, "terminal": True}
+        return response
 
     def probe_head_timestamp(self, identity):
         self.probe_requests.append(build_head_timestamp_request(identity))
-        return self.probe_by_symbol.get(identity["ibkr_symbol"], {
+        response = self.probe_by_symbol.get(identity["ibkr_symbol"], {
             "request_timestamp": "2026-08-28T00:00:00+00:00",
             "success": True,
             "head_timestamp": "20170103 09:30:00",
         })
+        if "terminal" not in response:
+            response = {**response, "terminal": True}
+        return response
+
+
+class _ContractTimeoutSession(_FakeSession):
+    def resolve_contract(self, canonical_symbol, ibkr_symbol):
+        return {
+            "details": [_details(symbol=canonical_symbol)],
+            "errors": [],
+            "terminal": False,
+            "transport_error": {
+                "status": "REQUEST_TIMEOUT",
+                "message": "fixture contract-details timeout",
+            },
+        }
 
 
 class Phase5KB1AReadinessTests(unittest.TestCase):
@@ -229,9 +249,14 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
         details_by_symbol[first] = {"details": [_details(symbol=first), _details(symbol=first, con_id=777777)]}
         fake = _FakeSession(details_by_symbol, {})
         manifest = run_readiness(fake)
-        self.assertEqual(manifest["status"], PROVIDER_NOT_READY_STATUS)
+        self.assertEqual(manifest["status"], FROZEN_STATUS)
         self.assertEqual(manifest["readiness_summary"]["total_candidate_pool"], 59)
+        self.assertTrue(manifest["readiness_summary"]["provider_capture_complete"])
         self.assertEqual(manifest["candidates"][0]["readiness_status"], IDENTITY_AMBIGUOUS_STATUS)
+        validate_manifest(
+            manifest,
+            expected_hash_by_version={MANIFEST_VERSION: manifest_integrity_hash(manifest)},
+        )
         serialized = json.dumps(manifest, ensure_ascii=False)
         self.assertNotIn("confirmed_count", serialized.lower())
         self.assertNotIn("forward_return", serialized.lower())
@@ -390,6 +415,10 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
             connection=_metadata(),
             records=records, generated_at="2026-08-28T00:00:00+00:00",
         )
+        self.assertEqual(manifest["integrity"]["manifest_sha256"], manifest_integrity_hash(manifest))
+        with self.assertRaises(ReadinessError) as context:
+            accept_frozen_manifest(manifest)
+        self.assertEqual(context.exception.status, FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS)
         pinned = {MANIFEST_VERSION: manifest_integrity_hash(manifest)}
         validate_manifest(manifest, expected_hash_by_version=pinned)
         changed = copy.deepcopy(manifest)
@@ -397,6 +426,40 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
         changed["integrity"]["manifest_sha256"] = manifest_integrity_hash(changed)
         with self.assertRaisesRegex(ValueError, "different canonical hash"):
             validate_manifest(changed, expected_hash_by_version=pinned)
+
+    def test_contract_details_timeout_is_provider_blocker_not_symbol_failure(self):
+        fake = _ContractTimeoutSession({}, {})
+        with self.assertRaises(ReadinessError) as context:
+            run_readiness(fake)
+        self.assertEqual(context.exception.status, PROVIDER_NOT_READY_STATUS)
+        self.assertIn(REQ_CONTRACT_DETAILS, str(context.exception))
+        self.assertEqual(fake.probe_requests, [])
+
+    def test_head_timestamp_timeout_is_provider_blocker_not_candidate_failure(self):
+        rows = load_us_candidates(load_manifest())
+        details_by_symbol = {
+            row["canonical_symbol"]: {
+                "details": [_details(symbol=row["canonical_symbol"], con_id=500000 + row["manifest_rank"])]
+            }
+            for row in rows
+        }
+        first = rows[0]["canonical_symbol"]
+        fake = _FakeSession(details_by_symbol, {
+            first: {
+                "success": False,
+                "head_timestamp": None,
+                "terminal": False,
+                "transport_error": {
+                    "status": "REQUEST_TIMEOUT",
+                    "message": "fixture head-timestamp timeout",
+                },
+            },
+        })
+        with self.assertRaises(ReadinessError) as context:
+            run_readiness(fake)
+        self.assertEqual(context.exception.status, PROVIDER_NOT_READY_STATUS)
+        self.assertIn(REQ_HEAD_TIMESTAMP, str(context.exception))
+        self.assertEqual(len(fake.probe_requests), 1)
 
     def test_static_source_has_no_historical_request_call_or_forbidden_dependencies(self):
         source = Path("research/phase5k_b1a_ibkr_readiness.py").read_text(encoding="utf-8")
