@@ -1,0 +1,705 @@
+{
+  "schema_version": "setup03-development-universe-manifest-v1",
+  "universe_version": "SETUP_03-DEVELOPMENT-UNIVERSE-CN-US-2026-08-28-v1",
+  "status": "DEVELOPMENT_UNIVERSE_FROZEN_NOT_FORMAL_VALIDATION",
+  "artifact_labels": [
+    "DEVELOPMENT_ONLY",
+    "NOT_FORMAL_VALIDATION",
+    "NOT_FINAL_OOS"
+  ],
+  "frozen_at": "2026-08-28",
+  "parent_a1": {
+    "manifest_path": "research/phase5k_a1_universe_manifest_v2.json",
+    "manifest_version": "SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v2",
+    "manifest_sha256": "sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433",
+    "formal_candidate_count": 120
+  },
+  "source_snapshot_bundle": {
+    "path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2",
+    "source_snapshot_identities": [
+      {
+        "source_id": "HITHINK_CSI300",
+        "source_identity": "HITHINK-FINANCIAL-API-FUYAO",
+        "source_role": "CURRENT_UNIVERSE_SNAPSHOT",
+        "raw_snapshot_path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/01_csi300_constituents.json",
+        "raw_snapshot_sha256": "sha256:58332afe7797da75cc1d1026f3fb27d06e97426529d062ee930085b1bea8648b",
+        "retrieval_timestamp": "2026-08-27T19:27:54+08:00",
+        "constituent_count": 300,
+        "cohort": "CSI300"
+      },
+      {
+        "source_id": "HITHINK_CSI500",
+        "source_identity": "HITHINK-FINANCIAL-API-FUYAO",
+        "source_role": "CURRENT_UNIVERSE_SNAPSHOT",
+        "raw_snapshot_path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/02_csi500_constituents.json",
+        "raw_snapshot_sha256": "sha256:25d939dc58550505a235db954c03b93e1be6ebf683476ee313e37431df2cb20b",
+        "retrieval_timestamp": "2026-08-27T19:27:54+08:00",
+        "constituent_count": 500,
+        "cohort": "CSI500"
+      },
+      {
+        "source_id": "HITHINK_CSI1000",
+        "source_identity": "HITHINK-FINANCIAL-API-FUYAO",
+        "source_role": "CURRENT_UNIVERSE_SNAPSHOT",
+        "raw_snapshot_path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/03_csi1000_constituents.json",
+        "raw_snapshot_sha256": "sha256:6575a038a601fc3ab1333824428c1aed159241f99ce27536fbdb4a9ab5cc4bc0",
+        "retrieval_timestamp": "2026-08-27T19:27:54+08:00",
+        "constituent_count": 1000,
+        "cohort": "CSI1000"
+      },
+      {
+        "source_id": "SP500_PROXY_IVV_ISHARES",
+        "source_identity": "S&P500_UNIVERSE_PROXY_IVV_OFFICIAL_HOLDINGS",
+        "source_role": "CURRENT_UNIVERSE_PROXY",
+        "raw_snapshot_path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/06_sp500_proxy_ivv_holdings.csv",
+        "raw_snapshot_sha256": "sha256:633cc4df8492582d847030b3aaf10134792cbb2de1722088bb6dfb2c967bb7b5",
+        "retrieval_timestamp": "2026-08-27T22:17:46+08:00",
+        "constituent_count": 504,
+        "cohort": "SP500"
+      },
+      {
+        "source_id": "NASDAQ_NASDAQ100",
+        "source_identity": "NASDAQ-GLOBAL-INDEX-WATCH-OFFICIAL",
+        "source_role": "CURRENT_UNIVERSE_SNAPSHOT",
+        "raw_snapshot_path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/4_nasdaq100_components.json",
+        "raw_snapshot_sha256": "sha256:20a20fedff466078ebe43339f29b2d6c70e7af04c5edca2f00cfe998e74656f7",
+        "retrieval_timestamp": "2026-08-27T19:27:54+08:00",
+        "constituent_count": 102,
+        "cohort": "NASDAQ100"
+      },
+      {
+        "source_id": "NASDAQ_SOX",
+        "source_identity": "NASDAQ-GLOBAL-INDEX-WATCH-OFFICIAL",
+        "source_role": "CURRENT_UNIVERSE_SNAPSHOT",
+        "raw_snapshot_path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/5_sox_components.json",
+        "raw_snapshot_sha256": "sha256:2a4f26676a09f336e24da84645fc87a109a5a41cdeb825e3eb8611613302ebff",
+        "retrieval_timestamp": "2026-08-27T19:27:58+08:00",
+        "constituent_count": 30,
+        "cohort": "SOX"
+      },
+      {
+        "source_id": "IGV_ISHARES",
+        "source_identity": "ISHARES-IGV-OFFICIAL-HOLDINGS",
+        "source_role": "CURRENT_UNIVERSE_SNAPSHOT",
+        "raw_snapshot_path": "research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/07_igv_holdings.csv",
+        "raw_snapshot_sha256": "sha256:5a3df9a6b1231d966d25ecbf904b4d708b1d22223e7d4f0ae7a95219bdc0de03",
+        "retrieval_timestamp": "2026-08-27T19:28:05+08:00",
+        "constituent_count": 106,
+        "cohort": "IGV"
+      }
+    ],
+    "identity": "sha256:a6cefea1e21ea483a80b28f01750f39791c8365407336ed10acf3b0ec5ac719e"
+  },
+  "selection_spec": {
+    "selection_spec_version": "SETUP_03-DEVELOPMENT-SELECTION-CN-US-2026-08-28-v1",
+    "fixed_seed": "SETUP_03-DEVELOPMENT-CN-US-FIXED-SHA256-SEED-2026-08-28-v1",
+    "cohort_order": {
+      "CN": [
+        "CSI300",
+        "CSI500",
+        "CSI1000"
+      ],
+      "US": [
+        "SP500",
+        "NASDAQ100",
+        "SOX",
+        "IGV"
+      ]
+    },
+    "quota_by_market_and_cohort": {
+      "CN": {
+        "CSI300": 6,
+        "CSI500": 7,
+        "CSI1000": 7
+      },
+      "US": {
+        "SP500": 5,
+        "NASDAQ100": 5,
+        "SOX": 5,
+        "IGV": 5
+      }
+    },
+    "ranking": {
+      "algorithm": "SHA-256",
+      "input_template": "fixed_seed|market|cohort|canonical_symbol",
+      "sort_order": "digest_ascending_then_canonical_symbol_ascending",
+      "selection_inputs_are_non_signal_only": true
+    },
+    "exclusion": "remove every A1 v2 formal canonical identity before ranking",
+    "duplicate_attribution": "first declared cohort claims canonical identity",
+    "cn_board_scope": [
+      "SSE_MAIN_BOARD_COMMON_A",
+      "SZSE_MAIN_BOARD_COMMON_A"
+    ],
+    "forbidden_inputs": [
+      "SETUP_03 output",
+      "returns",
+      "MFE",
+      "MAE",
+      "win_rate",
+      "P&L",
+      "OOS"
+    ],
+    "selection_spec_sha256": "sha256:7210130815fe52e2416c96a32d9fec7627d7946169d4d601a668218cc74b440e"
+  },
+  "candidate_pool_after_a1_exclusion": {
+    "CN": {
+      "CSI300": 214,
+      "CSI500": 345,
+      "CSI1000": 631
+    },
+    "US": {
+      "SP500": 472,
+      "NASDAQ100": 87,
+      "SOX": 17,
+      "IGV": 95
+    },
+    "total_unique_selected": 40
+  },
+  "a1_exclusion_proof": {
+    "formal_identity_count": 120,
+    "development_identity_count": 40,
+    "intersection": [],
+    "intersection_count": 0,
+    "intersection_is_empty": true,
+    "comparison_key": "(market, canonical_identity)"
+  },
+  "counts": {
+    "CN": 20,
+    "US": 20,
+    "total": 40
+  },
+  "symbols": [
+    {
+      "market": "CN",
+      "canonical_symbol": "000963.SZ",
+      "canonical_identity": "000963.SZ",
+      "source_cohort": "CSI300",
+      "source_name": "华东医药",
+      "ranking_digest": "00696b092868a70a5faed1342cfd6f97b472022ec29e0fe00d43276859c2d851",
+      "cohort_rank": 1,
+      "yfinance_symbol": "000963.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "000963",
+      "universe_rank": 1
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "601390.SH",
+      "canonical_identity": "601390.SH",
+      "source_cohort": "CSI300",
+      "source_name": "中国中铁",
+      "ranking_digest": "0084639056ba1f7395a871b46bb047e4941e0fad7bc83dddd974e070e3d56093",
+      "cohort_rank": 2,
+      "yfinance_symbol": "601390.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "601390",
+      "universe_rank": 2
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "603893.SH",
+      "canonical_identity": "603893.SH",
+      "source_cohort": "CSI300",
+      "source_name": "瑞芯微",
+      "ranking_digest": "010d63454f48de936145280add66aba1ba4afaecf305d26a4c4d98ac6a0d96b8",
+      "cohort_rank": 3,
+      "yfinance_symbol": "603893.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "603893",
+      "universe_rank": 3
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "601117.SH",
+      "canonical_identity": "601117.SH",
+      "source_cohort": "CSI300",
+      "source_name": "中国化学",
+      "ranking_digest": "0192e5f0c05329c533c64f85bf117f0a5ad8c7e7a8ffac625be34086201382e0",
+      "cohort_rank": 4,
+      "yfinance_symbol": "601117.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "601117",
+      "universe_rank": 4
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "601898.SH",
+      "canonical_identity": "601898.SH",
+      "source_cohort": "CSI300",
+      "source_name": "中煤能源",
+      "ranking_digest": "01ffac364e7892bc533454b00a7242145779d230bc655c51b8b051c7bb891833",
+      "cohort_rank": 5,
+      "yfinance_symbol": "601898.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "601898",
+      "universe_rank": 5
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "601658.SH",
+      "canonical_identity": "601658.SH",
+      "source_cohort": "CSI300",
+      "source_name": "邮储银行",
+      "ranking_digest": "025f711b94d49b35773e9450bd6215440bb76507c1a0fac30738e25a8f12ed9c",
+      "cohort_rank": 6,
+      "yfinance_symbol": "601658.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "601658",
+      "universe_rank": 6
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "000027.SZ",
+      "canonical_identity": "000027.SZ",
+      "source_cohort": "CSI500",
+      "source_name": "深圳能源",
+      "ranking_digest": "000cd3977ede1b31a1d717b7a2052841860a666a0f04e18e215b26e48a093699",
+      "cohort_rank": 1,
+      "yfinance_symbol": "000027.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "000027",
+      "universe_rank": 7
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "600038.SH",
+      "canonical_identity": "600038.SH",
+      "source_cohort": "CSI500",
+      "source_name": "中直股份",
+      "ranking_digest": "0034a8e0f42fe0bbe50247f141f8ccb04ed5eacc365a349169889750d81a38e7",
+      "cohort_rank": 2,
+      "yfinance_symbol": "600038.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "600038",
+      "universe_rank": 8
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "000021.SZ",
+      "canonical_identity": "000021.SZ",
+      "source_cohort": "CSI500",
+      "source_name": "深科技",
+      "ranking_digest": "0039e625da5ed27e5118f2a4818704915b08e937c58f8c1e429c442ac5edc94b",
+      "cohort_rank": 3,
+      "yfinance_symbol": "000021.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "000021",
+      "universe_rank": 9
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "603156.SH",
+      "canonical_identity": "603156.SH",
+      "source_cohort": "CSI500",
+      "source_name": "养元饮品",
+      "ranking_digest": "0050ba3a93bfaf374a6e000abbfe40723bbdd84ab0b02dd9a7287bed401f9d9c",
+      "cohort_rank": 4,
+      "yfinance_symbol": "603156.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "603156",
+      "universe_rank": 10
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "002465.SZ",
+      "canonical_identity": "002465.SZ",
+      "source_cohort": "CSI500",
+      "source_name": "海格通信",
+      "ranking_digest": "00d6093110c4009bcbeb1fcc87523b987ae01e58fbe4a61272428a6ecc048881",
+      "cohort_rank": 5,
+      "yfinance_symbol": "002465.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "002465",
+      "universe_rank": 11
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "000415.SZ",
+      "canonical_identity": "000415.SZ",
+      "source_cohort": "CSI500",
+      "source_name": "渤海租赁",
+      "ranking_digest": "01288a55ab7d4cc22d8a2b65ef6540a28304d258d6ec1a2aafd04c1ab3a89976",
+      "cohort_rank": 6,
+      "yfinance_symbol": "000415.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "000415",
+      "universe_rank": 12
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "601233.SH",
+      "canonical_identity": "601233.SH",
+      "source_cohort": "CSI500",
+      "source_name": "桐昆股份",
+      "ranking_digest": "0256e188e57f2d50090734ad0a733fd062a10760fe51a883150c81581c93339f",
+      "cohort_rank": 7,
+      "yfinance_symbol": "601233.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "601233",
+      "universe_rank": 13
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "000065.SZ",
+      "canonical_identity": "000065.SZ",
+      "source_cohort": "CSI1000",
+      "source_name": "北方国际",
+      "ranking_digest": "000630a59ca2f930a0622a1aff936e5efc5ba4c74838cb33ba5eacd50e16cb8a",
+      "cohort_rank": 1,
+      "yfinance_symbol": "000065.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "000065",
+      "universe_rank": 14
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "601083.SH",
+      "canonical_identity": "601083.SH",
+      "source_cohort": "CSI1000",
+      "source_name": "锦江航运",
+      "ranking_digest": "0040402407cb0a8bb3b47bc613aeddd90a20603508a0a28a31aadf0d5bed6a88",
+      "cohort_rank": 2,
+      "yfinance_symbol": "601083.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "601083",
+      "universe_rank": 15
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "603883.SH",
+      "canonical_identity": "603883.SH",
+      "source_cohort": "CSI1000",
+      "source_name": "老百姓",
+      "ranking_digest": "00e66e335452625085695e9b552ac03476cafff2075bcf53889e41d0c86bbece",
+      "cohort_rank": 3,
+      "yfinance_symbol": "603883.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "603883",
+      "universe_rank": 16
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "603267.SH",
+      "canonical_identity": "603267.SH",
+      "source_cohort": "CSI1000",
+      "source_name": "鸿远电子",
+      "ranking_digest": "00f66e0b424dad1a603a78bd2228c2df01f5482f77df4146e8f7556b1ba78f25",
+      "cohort_rank": 4,
+      "yfinance_symbol": "603267.SS",
+      "board_status": "SSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "603267",
+      "universe_rank": 17
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "001382.SZ",
+      "canonical_identity": "001382.SZ",
+      "source_cohort": "CSI1000",
+      "source_name": "新亚电缆",
+      "ranking_digest": "0179f8f92f166716d0ca4a5d0eb3f520a884d639ec06b23904b55ed6da7016ab",
+      "cohort_rank": 5,
+      "yfinance_symbol": "001382.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "001382",
+      "universe_rank": 18
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "002204.SZ",
+      "canonical_identity": "002204.SZ",
+      "source_cohort": "CSI1000",
+      "source_name": "大连重工",
+      "ranking_digest": "017e7ba73d85cc30803261470b924226799f6e8dee4ffbaeef119f5301a4f15a",
+      "cohort_rank": 6,
+      "yfinance_symbol": "002204.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "002204",
+      "universe_rank": 19
+    },
+    {
+      "market": "CN",
+      "canonical_symbol": "000833.SZ",
+      "canonical_identity": "000833.SZ",
+      "source_cohort": "CSI1000",
+      "source_name": "粤桂股份",
+      "ranking_digest": "01ab7115665762b77d4dac179ca9eac0cc06df39cd4a2a513cf24993c314b6a6",
+      "cohort_rank": 7,
+      "yfinance_symbol": "000833.SZ",
+      "board_status": "SZSE_MAIN_BOARD_COMMON_A",
+      "source_ticker": "000833",
+      "universe_rank": 20
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "KMI",
+      "canonical_identity": "US|KMI",
+      "source_cohort": "SP500",
+      "source_name": "KINDER MORGAN",
+      "ranking_digest": "0040035aa0f752f25240848d3e76427a5e193afea6d33477106745b7b4aa7c46",
+      "cohort_rank": 1,
+      "yfinance_symbol": "KMI",
+      "source_sector": "Energy",
+      "source_asset_class": "Equity",
+      "universe_rank": 21
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "BA",
+      "canonical_identity": "US|BA",
+      "source_cohort": "SP500",
+      "source_name": "BOEING",
+      "ranking_digest": "0076a1644bec00b0becda70b130425b2eda6145ccaed7ef63be5eb6bdf6788c2",
+      "cohort_rank": 2,
+      "yfinance_symbol": "BA",
+      "source_sector": "Industrials",
+      "source_asset_class": "Equity",
+      "universe_rank": 22
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "HSY",
+      "canonical_identity": "US|HSY",
+      "source_cohort": "SP500",
+      "source_name": "HERSHEY FOODS",
+      "ranking_digest": "00ab7bead796d35941b7c0b4ff4ab29c76407f5412ee644145b02578b0cbe749",
+      "cohort_rank": 3,
+      "yfinance_symbol": "HSY",
+      "source_sector": "Consumer Staples",
+      "source_asset_class": "Equity",
+      "universe_rank": 23
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "ADP",
+      "canonical_identity": "US|ADP",
+      "source_cohort": "SP500",
+      "source_name": "AUTOMATIC DATA PROCESSING INC",
+      "ranking_digest": "00f0d62c1932fe3e8fcf222f5cf93ef8fbbd65c0fdf16bbd925690cb1fdfd6f4",
+      "cohort_rank": 4,
+      "yfinance_symbol": "ADP",
+      "source_sector": "Industrials",
+      "source_asset_class": "Equity",
+      "universe_rank": 24
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "WTW",
+      "canonical_identity": "US|WTW",
+      "source_cohort": "SP500",
+      "source_name": "WILLIS TOWERS WATSON",
+      "ranking_digest": "0213b4732d50052e6bac287a768dddd26f1549e7c69489324322c5123932115d",
+      "cohort_rank": 5,
+      "yfinance_symbol": "WTW",
+      "source_sector": "Financials",
+      "source_asset_class": "Equity",
+      "universe_rank": 25
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "CPRT",
+      "canonical_identity": "US|CPRT",
+      "source_cohort": "NASDAQ100",
+      "source_name": "COPART, INC.",
+      "ranking_digest": "033acef94a36db80c7cde2579bedb60d2d585749650ac1d207c18c6a1f907be1",
+      "cohort_rank": 1,
+      "yfinance_symbol": "CPRT",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 26
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "TTWO",
+      "canonical_identity": "US|TTWO",
+      "source_cohort": "NASDAQ100",
+      "source_name": "TAKE-TWO INTERACTI",
+      "ranking_digest": "036202de45eba24b9936f8b340d852fccc6e8ea17e73dd4c8ebc018914376f1b",
+      "cohort_rank": 2,
+      "yfinance_symbol": "TTWO",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 27
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "SNDK",
+      "canonical_identity": "US|SNDK",
+      "source_cohort": "NASDAQ100",
+      "source_name": "SANDISK CP CMN",
+      "ranking_digest": "04c375fc4e4ca0a77a5a4fc3522064bd79e239bc7fb11944e03c2dddcc0787aa",
+      "cohort_rank": 3,
+      "yfinance_symbol": "SNDK",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 28
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "NVDA",
+      "canonical_identity": "US|NVDA",
+      "source_cohort": "NASDAQ100",
+      "source_name": "NVIDIA CORPORATION",
+      "ranking_digest": "0aa6270874334b6af4efa6c42536b059160e1da686cd54403f9e7d0937ac302f",
+      "cohort_rank": 4,
+      "yfinance_symbol": "NVDA",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 29
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "RKLB",
+      "canonical_identity": "US|RKLB",
+      "source_cohort": "NASDAQ100",
+      "source_name": "ROCKET LAB CORP CMN",
+      "ranking_digest": "0c15e14d96cbf050ff85147f76dca8ef86b132270e0b6b40e381f434dbd4d65c",
+      "cohort_rank": 5,
+      "yfinance_symbol": "RKLB",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 30
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "AMD",
+      "canonical_identity": "US|AMD",
+      "source_cohort": "SOX",
+      "source_name": "ADV MICRO DEVICES",
+      "ranking_digest": "05cd195bfbeee48a2a612cbc7bf34f6519d42de7fafa011752ee5a8c7a5defd7",
+      "cohort_rank": 1,
+      "yfinance_symbol": "AMD",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 31
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "MU",
+      "canonical_identity": "US|MU",
+      "source_cohort": "SOX",
+      "source_name": "MICRON TECHNOLOGY",
+      "ranking_digest": "0d3fda57852a7a802918b8e125d19d6827d8a5bdabdd0d9bd97623e682b4b9ba",
+      "cohort_rank": 2,
+      "yfinance_symbol": "MU",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 32
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "INTC",
+      "canonical_identity": "US|INTC",
+      "source_cohort": "SOX",
+      "source_name": "INTEL CORP",
+      "ranking_digest": "2ab9f46800725cbcc78490be4cf2ae1ec5104a594511975473292fc83fe74ec4",
+      "cohort_rank": 3,
+      "yfinance_symbol": "INTC",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 33
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "COHR",
+      "canonical_identity": "US|COHR",
+      "source_cohort": "SOX",
+      "source_name": "COHERENT CORP. CM",
+      "ranking_digest": "3ab8b184b38593944ae2e608e21d0b99598a1df6aef7851ba9a47ceb4a51ba66",
+      "cohort_rank": 4,
+      "yfinance_symbol": "COHR",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 34
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "AMAT",
+      "canonical_identity": "US|AMAT",
+      "source_cohort": "SOX",
+      "source_name": "APPLIED MATERIALS",
+      "ranking_digest": "41c6d4043bb3e98303502eb6d9d706a7b05c5313183865069bcd136cac69a949",
+      "cohort_rank": 5,
+      "yfinance_symbol": "AMAT",
+      "source_sector": "",
+      "source_asset_class": "Equity",
+      "universe_rank": 35
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "SPSC",
+      "canonical_identity": "US|SPSC",
+      "source_cohort": "IGV",
+      "source_name": "SPS COMMERCE",
+      "ranking_digest": "079e5a66d759696c283c2e0065c7c801a6c646113bb6dc887e4d6e4ecc37801c",
+      "cohort_rank": 1,
+      "yfinance_symbol": "SPSC",
+      "source_sector": "Information Technology",
+      "source_asset_class": "Equity",
+      "universe_rank": 36
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "INTU",
+      "canonical_identity": "US|INTU",
+      "source_cohort": "IGV",
+      "source_name": "INTUIT",
+      "ranking_digest": "0862c23ba338fe2fb09283102745107542c82c20d8cf8dbfdda5ed5fda834ffd",
+      "cohort_rank": 2,
+      "yfinance_symbol": "INTU",
+      "source_sector": "Information Technology",
+      "source_asset_class": "Equity",
+      "universe_rank": 37
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "AI",
+      "canonical_identity": "US|AI",
+      "source_cohort": "IGV",
+      "source_name": "C3 AI INC CLASS A",
+      "ranking_digest": "08bb1b4ec8b69b4241db87816ecc469575a25b3f027bf651a38ae01fa2f3f7fd",
+      "cohort_rank": 3,
+      "yfinance_symbol": "AI",
+      "source_sector": "Information Technology",
+      "source_asset_class": "Equity",
+      "universe_rank": 38
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "APP",
+      "canonical_identity": "US|APP",
+      "source_cohort": "IGV",
+      "source_name": "APPLOVIN CLASS A",
+      "ranking_digest": "0d403063bfdf8d2d827d1696836e3bd80a45e20d13d20747b1abe3f283e54591",
+      "cohort_rank": 4,
+      "yfinance_symbol": "APP",
+      "source_sector": "Communication",
+      "source_asset_class": "Equity",
+      "universe_rank": 39
+    },
+    {
+      "market": "US",
+      "canonical_symbol": "ROP",
+      "canonical_identity": "US|ROP",
+      "source_cohort": "IGV",
+      "source_name": "ROPER TECHNOLOGIES",
+      "ranking_digest": "125e745d1de8bd1b68037cd6b7372db9115934c4d0cfb94fa55346e5ed9b2b78",
+      "cohort_rank": 5,
+      "yfinance_symbol": "ROP",
+      "source_sector": "Information Technology",
+      "source_asset_class": "Equity",
+      "universe_rank": 40
+    }
+  ],
+  "symbol_list_sha256": "sha256:03f9d0973340d27c04e9d53c86722100c0b0e6c42d7249147409781a73e904d5",
+  "controls": {
+    "historical_ohlcv_accessed": false,
+    "setup03_output_accessed": false,
+    "final_oos_accessed": false,
+    "selection_precedes_ohlcv": true,
+    "result_driven_replacement_allowed": false
+  },
+  "integrity": {
+    "manifest_sha256": "sha256:0dde6a822ae57a7f048aa7b5097a69624138e3b8566602ad1fba25ee3b473046"
+  }
+}

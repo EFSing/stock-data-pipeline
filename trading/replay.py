@@ -15,6 +15,8 @@ from trading.decision import DecisionDiagnostics
 from trading.events import evaluate_setup03_event
 from trading.models import Decision, DecisionAction, Setup, SetupState, validate_quote_series
 from trading.setup import SetupDiagnostics
+from trading.setup import detect_platform_breakout_history_with_diagnostics
+from trading.swing import find_swings
 
 
 REPLAY_SETUP_STATES = (
@@ -105,6 +107,8 @@ def replay_setup03_history(
     risk_capital: float,
     setup_parameters: dict | None = None,
     decision_parameters: dict | None = None,
+    *,
+    precompute_swings: bool = False,
 ) -> SymbolReplayReport:
     """Replay SETUP_03 state and confirmed-day decisions for one symbol.
 
@@ -114,6 +118,18 @@ def replay_setup03_history(
     validate_quote_series(quotes)
     setup_parameters = dict(setup_parameters or {})
     decision_parameters = dict(decision_parameters or {})
+    precomputed_swings = None
+    setup_history = None
+    if precompute_swings:
+        precomputed_swings = find_swings(
+            quotes,
+            lookback=int(setup_parameters.get("swing_lookback", 5)),
+        )
+        setup_history = detect_platform_breakout_history_with_diagnostics(
+            quotes,
+            **setup_parameters,
+            swings=precomputed_swings,
+        )
     state_dates: dict[SetupState, list[date]] = {
         state: [] for state in REPLAY_SETUP_STATES
     }
@@ -125,11 +141,16 @@ def replay_setup03_history(
 
     for index, quote in enumerate(quotes):
         as_of_quotes = quotes[: index + 1]
+        evaluation_kwargs = {
+            "setup_parameters": setup_parameters,
+            "decision_parameters": decision_parameters,
+        }
+        if precompute_swings:
+            evaluation_kwargs["setup_calculation"] = setup_history[index]
         evaluation = evaluate_setup03_event(
             as_of_quotes,
             risk_capital,
-            setup_parameters,
-            decision_parameters,
+            **evaluation_kwargs,
         )
         setup = evaluation.setup
         state_dates[setup.state].append(quote.trade_date)

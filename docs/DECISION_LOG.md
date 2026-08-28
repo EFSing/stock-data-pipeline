@@ -417,3 +417,15 @@
 **Decision:** Phase 5J-v2 hard evidence minimum（每市场至少 8 valid symbols、总计至少 40、每市场至少 6000 bars）与 Phase 5K-B dataset readiness target（CN/US 各 40 valid accepted symbols）独立保留。hard minimum 通过不再自动覆盖 40-valid-symbol readiness gate；只有两市场 final roster 与 valid accepted symbols 均为 40、且各自满足 6000 bars，才具备 dataset readiness。整个 hardening 仍不获取正式 OHLCV、不运行 SETUP_03、不开始 B1、不访问 CONFIRMED/收益指标/OOS、不修改 production/Sheets。
 
 **Reason:** 这些变更只冻结 acquisition wire semantics、local-date filtering、accepted-roster identity 与 fail-closed readiness governance，避免 B1 依赖抽象日期、动态 IBKR duration、未验证 reserve 或仅满足 development minimum 的伪 40-roster；不把任何数据结果或信号结果引入 acquisition contract。
+
+---
+
+**Decision:** 2026-08-28 调整当前开发路线：IBKR/Phase 5K-B1-A provider readiness 暂缓至策略正式冻结后的 formal validation；本轮只做 development-only strategy stability research，不部署 TWS/IB Gateway、不读取 formal validation dataset、不启动 final OOS。PR #28 保留其分支与 commits，标记 `DEFERRED_PENDING_STRATEGY_FREEZE` 后关闭且不合并；A1、B0、Phase 5J formal contracts 与 readiness pin 不修改。
+
+**Decision:** 基于 `main@40a3e5f980bf82a85717748ae106847793d1469f` 冻结独立 development universe `SETUP_03-DEVELOPMENT-UNIVERSE-CN-US-2026-08-28-v1`，唯一候选来源为 A1 v2 saved snapshots；先排除全部 120 个 A1 formal identities，再按新的固定 SHA-256 非信号 selection spec 选取 CN/US 各 20 个 symbols。universe manifest SHA-256 为 `sha256:0dde6a822ae57a7f048aa7b5097a69624138e3b8566602ad1fba25ee3b473046`，symbol-list SHA-256 为 `sha256:03f9d0973340d27c04e9d53c86722100c0b0e6c42d7249147409781a73e904d5`，机器校验的 A1 intersection 为空；不按任何 setup、signal、return、MFE/MAE、P&L 或参数结果替换样本。
+
+**Decision:** development historical data 只使用 `YFINANCE_DEVELOPMENT_HISTORICAL` / `YFINANCE_AUTO_ADJUST_TRUE`，local-date window 为 2017-01-01 至 2026-08-26 inclusive；Tencent/Sina 仅保留为当前快照能力，不与历史 bars 拼接。40 个 selected symbols 中，CN 7/20 通过 strict QC（12,140 bars），US 19/20 通过 strict QC（40,986 bars）；CN 13、US 1 因 `invalid OHLC ordering` 排除，不补 bar、不合成 suspension bar、不启用新 provider、不自动换股。dataset manifest SHA-256 为 `sha256:253c02fba6eb7273588af571f367c19695056261b9985a181f46a42072f2cf67`，aggregate normalized dataset SHA-256 为 `sha256:a3bbac39d46120b9cac46e72d43209600a004e6a28df31b53a711b692279b695`，状态为 `DEVELOPMENT_DATASET_COVERAGE_SHORTFALL_REQUIRES_REVIEW`。
+
+**Decision:** 从上述冻结 valid subset 生成 structure-only evidence pack，固定 lookback `5`、window `40`、arm `0`；tolerances 为 production `3%/4%/5%`，stress-only `2.5%/5.5%/7.5%/10%`。报告只包含 coverage、state/terminal conservation、funnel、sensitivity、concentration、event frequency、adjacent stability、QC exclusions 与 sparse/zero evidence；不计算 forward return、MFE/MAE、P&L、OOS 或 formal validation。由于 development dataset coverage shortfall，最终状态为 `BLOCKER_DEVELOPMENT_YFINANCE_COVERAGE_SHORTFALL`，不把结构统计升级为策略或参数决策。
+
+**Decision:** 修复 HiThink capability smoke test 的环境隔离：测试显式覆盖 key absent/present 两种环境，验证 configured key 仅传入 probe 且不出现在 serialized report；runtime semantics 与实际 API capability 未修改。

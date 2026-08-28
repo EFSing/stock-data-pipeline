@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.task_deps/
 .env
 service-account*.json
 .workbuddy/
