@@ -469,3 +469,11 @@
 **Governance:** PR #29 的 nearest-date v3 qualification 仅保留为历史 evidence；当前状态恢复为 `NOT_READY_FOR_FORMAL_FREEZE_DUE_TO_EVENT_MATCHING_PROTOCOL_UNDERSPECIFICATION`，不得解释为 `SETUP_03_STRUCTURALLY_REJECTED`。既有 3%/4%/5% candidates、stress-only 边界、lookback/window/proximity、drift/Jaccard/retention/concentration/rate thresholds、qualification matrix 与 `LEXICOGRAPHIC_CONSERVATIVE` 全部按 parent v2 绑定；不得修改 SETUP_03、引入新 tolerance、访问 Final OOS、启动 formal Phase 5K-B1、使用 IBKR 或读取收益指标。
 
 **Boundary:** 本 commit 只冻结 protocol、matcher 与 regression tests；未读取第二套 holdout 的 OHLCV、SETUP_03 output、event、signal 或 outcome，未生成第二套 universe/dataset，未修改 production/Sheets。后续 holdout 只能在本 protocol freeze commit 之后创建。
+
+---
+
+**Decision:** protocol freeze commit `46169d7` 之后，冻结第二套 independent development holdout universe。机器可读 manifest 为 `research/development_holdout/universe_manifest.json`，版本 `SETUP_03-DEVELOPMENT-HOLDOUT-CN-US-2026-08-29-v2`，manifest SHA-256 为 `sha256:aca071eea6e93b8beecf7c2925a86f006e242a031fe32b5f2e33423037d00a65`，symbol-list SHA-256 为 `sha256:dc81b5b8c96408b0d18a161f946aeaf5ad616060d82cd6b6f8497a5b26bef036`。selection 使用新的固定 seed `SETUP_03-DEVELOPMENT-HOLDOUT-CN-US-FIXED-SHA256-SEED-2026-08-29-v1` 和 digest-ascending ranking；候选只来自 A1 v2 保存的七份 official/proxy source snapshots，选择发生在任何 OHLCV、SETUP_03、event 或 outcome 读取之前。
+
+**Evidence:** 冻结 40 个 equity symbols（CN 20 / US 20），A1 formal 120 intersection 为 `[]`，development universe v1 40 intersection 为 `[]`；两套排除证明和 source snapshot identities 均写入 manifest。A1 v2、development v1、source snapshots、CN Main Board scope、cohort quotas 与 symbol metadata 保持原样，未使用 signal/result-driven selection 或 replacement。
+
+**Boundary:** 当前 universe 仍为 development-only、not formal validation、not final OOS；此阶段未获取 historical OHLCV、未运行 SETUP_03、未读取 event/signal/returns/MFE/MAE/P&L、未启动 formal Phase 5K-B1、未使用 IBKR、未修改 production/Sheets。下一步才允许按冻结 provider/QC contract 获取 dataset。
