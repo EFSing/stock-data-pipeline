@@ -747,11 +747,12 @@ def _render_summary(
     lines.extend(["", "## Concentration / sparse-event risk", ""])
     for row in concentration_rows:
         if row["market"] in ("CN", "US") and row["dimension"] == "symbol":
+            max_share = "不可评估" if row["max_share"] is None else f"{row['max_share']:.2%}"
+            hhi = "不可评估" if row["HHI"] is None else f"{row['HHI']:.4f}"
             lines.append(
                 f"- `{row['platform_tolerance_pct']:.1%}` {row['market']} symbol concentration: "
                 f"{row['max_group'] or 'N/A'} max share="
-                f"{'不可评估' if row['max_share'] is None else f'{row['max_share']:.2%}'}; HHI="
-                f"{'不可评估' if row['HHI'] is None else f'{row['HHI']:.4f}'}。"
+                f"{max_share}; HHI={hhi}。"
             )
     lines.extend(["", "## Data-quality exclusions", ""])
     if exclusions:

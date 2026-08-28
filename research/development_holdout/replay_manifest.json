@@ -1,0 +1,305 @@
+{
+  "schema_version": "setup03-phase5j-v3-development-holdout-replay-manifest-v1",
+  "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+  "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+  "replay_manifest": {
+    "schema_version": "setup03-replay-input-v1",
+    "aggregate_hash": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+    "total_symbol_count": 40,
+    "total_bar_count": 86305,
+    "symbols": [
+      {
+        "symbol": "000681.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:198644198ed8209b13a73a2c49fcd7f9f3a009c4ba6806854e2a2f6452d82914"
+      },
+      {
+        "symbol": "000923.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:a7c3035ec4c022cb8f5fb2b0696925a7a83539eb13ac2dee0e8bbd66711c9852"
+      },
+      {
+        "symbol": "001203.SZ",
+        "bar_count": 1288,
+        "start_date": "2021-05-10",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:823101e2111e1949171f1c45fbd4f07e59818a9d93d483e6c6e092d8940f12aa"
+      },
+      {
+        "symbol": "001696.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:a1124e0984c42da9fd0487fda653da0692d72c199dadac939a6cad915a030667"
+      },
+      {
+        "symbol": "002120.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:5a87ba5a44ed366f642130d75af6fae564dba1bcc28775c504d8845708822717"
+      },
+      {
+        "symbol": "002215.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:54883fe35e0a0e7e67ac0b65c7c4253c47b1861afb99c44684d72628e29ab05c"
+      },
+      {
+        "symbol": "002352.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:f4e8ed48299fc6512328644bd317473b2ebd0bc248cebf5056fce9fd75d62924"
+      },
+      {
+        "symbol": "002407.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:525e9b821a04f2f5f50752da7af65fb7956556c88af965fb58684dd81b44926d"
+      },
+      {
+        "symbol": "002756.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:1971980c20e62557e6c09ce656c13c9b8b8a1394519a8842d2ccd64e30212e44"
+      },
+      {
+        "symbol": "002768.SZ",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:42c5cba45deb964c94ad3c1dfa64011d35adeae4a4d4866c8f4cde657e315495"
+      },
+      {
+        "symbol": "002913.SZ",
+        "bar_count": 2120,
+        "start_date": "2017-12-01",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:d289cfb3b44b06302be55015bed70d1024c6fc4acff3c6b37ae91ab7de49d3ac"
+      },
+      {
+        "symbol": "600009.SH",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:8f7645ce382443e3e1327422903938eea196d2b233cebfb7f974137ba0859391"
+      },
+      {
+        "symbol": "600018.SH",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:aa1995819f2be459340ca932bfa00dd19c207d5d15933f32d997bab2cd6780a4"
+      },
+      {
+        "symbol": "600657.SH",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:74db2236674f67df7fbd69f0a719529d86399115c92d5e571700e99f87c26513"
+      },
+      {
+        "symbol": "600930.SH",
+        "bar_count": 272,
+        "start_date": "2025-07-16",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:3f06387511baa08baf955b53ddf9082d5a2bd179a27d53a7cf291f57264d99ce"
+      },
+      {
+        "symbol": "601360.SH",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:a5722a9399c790f6119b5447bcfcf950c87b1dba53a7d63f056fdce9d9ce9736"
+      },
+      {
+        "symbol": "601598.SH",
+        "bar_count": 1844,
+        "start_date": "2019-01-18",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:208b6385059e24afcdf820d7753edc5cdede571eb7767bd3f6ed12eb8bb825dc"
+      },
+      {
+        "symbol": "601888.SH",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:bb5b394b6892b77da3f3177c5183d4a4e1a3ebe27e9435a54e0d1569a92c3a23"
+      },
+      {
+        "symbol": "603341.SH",
+        "bar_count": 605,
+        "start_date": "2024-03-01",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:a179029007b9f129e5de0cd554bc5669b0a3b392024d516fb9adccb654ced0a8"
+      },
+      {
+        "symbol": "603919.SH",
+        "bar_count": 2343,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:561d1c9d0947a17f02e84db81576dc5f764774f33b17cfef472b890396eab616"
+      },
+      {
+        "symbol": "ADI",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:4715245f4147d165e2631e1cbb74fdf899d0fc56582ad2323b07b351c83af9a9"
+      },
+      {
+        "symbol": "BAX",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:b2a8f9fc7474c9e34f35fd444e79beef20f5f41dd0c73172d5eada6ece74fcac"
+      },
+      {
+        "symbol": "BKNG",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:ebf58a592c66178077f9aa14a35daaf7d2f434ed97db748f6ea359ad994ac6aa"
+      },
+      {
+        "symbol": "BLDR",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:0b646f324a7f5e70630f72dcbb349d4e644121310ad55b88d1a77b62f6b23b86"
+      },
+      {
+        "symbol": "CIFR",
+        "bar_count": 1469,
+        "start_date": "2020-10-20",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:e6cba06f25d6d3c104900d9656612300cdf406f2e25a2b224f92e1d2a2418dcb"
+      },
+      {
+        "symbol": "COIN",
+        "bar_count": 1349,
+        "start_date": "2021-04-14",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:7f70784374d154ef28adf630994bcc41f857a174a2887526abcef479de073d7f"
+      },
+      {
+        "symbol": "DBX",
+        "bar_count": 2118,
+        "start_date": "2018-03-23",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:39396c8a4e43d0b12cd2dc9859a014d6c313e5008cde2aaf9c715643434d8245"
+      },
+      {
+        "symbol": "LIN",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:699137a19b22ced9682507c8fbd10b1736cafec6306d02391e7fac23218ea4f6"
+      },
+      {
+        "symbol": "LRCX",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:125a01b6e51f3120450ff90c7d94c299667e3d40dac2b3b54493463259a4e3b2"
+      },
+      {
+        "symbol": "META",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:9157adf5d1c359250b486c4f5428e23880b3fedb69bdd107af1bc122d9d99201"
+      },
+      {
+        "symbol": "MPWR",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:41d37a89bd397c7a2797ab1c9024f56a07777a000511fc983e24a10c4c8c11fb"
+      },
+      {
+        "symbol": "MRVL",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:734017fd09e9b977d9d5feaae9d54588865a59330fe9c1747fea86aaa6dc1729"
+      },
+      {
+        "symbol": "NUE",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:17b7586b716250542a455d9c11db2f628113e4a605ed624a1844ef4bc91a29e0"
+      },
+      {
+        "symbol": "QCOM",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:cd480034635d976ec562e6c82b09025373604dd22e29680d467debb861277eb1"
+      },
+      {
+        "symbol": "QLYS",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:19c0a1025dfe259dafb7b288fcde51bcfd55a0707248152ccfcdc21c39af56eb"
+      },
+      {
+        "symbol": "QTWO",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:5ac828b0848b88f54766f7f4b8177ab0aeecdd574dbc5d460577c2de2d22beae"
+      },
+      {
+        "symbol": "ROST",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:b0b3823d640a9e086cec4e3688e5826e63a04714106ac237612e97f9d09d7017"
+      },
+      {
+        "symbol": "STX",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:8f7e97d64192a3136e732cbb10fb8cbadf8ac181bc18b19bea03724b48c8ba3c"
+      },
+      {
+        "symbol": "TSLA",
+        "bar_count": 2425,
+        "start_date": "2017-01-03",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:a800e1635a87e0db91517f6d2acc7e6d4be8ca15f4bcfd6e9810611deb5f676b"
+      },
+      {
+        "symbol": "YOU",
+        "bar_count": 1295,
+        "start_date": "2021-06-30",
+        "end_date": "2026-08-26",
+        "input_hash": "sha256:5bd59b680c1c6b518c394515f8e4647aa2bbd1eaa6040b83293c577a6cad36cd"
+      }
+    ]
+  },
+  "controls": {
+    "development_only": true,
+    "formal_validation": false,
+    "final_oos_accessed": false,
+    "provider_split": {
+      "CN": "BAOSTOCK_DEVELOPMENT_QFQ",
+      "US": "YFINANCE_DEVELOPMENT_HISTORICAL"
+    }
+  },
+  "integrity": {
+    "manifest_sha256": "sha256:6746fa0914ef20916ec9006492f2043ed9d35fc65b74995e1cab903837890148"
+  }
+}
