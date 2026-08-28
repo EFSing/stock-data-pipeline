@@ -426,4 +426,12 @@
 
 **Reason:** conId、primaryExchange、currency 与 corporate-action capability 必须在正式 B1 acquisition 之前形成可复核的 provider identity；任何依赖收益、SETUP_03、CONFIRMED 或临时人工选择的替换都会把 provider readiness 与研究结果混合。B1-A 不做 PRIMARY/RESERVE replacement，不生成 validation dataset，不接触 HiThink formal OHLCV、SETUP_03、Google Sheets、交易或 OOS。
 
-**Decision:** TWS/IB Gateway、官方 `ibapi` client version、server version 与可靠的 TWS/IBG version 都是 readiness 的硬前置；缺失时状态为 `IBKR_CONNECTION_NOT_READY` 或 `IBKR_VERSION_NOT_PROVEN` 并停止。readiness manifest 的 version→SHA-256 contract 只有在真实 TWS/IBG capture 完成、人工审阅且未获取正式 OHLCV 后才能 pin；未准备好本机环境不伪造 conId、权限、head timestamp 或最终 `IBKR_US_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED`。
+**Decision:** TWS/IB Gateway、官方 `ibapi` client version、server version 与可靠的 TWS/IBG version 都是 readiness 的硬前置；缺失时状态为 `IBKR_CONNECTION_NOT_READY` 或 `IBKR_VERSION_NOT_PROVEN` 并停止。readiness manifest 的 version→SHA-256 contract 只有在真实 TWS/IBG capture 完成、人工审阅且未获取正式 OHLCV 后才能 pin；未准备好本机环境不伪造 conId、权限、head timestamp 或最终 `IBKR_US_PROVIDER_READINESS_FROZEN`。freeze artifact 仍为 `IBKR_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED`，直到后续允许的正式阶段。
+
+### 2026-08-28 B1-A audit remediation
+
+**Decision:** 不再把 PyPI `ibapi` 当作官方 IBKR API 依赖。`requirements.txt` 不安装 `ibapi`；live adapter 只接受 `IBKR_TWS_API_PYTHON_PATH` 指向的 IBKR 官方 TWS API distribution Python client，并要求 `IBKR_API_PROVENANCE_FILE` 记录 `Interactive Brokers` provider、官方 distribution source class、实际 package/version、client source-tree SHA-256、官方 source reference 和记录时间。加载后的 module path 与 source-tree hash 必须再次匹配 evidence；路径外的 `ibapi`、PyPI provenance 或第三方 wrapper 一律 fail closed。
+
+**Decision:** live callback 按当前 API 使用 `EWrapper.error(reqId, errorTime, errorCode, errorString, advancedOrderRejectJson)`，保留 `errorTime`，不通过固定旧 9.81 API 规避兼容问题。server version 只来自官方 client `serverVersion()`；TWS/IB Gateway application/build version 不读取 undocumented `tws_version`/`twsVersion`/`twsVersionString` 属性，只接受 `IBKR_HOST_VERSION_EVIDENCE_FILE` 的非敏感、可记录 provenance evidence。
+
+**Reason:** API source、client version、callback ABI 与 host application build 是不同 provenance 层，不能用 PyPI metadata 或 client-side undocumented attributes 替代。缺少任一层时保持 `US_PROVIDER_NOT_READY` / `IBKR_CONNECTION_NOT_READY` / `IBKR_VERSION_NOT_PROVEN`，不生成假的 readiness capture；provider readiness 和 freeze artifact 的状态分别固定为 `IBKR_US_PROVIDER_READINESS_FROZEN` 与 `IBKR_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED`。

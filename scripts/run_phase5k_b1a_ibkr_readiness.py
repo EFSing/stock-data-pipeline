@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from research.phase5k_b1a_ibkr_readiness import (
     DEFAULT_MANIFEST_PATH,
     ConnectionConfig,
+    FROZEN_STATUS,
     OfficialIbapiSession,
     ReadinessError,
     run_readiness,
@@ -38,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         print("US_PROVIDER_NOT_READY")
         return 2
     print(manifest["status"])
-    return 0 if manifest["status"] == "IBKR_US_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED" else 2
+    return 0 if manifest["status"] == FROZEN_STATUS else 2
 
 
 if __name__ == "__main__":

@@ -5,25 +5,29 @@ identity resolution, and ``reqHeadTimeStamp`` capability probes.  It never
 requests historical bars and it has no dependency on the production quote,
 HiThink, replay, SETUP_03, Decision, Sheets, or execution paths.
 
-The live adapter imports the official ``ibapi`` package lazily.  The rest of
-the module is pure and testable without TWS/IB Gateway or the package being
-installed.  A readiness manifest is only considered frozen when its version
-is bound to an externally pinned canonical SHA-256; rebuilding a hash inside
-the same version is intentionally insufficient.
+The live adapter imports ``ibapi`` lazily only from an operator-declared
+official IBKR TWS API distribution path.  It never installs or falls back to
+a PyPI package or a third-party wrapper.  The rest of the module is pure and
+testable without TWS/IB Gateway or the client being installed.  A readiness
+manifest is only considered frozen when its version is bound to an externally
+pinned canonical SHA-256; rebuilding a hash inside the same version is
+intentionally insufficient.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 import hashlib
-import importlib.metadata
+import importlib
 import json
 import os
 from pathlib import Path
 import re
+import sys
 import threading
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Protocol, Sequence
+from urllib.parse import urlparse
 
 from research.phase5k_a1_universe import load_manifest
 from research.phase5k_b0_dataset_contract import (
@@ -42,7 +46,8 @@ DEFAULT_MANIFEST_PATH = PROJECT_ROOT / "artifacts" / "phase5k_b1a_ibkr_provider_
 
 SCHEMA_VERSION = "setup03-phase5k-b1a-ibkr-provider-readiness-manifest-v1"
 MANIFEST_VERSION = "SETUP_03-PHASE5K-B1-A-IBKR-PROVIDER-READINESS-2026-08-28-v1"
-FROZEN_STATUS = "IBKR_US_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED"
+FROZEN_STATUS = "IBKR_US_PROVIDER_READINESS_FROZEN"
+FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS = "IBKR_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED"
 PROVIDER_NOT_READY_STATUS = "US_PROVIDER_NOT_READY"
 CONNECTION_NOT_READY_STATUS = "IBKR_CONNECTION_NOT_READY"
 VERSION_NOT_PROVEN_STATUS = "IBKR_VERSION_NOT_PROVEN"
@@ -76,6 +81,19 @@ NORMALIZATION_RULE = MappingProxyType(
     }
 )
 
+OFFICIAL_API_PROVIDER = "Interactive Brokers"
+OFFICIAL_API_SOURCE_CLASS = "IBKR_OFFICIAL_TWS_API_DISTRIBUTION"
+API_PYTHON_PATH_ENV = "IBKR_TWS_API_PYTHON_PATH"
+API_PROVENANCE_FILE_ENV = "IBKR_API_PROVENANCE_FILE"
+HOST_VERSION_EVIDENCE_FILE_ENV = "IBKR_HOST_VERSION_EVIDENCE_FILE"
+HOST_VERSION_SOURCE_CLASSES = frozenset(
+    {
+        "IBKR_TWS_ABOUT_DIALOG",
+        "IBKR_IB_GATEWAY_ABOUT_DIALOG",
+        "IBKR_OFFICIAL_INSTALLER_METADATA",
+    }
+)
+
 # This is intentionally empty until a real, reviewed B1-A capture is
 # committed.  A generated manifest must be added here in the same change as
 # its frozen artifact; callers may pass an immutable expected mapping in tests
@@ -101,14 +119,158 @@ class ReadinessError(RuntimeError):
         self.status = status
 
 
+def _sha256_bytes(value: bytes) -> str:
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def _sha256_file(path: Path) -> str:
+    try:
+        return _sha256_bytes(path.read_bytes())
+    except OSError as exc:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR provenance evidence file is not readable") from exc
+
+
+def _official_package_source_sha256(package_root: Path) -> str:
+    """Hash Python source files in an official client package deterministically."""
+    try:
+        source_files = sorted(
+            path for path in package_root.rglob("*")
+            if path.is_file() and path.suffix.lower() in {".py", ".pyi"}
+        )
+        entries = {
+            path.relative_to(package_root).as_posix(): _sha256_file(path)
+            for path in source_files
+        }
+    except OSError as exc:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "official IBKR Python client source is not readable") from exc
+    return sha256_json(entries)
+
+
+def _read_json_object(path: Path, label: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, f"{label} is not readable machine-readable JSON") from exc
+    if not isinstance(value, dict):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, f"{label} must contain a JSON object")
+    return value
+
+
+def _absolute_path(
+    value: Any,
+    env_name: str,
+    *,
+    missing_status: str = VERSION_NOT_PROVEN_STATUS,
+) -> Path:
+    raw = str(value or "").strip()
+    if not raw:
+        raise ReadinessError(missing_status, f"{env_name} is required")
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise ReadinessError(missing_status, f"{env_name} must be an absolute path")
+    return path.resolve()
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _is_official_ibkr_reference(value: str) -> bool:
+    parsed = urlparse(value)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    return parsed.scheme in {"http", "https"} and (
+        host in {"interactivebrokers.com", "interactivebrokers.github.io"}
+        or host.endswith(".interactivebrokers.com")
+    )
+
+
+def _validate_api_provenance(
+    provenance: Mapping[str, Any],
+    *,
+    python_root: Path,
+    package_root: Path,
+) -> dict[str, Any]:
+    required = (
+        "provider",
+        "source_class",
+        "package_name",
+        "package_version",
+        "package_source_sha256",
+        "source_reference",
+        "recorded_at",
+    )
+    if any(not provenance.get(field) for field in required):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR official API provenance is incomplete")
+    if provenance["provider"] != OFFICIAL_API_PROVIDER or provenance["source_class"] != OFFICIAL_API_SOURCE_CLASS:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API provenance is not an official TWS API distribution")
+    if provenance["package_name"] != "ibapi":
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API provenance package is not ibapi")
+    package_version = str(provenance["package_version"]).strip()
+    if not package_version or any(char.isspace() for char in package_version):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR official API package version is invalid")
+    source_hash = str(provenance["package_source_sha256"])
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", source_hash):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR official API source hash is invalid")
+    source_reference = str(provenance["source_reference"]).strip()
+    if not _is_official_ibkr_reference(source_reference):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API provenance source is not an IBKR reference")
+    if not _path_is_within(package_root, python_root):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR Python client package is outside the declared source root")
+    actual_source_hash = _official_package_source_sha256(package_root)
+    if actual_source_hash != source_hash:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR official API source hash does not match the declared provenance")
+    return {
+        "provider": OFFICIAL_API_PROVIDER,
+        "source_class": OFFICIAL_API_SOURCE_CLASS,
+        "package_name": "ibapi",
+        "package_version": package_version,
+        "package_source_sha256": actual_source_hash,
+        "source_reference": source_reference,
+        "recorded_at": str(provenance["recorded_at"]),
+    }
+
+
+def _validate_host_version_evidence(
+    evidence: Mapping[str, Any],
+    *,
+    expected_application: str,
+) -> dict[str, Any]:
+    required = ("application", "version", "source_class", "source_reference", "recorded_at")
+    if any(not evidence.get(field) for field in required):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway version evidence is incomplete")
+    application = str(evidence["application"]).strip().upper()
+    if application != expected_application:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway version evidence does not match IBKR_APPLICATION")
+    version = str(evidence["version"]).strip()
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}(?:[-+._A-Za-z0-9]+)?", version):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway application version is invalid")
+    source_class = str(evidence["source_class"]).strip()
+    if source_class not in HOST_VERSION_SOURCE_CLASSES:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway version source is not an approved evidence class")
+    return {
+        "application": application,
+        "version": version,
+        "source_class": source_class,
+        "source_reference": str(evidence["source_reference"]).strip(),
+        "recorded_at": str(evidence["recorded_at"]),
+    }
+
+
 @dataclass(frozen=True)
 class ConnectionConfig:
-    """Non-secret connection configuration read from the required env vars."""
+    """Non-secret connection and provenance configuration read from env vars."""
 
     host: str
     port: int
     client_id: int
     application: str
+    api_python_path: Path
+    api_provenance_file: Path
+    host_version_evidence_file: Path
 
     @property
     def host_role(self) -> str:
@@ -136,7 +298,22 @@ class ConnectionConfig:
                 VERSION_NOT_PROVEN_STATUS,
                 "IBKR_APPLICATION must identify TWS or IB_GATEWAY; the API does not reliably expose this identity",
             )
-        return cls(host=str(env["IBKR_HOST"]).strip(), port=port, client_id=client_id, application=application)
+        api_python_path = _absolute_path(
+            env.get(API_PYTHON_PATH_ENV), API_PYTHON_PATH_ENV, missing_status=PROVIDER_NOT_READY_STATUS,
+        )
+        api_provenance_file = _absolute_path(env.get(API_PROVENANCE_FILE_ENV), API_PROVENANCE_FILE_ENV)
+        host_version_evidence_file = _absolute_path(
+            env.get(HOST_VERSION_EVIDENCE_FILE_ENV), HOST_VERSION_EVIDENCE_FILE_ENV,
+        )
+        return cls(
+            host=str(env["IBKR_HOST"]).strip(),
+            port=port,
+            client_id=client_id,
+            application=application,
+            api_python_path=api_python_path,
+            api_provenance_file=api_provenance_file,
+            host_version_evidence_file=host_version_evidence_file,
+        )
 
 
 def canonical_json(value: Mapping[str, Any]) -> str:
@@ -354,12 +531,17 @@ def _classify_error(code: Any, message: Any) -> str:
 
 def _safe_error(error: Mapping[str, Any] | Sequence[Any]) -> dict[str, Any]:
     if isinstance(error, Mapping):
+        error_time = error.get("error_time")
         code = error.get("code", error.get("error_code", ""))
         message = error.get("message", error.get("error_message", ""))
     else:
+        error_time = None
         code = error[0] if len(error) > 0 else ""
         message = error[1] if len(error) > 1 else ""
-    return {"code": code, "message": _safe_text(message)}
+    result = {"code": code, "message": _safe_text(message)}
+    if error_time is not None:
+        result["error_time"] = error_time
+    return result
 
 
 def resolve_identity_candidates(
@@ -408,11 +590,60 @@ class ReadinessSession(Protocol):
 
 
 def _validate_connection_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
-    required = ("application", "api_version", "server_version", "tws_version", "host_role", "connection_timestamp")
+    required = (
+        "application",
+        "api_client_version",
+        "api_version",
+        "api_provenance",
+        "server_version",
+        "tws_version",
+        "tws_version_provenance",
+        "tws_version_source",
+        "tws_version_evidence_sha256",
+        "host_role",
+        "connection_timestamp",
+    )
     if any(not metadata.get(field) for field in required):
         raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API/server/TWS version metadata is not reliably proven")
     if str(metadata["application"]).upper() not in {"TWS", "IB_GATEWAY"}:
         raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "connected application is not proven to be TWS or IB Gateway")
+    api_provenance = metadata["api_provenance"]
+    if not isinstance(api_provenance, Mapping):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API provenance metadata is invalid")
+    if (
+        api_provenance.get("provider") != OFFICIAL_API_PROVIDER
+        or api_provenance.get("source_class") != OFFICIAL_API_SOURCE_CLASS
+        or api_provenance.get("package_name") != "ibapi"
+        or not api_provenance.get("package_version")
+        or not api_provenance.get("package_source_sha256")
+        or not _is_official_ibkr_reference(str(api_provenance.get("source_reference", "")))
+    ):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API provenance metadata is not official and complete")
+    if (
+        str(api_provenance["package_version"]) != str(metadata["api_client_version"])
+        or str(api_provenance["package_version"]) != str(metadata["api_version"])
+    ):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API version metadata does not match its provenance")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(api_provenance["package_source_sha256"])):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR API provenance source hash is invalid")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(metadata["tws_version_evidence_sha256"])):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway version evidence hash is invalid")
+    host_provenance = metadata["tws_version_provenance"]
+    if not isinstance(host_provenance, Mapping):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway version provenance metadata is invalid")
+    if (
+        str(host_provenance.get("application", "")).upper() != str(metadata["application"]).upper()
+        or host_provenance.get("version") != metadata["tws_version"]
+        or host_provenance.get("source_class") != metadata["tws_version_source"]
+        or host_provenance.get("evidence_file_sha256") != metadata["tws_version_evidence_sha256"]
+        or not host_provenance.get("source_reference")
+        or not host_provenance.get("recorded_at")
+    ):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway version provenance metadata is incomplete")
+    if host_provenance["source_class"] not in HOST_VERSION_SOURCE_CLASSES:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway version source class is invalid")
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}(?:[-+._A-Za-z0-9]+)?", str(metadata["tws_version"])):
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "TWS/IB Gateway application version is invalid")
     try:
         if int(metadata["server_version"]) <= 0:
             raise ValueError
@@ -420,11 +651,29 @@ def _validate_connection_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]
         raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR server version is invalid") from exc
     return {
         "application": str(metadata["application"]).upper(),
-        "api_client_version": str(metadata.get("api_client_version", metadata["api_version"])),
+        "api_client_version": str(metadata["api_client_version"]),
         "api_version": str(metadata["api_version"]),
+        "api_provenance": {
+            "provider": OFFICIAL_API_PROVIDER,
+            "source_class": OFFICIAL_API_SOURCE_CLASS,
+            "package_name": "ibapi",
+            "package_version": str(api_provenance["package_version"]),
+            "package_source_sha256": str(api_provenance["package_source_sha256"]),
+            "source_reference": str(api_provenance["source_reference"]),
+            "recorded_at": str(api_provenance.get("recorded_at", "")),
+        },
         "server_version": int(metadata["server_version"]),
         "tws_version": str(metadata["tws_version"]),
-        "tws_version_source": str(metadata.get("tws_version_source", "ibapi")),
+        "tws_version_provenance": {
+            "application": str(host_provenance["application"]).upper(),
+            "version": str(host_provenance["version"]),
+            "source_class": str(host_provenance["source_class"]),
+            "source_reference": str(host_provenance["source_reference"]),
+            "recorded_at": str(host_provenance["recorded_at"]),
+            "evidence_file_sha256": str(host_provenance["evidence_file_sha256"]),
+        },
+        "tws_version_source": str(metadata["tws_version_source"]),
+        "tws_version_evidence_sha256": str(metadata["tws_version_evidence_sha256"]),
         "host_role": str(metadata["host_role"]),
         "connection_timestamp": str(metadata["connection_timestamp"]),
     }
@@ -487,6 +736,7 @@ def build_readiness_manifest(
         "version": MANIFEST_VERSION,
         "phase": "Phase 5K-B1-A",
         "status": FROZEN_STATUS if all_ready else PROVIDER_NOT_READY_STATUS,
+        "freeze_artifact_status": FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS,
         "parent_b0": {
             "version": b0["contract_version"],
             "sha256": b0["integrity"]["contract_sha256"],
@@ -584,6 +834,8 @@ def validate_manifest(
         raise ValueError("B1-A readiness manifest A1 parent pin changed")
     if manifest.get("parent_a1", {}).get("status") != EXPECTED_MANIFEST_STATUS:
         raise ValueError("B1-A readiness manifest A1 parent status changed")
+    if manifest.get("freeze_artifact_status") != FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS:
+        raise ValueError("B1-A freeze artifact status changed")
     candidates = manifest.get("candidates")
     if not isinstance(candidates, list) or len(candidates) != 60:
         raise ValueError("B1-A readiness manifest must contain exactly 60 candidates")
@@ -699,20 +951,52 @@ class _PendingRequest:
         self.head_timestamp: str | None = None
 
 
+def _load_official_ibapi(config: ConnectionConfig) -> tuple[Any, Any, Any, dict[str, Any]]:
+    """Load only the ibapi package under the declared official distribution root."""
+    python_root = config.api_python_path
+    package_root = python_root / "ibapi"
+    if not python_root.is_dir() or not package_root.is_dir():
+        raise ReadinessError(PROVIDER_NOT_READY_STATUS, "official IBKR TWS API Python client path is unavailable")
+    provenance = _validate_api_provenance(
+        _read_json_object(config.api_provenance_file, "IBKR API provenance file"),
+        python_root=python_root,
+        package_root=package_root,
+    )
+    existing = sys.modules.get("ibapi")
+    existing_file = getattr(existing, "__file__", None) if existing is not None else None
+    if existing_file and not _path_is_within(Path(existing_file), python_root):
+        raise ReadinessError(PROVIDER_NOT_READY_STATUS, "an ibapi module outside the declared official distribution is already loaded")
+    if existing is None:
+        sys.path.insert(0, str(python_root))
+    try:
+        importlib.invalidate_caches()
+        ibapi = importlib.import_module("ibapi")
+        client = importlib.import_module("ibapi.client")
+        contract = importlib.import_module("ibapi.contract")
+        wrapper = importlib.import_module("ibapi.wrapper")
+    except (ImportError, OSError) as exc:
+        raise ReadinessError(PROVIDER_NOT_READY_STATUS, "official IBKR TWS API Python client cannot be imported") from exc
+    for module in (ibapi, client, contract, wrapper):
+        module_file = getattr(module, "__file__", None)
+        if not module_file or not _path_is_within(Path(module_file), python_root):
+            raise ReadinessError(PROVIDER_NOT_READY_STATUS, "loaded IBKR Python client is outside the declared official distribution")
+    declared_module_version = getattr(ibapi, "__version__", None)
+    if declared_module_version and str(declared_module_version) != provenance["package_version"]:
+        raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "loaded IBKR Python client version disagrees with its provenance")
+    return client.EClient, contract.Contract, wrapper.EWrapper, provenance
+
+
 class OfficialIbapiSession:
-    """Small official ibapi adapter used only by the B1-A readiness runner."""
+    """Small official-distribution ibapi adapter used only by B1-A."""
 
     def __init__(self, config: ConnectionConfig, timeout_seconds: float = 15.0) -> None:
-        try:
-            from ibapi.client import EClient
-            from ibapi.contract import Contract
-            from ibapi.wrapper import EWrapper
-        except ImportError as exc:
-            raise ReadinessError(CONNECTION_NOT_READY_STATUS, "official ibapi package is not installed") from exc
-        try:
-            api_version = importlib.metadata.version("ibapi")
-        except importlib.metadata.PackageNotFoundError as exc:
-            raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "ibapi package version is not available") from exc
+        EClient, Contract, EWrapper, api_provenance = _load_official_ibapi(config)
+        host_evidence_raw = _read_json_object(config.host_version_evidence_file, "TWS/IB Gateway version evidence file")
+        host_evidence = _validate_host_version_evidence(
+            host_evidence_raw,
+            expected_application=config.application,
+        )
+        host_evidence["evidence_file_sha256"] = _sha256_file(config.host_version_evidence_file)
 
         session = self
 
@@ -746,21 +1030,37 @@ class OfficialIbapiSession:
                         pending.head_timestamp = str(headTimestamp)
                         pending.event.set()
 
-            def error(self, reqId: int, errorCode: int, errorString: str, advancedOrderRejectJson: str = "") -> None:  # noqa: N802
+            def error(
+                self,
+                reqId: int,
+                errorTime: int,
+                errorCode: int,
+                errorString: str,
+                advancedOrderRejectJson: str = "",
+            ) -> None:  # noqa: N802, N803
                 with self.pending_lock:
                     pending = self.pending.get(reqId)
                     if pending is not None:
-                        pending.errors.append({"code": errorCode, "message": _safe_text(errorString)})
+                        pending.errors.append({
+                            "error_time": errorTime,
+                            "code": errorCode,
+                            "message": _safe_text(errorString),
+                        })
                         if reqId >= 0 and errorCode in REQUEST_TERMINAL_ERROR_CODES:
                             pending.event.set()
                     elif reqId < 0:
-                        session.connection_error = {"code": errorCode, "message": _safe_text(errorString)}
+                        session.connection_error = {
+                            "error_time": errorTime,
+                            "code": errorCode,
+                            "message": _safe_text(errorString),
+                        }
 
         self._Contract = Contract
         self._app = App()
         self._config = config
         self._timeout = timeout_seconds
-        self._api_version = api_version
+        self._api_provenance = api_provenance
+        self._host_evidence = host_evidence
         self._thread: threading.Thread | None = None
         self._next_request_id = 1
         self._request_lock = threading.Lock()
@@ -797,26 +1097,16 @@ class OfficialIbapiSession:
             server_version = int(self._app.serverVersion())
         except (AttributeError, TypeError, ValueError) as exc:
             raise ReadinessError(VERSION_NOT_PROVEN_STATUS, "IBKR server version is not reliably available") from exc
-        tws_version = None
-        tws_source = None
-        for name in ("tws_version", "twsVersion", "twsVersionString"):
-            value = getattr(self._app, name, None)
-            if value and not callable(value):
-                tws_version = str(value)
-                tws_source = f"ibapi.{name}"
-                break
-        if not tws_version:
-            raise ReadinessError(
-                VERSION_NOT_PROVEN_STATUS,
-                "official ibapi transport did not expose a reliable TWS/IB Gateway version",
-            )
         return {
-            "application": self._config.application,
-            "api_client_version": self._api_version,
-            "api_version": self._api_version,
+            "application": self._host_evidence["application"],
+            "api_client_version": self._api_provenance["package_version"],
+            "api_version": self._api_provenance["package_version"],
+            "api_provenance": dict(self._api_provenance),
             "server_version": server_version,
-            "tws_version": tws_version,
-            "tws_version_source": tws_source,
+            "tws_version": self._host_evidence["version"],
+            "tws_version_provenance": dict(self._host_evidence),
+            "tws_version_source": self._host_evidence["source_class"],
+            "tws_version_evidence_sha256": self._host_evidence["evidence_file_sha256"],
             "host_role": self._config.host_role,
             "connection_timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
@@ -871,14 +1161,18 @@ __all__ = [
     "B0_SHA256",
     "B0_STATUS",
     "B0_VERSION",
+    "API_PROVENANCE_FILE_ENV",
+    "API_PYTHON_PATH_ENV",
     "ConnectionConfig",
     "CONNECTION_NOT_READY_STATUS",
     "CURRENCY",
     "EXCHANGE",
     "FROZEN_STATUS",
+    "FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS",
     "FORMAT_DATE",
     "HEAD_READY_STATUS",
     "HEAD_UNAVAILABLE_STATUS",
+    "HOST_VERSION_EVIDENCE_FILE_ENV",
     "IDENTITY_AMBIGUOUS_STATUS",
     "IDENTITY_NOT_RESOLVABLE_STATUS",
     "IDENTITY_UNIQUE_STATUS",

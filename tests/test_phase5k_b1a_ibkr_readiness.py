@@ -2,21 +2,27 @@ import ast
 import copy
 import json
 from pathlib import Path
+import sys
+import tempfile
 import unittest
 from types import SimpleNamespace
 
 from research.phase5k_b1a_ibkr_readiness import (
+    API_PROVENANCE_FILE_ENV,
+    API_PYTHON_PATH_ENV,
     B0_SHA256,
     B0_VERSION,
     CURRENCY,
     EXCHANGE,
     FROZEN_STATUS,
+    FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS,
     FORMAT_DATE,
     HEAD_READY_STATUS,
     HEAD_UNAVAILABLE_STATUS,
     IDENTITY_AMBIGUOUS_STATUS,
     IDENTITY_NOT_RESOLVABLE_STATUS,
     IDENTITY_UNIQUE_STATUS,
+    HOST_VERSION_EVIDENCE_FILE_ENV,
     MANIFEST_VERSION,
     PROVIDER_NOT_READY_STATUS,
     REQ_CONTRACT_DETAILS,
@@ -36,6 +42,10 @@ from research.phase5k_b1a_ibkr_readiness import (
     run_readiness,
     sha256_json,
     validate_manifest,
+    _official_package_source_sha256,
+    _load_official_ibapi,
+    _validate_api_provenance,
+    _validate_host_version_evidence,
 )
 from research.phase5k_a1_universe import load_manifest
 from research.phase5k_b0_dataset_contract import load_contract
@@ -59,20 +69,44 @@ def _details(symbol="AAPL", con_id=265598, primary="NASDAQ", currency="USD"):
     )
 
 
+def _metadata(**extra):
+    metadata = {
+        "application": "TWS",
+        "api_client_version": "test-fixture",
+        "api_version": "test-fixture",
+        "api_provenance": {
+            "provider": "Interactive Brokers",
+            "source_class": "IBKR_OFFICIAL_TWS_API_DISTRIBUTION",
+            "package_name": "ibapi",
+            "package_version": "test-fixture",
+            "package_source_sha256": "sha256:" + "a" * 64,
+            "source_reference": "https://www.interactivebrokers.com/",
+            "recorded_at": "2026-08-28T00:00:00+00:00",
+        },
+        "server_version": 178,
+        "tws_version": "10.49",
+        "tws_version_source": "IBKR_TWS_ABOUT_DIALOG",
+        "tws_version_evidence_sha256": "sha256:" + "b" * 64,
+        "tws_version_provenance": {
+            "application": "TWS",
+            "version": "10.49",
+            "source_class": "IBKR_TWS_ABOUT_DIALOG",
+            "source_reference": "local non-sensitive TWS About evidence",
+            "recorded_at": "2026-08-28T00:00:00+00:00",
+            "evidence_file_sha256": "sha256:" + "b" * 64,
+        },
+        "host_role": "localhost",
+        "connection_timestamp": "2026-08-28T00:00:00+00:00",
+    }
+    metadata.update(extra)
+    return metadata
+
+
 class _FakeSession:
     def __init__(self, details_by_symbol, probe_by_symbol, metadata=None):
         self.details_by_symbol = details_by_symbol
         self.probe_by_symbol = probe_by_symbol
-        self.metadata = metadata or {
-            "application": "TWS",
-            "api_client_version": "9.81.1",
-            "api_version": "9.81.1",
-            "server_version": 178,
-            "tws_version": "10.37",
-            "tws_version_source": "test-fixture",
-            "host_role": "localhost",
-            "connection_timestamp": "2026-08-28T00:00:00+00:00",
-        }
+        self.metadata = metadata or _metadata()
         self.probe_requests = []
 
     def preflight_metadata(self):
@@ -109,11 +143,23 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
             "IBKR_PORT": "7497",
             "IBKR_CLIENT_ID": "41",
             "IBKR_APPLICATION": "TWS",
+            API_PYTHON_PATH_ENV: "C:\\TWS API\\source\\pythonclient",
+            API_PROVENANCE_FILE_ENV: "C:\\evidence\\ibkr-api-provenance.json",
+            HOST_VERSION_EVIDENCE_FILE_ENV: "C:\\evidence\\tws-version.json",
             "IBKR_USERNAME": "must-not-be-read-by-config",
         })
         self.assertEqual(config.host_role, "localhost")
         self.assertEqual(config.port, 7497)
         self.assertEqual(config.client_id, 41)
+        self.assertEqual(config.api_python_path.name, "pythonclient")
+        with self.assertRaisesRegex(ReadinessError, "IBKR_TWS_API_PYTHON_PATH") as context:
+            ConnectionConfig.from_env({
+                "IBKR_HOST": "127.0.0.1",
+                "IBKR_PORT": "7497",
+                "IBKR_CLIENT_ID": "41",
+                "IBKR_APPLICATION": "TWS",
+            })
+        self.assertEqual(context.exception.status, PROVIDER_NOT_READY_STATUS)
         with self.assertRaisesRegex(Exception, "missing required"):
             ConnectionConfig.from_env({"IBKR_APPLICATION": "TWS"})
 
@@ -162,6 +208,7 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
         self.assertEqual(manifest["readiness_summary"]["primary_40"]["unique_resolved"], 40)
         self.assertEqual(manifest["readiness_summary"]["reserve_20"]["unique_resolved"], 20)
         self.assertEqual(manifest["status"], FROZEN_STATUS)
+        self.assertEqual(manifest["freeze_artifact_status"], FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS)
         self.assertEqual(len(fake.probe_requests), 60)
         self.assertTrue(all(request["method"] == REQ_HEAD_TIMESTAMP for request in fake.probe_requests))
         self.assertTrue(all(request["contract"]["secType"] == "STK" for request in fake.probe_requests))
@@ -211,11 +258,9 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
         details_by_symbol = {row["canonical_symbol"]: {"details": [], "errors": [
             {"code": 354, "message": "account=DU1234567 password=do-not-record"},
         ]} for row in rows}
-        fake = _FakeSession(details_by_symbol, {}, metadata={
-            "application": "TWS", "api_version": "9.81.1", "server_version": 178,
-            "tws_version": "10.37", "host_role": "localhost", "connection_timestamp": "2026-08-28T00:00:00+00:00",
-            "account_id": "DU1234567", "password": "do-not-record",
-        })
+        fake = _FakeSession(details_by_symbol, {}, metadata=_metadata(
+            account_id="DU1234567", password="do-not-record",
+        ))
         manifest = run_readiness(fake)
         serialized = json.dumps(manifest, ensure_ascii=False)
         self.assertNotIn("DU1234567", serialized)
@@ -227,12 +272,97 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
         rows = load_us_candidates(load_manifest())
         details_by_symbol = {row["canonical_symbol"]: {"details": []} for row in rows}
         fake = _FakeSession(details_by_symbol, {}, metadata={
-            "application": "TWS", "api_version": "9.81.1", "server_version": 178,
+            "application": "TWS", "api_version": "test-fixture", "server_version": 178,
             "host_role": "localhost", "connection_timestamp": "2026-08-28T00:00:00+00:00",
         })
         with self.assertRaises(ReadinessError) as context:
             run_readiness(fake)
         self.assertEqual(context.exception.status, VERSION_NOT_PROVEN_STATUS)
+
+    def test_official_api_and_host_version_provenance_are_explicit(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            package = root / "ibapi"
+            package.mkdir()
+            (package / "__init__.py").write_text("# official fixture\n", encoding="utf-8")
+            source_hash = _official_package_source_sha256(package)
+            provenance = _validate_api_provenance({
+                "provider": "Interactive Brokers",
+                "source_class": "IBKR_OFFICIAL_TWS_API_DISTRIBUTION",
+                "package_name": "ibapi",
+                "package_version": "10.49-fixture",
+                "package_source_sha256": source_hash,
+                "source_reference": "https://interactivebrokers.github.io/tws-api/",
+                "recorded_at": "2026-08-28T00:00:00+00:00",
+            }, python_root=root, package_root=package)
+            self.assertEqual(provenance["package_name"], "ibapi")
+            with self.assertRaises(ReadinessError):
+                _validate_api_provenance(
+                    {**provenance, "source_class": "PYPI"},
+                    python_root=root,
+                    package_root=package,
+                )
+            host = _validate_host_version_evidence({
+                "application": "TWS",
+                "version": "10.49.1",
+                "source_class": "IBKR_TWS_ABOUT_DIALOG",
+                "source_reference": "local non-sensitive TWS About evidence",
+                "recorded_at": "2026-08-28T00:00:00+00:00",
+            }, expected_application="TWS")
+            self.assertEqual(host["source_class"], "IBKR_TWS_ABOUT_DIALOG")
+
+    def test_official_loader_uses_declared_distribution_without_fallback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            package = root / "ibapi"
+            package.mkdir()
+            (package / "__init__.py").write_text("__version__ = '10.49-fixture'\n", encoding="utf-8")
+            (package / "client.py").write_text("class EClient:\n    pass\n", encoding="utf-8")
+            (package / "contract.py").write_text("class Contract:\n    pass\n", encoding="utf-8")
+            (package / "wrapper.py").write_text("class EWrapper:\n    pass\n", encoding="utf-8")
+            source_hash = _official_package_source_sha256(package)
+            provenance_path = root / "api-provenance.json"
+            provenance_path.write_text(json.dumps({
+                "provider": "Interactive Brokers",
+                "source_class": "IBKR_OFFICIAL_TWS_API_DISTRIBUTION",
+                "package_name": "ibapi",
+                "package_version": "10.49-fixture",
+                "package_source_sha256": source_hash,
+                "source_reference": "https://interactivebrokers.github.io/tws-api/",
+                "recorded_at": "2026-08-28T00:00:00+00:00",
+            }), encoding="utf-8")
+            config = ConnectionConfig(
+                host="127.0.0.1",
+                port=7497,
+                client_id=41,
+                application="TWS",
+                api_python_path=root,
+                api_provenance_file=provenance_path,
+                host_version_evidence_file=root / "unused-host-evidence.json",
+            )
+            try:
+                client_class, contract_class, wrapper_class, provenance = _load_official_ibapi(config)
+                self.assertEqual(client_class.__module__, "ibapi.client")
+                self.assertEqual(contract_class.__module__, "ibapi.contract")
+                self.assertEqual(wrapper_class.__module__, "ibapi.wrapper")
+                self.assertEqual(provenance["package_version"], "10.49-fixture")
+            finally:
+                for module_name in ("ibapi.wrapper", "ibapi.contract", "ibapi.client", "ibapi"):
+                    sys.modules.pop(module_name, None)
+                while str(root) in sys.path:
+                    sys.path.remove(str(root))
+
+    def test_current_error_callback_includes_error_time(self):
+        source = Path("research/phase5k_b1a_ibkr_readiness.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        error_methods = [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "error"
+        ]
+        self.assertEqual(len(error_methods), 1)
+        names = [arg.arg for arg in error_methods[0].args.args]
+        self.assertEqual(names[:4], ["self", "reqId", "errorTime", "errorCode"])
+        self.assertIn("errorString", names)
 
     def test_manifest_hash_requires_external_version_pin_and_same_version_rehash_fails(self):
         rows = load_us_candidates(load_manifest())
@@ -256,7 +386,7 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
             records.append(record)
         manifest = build_readiness_manifest(
             b0=load_contract(), a1=load_manifest(),
-            connection={"application": "TWS", "api_version": "9.81.1", "server_version": 178, "tws_version": "10.37", "host_role": "localhost", "connection_timestamp": "2026-08-28T00:00:00+00:00"},
+            connection=_metadata(),
             records=records, generated_at="2026-08-28T00:00:00+00:00",
         )
         pinned = {MANIFEST_VERSION: manifest_integrity_hash(manifest)}
@@ -280,6 +410,12 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported_roots.add(node.module.split(".")[0])
         self.assertTrue(imported_roots.isdisjoint({"main", "providers", "core", "trading", "sheets_client"}))
+        self.assertNotIn("importlib.metadata", source)
+        self.assertNotIn("ib_insync", source)
+        self.assertNotIn("ib_async", source)
+        self.assertNotIn("twsVersion", source)
+        self.assertNotIn("twsVersionString", source)
+        self.assertNotIn("ibapi>=", Path("requirements.txt").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
