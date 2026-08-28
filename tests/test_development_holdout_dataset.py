@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -19,6 +20,7 @@ from research.development_holdout_dataset import (
     load_frozen_holdout,
 )
 from research.development_holdout_universe import load_holdout_universe_manifest
+from research.replay_input import ReplayInputManifest, SymbolInputManifest
 
 
 def _quote(row, *, source="TEST"):
@@ -28,6 +30,26 @@ def _quote(row, *, source="TEST"):
         open=10.0, high=11.0, low=9.0, close=10.5, preclose=None,
         pct_change=None, volume=100.0, amount=None, turnover_rate=None,
         currency="CNY" if row["market"] == "CN" else "USD",
+    )
+
+
+def _replay_manifest_from_wrapper(wrapper):
+    raw = wrapper["replay_manifest"]
+    return ReplayInputManifest(
+        schema_version=raw["schema_version"],
+        aggregate_hash=raw["aggregate_hash"],
+        total_symbol_count=int(raw["total_symbol_count"]),
+        total_bar_count=int(raw["total_bar_count"]),
+        symbols=tuple(
+            SymbolInputManifest(
+                symbol=item["symbol"],
+                bar_count=int(item["bar_count"]),
+                start_date=date.fromisoformat(item["start_date"]),
+                end_date=date.fromisoformat(item["end_date"]),
+                input_hash=item["input_hash"],
+            )
+            for item in raw["symbols"]
+        ),
     )
 
 
@@ -43,21 +65,21 @@ class DevelopmentHoldoutDatasetTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         dataset_path = root / "research" / "development_holdout" / "dataset_manifest.json"
         replay_path = root / "research" / "development_holdout" / "replay_manifest.json"
-        frozen_path = root / "artifacts" / "phase5j_v3_development_holdout" / "development_holdout_replay_input.jsonl.gz"
-
-        manifest, _, replay_manifest = load_frozen_holdout(dataset_path, frozen_path, replay_path)
         wrapper = json.loads(replay_path.read_text(encoding="utf-8"))
+        replay_manifest = _replay_manifest_from_wrapper(wrapper)
+
+        with patch(
+            "research.development_holdout_dataset.read_frozen_input",
+            return_value=({}, replay_manifest),
+        ):
+            manifest, _, loaded_replay_manifest = load_frozen_holdout(
+                dataset_path, root / "unused-frozen-input.jsonl.gz", replay_path
+            )
 
         self.assertEqual(wrapper["dataset_manifest_sha256"], manifest["integrity"]["manifest_sha256"])
-        self.assertEqual(
-            wrapper["replay_manifest"]["aggregate_hash"],
-            manifest["replay_input_manifest_sha256"],
-        )
-        self.assertEqual(wrapper["replay_manifest"], replay_manifest.to_dict())
-        self.assertEqual(
-            wrapper["integrity"]["manifest_sha256"],
-            dataset_manifest_integrity_hash(wrapper),
-        )
+        self.assertEqual(wrapper["replay_manifest"]["aggregate_hash"], manifest["replay_input_manifest_sha256"])
+        self.assertEqual(wrapper["replay_manifest"], loaded_replay_manifest.to_dict())
+        self.assertEqual(wrapper["integrity"]["manifest_sha256"], dataset_manifest_integrity_hash(wrapper))
         self.assertEqual(wrapper["replay_manifest"]["total_symbol_count"], 40)
         self.assertEqual(wrapper["replay_manifest"]["total_bar_count"], 86305)
 
@@ -65,9 +87,9 @@ class DevelopmentHoldoutDatasetTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         dataset_path = root / "research" / "development_holdout" / "dataset_manifest.json"
         replay_path = root / "research" / "development_holdout" / "replay_manifest.json"
-        frozen_path = root / "artifacts" / "phase5j_v3_development_holdout" / "development_holdout_replay_input.jsonl.gz"
-        manifest, _, replay_manifest = load_frozen_holdout(dataset_path, frozen_path, replay_path)
+        manifest = load_dataset_manifest(dataset_path)
         wrapper = json.loads(replay_path.read_text(encoding="utf-8"))
+        replay_manifest = _replay_manifest_from_wrapper(wrapper)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp = Path(temp_dir)
@@ -94,21 +116,43 @@ class DevelopmentHoldoutDatasetTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 with self.subTest(name=name):
-                    with self.assertRaises(ValueError):
-                        load_frozen_holdout(dataset_path, frozen_path, mutated_path)
+                    with patch(
+                        "research.development_holdout_dataset.read_frozen_input",
+                        return_value=({}, replay_manifest),
+                    ):
+                        with self.assertRaises(ValueError):
+                            load_frozen_holdout(dataset_path, temp / "unused-frozen-input.jsonl.gz", mutated_path)
 
             mutated_dataset = deepcopy(manifest)
             mutated_dataset["replay_input_manifest_sha256"] = "sha256:" + "2" * 64
             mutated_dataset["integrity"] = {
                 "manifest_sha256": dataset_manifest_integrity_hash(mutated_dataset),
             }
+            mutated_wrapper = deepcopy(wrapper)
+            mutated_wrapper["dataset_manifest_sha256"] = mutated_dataset["integrity"]["manifest_sha256"]
+            mutated_wrapper["integrity"] = {
+                "manifest_sha256": dataset_manifest_integrity_hash(mutated_wrapper),
+            }
             mutated_dataset_path = temp / "dataset-replay-binding.json"
             mutated_dataset_path.write_text(
                 json.dumps(mutated_dataset, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
-            with self.assertRaises(ValueError):
-                load_frozen_holdout(mutated_dataset_path, frozen_path, replay_path)
+            mutated_wrapper_path = temp / "dataset-replay-binding-wrapper.json"
+            mutated_wrapper_path.write_text(
+                json.dumps(mutated_wrapper, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            with patch(
+                "research.development_holdout_dataset.read_frozen_input",
+                return_value=({}, replay_manifest),
+            ):
+                with self.assertRaises(ValueError):
+                    load_frozen_holdout(
+                        mutated_dataset_path,
+                        temp / "unused-frozen-input.jsonl.gz",
+                        mutated_wrapper_path,
+                    )
 
     def test_provider_contract_is_fixed_by_market(self):
         universe = load_holdout_universe_manifest()
