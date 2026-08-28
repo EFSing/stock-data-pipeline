@@ -459,3 +459,13 @@
 **Evidence:** 严格读取并执行 Phase 5J-v2 frozen qualification matrix：3% candidate 绑定自身 thresholds + 3%→4%，4% 绑定自身 thresholds + 3%→4% 和 4%→5%，5% 绑定自身 thresholds + 4%→5%；CN/US 独立评估，无 market compensation。52 个 candidate × market × threshold rows 均包含 observed value、operator、frozen threshold、margin 与 PASS/FAIL。minimum events、symbol concentration、Jaccard、retention、rate relative increase 全部通过；交易日 drift 为 CN 3%→4% median/P90 `7.0/8.6`、US `10.0/19.8`，CN 4%→5% `9.5/456.5`、US `5.0/279.6`。所有 candidate 均因一个或多个 frozen drift threshold 失败，`qualified_candidates=[]`，机械 lexicographic result 为 `lexicographic_candidate=null`，最终状态为 `VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE`。failure breakdown、margin、0–2/3–5/6–10/11–15/>15 buckets 与 3%→4%、4%→5% extreme drift Top 20 均写入 v3 capsule；没有删除 pair、扩大窗口、修改 matching 或 threshold。
 
 **Integrity / Boundary:** v3 capsule file SHA-256 为 `sha256:3fa511fa43b146fae9d1a17799b1ae17ce44ba4915ec4813d7120e53eef5b24c`，canonical payload SHA-256 为 `sha256:e9ec07fa5c1d5fede6b87c5ee0f453fc8a47a786c6725458e98e741faf6dbcee`。冻结 main parity 仍为 280 cells、589,988 bars、3,120 events、`LEGACY_MAIN_PARITY_MISMATCHES=0`；未重新抓取/替换数据、未改 production parameter 或 SETUP_03、未读取收益指标、未启动 formal Phase 5K validation 或 final OOS、未 merge。
+
+---
+
+**Decision:** 2026-08-28 先冻结独立 Phase 5J-v3 event identity/matching protocol，再允许建立第二套 development holdout。机器可读单一事实来源为 `research/setup03_phase5j_v3_event_matching_protocol.json`，版本为 `SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1`，canonical SHA-256 为 `sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816`。exact `(market, symbol, confirmed_date)` 先 retained；其余只在同 market、同 symbol 内，以冻结 `platform_window=40` 作为 inclusive 最大 40 trading sessions，`>40` 永远 unmatched。
+
+**Decision:** v3 matcher 的正式目标为先最大化合法一对一匹配基数，再最小化总 trading-session distance；同成本使用按 `(old_session_ordinal,new_session_ordinal)` 序列的 lexicographically smallest deterministic tie-break。动态规划只允许 order-preserving/non-crossing pair，且同一输入跨机器生成相同 canonical result。drift median/P90 只对合法 matched pairs 计算；unmatched 继续完整进入 Jaccard、retention、added、disappeared，不能由 matching 隐藏。
+
+**Governance:** PR #29 的 nearest-date v3 qualification 仅保留为历史 evidence；当前状态恢复为 `NOT_READY_FOR_FORMAL_FREEZE_DUE_TO_EVENT_MATCHING_PROTOCOL_UNDERSPECIFICATION`，不得解释为 `SETUP_03_STRUCTURALLY_REJECTED`。既有 3%/4%/5% candidates、stress-only 边界、lookback/window/proximity、drift/Jaccard/retention/concentration/rate thresholds、qualification matrix 与 `LEXICOGRAPHIC_CONSERVATIVE` 全部按 parent v2 绑定；不得修改 SETUP_03、引入新 tolerance、访问 Final OOS、启动 formal Phase 5K-B1、使用 IBKR 或读取收益指标。
+
+**Boundary:** 本 commit 只冻结 protocol、matcher 与 regression tests；未读取第二套 holdout 的 OHLCV、SETUP_03 output、event、signal 或 outcome，未生成第二套 universe/dataset，未修改 production/Sheets。后续 holdout 只能在本 protocol freeze commit 之后创建。

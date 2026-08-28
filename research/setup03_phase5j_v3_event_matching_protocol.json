@@ -1,0 +1,96 @@
+{
+  "schema_version": "setup03-phase5j-v3-event-matching-protocol-v1",
+  "protocol_version": "SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1",
+  "phase": "Phase 5J-v3",
+  "setup_type": "SETUP_03",
+  "status": "EVENT_MATCHING_PROTOCOL_FROZEN_NOT_EXECUTED",
+  "research_state": "NOT_READY_FOR_FORMAL_FREEZE_DUE_TO_EVENT_MATCHING_PROTOCOL_UNDERSPECIFICATION",
+  "parent_protocol": {
+    "version": "SETUP_03-STRUCTURAL-VALIDATION-PROTOCOL-2026-08-27-v2-CN-US",
+    "sha256": "sha256:d7b216b43980fbedb4f24a389891141931092a78063f5203f79a97e8bd451aa0",
+    "status": "SCOPE_REVISION_REGISTERED_NOT_EXECUTED"
+  },
+  "matching_identity": {
+    "event_type": "CONFIRMED",
+    "exact_identity": ["market", "symbol", "confirmed_date"],
+    "exact_identity_is_retained_before_matching": true,
+    "event_date_field": "confirmed_date",
+    "market_and_symbol_must_match": true
+  },
+  "matching_window": {
+    "max_distance": 40,
+    "unit": "trading_sessions",
+    "inclusive": true,
+    "source_frozen_value": "platform_window=40",
+    "distance_definition": "absolute difference between positions in the sorted union of valid local trading dates for the matching market",
+    "greater_than_max_is_unmatched": true
+  },
+  "matching_objective": {
+    "primary": "maximum_cardinality",
+    "secondary": "minimum_total_trading_session_distance",
+    "tertiary": "lexicographically_smallest_pair_sequence",
+    "pair_sequence_order": "old_session_ordinal_ascending_then_new_session_ordinal_ascending",
+    "one_to_one": true
+  },
+  "order_invariants": {
+    "order_preserving": true,
+    "non_crossing": true,
+    "formal_statement": "for any two matched pairs old_a < old_b, new_a < new_b in their market session ordinals",
+    "matching_is_restricted_to_same_market_and_symbol": true
+  },
+  "deterministic_tie_break": {
+    "rule": "among equal-cardinality and equal-total-distance matchings choose the lexicographically smallest tuple of (old_session_ordinal,new_session_ordinal) pairs",
+    "canonical_input_order": "market, symbol, date ascending",
+    "cross_machine_output": "same canonical JSON output for the same input"
+  },
+  "drift_accounting": {
+    "drift_statistics_scope": "合法 matched pairs only",
+    "unmatched_participates_in": ["jaccard", "retention", "added", "disappeared"],
+    "unmatched_must_not_be_hidden_by_matching": true,
+    "calendar_day_drift_is_not_a_qualification_distance": true,
+    "qualification_distance": "trading_session_distance"
+  },
+  "frozen_qualification_bindings": {
+    "production_tolerance_candidates_pct": [0.03, 0.04, 0.05],
+    "stress_only_tolerances_pct": [0.025, 0.055, 0.075, 0.1],
+    "setup_swing_lookback": 5,
+    "platform_window": 40,
+    "arm_proximity_pct": 0.0,
+    "thresholds": {
+      "minimum_confirmed_events_per_market_candidate": {"operator": ">=", "value": 8, "unit": "events"},
+      "adjacent_confirmed_jaccard": {"operator": ">=", "value": 0.6, "unit": "ratio"},
+      "adjacent_confirmed_retention": {"operator": ">=", "value": 0.8, "unit": "ratio"},
+      "matched_confirmed_event_date_drift_median": {"operator": "<=", "value": 5, "unit": "trading_days"},
+      "matched_confirmed_event_date_drift_p90": {"operator": "<=", "value": 15, "unit": "trading_days"},
+      "maximum_symbol_confirmed_concentration": {"operator": "<=", "value": 0.25, "unit": "ratio"},
+      "adjacent_confirmed_rate_relative_increase": {"operator": "<=", "value": 0.5, "unit": "ratio"}
+    },
+    "qualification_matrix": {
+      "3.0%": {"candidate_level": true, "adjacent_pairs": ["3.0%→4.0%"]},
+      "4.0%": {"candidate_level": true, "adjacent_pairs": ["3.0%→4.0%", "4.0%→5.0%"]},
+      "5.0%": {"candidate_level": true, "adjacent_pairs": ["4.0%→5.0%"]}
+    },
+    "selection": "LEXICOGRAPHIC_CONSERVATIVE",
+    "selection_order_pct": [0.03, 0.04, 0.05],
+    "market_qualification_is_independent": true,
+    "market_compensation_allowed": false
+  },
+  "prohibited_actions": [
+    "modify SETUP_03 production logic",
+    "add a tolerance candidate",
+    "promote a stress-only tolerance",
+    "fit the matching window or tie-break to PR29 extreme pairs",
+    "reuse the old underspecified v3 matching output as a selection input",
+    "use returns, MFE, MAE, P&L, win rate, profit factor, or expectancy",
+    "access Final OOS",
+    "start formal Phase 5K-B1",
+    "use IBKR",
+    "switch provider or replace symbols based on SETUP_03 output",
+    "hide unmatched evidence by changing the matching rule",
+    "market-specific, regime-specific, or volatility-normalized production rules"
+  ],
+  "integrity": {
+    "protocol_sha256": "sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816",
+    "hash_scope": "canonical JSON with integrity.protocol_sha256 omitted"
+  }
+}
