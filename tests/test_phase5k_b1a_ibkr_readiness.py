@@ -138,14 +138,15 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
         self.assertEqual(sum(row["intended_role"] == "RESERVE" for row in rows), 20)
 
     def test_connection_config_reads_only_required_env_and_safe_role(self):
+        temp_root = Path(tempfile.gettempdir())
         config = ConnectionConfig.from_env({
             "IBKR_HOST": "127.0.0.1",
             "IBKR_PORT": "7497",
             "IBKR_CLIENT_ID": "41",
             "IBKR_APPLICATION": "TWS",
-            API_PYTHON_PATH_ENV: "C:\\TWS API\\source\\pythonclient",
-            API_PROVENANCE_FILE_ENV: "C:\\evidence\\ibkr-api-provenance.json",
-            HOST_VERSION_EVIDENCE_FILE_ENV: "C:\\evidence\\tws-version.json",
+            API_PYTHON_PATH_ENV: str(temp_root / "TWS API" / "source" / "pythonclient"),
+            API_PROVENANCE_FILE_ENV: str(temp_root / "evidence" / "ibkr-api-provenance.json"),
+            HOST_VERSION_EVIDENCE_FILE_ENV: str(temp_root / "evidence" / "tws-version.json"),
             "IBKR_USERNAME": "must-not-be-read-by-config",
         })
         self.assertEqual(config.host_role, "localhost")
