@@ -46,6 +46,8 @@ DEFAULT_MANIFEST_PATH = PROJECT_ROOT / "artifacts" / "phase5k_b1a_ibkr_provider_
 
 SCHEMA_VERSION = "setup03-phase5k-b1a-ibkr-provider-readiness-manifest-v1"
 MANIFEST_VERSION = "SETUP_03-PHASE5K-B1-A-IBKR-PROVIDER-READINESS-2026-08-28-v1"
+CAPTURE_MODE = "capture"
+VALIDATE_EXISTING_MODE = "validate-existing"
 FROZEN_STATUS = "IBKR_US_PROVIDER_READINESS_FROZEN"
 FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS = "IBKR_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED"
 PROVIDER_NOT_READY_STATUS = "US_PROVIDER_NOT_READY"
@@ -929,20 +931,47 @@ def write_manifest(path: Path, manifest: Mapping[str, Any]) -> None:
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def accept_frozen_manifest(manifest: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Accept a live capture only after the committed immutable pin validates."""
-    if manifest.get("status") != FROZEN_STATUS:
-        raise ReadinessError(PROVIDER_NOT_READY_STATUS, "provider readiness capture is incomplete")
+def load_saved_manifest(path: Path) -> dict[str, Any]:
+    """Read a previously written manifest without contacting a provider."""
     try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReadinessError(
+            FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS,
+            "saved B1-A readiness manifest is not readable machine-readable JSON",
+        ) from exc
+    if not isinstance(value, dict):
+        raise ReadinessError(
+            FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS,
+            "saved B1-A readiness manifest must contain a JSON object",
+        )
+    return value
+
+
+def accept_frozen_manifest(manifest: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Accept a saved capture only after the committed immutable pin validates."""
+    try:
+        if manifest.get("status") != FROZEN_STATUS:
+            raise ValueError("provider readiness capture is incomplete")
         # Do not accept a caller-supplied self-hash here. The production gate
         # must use the immutable version->SHA contract committed in this module.
         validate_manifest(manifest)
     except (TypeError, ValueError) as exc:
         raise ReadinessError(
             FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS,
-            "provider readiness capture has not passed immutable pin validation",
+            "saved provider readiness capture has not passed immutable pin validation",
         ) from exc
     return manifest
+
+
+def validate_existing_manifest(path: Path) -> Mapping[str, Any]:
+    """Validate an existing capture using only the committed version/hash pin.
+
+    This function intentionally has no session/configuration argument.  Its
+    only input is the saved JSON file, so the validate-existing operation
+    cannot connect to TWS/IB Gateway or issue either readiness request.
+    """
+    return accept_frozen_manifest(load_saved_manifest(path))
 
 
 def _transport_blocker(response: Mapping[str, Any], operation: str) -> str | None:
@@ -1321,6 +1350,7 @@ __all__ = [
     "B0_VERSION",
     "API_PROVENANCE_FILE_ENV",
     "API_PYTHON_PATH_ENV",
+    "CAPTURE_MODE",
     "ConnectionConfig",
     "CONNECTION_NOT_READY_STATUS",
     "CURRENCY",
@@ -1344,6 +1374,7 @@ __all__ = [
     "ReadinessError",
     "SEC_TYPE",
     "VERSION_NOT_PROVEN_STATUS",
+    "VALIDATE_EXISTING_MODE",
     "WHAT_TO_SHOW",
     "build_contract_request",
     "build_head_timestamp_request",
@@ -1357,6 +1388,8 @@ __all__ = [
     "resolve_identity_candidates",
     "run_readiness",
     "sha256_json",
+    "load_saved_manifest",
+    "validate_existing_manifest",
     "validate_manifest",
     "validate_parent_pins",
     "write_manifest",

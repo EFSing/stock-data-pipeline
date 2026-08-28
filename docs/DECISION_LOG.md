@@ -439,3 +439,9 @@
 **Decision:** B1-A 将 live capture、immutable manifest pin 与 frozen validation 分成三个门。60 个 A1 US candidates 全部 attempted 且各自获得客观 terminal status 时，provider-level capture 可以保留 `IBKR_US_PROVIDER_READINESS_FROZEN`；`UNIQUE_RESOLVED_ADJUSTED_LAST_READY`、`SYMBOL_NOT_RESOLVABLE`、`CONTRACT_IDENTITY_NOT_UNIQUE`、`ADJUSTED_LAST_UNAVAILABLE`、`NO_IBKR_PERMISSION` 均为 candidate-level 终态，不触发 `US_PROVIDER_NOT_READY`，也不在 B1-A 做 replacement。只有 version→canonical SHA-256 已提交到 immutable pin 且 `validate_manifest()` 通过，runner 才接受 frozen success；self-hash 或未 pin 继续为 `IBKR_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED`。
 
 **Reason:** provider readiness 证明的是 API/TWS/IBG/transport 是否可靠完成完整 capture，不是要求每个 candidate 都能解析并提供 ADJUSTED_LAST。timeout、无 terminal response、connectivity loss 与 session failure 属于 provider/transport blocker；它们不得被重新解释为 `SYMBOL_NOT_RESOLVABLE` 或 `ADJUSTED_LAST_UNAVAILABLE`，也不得污染 candidate identity snapshot。
+
+### 2026-08-28 B1-A freeze finalization workflow
+
+**Decision:** B1-A runner 显式拆分为 `capture` 与 `validate-existing` 两种模式。`capture` 连接真实 TWS/IB Gateway，完成 A1 固定的 60-symbol readiness capture 并写出带 self-integrity hash 的 immutable candidate manifest；pin 尚不存在时不阻塞 capture，但 runner 固定返回 `IBKR_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED`，不宣布最终 frozen success。`validate-existing` 只读取已保存 manifest，不读取连接配置、不创建 IBKR session、不调用 `reqContractDetails`/`reqHeadTimeStamp`、不修改文件或时间字段，并仅使用代码中 committed 的 `PINNED_MANIFEST_SHA256_BY_VERSION` 调用 `validate_manifest()`/`accept_frozen_manifest()`；完整匹配才返回 `IBKR_US_PROVIDER_READINESS_FROZEN`。
+
+**Reason:** live capture 的 request/generated timestamps 具有运行时变化性，不能在提交 immutable pin 后重复 capture 再期待相同 hash。把 finalization 改为对已保存 bytes 的纯读取验证，才能保持 candidate manifest 的内容和时间不变；缺 pin、tamper、self-rehash 或 hash mismatch 均继续 fail closed。该整改仍不获取 formal OHLCV、不进入 Phase 5K-B1、不运行 SETUP_03、不做 final OOS、不修改参数或 PRIMARY/RESERVE roster。

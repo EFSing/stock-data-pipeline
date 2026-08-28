@@ -1,18 +1,24 @@
 import ast
 import copy
+from contextlib import redirect_stdout
+from io import StringIO
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
+import research.phase5k_b1a_ibkr_readiness as readiness_module
+from scripts import run_phase5k_b1a_ibkr_readiness as readiness_runner
 from research.phase5k_b1a_ibkr_readiness import (
     API_PROVENANCE_FILE_ENV,
     API_PYTHON_PATH_ENV,
     accept_frozen_manifest,
     B0_SHA256,
     B0_VERSION,
+    CAPTURE_MODE,
     CURRENCY,
     EXCHANGE,
     FROZEN_STATUS,
@@ -42,7 +48,9 @@ from research.phase5k_b1a_ibkr_readiness import (
     resolve_identity_candidates,
     run_readiness,
     sha256_json,
+    VALIDATE_EXISTING_MODE,
     validate_manifest,
+    write_manifest,
     _official_package_source_sha256,
     _load_official_ibapi,
     _validate_api_provenance,
@@ -145,6 +153,16 @@ class _ContractTimeoutSession(_FakeSession):
 
 
 class Phase5KB1AReadinessTests(unittest.TestCase):
+    def _complete_capture(self):
+        rows = load_us_candidates(load_manifest())
+        details_by_symbol = {
+            row["canonical_symbol"]: {
+                "details": [_details(symbol=row["canonical_symbol"], con_id=600000 + row["manifest_rank"])]
+            }
+            for row in rows
+        }
+        return run_readiness(_FakeSession(details_by_symbol, {}))
+
     def test_exact_parent_pins_and_sixty_input_rows(self):
         b0 = load_contract()
         a1 = load_manifest()
@@ -426,6 +444,106 @@ class Phase5KB1AReadinessTests(unittest.TestCase):
         changed["integrity"]["manifest_sha256"] = manifest_integrity_hash(changed)
         with self.assertRaisesRegex(ValueError, "different canonical hash"):
             validate_manifest(changed, expected_hash_by_version=pinned)
+
+    def test_capture_mode_writes_candidate_but_never_reports_frozen_success(self):
+        rows = load_us_candidates(load_manifest())
+        details_by_symbol = {
+            row["canonical_symbol"]: {
+                "details": [_details(symbol=row["canonical_symbol"], con_id=700000 + row["manifest_rank"])]
+            }
+            for row in rows
+        }
+        fake = _FakeSession(details_by_symbol, {})
+
+        class _SessionContext:
+            def __enter__(self):
+                return fake
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "candidate.json"
+            output = StringIO()
+            with patch.object(readiness_runner.ConnectionConfig, "from_env", return_value=object()), \
+                patch.object(readiness_runner, "OfficialIbapiSession", return_value=_SessionContext()), \
+                redirect_stdout(output):
+                result = readiness_runner.main(["--mode", CAPTURE_MODE, "--output", str(path)])
+
+            self.assertEqual(result, 2)
+            self.assertEqual(output.getvalue().strip(), FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS)
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["status"], FROZEN_STATUS)
+            self.assertEqual(saved["freeze_artifact_status"], FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS)
+
+    def test_validate_existing_accepts_saved_capture_after_correct_pin_without_live_requests(self):
+        manifest = self._complete_capture()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "saved-capture.json"
+            write_manifest(path, manifest)
+            before = path.read_bytes()
+            with patch.object(
+                readiness_module,
+                "PINNED_MANIFEST_SHA256_BY_VERSION",
+                {MANIFEST_VERSION: manifest_integrity_hash(manifest)},
+            ), patch.object(
+                readiness_runner.ConnectionConfig,
+                "from_env",
+                side_effect=AssertionError("validate-existing must not read live connection configuration"),
+            ), patch.object(
+                readiness_runner,
+                "OfficialIbapiSession",
+                side_effect=AssertionError("validate-existing must not create a live session"),
+            ):
+                output = StringIO()
+                with redirect_stdout(output):
+                    result = readiness_runner.main([
+                        "--mode", VALIDATE_EXISTING_MODE, "--output", str(path),
+                    ])
+
+            self.assertEqual(result, 0)
+            self.assertEqual(output.getvalue().strip(), FROZEN_STATUS)
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_validate_existing_tamper_fails_even_after_self_rehash(self):
+        manifest = self._complete_capture()
+        pinned = manifest_integrity_hash(manifest)
+        changed = copy.deepcopy(manifest)
+        changed["candidates"][0]["contract_identity"]["conId"] += 1
+        changed["integrity"]["manifest_sha256"] = manifest_integrity_hash(changed)
+        self.assertNotEqual(changed["integrity"]["manifest_sha256"], pinned)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tampered-capture.json"
+            write_manifest(path, changed)
+            output = StringIO()
+            with patch.object(
+                readiness_module,
+                "PINNED_MANIFEST_SHA256_BY_VERSION",
+                {MANIFEST_VERSION: pinned},
+            ), redirect_stdout(output):
+                result = readiness_runner.main([
+                    "--mode", VALIDATE_EXISTING_MODE, "--output", str(path),
+                ])
+
+            self.assertEqual(result, 2)
+            self.assertEqual(output.getvalue().strip(), FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS)
+
+    def test_validate_existing_missing_pin_fails_closed_without_live_requests(self):
+        manifest = self._complete_capture()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "un-pinned-capture.json"
+            write_manifest(path, manifest)
+            output = StringIO()
+            with patch.object(readiness_runner.ConnectionConfig, "from_env", side_effect=AssertionError()), \
+                patch.object(readiness_runner, "OfficialIbapiSession", side_effect=AssertionError()), \
+                redirect_stdout(output):
+                result = readiness_runner.main([
+                    "--mode", VALIDATE_EXISTING_MODE, "--output", str(path),
+                ])
+
+            self.assertEqual(result, 2)
+            self.assertEqual(output.getvalue().strip(), FREEZE_ARTIFACT_NOT_ACQUIRED_STATUS)
 
     def test_contract_details_timeout_is_provider_blocker_not_symbol_failure(self):
         fake = _ContractTimeoutSession({}, {})
