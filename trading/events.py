@@ -19,9 +19,11 @@ from trading.indicators import atr
 from trading.models import Decision, Setup, SetupState
 from trading.setup import (
     SetupDiagnostics,
+    SetupWithDiagnostics,
     detect_platform_breakout,
     detect_platform_breakout_with_diagnostics,
 )
+from trading.models import SwingPoint
 
 
 _ORIGINAL_DETECT_PLATFORM_BREAKOUT = detect_platform_breakout
@@ -75,6 +77,8 @@ def evaluate_setup03_event(
     setup_parameters: dict | None = None,
     decision_parameters: dict | None = None,
     published_decision_keys: Collection[DecisionEventKey] = (),
+    precomputed_swings: list[SwingPoint] | None = None,
+    setup_calculation: SetupWithDiagnostics | None = None,
 ) -> Setup03Evaluation:
     """Evaluate the latest as-of snapshot using shared terminal-event semantics.
 
@@ -88,9 +92,15 @@ def evaluate_setup03_event(
     # Keep the established test/integration seam. The real production function
     # always uses the one-pass calculation; only an explicitly replaced legacy
     # detector lacks diagnostics.
-    if detect_platform_breakout is _ORIGINAL_DETECT_PLATFORM_BREAKOUT:
+    if setup_calculation is not None:
+        setup = setup_calculation.setup
+        setup_diagnostics = setup_calculation.diagnostics
+    elif detect_platform_breakout is _ORIGINAL_DETECT_PLATFORM_BREAKOUT:
+        setup_kwargs = dict(setup_parameters)
+        if precomputed_swings is not None:
+            setup_kwargs["swings"] = precomputed_swings
         setup_calculation = detect_platform_breakout_with_diagnostics(
-            quotes, **setup_parameters
+            quotes, **setup_kwargs
         )
         setup = setup_calculation.setup
         setup_diagnostics = setup_calculation.diagnostics

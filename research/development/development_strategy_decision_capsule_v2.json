@@ -1,0 +1,1607 @@
+{
+  "data_quality": {
+    "historical_yfinance_ohlc_audit": {
+      "failed_symbols": 14,
+      "material_provider_or_raw_ohlc_bars": 26,
+      "numeric_rounding_only_bars": 4,
+      "violating_bars": 30,
+      "violation_records": 30
+    },
+    "provider_qc_exceptions": []
+  },
+  "frozen_inputs": {
+    "a1_formal_universe_overlap": [],
+    "aggregate_dataset_sha256": "sha256:c9b3a4db8158da66f0030746498a692920fe95d72bdacc32499d1ab70c150356",
+    "bar_count": 84284,
+    "dataset_manifest_sha256": "sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216",
+    "market_coverage": {
+      "CN": {
+        "bars": 40873,
+        "symbol_count": 20
+      },
+      "US": {
+        "bars": 43411,
+        "symbol_count": 20
+      }
+    },
+    "provider_split": {
+      "CN": "BAOSTOCK_DEVELOPMENT_QFQ",
+      "US": "YFINANCE_DEVELOPMENT_HISTORICAL"
+    },
+    "replay_input_aggregate_sha256": "sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18",
+    "symbol_count": 40,
+    "universe_sha256": "sha256:0dde6a822ae57a7f048aa7b5097a69624138e3b8566602ad1fba25ee3b473046"
+  },
+  "integrity": {
+    "canonical_payload_sha256": "sha256:39a5f4823c17ee58827b8b0142ed96d5414b6419b8ef23dd1de5b12e8349146a",
+    "hash_scope": "canonical JSON with integrity.canonical_payload_sha256=null"
+  },
+  "replay": {
+    "decision_parameters": {
+      "atr_buffer": 0.5,
+      "atr_period": 14,
+      "max_chase_atr": 0.5,
+      "swing_lookback": 5
+    },
+    "identity": {
+      "baseline_commit": "40a3e5f980bf82a85717748ae106847793d1469f",
+      "baseline_function": "replay_setup03_history",
+      "baseline_module": "trading/replay.py",
+      "reference_module": "research/legacy_main_replay.py",
+      "reference_source_sha256": "sha256:71acc03d58d1696753f14eb0e17a2a160679b31f770f1104775394e84412ef65",
+      "semantics": "for each bar index i, evaluate_setup03_event(quotes[:i+1], risk_capital, setup_parameters, decision_parameters)"
+    },
+    "legacy_main_parity": {
+      "LEGACY_MAIN_PARITY_MISMATCHES": 0,
+      "baseline_commit": "40a3e5f980bf82a85717748ae106847793d1469f",
+      "legacy_vs_precomputed_mismatches": 0,
+      "legacy_vs_shared_mismatches": 0,
+      "schema_version": "setup03-legacy-main-parity-v1",
+      "scope": {
+        "bar_comparisons": 589988,
+        "cells": 280,
+        "decision_fields": [
+          "action",
+          "diagnostics",
+          "deterministic_operands"
+        ],
+        "event_comparisons": 3120,
+        "event_fields": [
+          "event_type",
+          "trade_date",
+          "signal_date",
+          "confirmed_date"
+        ],
+        "every_bar": true,
+        "every_event": true,
+        "setup_diagnostic_fields": [
+          "reason",
+          "high_count",
+          "low_count",
+          "trend",
+          "high_span",
+          "low_span",
+          "arm_threshold",
+          "platform_detected_this_bar",
+          "auxiliary_failed_conditions"
+        ],
+        "setup_fields": [
+          "state",
+          "breakout_price",
+          "structural_invalidation",
+          "detected_index",
+          "state_entered_index",
+          "confirmed_index"
+        ],
+        "symbol_count": 40,
+        "tolerance_count": 7,
+        "tolerance_sequence": [
+          0.025,
+          0.03,
+          0.04,
+          0.05,
+          0.055,
+          0.075,
+          0.1
+        ]
+      },
+      "status": "PASS"
+    },
+    "risk_capital": 100000.0,
+    "setup_parameters": {
+      "arm_proximity_pct": 0.0,
+      "platform_window": 40,
+      "swing_lookback": 5,
+      "tolerance_sequence": [
+        0.025,
+        0.03,
+        0.04,
+        0.05,
+        0.055,
+        0.075,
+        0.1
+      ]
+    }
+  },
+  "schema_version": "setup03-development-strategy-decision-capsule-v2",
+  "scope": {
+    "development_only": true,
+    "formal_validation": false,
+    "outcome_metrics_included": false,
+    "strategy_modification": false,
+    "structure_only": true,
+    "tolerance_selection": false
+  },
+  "status": "READY_FOR_SOL_STRATEGY_DECISION",
+  "structure_only_statistics": {
+    "adjacent_tolerance_stability": {
+      "2.5%→3.0%": {
+        "ALL": {
+          "added": 40,
+          "current_event_count": 149,
+          "date_drift_P90": 27.199999999999996,
+          "date_drift_median": 10.5,
+          "disappeared": 9,
+          "exact_date_jaccard": 0.689873417721519,
+          "nearest_date_matched_count": 8,
+          "previous_event_count": 118,
+          "retained": 109
+        },
+        "CN": {
+          "added": 13,
+          "current_event_count": 58,
+          "date_drift_P90": 7.0,
+          "date_drift_median": 7,
+          "disappeared": 1,
+          "exact_date_jaccard": 0.7627118644067796,
+          "nearest_date_matched_count": 1,
+          "previous_event_count": 46,
+          "retained": 45
+        },
+        "US": {
+          "added": 27,
+          "current_event_count": 91,
+          "date_drift_P90": 29.60000000000001,
+          "date_drift_median": 11,
+          "disappeared": 8,
+          "exact_date_jaccard": 0.6464646464646465,
+          "nearest_date_matched_count": 7,
+          "previous_event_count": 72,
+          "retained": 64
+        }
+      },
+      "3.0%→4.0%": {
+        "ALL": {
+          "added": 56,
+          "current_event_count": 192,
+          "date_drift_P90": 23.700000000000003,
+          "date_drift_median": 13.0,
+          "disappeared": 13,
+          "exact_date_jaccard": 0.6634146341463415,
+          "nearest_date_matched_count": 12,
+          "previous_event_count": 149,
+          "retained": 136
+        },
+        "CN": {
+          "added": 26,
+          "current_event_count": 80,
+          "date_drift_P90": 18.6,
+          "date_drift_median": 9,
+          "disappeared": 4,
+          "exact_date_jaccard": 0.6428571428571429,
+          "nearest_date_matched_count": 3,
+          "previous_event_count": 58,
+          "retained": 54
+        },
+        "US": {
+          "added": 30,
+          "current_event_count": 112,
+          "date_drift_P90": 32.00000000000001,
+          "date_drift_median": 15,
+          "disappeared": 9,
+          "exact_date_jaccard": 0.6776859504132231,
+          "nearest_date_matched_count": 9,
+          "previous_event_count": 91,
+          "retained": 82
+        }
+      },
+      "4.0%→5.0%": {
+        "ALL": {
+          "added": 58,
+          "current_event_count": 239,
+          "date_drift_P90": 571.0,
+          "date_drift_median": 8,
+          "disappeared": 11,
+          "exact_date_jaccard": 0.724,
+          "nearest_date_matched_count": 11,
+          "previous_event_count": 192,
+          "retained": 181
+        },
+        "CN": {
+          "added": 26,
+          "current_event_count": 100,
+          "date_drift_P90": 686.5,
+          "date_drift_median": 13.0,
+          "disappeared": 6,
+          "exact_date_jaccard": 0.6981132075471698,
+          "nearest_date_matched_count": 6,
+          "previous_event_count": 80,
+          "retained": 74
+        },
+        "US": {
+          "added": 32,
+          "current_event_count": 139,
+          "date_drift_P90": 407.0,
+          "date_drift_median": 7,
+          "disappeared": 5,
+          "exact_date_jaccard": 0.7430555555555556,
+          "nearest_date_matched_count": 5,
+          "previous_event_count": 112,
+          "retained": 107
+        }
+      },
+      "5.0%→5.5%": {
+        "ALL": {
+          "added": 28,
+          "current_event_count": 258,
+          "date_drift_P90": 24.200000000000006,
+          "date_drift_median": 11,
+          "disappeared": 9,
+          "exact_date_jaccard": 0.8614232209737828,
+          "nearest_date_matched_count": 7,
+          "previous_event_count": 239,
+          "retained": 230
+        },
+        "CN": {
+          "added": 14,
+          "current_event_count": 110,
+          "date_drift_P90": 15.2,
+          "date_drift_median": 8.5,
+          "disappeared": 4,
+          "exact_date_jaccard": 0.8421052631578947,
+          "nearest_date_matched_count": 4,
+          "previous_event_count": 100,
+          "retained": 96
+        },
+        "US": {
+          "added": 14,
+          "current_event_count": 148,
+          "date_drift_P90": 30.6,
+          "date_drift_median": 13,
+          "disappeared": 5,
+          "exact_date_jaccard": 0.8758169934640523,
+          "nearest_date_matched_count": 3,
+          "previous_event_count": 139,
+          "retained": 134
+        }
+      },
+      "5.5%→7.5%": {
+        "ALL": {
+          "added": 63,
+          "current_event_count": 296,
+          "date_drift_P90": 1573.0,
+          "date_drift_median": 13,
+          "disappeared": 25,
+          "exact_date_jaccard": 0.7258566978193146,
+          "nearest_date_matched_count": 23,
+          "previous_event_count": 258,
+          "retained": 233
+        },
+        "CN": {
+          "added": 37,
+          "current_event_count": 136,
+          "date_drift_P90": 2050.0,
+          "date_drift_median": 9,
+          "disappeared": 11,
+          "exact_date_jaccard": 0.673469387755102,
+          "nearest_date_matched_count": 11,
+          "previous_event_count": 110,
+          "retained": 99
+        },
+        "US": {
+          "added": 26,
+          "current_event_count": 160,
+          "date_drift_P90": 1210.1000000000004,
+          "date_drift_median": 13.0,
+          "disappeared": 14,
+          "exact_date_jaccard": 0.7701149425287356,
+          "nearest_date_matched_count": 12,
+          "previous_event_count": 148,
+          "retained": 134
+        }
+      },
+      "7.5%→10.0%": {
+        "ALL": {
+          "added": 82,
+          "current_event_count": 358,
+          "date_drift_P90": 236.6,
+          "date_drift_median": 12.5,
+          "disappeared": 20,
+          "exact_date_jaccard": 0.7301587301587301,
+          "nearest_date_matched_count": 18,
+          "previous_event_count": 296,
+          "retained": 276
+        },
+        "CN": {
+          "added": 40,
+          "current_event_count": 164,
+          "date_drift_P90": 80.29999999999994,
+          "date_drift_median": 12.5,
+          "disappeared": 12,
+          "exact_date_jaccard": 0.7045454545454546,
+          "nearest_date_matched_count": 10,
+          "previous_event_count": 136,
+          "retained": 124
+        },
+        "US": {
+          "added": 42,
+          "current_event_count": 194,
+          "date_drift_P90": 256.6,
+          "date_drift_median": 21.0,
+          "disappeared": 8,
+          "exact_date_jaccard": 0.7524752475247525,
+          "nearest_date_matched_count": 8,
+          "previous_event_count": 160,
+          "retained": 152
+        }
+      }
+    },
+    "by_tolerance": {
+      "10.0%": {
+        "ALL": {
+          "ARMED": 5,
+          "CONFIRMED_EVENTS": 358,
+          "CONFIRMED_STATE_DAYS": 36311,
+          "CONFIRMED_per_1000_bars": 4.24754401784443,
+          "ENTRY_ALLOWED": 40,
+          "ENTRY_ALLOWED_per_1000_bars": 0.47458592378150066,
+          "FAILED": 33500,
+          "NONE": 5059,
+          "WATCH": 9409,
+          "bars": 84284,
+          "high_span_P90": 0.07701036280083484,
+          "high_span_median": 0.03070038380512332,
+          "low_span_P90": 0.08090609172458119,
+          "low_span_median": 0.03212647444298815,
+          "max_symbol_event_share": 0.05307262569832402,
+          "platform_detected": 706,
+          "platform_per_1000_bars": 8.376441554743487,
+          "platform_width_P90": 0.22581342429756257,
+          "platform_width_median": 0.14048186350692815,
+          "symbol_count": 40,
+          "symbols_with_1_to_2_confirmed": 2,
+          "symbols_with_zero_confirmed": 1,
+          "top_3_symbol_event_share": 0.1564245810055866
+        },
+        "CN": {
+          "ARMED": 4,
+          "CONFIRMED_EVENTS": 164,
+          "CONFIRMED_STATE_DAYS": 15576,
+          "CONFIRMED_per_1000_bars": 4.012428742690774,
+          "ENTRY_ALLOWED": 19,
+          "ENTRY_ALLOWED_per_1000_bars": 0.46485454945807747,
+          "FAILED": 18305,
+          "NONE": 2104,
+          "WATCH": 4884,
+          "bars": 40873,
+          "high_span_P90": 0.07985347985347976,
+          "high_span_median": 0.03384615384615383,
+          "low_span_P90": 0.07853618421052624,
+          "low_span_median": 0.03465123148220311,
+          "max_symbol_event_share": 0.11585365853658537,
+          "platform_detected": 351,
+          "platform_per_1000_bars": 8.58757615051501,
+          "platform_width_P90": 0.23183183183183173,
+          "platform_width_median": 0.14682911590128092,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 1,
+          "symbols_with_zero_confirmed": 0,
+          "top_3_symbol_event_share": 0.3048780487804878
+        },
+        "US": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 194,
+          "CONFIRMED_STATE_DAYS": 20735,
+          "CONFIRMED_per_1000_bars": 4.4689134090437905,
+          "ENTRY_ALLOWED": 21,
+          "ENTRY_ALLOWED_per_1000_bars": 0.4837483587109258,
+          "FAILED": 15195,
+          "NONE": 2955,
+          "WATCH": 4525,
+          "bars": 43411,
+          "high_span_P90": 0.07464044826473186,
+          "high_span_median": 0.02702939855883682,
+          "low_span_P90": 0.08330009888451947,
+          "low_span_median": 0.03025678810816674,
+          "max_symbol_event_share": 0.0979381443298969,
+          "platform_detected": 355,
+          "platform_per_1000_bars": 8.177650825827556,
+          "platform_width_P90": 0.2154029120633012,
+          "platform_width_median": 0.13617571973823883,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 1,
+          "symbols_with_zero_confirmed": 1,
+          "top_3_symbol_event_share": 0.25257731958762886
+        }
+      },
+      "2.5%": {
+        "ALL": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 118,
+          "CONFIRMED_STATE_DAYS": 34333,
+          "CONFIRMED_per_1000_bars": 1.4000284751554268,
+          "ENTRY_ALLOWED": 3,
+          "ENTRY_ALLOWED_per_1000_bars": 0.035593944283612546,
+          "FAILED": 31001,
+          "NONE": 17398,
+          "WATCH": 1551,
+          "bars": 84284,
+          "high_span_P90": 0.021928370624037387,
+          "high_span_median": 0.012435736126716647,
+          "low_span_P90": 0.021857859165571366,
+          "low_span_median": 0.010017396796776353,
+          "max_symbol_event_share": 0.07627118644067797,
+          "platform_detected": 220,
+          "platform_per_1000_bars": 2.6102225807982533,
+          "platform_width_P90": 0.14379895133540888,
+          "platform_width_median": 0.07951298701298704,
+          "symbol_count": 40,
+          "symbols_with_1_to_2_confirmed": 14,
+          "symbols_with_zero_confirmed": 5,
+          "top_3_symbol_event_share": 0.22033898305084748
+        },
+        "CN": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 46,
+          "CONFIRMED_STATE_DAYS": 12856,
+          "CONFIRMED_per_1000_bars": 1.1254373302669243,
+          "ENTRY_ALLOWED": 1,
+          "ENTRY_ALLOWED_per_1000_bars": 0.02446602891884618,
+          "FAILED": 17256,
+          "NONE": 10052,
+          "WATCH": 708,
+          "bars": 40873,
+          "high_span_P90": 0.02155172413793096,
+          "high_span_median": 0.012698412698412648,
+          "low_span_P90": 0.022388059701492578,
+          "low_span_median": 0.010067114093959805,
+          "max_symbol_event_share": 0.1956521739130435,
+          "platform_detected": 101,
+          "platform_per_1000_bars": 2.4710689208034644,
+          "platform_width_P90": 0.1438718662952647,
+          "platform_width_median": 0.08303249097472912,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 7,
+          "symbols_with_zero_confirmed": 3,
+          "top_3_symbol_event_share": 0.3695652173913043
+        },
+        "US": {
+          "ARMED": 0,
+          "CONFIRMED_EVENTS": 72,
+          "CONFIRMED_STATE_DAYS": 21477,
+          "CONFIRMED_per_1000_bars": 1.6585658012946027,
+          "ENTRY_ALLOWED": 2,
+          "ENTRY_ALLOWED_per_1000_bars": 0.04607127225818341,
+          "FAILED": 13745,
+          "NONE": 7346,
+          "WATCH": 843,
+          "bars": 43411,
+          "high_span_P90": 0.02226322432162639,
+          "high_span_median": 0.012283825856177768,
+          "low_span_P90": 0.021646593795841287,
+          "low_span_median": 0.009983930201598122,
+          "max_symbol_event_share": 0.125,
+          "platform_detected": 119,
+          "platform_per_1000_bars": 2.7412406993619127,
+          "platform_width_P90": 0.14141345329979055,
+          "platform_width_median": 0.07419593727704527,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 7,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.3472222222222222
+        }
+      },
+      "3.0%": {
+        "ALL": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 149,
+          "CONFIRMED_STATE_DAYS": 35472,
+          "CONFIRMED_per_1000_bars": 1.7678325660860899,
+          "ENTRY_ALLOWED": 4,
+          "ENTRY_ALLOWED_per_1000_bars": 0.04745859237815006,
+          "FAILED": 32336,
+          "NONE": 14459,
+          "WATCH": 2016,
+          "bars": 84284,
+          "high_span_P90": 0.026347199430278835,
+          "high_span_median": 0.015084765309652848,
+          "low_span_P90": 0.026555406381996237,
+          "low_span_median": 0.012681568940334138,
+          "max_symbol_event_share": 0.08053691275167785,
+          "platform_detected": 282,
+          "platform_per_1000_bars": 3.3458307626595793,
+          "platform_width_P90": 0.1436356548681084,
+          "platform_width_median": 0.08520623346480971,
+          "symbol_count": 40,
+          "symbols_with_1_to_2_confirmed": 9,
+          "symbols_with_zero_confirmed": 5,
+          "top_3_symbol_event_share": 0.21476510067114093
+        },
+        "CN": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 58,
+          "CONFIRMED_STATE_DAYS": 14080,
+          "CONFIRMED_per_1000_bars": 1.4190296772930786,
+          "ENTRY_ALLOWED": 2,
+          "ENTRY_ALLOWED_per_1000_bars": 0.04893205783769236,
+          "FAILED": 17109,
+          "NONE": 8843,
+          "WATCH": 840,
+          "bars": 40873,
+          "high_span_P90": 0.025296086134148108,
+          "high_span_median": 0.013962025316455663,
+          "low_span_P90": 0.02565142065142075,
+          "low_span_median": 0.012197869464305367,
+          "max_symbol_event_share": 0.1724137931034483,
+          "platform_detected": 128,
+          "platform_per_1000_bars": 3.131651701612311,
+          "platform_width_P90": 0.14389916089584937,
+          "platform_width_median": 0.08675838062696418,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 4,
+          "symbols_with_zero_confirmed": 3,
+          "top_3_symbol_event_share": 0.3275862068965517
+        },
+        "US": {
+          "ARMED": 0,
+          "CONFIRMED_EVENTS": 91,
+          "CONFIRMED_STATE_DAYS": 21392,
+          "CONFIRMED_per_1000_bars": 2.096242887747345,
+          "ENTRY_ALLOWED": 2,
+          "ENTRY_ALLOWED_per_1000_bars": 0.04607127225818341,
+          "FAILED": 15227,
+          "NONE": 5616,
+          "WATCH": 1176,
+          "bars": 43411,
+          "high_span_P90": 0.026527205170841527,
+          "high_span_median": 0.015825938315963226,
+          "low_span_P90": 0.02678757163202731,
+          "low_span_median": 0.013478412488574188,
+          "max_symbol_event_share": 0.13186813186813187,
+          "platform_detected": 154,
+          "platform_per_1000_bars": 3.5474879638801227,
+          "platform_width_P90": 0.14084638460990015,
+          "platform_width_median": 0.08373218616986611,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 5,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.34065934065934067
+        }
+      },
+      "4.0%": {
+        "ALL": {
+          "ARMED": 0,
+          "CONFIRMED_EVENTS": 192,
+          "CONFIRMED_STATE_DAYS": 35885,
+          "CONFIRMED_per_1000_bars": 2.278012434151203,
+          "ENTRY_ALLOWED": 12,
+          "ENTRY_ALLOWED_per_1000_bars": 0.14237577713445018,
+          "FAILED": 33916,
+          "NONE": 11198,
+          "WATCH": 3285,
+          "bars": 84284,
+          "high_span_P90": 0.033757781309625534,
+          "high_span_median": 0.01820960386590639,
+          "low_span_P90": 0.03505639150713333,
+          "low_span_median": 0.01691370993771266,
+          "max_symbol_event_share": 0.06770833333333333,
+          "platform_detected": 375,
+          "platform_per_1000_bars": 4.449243035451569,
+          "platform_width_P90": 0.15126716146013475,
+          "platform_width_median": 0.09782684558720002,
+          "symbol_count": 40,
+          "symbols_with_1_to_2_confirmed": 8,
+          "symbols_with_zero_confirmed": 3,
+          "top_3_symbol_event_share": 0.17708333333333331
+        },
+        "CN": {
+          "ARMED": 0,
+          "CONFIRMED_EVENTS": 80,
+          "CONFIRMED_STATE_DAYS": 16521,
+          "CONFIRMED_per_1000_bars": 1.9572823135076947,
+          "ENTRY_ALLOWED": 5,
+          "ENTRY_ALLOWED_per_1000_bars": 0.12233014459423092,
+          "FAILED": 16655,
+          "NONE": 6264,
+          "WATCH": 1433,
+          "bars": 40873,
+          "high_span_P90": 0.03384411071747985,
+          "high_span_median": 0.0173611111111112,
+          "low_span_P90": 0.03552368392131007,
+          "low_span_median": 0.015837104072398196,
+          "max_symbol_event_share": 0.125,
+          "platform_detected": 173,
+          "platform_per_1000_bars": 4.2326230029603895,
+          "platform_width_P90": 0.15638107463781414,
+          "platform_width_median": 0.10215982721382293,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 4,
+          "symbols_with_zero_confirmed": 1,
+          "top_3_symbol_event_share": 0.2875
+        },
+        "US": {
+          "ARMED": 0,
+          "CONFIRMED_EVENTS": 112,
+          "CONFIRMED_STATE_DAYS": 19364,
+          "CONFIRMED_per_1000_bars": 2.579991246458271,
+          "ENTRY_ALLOWED": 7,
+          "ENTRY_ALLOWED_per_1000_bars": 0.16124945290364193,
+          "FAILED": 17261,
+          "NONE": 4934,
+          "WATCH": 1852,
+          "bars": 43411,
+          "high_span_P90": 0.03345290228015363,
+          "high_span_median": 0.018994507991319312,
+          "low_span_P90": 0.03473718301803979,
+          "low_span_median": 0.01804224737271791,
+          "max_symbol_event_share": 0.11607142857142858,
+          "platform_detected": 202,
+          "platform_per_1000_bars": 4.653198498076525,
+          "platform_width_P90": 0.14737023818015327,
+          "platform_width_median": 0.09496934076290922,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 4,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.3035714285714286
+        }
+      },
+      "5.0%": {
+        "ALL": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 239,
+          "CONFIRMED_STATE_DAYS": 36465,
+          "CONFIRMED_per_1000_bars": 2.8356508945944663,
+          "ENTRY_ALLOWED": 16,
+          "ENTRY_ALLOWED_per_1000_bars": 0.18983436951260024,
+          "FAILED": 34674,
+          "NONE": 8817,
+          "WATCH": 4327,
+          "bars": 84284,
+          "high_span_P90": 0.04423788295537781,
+          "high_span_median": 0.021499212322772583,
+          "low_span_P90": 0.042525723856340916,
+          "low_span_median": 0.020694900120436843,
+          "max_symbol_event_share": 0.058577405857740586,
+          "platform_detected": 462,
+          "platform_per_1000_bars": 5.481467419676332,
+          "platform_width_P90": 0.1622167259586422,
+          "platform_width_median": 0.1055336901053698,
+          "symbol_count": 40,
+          "symbols_with_1_to_2_confirmed": 5,
+          "symbols_with_zero_confirmed": 3,
+          "top_3_symbol_event_share": 0.16736401673640167
+        },
+        "CN": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 100,
+          "CONFIRMED_STATE_DAYS": 16499,
+          "CONFIRMED_per_1000_bars": 2.446602891884618,
+          "ENTRY_ALLOWED": 5,
+          "ENTRY_ALLOWED_per_1000_bars": 0.12233014459423092,
+          "FAILED": 18099,
+          "NONE": 4306,
+          "WATCH": 1968,
+          "bars": 40873,
+          "high_span_P90": 0.04532652067511085,
+          "high_span_median": 0.021739130434782726,
+          "low_span_P90": 0.0438695131600138,
+          "low_span_median": 0.020343839541547414,
+          "max_symbol_event_share": 0.13,
+          "platform_detected": 217,
+          "platform_per_1000_bars": 5.309128275389622,
+          "platform_width_P90": 0.16526131882394052,
+          "platform_width_median": 0.1095334685598377,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 3,
+          "symbols_with_zero_confirmed": 1,
+          "top_3_symbol_event_share": 0.3
+        },
+        "US": {
+          "ARMED": 0,
+          "CONFIRMED_EVENTS": 139,
+          "CONFIRMED_STATE_DAYS": 19966,
+          "CONFIRMED_per_1000_bars": 3.201953421943747,
+          "ENTRY_ALLOWED": 11,
+          "ENTRY_ALLOWED_per_1000_bars": 0.25339199742000873,
+          "FAILED": 16575,
+          "NONE": 4511,
+          "WATCH": 2359,
+          "bars": 43411,
+          "high_span_P90": 0.04282536593922405,
+          "high_span_median": 0.020947129871611167,
+          "low_span_P90": 0.041728285567156034,
+          "low_span_median": 0.021289466303421913,
+          "max_symbol_event_share": 0.10071942446043165,
+          "platform_detected": 245,
+          "platform_per_1000_bars": 5.643730851627468,
+          "platform_width_P90": 0.16015917909633676,
+          "platform_width_median": 0.10214313457864285,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 2,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.28057553956834536
+        }
+      },
+      "5.5%": {
+        "ALL": {
+          "ARMED": 3,
+          "CONFIRMED_EVENTS": 258,
+          "CONFIRMED_STATE_DAYS": 36898,
+          "CONFIRMED_per_1000_bars": 3.0610792083906793,
+          "ENTRY_ALLOWED": 21,
+          "ENTRY_ALLOWED_per_1000_bars": 0.24915760998528783,
+          "FAILED": 34045,
+          "NONE": 8249,
+          "WATCH": 5089,
+          "bars": 84284,
+          "high_span_P90": 0.048338368580060444,
+          "high_span_median": 0.023883650978276452,
+          "low_span_P90": 0.04657841042736165,
+          "low_span_median": 0.02158207382568513,
+          "max_symbol_event_share": 0.05426356589147287,
+          "platform_detected": 501,
+          "platform_per_1000_bars": 5.944188695363295,
+          "platform_width_P90": 0.17179766655758572,
+          "platform_width_median": 0.11217040507692666,
+          "symbol_count": 40,
+          "symbols_with_1_to_2_confirmed": 5,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.16279069767441862
+        },
+        "CN": {
+          "ARMED": 3,
+          "CONFIRMED_EVENTS": 110,
+          "CONFIRMED_STATE_DAYS": 16732,
+          "CONFIRMED_per_1000_bars": 2.69126318107308,
+          "ENTRY_ALLOWED": 7,
+          "ENTRY_ALLOWED_per_1000_bars": 0.17126220243192328,
+          "FAILED": 17964,
+          "NONE": 3742,
+          "WATCH": 2432,
+          "bars": 40873,
+          "high_span_P90": 0.049049670141134497,
+          "high_span_median": 0.024253909683715845,
+          "low_span_P90": 0.049397087626252015,
+          "low_span_median": 0.021265946903703693,
+          "max_symbol_event_share": 0.12727272727272726,
+          "platform_detected": 240,
+          "platform_per_1000_bars": 5.871846940523084,
+          "platform_width_P90": 0.17446421880973012,
+          "platform_width_median": 0.11452487609133984,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 3,
+          "symbols_with_zero_confirmed": 0,
+          "top_3_symbol_event_share": 0.2818181818181818
+        },
+        "US": {
+          "ARMED": 0,
+          "CONFIRMED_EVENTS": 148,
+          "CONFIRMED_STATE_DAYS": 20166,
+          "CONFIRMED_per_1000_bars": 3.4092741471055725,
+          "ENTRY_ALLOWED": 14,
+          "ENTRY_ALLOWED_per_1000_bars": 0.32249890580728385,
+          "FAILED": 16081,
+          "NONE": 4507,
+          "WATCH": 2657,
+          "bars": 43411,
+          "high_span_P90": 0.04609172650419689,
+          "high_span_median": 0.0235531867985104,
+          "low_span_P90": 0.04379761649702911,
+          "low_span_median": 0.02163575097065254,
+          "max_symbol_event_share": 0.0945945945945946,
+          "platform_detected": 261,
+          "platform_per_1000_bars": 6.012301029692935,
+          "platform_width_P90": 0.16636732658299483,
+          "platform_width_median": 0.10628532704594892,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 2,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.27702702702702703
+        }
+      },
+      "7.5%": {
+        "ALL": {
+          "ARMED": 4,
+          "CONFIRMED_EVENTS": 296,
+          "CONFIRMED_STATE_DAYS": 35526,
+          "CONFIRMED_per_1000_bars": 3.5119358359831048,
+          "ENTRY_ALLOWED": 32,
+          "ENTRY_ALLOWED_per_1000_bars": 0.3796687390252005,
+          "FAILED": 34489,
+          "NONE": 7171,
+          "WATCH": 7094,
+          "bars": 84284,
+          "high_span_P90": 0.06095943919943605,
+          "high_span_median": 0.027227527466681993,
+          "low_span_P90": 0.059564095808150974,
+          "low_span_median": 0.027129900014593165,
+          "max_symbol_event_share": 0.057432432432432436,
+          "platform_detected": 599,
+          "platform_per_1000_bars": 7.106924208627972,
+          "platform_width_P90": 0.1940222811986167,
+          "platform_width_median": 0.12626995645863565,
+          "symbol_count": 40,
+          "symbols_with_1_to_2_confirmed": 3,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.1587837837837838
+        },
+        "CN": {
+          "ARMED": 3,
+          "CONFIRMED_EVENTS": 136,
+          "CONFIRMED_STATE_DAYS": 16505,
+          "CONFIRMED_per_1000_bars": 3.3273799329630807,
+          "ENTRY_ALLOWED": 15,
+          "ENTRY_ALLOWED_per_1000_bars": 0.36699043378269275,
+          "FAILED": 17702,
+          "NONE": 3062,
+          "WATCH": 3601,
+          "bars": 40873,
+          "high_span_P90": 0.0618677602705231,
+          "high_span_median": 0.030216077561845092,
+          "low_span_P90": 0.06151407931593694,
+          "low_span_median": 0.02889856372872339,
+          "max_symbol_event_share": 0.11029411764705882,
+          "platform_detected": 296,
+          "platform_per_1000_bars": 7.24194455997847,
+          "platform_width_P90": 0.1928310953496421,
+          "platform_width_median": 0.1329650092081031,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 1,
+          "symbols_with_zero_confirmed": 0,
+          "top_3_symbol_event_share": 0.25735294117647056
+        },
+        "US": {
+          "ARMED": 1,
+          "CONFIRMED_EVENTS": 160,
+          "CONFIRMED_STATE_DAYS": 19021,
+          "CONFIRMED_per_1000_bars": 3.685701780654673,
+          "ENTRY_ALLOWED": 17,
+          "ENTRY_ALLOWED_per_1000_bars": 0.391605814194559,
+          "FAILED": 16787,
+          "NONE": 4109,
+          "WATCH": 3493,
+          "bars": 43411,
+          "high_span_P90": 0.05913152772738023,
+          "high_span_median": 0.025905755134619863,
+          "low_span_P90": 0.05560478932045332,
+          "low_span_median": 0.025317093726641763,
+          "max_symbol_event_share": 0.10625,
+          "platform_detected": 303,
+          "platform_per_1000_bars": 6.9797977471147865,
+          "platform_width_P90": 0.19718049709642627,
+          "platform_width_median": 0.11948128119506965,
+          "symbol_count": 20,
+          "symbols_with_1_to_2_confirmed": 2,
+          "symbols_with_zero_confirmed": 2,
+          "top_3_symbol_event_share": 0.275
+        }
+      }
+    },
+    "cross_market_comparison": {
+      "3.0%": {
+        "CN_vs_US_concentration_difference": 0.040545661235316416,
+        "CN_vs_US_event_density_ratio": 0.6769395309996685,
+        "CN_vs_US_platform_detection_density_ratio": 0.8827800780434547,
+        "CN_vs_US_zero_event_symbol_difference": 1,
+        "adjacent_stability": {
+          "2.5%→3.0%": {
+            "CN": {
+              "added": 13,
+              "current_event_count": 58,
+              "date_drift_P90": 7.0,
+              "date_drift_median": 7,
+              "disappeared": 1,
+              "exact_date_jaccard": 0.7627118644067796,
+              "nearest_date_matched_count": 1,
+              "previous_event_count": 46,
+              "retained": 45
+            },
+            "US": {
+              "added": 27,
+              "current_event_count": 91,
+              "date_drift_P90": 29.60000000000001,
+              "date_drift_median": 11,
+              "disappeared": 8,
+              "exact_date_jaccard": 0.6464646464646465,
+              "nearest_date_matched_count": 7,
+              "previous_event_count": 72,
+              "retained": 64
+            }
+          },
+          "3.0%→4.0%": {
+            "CN": {
+              "added": 26,
+              "current_event_count": 80,
+              "date_drift_P90": 18.6,
+              "date_drift_median": 9,
+              "disappeared": 4,
+              "exact_date_jaccard": 0.6428571428571429,
+              "nearest_date_matched_count": 3,
+              "previous_event_count": 58,
+              "retained": 54
+            },
+            "US": {
+              "added": 30,
+              "current_event_count": 112,
+              "date_drift_P90": 32.00000000000001,
+              "date_drift_median": 15,
+              "disappeared": 9,
+              "exact_date_jaccard": 0.6776859504132231,
+              "nearest_date_matched_count": 9,
+              "previous_event_count": 91,
+              "retained": 82
+            }
+          },
+          "4.0%→5.0%": {
+            "CN": {
+              "added": 26,
+              "current_event_count": 100,
+              "date_drift_P90": 686.5,
+              "date_drift_median": 13.0,
+              "disappeared": 6,
+              "exact_date_jaccard": 0.6981132075471698,
+              "nearest_date_matched_count": 6,
+              "previous_event_count": 80,
+              "retained": 74
+            },
+            "US": {
+              "added": 32,
+              "current_event_count": 139,
+              "date_drift_P90": 407.0,
+              "date_drift_median": 7,
+              "disappeared": 5,
+              "exact_date_jaccard": 0.7430555555555556,
+              "nearest_date_matched_count": 5,
+              "previous_event_count": 112,
+              "retained": 107
+            }
+          },
+          "5.0%→5.5%": {
+            "CN": {
+              "added": 14,
+              "current_event_count": 110,
+              "date_drift_P90": 15.2,
+              "date_drift_median": 8.5,
+              "disappeared": 4,
+              "exact_date_jaccard": 0.8421052631578947,
+              "nearest_date_matched_count": 4,
+              "previous_event_count": 100,
+              "retained": 96
+            },
+            "US": {
+              "added": 14,
+              "current_event_count": 148,
+              "date_drift_P90": 30.6,
+              "date_drift_median": 13,
+              "disappeared": 5,
+              "exact_date_jaccard": 0.8758169934640523,
+              "nearest_date_matched_count": 3,
+              "previous_event_count": 139,
+              "retained": 134
+            }
+          },
+          "5.5%→7.5%": {
+            "CN": {
+              "added": 37,
+              "current_event_count": 136,
+              "date_drift_P90": 2050.0,
+              "date_drift_median": 9,
+              "disappeared": 11,
+              "exact_date_jaccard": 0.673469387755102,
+              "nearest_date_matched_count": 11,
+              "previous_event_count": 110,
+              "retained": 99
+            },
+            "US": {
+              "added": 26,
+              "current_event_count": 160,
+              "date_drift_P90": 1210.1000000000004,
+              "date_drift_median": 13.0,
+              "disappeared": 14,
+              "exact_date_jaccard": 0.7701149425287356,
+              "nearest_date_matched_count": 12,
+              "previous_event_count": 148,
+              "retained": 134
+            }
+          },
+          "7.5%→10.0%": {
+            "CN": {
+              "added": 40,
+              "current_event_count": 164,
+              "date_drift_P90": 80.29999999999994,
+              "date_drift_median": 12.5,
+              "disappeared": 12,
+              "exact_date_jaccard": 0.7045454545454546,
+              "nearest_date_matched_count": 10,
+              "previous_event_count": 136,
+              "retained": 124
+            },
+            "US": {
+              "added": 42,
+              "current_event_count": 194,
+              "date_drift_P90": 256.6,
+              "date_drift_median": 21.0,
+              "disappeared": 8,
+              "exact_date_jaccard": 0.7524752475247525,
+              "nearest_date_matched_count": 8,
+              "previous_event_count": 160,
+              "retained": 152
+            }
+          }
+        }
+      },
+      "4.0%": {
+        "CN_vs_US_concentration_difference": 0.008928571428571425,
+        "CN_vs_US_event_density_ratio": 0.758639129568594,
+        "CN_vs_US_platform_detection_density_ratio": 0.9096158276312547,
+        "CN_vs_US_zero_event_symbol_difference": -1,
+        "adjacent_stability": {
+          "2.5%→3.0%": {
+            "CN": {
+              "added": 13,
+              "current_event_count": 58,
+              "date_drift_P90": 7.0,
+              "date_drift_median": 7,
+              "disappeared": 1,
+              "exact_date_jaccard": 0.7627118644067796,
+              "nearest_date_matched_count": 1,
+              "previous_event_count": 46,
+              "retained": 45
+            },
+            "US": {
+              "added": 27,
+              "current_event_count": 91,
+              "date_drift_P90": 29.60000000000001,
+              "date_drift_median": 11,
+              "disappeared": 8,
+              "exact_date_jaccard": 0.6464646464646465,
+              "nearest_date_matched_count": 7,
+              "previous_event_count": 72,
+              "retained": 64
+            }
+          },
+          "3.0%→4.0%": {
+            "CN": {
+              "added": 26,
+              "current_event_count": 80,
+              "date_drift_P90": 18.6,
+              "date_drift_median": 9,
+              "disappeared": 4,
+              "exact_date_jaccard": 0.6428571428571429,
+              "nearest_date_matched_count": 3,
+              "previous_event_count": 58,
+              "retained": 54
+            },
+            "US": {
+              "added": 30,
+              "current_event_count": 112,
+              "date_drift_P90": 32.00000000000001,
+              "date_drift_median": 15,
+              "disappeared": 9,
+              "exact_date_jaccard": 0.6776859504132231,
+              "nearest_date_matched_count": 9,
+              "previous_event_count": 91,
+              "retained": 82
+            }
+          },
+          "4.0%→5.0%": {
+            "CN": {
+              "added": 26,
+              "current_event_count": 100,
+              "date_drift_P90": 686.5,
+              "date_drift_median": 13.0,
+              "disappeared": 6,
+              "exact_date_jaccard": 0.6981132075471698,
+              "nearest_date_matched_count": 6,
+              "previous_event_count": 80,
+              "retained": 74
+            },
+            "US": {
+              "added": 32,
+              "current_event_count": 139,
+              "date_drift_P90": 407.0,
+              "date_drift_median": 7,
+              "disappeared": 5,
+              "exact_date_jaccard": 0.7430555555555556,
+              "nearest_date_matched_count": 5,
+              "previous_event_count": 112,
+              "retained": 107
+            }
+          },
+          "5.0%→5.5%": {
+            "CN": {
+              "added": 14,
+              "current_event_count": 110,
+              "date_drift_P90": 15.2,
+              "date_drift_median": 8.5,
+              "disappeared": 4,
+              "exact_date_jaccard": 0.8421052631578947,
+              "nearest_date_matched_count": 4,
+              "previous_event_count": 100,
+              "retained": 96
+            },
+            "US": {
+              "added": 14,
+              "current_event_count": 148,
+              "date_drift_P90": 30.6,
+              "date_drift_median": 13,
+              "disappeared": 5,
+              "exact_date_jaccard": 0.8758169934640523,
+              "nearest_date_matched_count": 3,
+              "previous_event_count": 139,
+              "retained": 134
+            }
+          },
+          "5.5%→7.5%": {
+            "CN": {
+              "added": 37,
+              "current_event_count": 136,
+              "date_drift_P90": 2050.0,
+              "date_drift_median": 9,
+              "disappeared": 11,
+              "exact_date_jaccard": 0.673469387755102,
+              "nearest_date_matched_count": 11,
+              "previous_event_count": 110,
+              "retained": 99
+            },
+            "US": {
+              "added": 26,
+              "current_event_count": 160,
+              "date_drift_P90": 1210.1000000000004,
+              "date_drift_median": 13.0,
+              "disappeared": 14,
+              "exact_date_jaccard": 0.7701149425287356,
+              "nearest_date_matched_count": 12,
+              "previous_event_count": 148,
+              "retained": 134
+            }
+          },
+          "7.5%→10.0%": {
+            "CN": {
+              "added": 40,
+              "current_event_count": 164,
+              "date_drift_P90": 80.29999999999994,
+              "date_drift_median": 12.5,
+              "disappeared": 12,
+              "exact_date_jaccard": 0.7045454545454546,
+              "nearest_date_matched_count": 10,
+              "previous_event_count": 136,
+              "retained": 124
+            },
+            "US": {
+              "added": 42,
+              "current_event_count": 194,
+              "date_drift_P90": 256.6,
+              "date_drift_median": 21.0,
+              "disappeared": 8,
+              "exact_date_jaccard": 0.7524752475247525,
+              "nearest_date_matched_count": 8,
+              "previous_event_count": 160,
+              "retained": 152
+            }
+          }
+        }
+      },
+      "5.0%": {
+        "CN_vs_US_concentration_difference": 0.02928057553956835,
+        "CN_vs_US_event_density_ratio": 0.7640969650331162,
+        "CN_vs_US_platform_detection_density_ratio": 0.9407125206650566,
+        "CN_vs_US_zero_event_symbol_difference": -1,
+        "adjacent_stability": {
+          "2.5%→3.0%": {
+            "CN": {
+              "added": 13,
+              "current_event_count": 58,
+              "date_drift_P90": 7.0,
+              "date_drift_median": 7,
+              "disappeared": 1,
+              "exact_date_jaccard": 0.7627118644067796,
+              "nearest_date_matched_count": 1,
+              "previous_event_count": 46,
+              "retained": 45
+            },
+            "US": {
+              "added": 27,
+              "current_event_count": 91,
+              "date_drift_P90": 29.60000000000001,
+              "date_drift_median": 11,
+              "disappeared": 8,
+              "exact_date_jaccard": 0.6464646464646465,
+              "nearest_date_matched_count": 7,
+              "previous_event_count": 72,
+              "retained": 64
+            }
+          },
+          "3.0%→4.0%": {
+            "CN": {
+              "added": 26,
+              "current_event_count": 80,
+              "date_drift_P90": 18.6,
+              "date_drift_median": 9,
+              "disappeared": 4,
+              "exact_date_jaccard": 0.6428571428571429,
+              "nearest_date_matched_count": 3,
+              "previous_event_count": 58,
+              "retained": 54
+            },
+            "US": {
+              "added": 30,
+              "current_event_count": 112,
+              "date_drift_P90": 32.00000000000001,
+              "date_drift_median": 15,
+              "disappeared": 9,
+              "exact_date_jaccard": 0.6776859504132231,
+              "nearest_date_matched_count": 9,
+              "previous_event_count": 91,
+              "retained": 82
+            }
+          },
+          "4.0%→5.0%": {
+            "CN": {
+              "added": 26,
+              "current_event_count": 100,
+              "date_drift_P90": 686.5,
+              "date_drift_median": 13.0,
+              "disappeared": 6,
+              "exact_date_jaccard": 0.6981132075471698,
+              "nearest_date_matched_count": 6,
+              "previous_event_count": 80,
+              "retained": 74
+            },
+            "US": {
+              "added": 32,
+              "current_event_count": 139,
+              "date_drift_P90": 407.0,
+              "date_drift_median": 7,
+              "disappeared": 5,
+              "exact_date_jaccard": 0.7430555555555556,
+              "nearest_date_matched_count": 5,
+              "previous_event_count": 112,
+              "retained": 107
+            }
+          },
+          "5.0%→5.5%": {
+            "CN": {
+              "added": 14,
+              "current_event_count": 110,
+              "date_drift_P90": 15.2,
+              "date_drift_median": 8.5,
+              "disappeared": 4,
+              "exact_date_jaccard": 0.8421052631578947,
+              "nearest_date_matched_count": 4,
+              "previous_event_count": 100,
+              "retained": 96
+            },
+            "US": {
+              "added": 14,
+              "current_event_count": 148,
+              "date_drift_P90": 30.6,
+              "date_drift_median": 13,
+              "disappeared": 5,
+              "exact_date_jaccard": 0.8758169934640523,
+              "nearest_date_matched_count": 3,
+              "previous_event_count": 139,
+              "retained": 134
+            }
+          },
+          "5.5%→7.5%": {
+            "CN": {
+              "added": 37,
+              "current_event_count": 136,
+              "date_drift_P90": 2050.0,
+              "date_drift_median": 9,
+              "disappeared": 11,
+              "exact_date_jaccard": 0.673469387755102,
+              "nearest_date_matched_count": 11,
+              "previous_event_count": 110,
+              "retained": 99
+            },
+            "US": {
+              "added": 26,
+              "current_event_count": 160,
+              "date_drift_P90": 1210.1000000000004,
+              "date_drift_median": 13.0,
+              "disappeared": 14,
+              "exact_date_jaccard": 0.7701149425287356,
+              "nearest_date_matched_count": 12,
+              "previous_event_count": 148,
+              "retained": 134
+            }
+          },
+          "7.5%→10.0%": {
+            "CN": {
+              "added": 40,
+              "current_event_count": 164,
+              "date_drift_P90": 80.29999999999994,
+              "date_drift_median": 12.5,
+              "disappeared": 12,
+              "exact_date_jaccard": 0.7045454545454546,
+              "nearest_date_matched_count": 10,
+              "previous_event_count": 136,
+              "retained": 124
+            },
+            "US": {
+              "added": 42,
+              "current_event_count": 194,
+              "date_drift_P90": 256.6,
+              "date_drift_median": 21.0,
+              "disappeared": 8,
+              "exact_date_jaccard": 0.7524752475247525,
+              "nearest_date_matched_count": 8,
+              "previous_event_count": 160,
+              "retained": 152
+            }
+          }
+        }
+      }
+    },
+    "mechanical_flags": {
+      "definitions": {
+        "ADJACENT_STABILITY_HIGH": {
+          "rule": "An adjacent pair is HIGH when exact-date Jaccard is at least 75% and retained/previous is at least 90%.",
+          "scope": "descriptive evidence only; does not affect SETUP_03",
+          "thresholds": {
+            "exact_date_jaccard": 0.75,
+            "retention": 0.9
+          }
+        },
+        "ADJACENT_STABILITY_LOW": {
+          "rule": "An adjacent pair is LOW when either exact-date Jaccard is below 75% or retained/previous is below 90%.",
+          "scope": "descriptive evidence only; does not affect SETUP_03",
+          "thresholds": {
+            "exact_date_jaccard": 0.75,
+            "retention": 0.9
+          }
+        },
+        "CONCENTRATION_HIGH": {
+          "rule": "At any production tolerance and market aggregate, max single-symbol share is at least 10% or top-3 share is at least 30%.",
+          "scope": "descriptive evidence only; does not affect SETUP_03",
+          "thresholds": {
+            "max_symbol_share": 0.1,
+            "top_3_symbol_share": 0.3
+          }
+        },
+        "CROSS_MARKET_DIVERGENCE": {
+          "rule": "At 3%, 4%, or 5%, CN/US event-density or platform-density ratio is outside [0.80, 1.25], or zero-event-symbol difference is at least 2, or max-share difference is at least 5 percentage points.",
+          "scope": "descriptive evidence only; does not affect SETUP_03",
+          "thresholds": {
+            "concentration_difference": 0.05,
+            "ratio_lower": 0.8,
+            "ratio_upper": 1.25,
+            "zero_event_difference": 2
+          }
+        },
+        "NO_CLEAR_STRUCTURAL_PLATEAU": {
+          "rule": "Neither production transition 3%→4% nor 4%→5% is HIGH in the ALL aggregate.",
+          "scope": "descriptive evidence only; does not affect SETUP_03"
+        },
+        "SPARSE_AT_3": {
+          "rule": "At 3%, each CN and US market has at least 30% of symbols with 0, 1, or 2 confirmed events.",
+          "scope": "descriptive evidence only; does not affect SETUP_03",
+          "thresholds": {
+            "minimum_market_symbol_fraction": 0.3
+          }
+        },
+        "STRUCTURAL_EXPANSION_4_TO_5": {
+          "rule": "ALL confirmed events grow by at least 20%, platform density by at least 10%, and high-span median by at least 10% from 4% to 5%.",
+          "scope": "descriptive evidence only; does not affect SETUP_03",
+          "thresholds": {
+            "event_growth": 0.2,
+            "high_span_growth": 0.1,
+            "platform_density_growth": 0.1
+          }
+        }
+      },
+      "observations": {
+        "ADJACENT_STABILITY": {
+          "2.5%→3.0%": {
+            "ALL": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.689873417721519,
+              "retention": 0.923728813559322
+            },
+            "CN": {
+              "classification": "HIGH",
+              "exact_date_jaccard": 0.7627118644067796,
+              "retention": 0.9782608695652174
+            },
+            "US": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.6464646464646465,
+              "retention": 0.8888888888888888
+            }
+          },
+          "3.0%→4.0%": {
+            "ALL": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.6634146341463415,
+              "retention": 0.912751677852349
+            },
+            "CN": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.6428571428571429,
+              "retention": 0.9310344827586207
+            },
+            "US": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.6776859504132231,
+              "retention": 0.9010989010989011
+            }
+          },
+          "4.0%→5.0%": {
+            "ALL": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.724,
+              "retention": 0.9427083333333334
+            },
+            "CN": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.6981132075471698,
+              "retention": 0.925
+            },
+            "US": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.7430555555555556,
+              "retention": 0.9553571428571429
+            }
+          },
+          "5.0%→5.5%": {
+            "ALL": {
+              "classification": "HIGH",
+              "exact_date_jaccard": 0.8614232209737828,
+              "retention": 0.9623430962343096
+            },
+            "CN": {
+              "classification": "HIGH",
+              "exact_date_jaccard": 0.8421052631578947,
+              "retention": 0.96
+            },
+            "US": {
+              "classification": "HIGH",
+              "exact_date_jaccard": 0.8758169934640523,
+              "retention": 0.9640287769784173
+            }
+          },
+          "5.5%→7.5%": {
+            "ALL": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.7258566978193146,
+              "retention": 0.9031007751937985
+            },
+            "CN": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.673469387755102,
+              "retention": 0.9
+            },
+            "US": {
+              "classification": "HIGH",
+              "exact_date_jaccard": 0.7701149425287356,
+              "retention": 0.9054054054054054
+            }
+          },
+          "7.5%→10.0%": {
+            "ALL": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.7301587301587301,
+              "retention": 0.9324324324324325
+            },
+            "CN": {
+              "classification": "LOW",
+              "exact_date_jaccard": 0.7045454545454546,
+              "retention": 0.9117647058823529
+            },
+            "US": {
+              "classification": "HIGH",
+              "exact_date_jaccard": 0.7524752475247525,
+              "retention": 0.95
+            }
+          }
+        },
+        "CONCENTRATION_HIGH": {
+          "3.0%": {
+            "ALL": {
+              "max_symbol_event_share": 0.08053691275167785,
+              "top_3_symbol_event_share": 0.21476510067114093
+            },
+            "CN": {
+              "max_symbol_event_share": 0.1724137931034483,
+              "top_3_symbol_event_share": 0.3275862068965517
+            },
+            "US": {
+              "max_symbol_event_share": 0.13186813186813187,
+              "top_3_symbol_event_share": 0.34065934065934067
+            }
+          },
+          "4.0%": {
+            "ALL": {
+              "max_symbol_event_share": 0.06770833333333333,
+              "top_3_symbol_event_share": 0.17708333333333331
+            },
+            "CN": {
+              "max_symbol_event_share": 0.125,
+              "top_3_symbol_event_share": 0.2875
+            },
+            "US": {
+              "max_symbol_event_share": 0.11607142857142858,
+              "top_3_symbol_event_share": 0.3035714285714286
+            }
+          },
+          "5.0%": {
+            "ALL": {
+              "max_symbol_event_share": 0.058577405857740586,
+              "top_3_symbol_event_share": 0.16736401673640167
+            },
+            "CN": {
+              "max_symbol_event_share": 0.13,
+              "top_3_symbol_event_share": 0.3
+            },
+            "US": {
+              "max_symbol_event_share": 0.10071942446043165,
+              "top_3_symbol_event_share": 0.28057553956834536
+            }
+          }
+        },
+        "CROSS_MARKET_DIVERGENCE": {
+          "3.0%": {
+            "event_density_ratio_CN_to_US": 0.6769395309996685,
+            "max_symbol_event_share_difference_CN_minus_US": 0.040545661235316416,
+            "platform_density_ratio_CN_to_US": 0.8827800780434547,
+            "zero_event_symbol_difference_CN_minus_US": 1
+          },
+          "4.0%": {
+            "event_density_ratio_CN_to_US": 0.758639129568594,
+            "max_symbol_event_share_difference_CN_minus_US": 0.008928571428571425,
+            "platform_density_ratio_CN_to_US": 0.9096158276312547,
+            "zero_event_symbol_difference_CN_minus_US": -1
+          },
+          "5.0%": {
+            "event_density_ratio_CN_to_US": 0.7640969650331162,
+            "max_symbol_event_share_difference_CN_minus_US": 0.02928057553956835,
+            "platform_density_ratio_CN_to_US": 0.9407125206650566,
+            "zero_event_symbol_difference_CN_minus_US": -1
+          }
+        },
+        "SPARSE_AT_3": {
+          "CN": {
+            "fraction": 0.35,
+            "one_to_two": 4,
+            "symbols": 20,
+            "zero": 3,
+            "zero_or_one_to_two": 7
+          },
+          "US": {
+            "fraction": 0.35,
+            "one_to_two": 5,
+            "symbols": 20,
+            "zero": 2,
+            "zero_or_one_to_two": 7
+          }
+        },
+        "STRUCTURAL_EXPANSION_4_TO_5": {
+          "event_growth": 0.24479166666666674,
+          "high_span_median_growth": 0.18065238986473986,
+          "platform_density_growth": 0.23199999999999976
+        }
+      },
+      "values": {
+        "ADJACENT_STABILITY_HIGH": true,
+        "ADJACENT_STABILITY_LOW": true,
+        "CONCENTRATION_HIGH": true,
+        "CROSS_MARKET_DIVERGENCE": true,
+        "NO_CLEAR_STRUCTURAL_PLATEAU": true,
+        "SPARSE_AT_3": true,
+        "STRUCTURAL_EXPANSION_4_TO_5": true
+      }
+    }
+  }
+}

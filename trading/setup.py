@@ -190,6 +190,7 @@ def detect_platform_breakout_with_diagnostics(
     platform_tolerance_pct: float = 0.0,
     arm_proximity_pct: float = 0.0,
     swings: Optional[list[SwingPoint]] = None,
+    history: Optional[list[SetupWithDiagnostics]] = None,
 ) -> SetupWithDiagnostics:
     """Run the production state machine once and return read-only gate evidence."""
     validate_quote_series(quotes)
@@ -304,6 +305,7 @@ def detect_platform_breakout_with_diagnostics(
                 arm_threshold=breakout_price * (1 - arm_proximity_pct),
                 platform_tolerance_pct=platform_tolerance_pct,
             )
+
         elif state is SetupState.ARMED:
             assert breakout_price is not None and structural_invalidation is not None
             if close_t > breakout_price:
@@ -335,6 +337,22 @@ def detect_platform_breakout_with_diagnostics(
                 platform_tolerance_pct=platform_tolerance_pct,
             )
 
+        if history is not None:
+            history.append(
+                SetupWithDiagnostics(
+                    Setup(
+                        setup_type="SETUP_03",
+                        state=state,
+                        breakout_price=breakout_price,
+                        structural_invalidation=structural_invalidation,
+                        detected_index=detected_index,
+                        state_entered_index=state_entered_index,
+                        confirmed_index=confirmed_index,
+                    ),
+                    latest_diagnostics,
+                )
+            )
+
     setup = Setup(
         setup_type="SETUP_03",
         state=state,
@@ -346,3 +364,34 @@ def detect_platform_breakout_with_diagnostics(
     )
     assert latest_diagnostics is not None
     return SetupWithDiagnostics(setup, latest_diagnostics)
+
+
+def detect_platform_breakout_history_with_diagnostics(
+    quotes: list[Quote],
+    swing_lookback: int = 5,
+    platform_window: int = 40,
+    platform_tolerance_pct: float = 0.0,
+    arm_proximity_pct: float = 0.0,
+    swings: Optional[list[SwingPoint]] = None,
+) -> tuple[SetupWithDiagnostics, ...]:
+    """Return one as-of Setup/diagnostics snapshot per input bar.
+
+    This is the same production state-machine loop as
+    ``detect_platform_breakout_with_diagnostics``.  It exists so a research
+    replay can calculate the causal swing series once instead of recalculating
+    every prefix from scratch; it does not expose future swing information to
+    any snapshot.
+    """
+    history: list[SetupWithDiagnostics] = []
+    detect_platform_breakout_with_diagnostics(
+        quotes,
+        swing_lookback=swing_lookback,
+        platform_window=platform_window,
+        platform_tolerance_pct=platform_tolerance_pct,
+        arm_proximity_pct=arm_proximity_pct,
+        swings=swings,
+        history=history,
+    )
+    if len(history) != len(quotes):
+        raise RuntimeError("SETUP_03 as-of history did not conserve input bars")
+    return tuple(history)

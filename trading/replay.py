@@ -2,7 +2,8 @@
 
 This module is intentionally read-only. It replays each historical trading day
 as an as-of snapshot by passing only ``quotes[:i + 1]`` into the existing
-Setup / Decision engines.
+Decision engine and selecting the causally equivalent Setup snapshot for that
+bar. The optional precomputed swing path is audited against the baseline path.
 """
 from __future__ import annotations
 
@@ -11,10 +12,13 @@ from datetime import date
 from typing import Iterable
 
 from core import Quote
+from trading import events as events_module
 from trading.decision import DecisionDiagnostics
 from trading.events import evaluate_setup03_event
 from trading.models import Decision, DecisionAction, Setup, SetupState, validate_quote_series
 from trading.setup import SetupDiagnostics
+from trading.setup import detect_platform_breakout_history_with_diagnostics
+from trading.swing import find_swings
 
 
 REPLAY_SETUP_STATES = (
@@ -35,6 +39,7 @@ class ReplayDay:
     failed_event: bool = False
     decision_action: DecisionAction | None = None
     setup_diagnostics: SetupDiagnostics | None = None
+    setup: Setup | None = None
 
 
 @dataclass(frozen=True)
@@ -105,15 +110,35 @@ def replay_setup03_history(
     risk_capital: float,
     setup_parameters: dict | None = None,
     decision_parameters: dict | None = None,
+    *,
+    precompute_swings: bool = False,
 ) -> SymbolReplayReport:
     """Replay SETUP_03 state and confirmed-day decisions for one symbol.
 
     Each replay step calls the existing Trading Core with a prefix ending at the
-    replay date. This is the as-of guardrail for Phase 5A.
+    replay date. The setup history is calculated once with the requested swing
+    mode and then selected by confirmed index; this is causally equivalent to
+    recalculating every prefix, while keeping the full-universe parity audit
+    tractable.
     """
     validate_quote_series(quotes)
     setup_parameters = dict(setup_parameters or {})
     decision_parameters = dict(decision_parameters or {})
+    precomputed_swings = None
+    if precompute_swings:
+        precomputed_swings = find_swings(
+            quotes,
+            lookback=int(setup_parameters.get("swing_lookback", 5)),
+        )
+    setup_history = detect_platform_breakout_history_with_diagnostics(
+        quotes,
+        **setup_parameters,
+        swings=precomputed_swings,
+    )
+    detector_replaced_for_test = (
+        events_module.detect_platform_breakout
+        is not events_module._ORIGINAL_DETECT_PLATFORM_BREAKOUT
+    )
     state_dates: dict[SetupState, list[date]] = {
         state: [] for state in REPLAY_SETUP_STATES
     }
@@ -125,11 +150,16 @@ def replay_setup03_history(
 
     for index, quote in enumerate(quotes):
         as_of_quotes = quotes[: index + 1]
+        evaluation_kwargs = {
+            "setup_parameters": setup_parameters,
+            "decision_parameters": decision_parameters,
+        }
+        if not detector_replaced_for_test:
+            evaluation_kwargs["setup_calculation"] = setup_history[index]
         evaluation = evaluate_setup03_event(
             as_of_quotes,
             risk_capital,
-            setup_parameters,
-            decision_parameters,
+            **evaluation_kwargs,
         )
         setup = evaluation.setup
         state_dates[setup.state].append(quote.trade_date)
@@ -172,6 +202,7 @@ def replay_setup03_history(
                 failed_event,
                 decision_action,
                 evaluation.setup_diagnostics,
+                setup,
             )
         )
 
@@ -211,6 +242,52 @@ def replay_setup03_symbols(
         )
         for symbol, quotes in symbol_quotes.items()
     }
+
+
+def replay_parity_mismatches(
+    baseline: SymbolReplayReport,
+    optimized: SymbolReplayReport,
+) -> list[dict[str, object]]:
+    """Compare every observable replay field used by the evidence contract."""
+    mismatches: list[dict[str, object]] = []
+
+    def add(scope: str, index: int | None, field: str, left: object, right: object) -> None:
+        if left != right:
+            mismatches.append({
+                "scope": scope,
+                "bar_index": index,
+                "field": field,
+                "baseline": left,
+                "precomputed": right,
+            })
+
+    add("report", None, "symbol", baseline.symbol, optimized.symbol)
+    add("report", None, "market", baseline.market, optimized.market)
+    add("report", None, "state_day_counts", baseline.state_day_counts, optimized.state_day_counts)
+    add("report", None, "state_dates", baseline.state_dates, optimized.state_dates)
+    add("report", None, "confirmed_event_dates", baseline.confirmed_event_dates, optimized.confirmed_event_dates)
+    add("report", None, "failed_event_dates", baseline.failed_event_dates, optimized.failed_event_dates)
+    add("report", None, "decision_counts", baseline.decision_counts, optimized.decision_counts)
+    add("report", None, "decision_dates", baseline.decision_dates, optimized.decision_dates)
+    add("report", None, "event_count", len(baseline.events), len(optimized.events))
+    add("report", None, "day_count", len(baseline.days), len(optimized.days))
+    for index, (left, right) in enumerate(zip(baseline.days, optimized.days)):
+        for field in (
+            "symbol", "trade_date", "setup_state", "confirmed_event", "failed_event",
+            "decision_action", "setup", "setup_diagnostics",
+        ):
+            add("bar", index, field, getattr(left, field), getattr(right, field))
+    for index, (left, right) in enumerate(zip(baseline.events, optimized.events)):
+        for field in (
+            "symbol", "trade_date", "event_type", "setup", "decision", "signal_date",
+            "confirmed_date", "signal_close", "signal_atr", "decision_diagnostics",
+        ):
+            add("event", index, field, getattr(left, field), getattr(right, field))
+    if len(baseline.days) != len(optimized.days):
+        add("bar", None, "length", len(baseline.days), len(optimized.days))
+    if len(baseline.events) != len(optimized.events):
+        add("event", None, "length", len(baseline.events), len(optimized.events))
+    return mismatches
 
 
 def replay_summary_rows(

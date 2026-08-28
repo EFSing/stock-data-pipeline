@@ -1,9 +1,12 @@
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from scripts.hithink_cn_capability_smoke_test import (
+    API_KEY_ENV,
     BASE_URL,
     _response_summary,
     endpoint_specs,
@@ -46,7 +49,7 @@ class HiThinkCapabilitySmokeTests(unittest.TestCase):
         def fake_probe(endpoint, api_key):
             return 200, b'{"code":0,"message":"ok","request_id":"test","data":{}}', None
 
-        with TemporaryDirectory() as directory:
+        with patch.dict(os.environ, {API_KEY_ENV: ""}, clear=False), TemporaryDirectory() as directory:
             result = run_smoke_test(Path(directory), probe=fake_probe)
             report = json.loads(Path(result["report_path"]).read_text(encoding="utf-8"))
             self.assertFalse(report["api_key_configured"])
@@ -60,6 +63,22 @@ class HiThinkCapabilitySmokeTests(unittest.TestCase):
                 self.assertTrue(row["raw_response_sha256"].startswith("sha256:"))
                 self.assertTrue(Path(row["raw_response_path"]).exists())
                 self.assertNotIn("api_key", row)
+
+    def test_configured_key_changes_only_auth_header_input_and_never_report_content(self):
+        seen_keys = []
+
+        def fake_probe(endpoint, api_key):
+            seen_keys.append(api_key)
+            return 401, b'{"code":2001,"message":"unauthorized","data":{}}', None
+
+        with patch.dict(os.environ, {API_KEY_ENV: "test-secret"}, clear=False), TemporaryDirectory() as directory:
+            result = run_smoke_test(Path(directory), probe=fake_probe)
+            report = json.loads(Path(result["report_path"]).read_text(encoding="utf-8"))
+            self.assertTrue(report["api_key_configured"])
+            self.assertEqual(seen_keys, ["test-secret"] * 7)
+            serialized = json.dumps(report, ensure_ascii=False)
+            self.assertNotIn("test-secret", serialized)
+            self.assertIn("api_key_configured", serialized)
 
     def test_hash_is_stable(self):
         self.assertEqual(sha256_bytes(b"probe"), sha256_bytes(b"probe"))
