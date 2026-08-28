@@ -57,7 +57,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── providers.py              # 行情数据源适配器与回退链
 ├── sheets_client.py          # Google Sheets 客户端与表头定义
 ├── scripts/
-│   └── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
+│   ├── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
+│   └── run_phase5k_b1a_ibkr_readiness.py # B1-A IBKR readiness-only runner
 ├── research/
 │   ├── replay_input.py      # canonical input hash / manifest / frozen replay
 │   ├── frozen_validation.py # Phase 5E 固定数据集描述性验证
@@ -73,6 +74,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── phase5k_b0_dataset_contract.py # Phase 5K-B0 获取契约/标准化/QC/覆盖纯校验
 │   ├── phase5k_b0_dataset_acquisition_contract.json # B0 v1 historical audit evidence (immutable)
 │   ├── phase5k_b0_dataset_acquisition_contract_v2.json # B0 active acquisition contract
+│   ├── phase5k_b1a_ibkr_readiness.py # B1-A IBKR identity/readiness freeze adapter
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -224,6 +226,14 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - CN/US 均禁止 provider fallback 或混用 adjusted/unadjusted semantics；canonical schema 固定为 `market/canonical_symbol/date/open/high/low/close/volume/source_provider/adjustment_mode`；raw response 与 request/provenance metadata 分开保存。OHLC、日期、volume、重复值及 `DATA_CONFLICT_FAIL_CLOSED` 均由纯校验函数 fail closed，绝不 forward-fill、interpolate、补 synthetic bar 或跨市场补行
 - reserve 只能在 SETUP_03 evaluation 前因机器可读客观 provider/QC/warmup failure 激活，并严格遵循 A1 `manifest_rank`；reserve 也必须通过同一 validation，final roster 只包含 `VALID_ACCEPTED` symbols。`final_roster_count == valid_symbols` 是 fail-closed invariant；CN/US 各自目标为 40 valid accepted symbols，未达到时为 `TARGET_ROSTER_SHORTFALL_REQUIRES_REVIEW`
 - Phase 5J-v2 的 8 symbols/market、40 symbols total、6000 bars/market hard minimum 与 40-valid-symbol-per-market dataset-readiness target 分开计算；hard minimum 通过不得覆盖 readiness gate。B1 manifest schema 预注册 per-symbol raw/normalized hash、QC、bar count/date range、replacement audit、market totals 与 aggregate hash，并必须绑定 active B0 v2；B1 成功状态为 `DEVELOPMENT_VALIDATION_DATASET_FROZEN_NOT_EVALUATED`，B0 不生成该状态
+
+### research/phase5k_b1a_ibkr_readiness.py / scripts/run_phase5k_b1a_ibkr_readiness.py
+
+- Phase 5K-B1-A 只做 IBKR TWS/IB Gateway preflight、US contract identity resolution 与 `reqHeadTimeStamp` capability probe；官方 `ibapi` lazy import，不进入生产 `providers.py`，不调用 historical-bar API、HiThink、Replay、Trading Core、SETUP_03、Decision 或 Sheets。
+- 启动前实际读取并验证 active B0 v2 `sha256:0fdfef827d48ef6deec8e58c1de1e0e470d3adb6567a1e74d25c44d8a3137588` 与 A1 v2 `sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433`；A1 US roster 必须精确为 40 PRIMARY + 20 RESERVE，六十个 candidate 全部执行 identity resolution。
+- symbol normalization 是版本化的机械规则（trim、ASCII uppercase、literal `.`→空格），无手工 alias table；只有唯一满足 `STK`/`SMART`/`USD`、非零 `conId`、非空 `primaryExchange` 的 candidate 才为 `UNIQUE_RESOLVED`，零个或多个有效 candidate 均 fail closed。
+- 每个 unique contract 冻结 `canonical_symbol`、IBKR symbol、`conId`、`secType`、`exchange`、`primaryExchange`、`currency`、`localSymbol`、`tradingClass`、`validExchanges`、`longName`、完整 deterministic contract-details snapshot/hash；随后只用 `ADJUSTED_LAST`、`useRTH=1`、`formatDate=1` 调 `reqHeadTimeStamp`。readiness snapshot 记录 primary/reserve resolved/ready counts、unresolved/ambiguous/permission audit 与非敏感版本/host-role metadata。
+- 未能证明 TWS/IBG、官方 `ibapi` client、server 或 TWS/IBG version 时停止为 `IBKR_CONNECTION_NOT_READY` / `IBKR_VERSION_NOT_PROVEN`；未生成任何正式 validation OHLCV 或 B1 dataset。真实 capture 完成后，manifest 必须由 immutable version→canonical SHA-256 contract 锁定；在本地 TWS/IBG 未准备好时不伪造 manifest/hash。
 
 ### scripts/hithink_cn_capability_smoke_test.py / docs/HITHINK_CN_API_CAPABILITY_SMOKE_TEST.md
 

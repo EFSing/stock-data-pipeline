@@ -417,3 +417,13 @@
 **Decision:** Phase 5J-v2 hard evidence minimum（每市场至少 8 valid symbols、总计至少 40、每市场至少 6000 bars）与 Phase 5K-B dataset readiness target（CN/US 各 40 valid accepted symbols）独立保留。hard minimum 通过不再自动覆盖 40-valid-symbol readiness gate；只有两市场 final roster 与 valid accepted symbols 均为 40、且各自满足 6000 bars，才具备 dataset readiness。整个 hardening 仍不获取正式 OHLCV、不运行 SETUP_03、不开始 B1、不访问 CONFIRMED/收益指标/OOS、不修改 production/Sheets。
 
 **Reason:** 这些变更只冻结 acquisition wire semantics、local-date filtering、accepted-roster identity 与 fail-closed readiness governance，避免 B1 依赖抽象日期、动态 IBKR duration、未验证 reserve 或仅满足 development minimum 的伪 40-roster；不把任何数据结果或信号结果引入 acquisition contract。
+
+## 2026-08-28
+
+**Decision:** Phase 5K-B1-A 仅实现 IBKR Provider Readiness & Contract Identity Freeze。active parent 固定为 B0 v2 `SETUP_03-PHASE5K-B0-DATASET-ACQUISITION-CONTRACT-2026-08-27-v2` / `sha256:0fdfef827d48ef6deec8e58c1de1e0e470d3adb6567a1e74d25c44d8a3137588` 与 A1 v2 `SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v2` / `sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433`。所有 40 PRIMARY + 20 RESERVE US candidates 必须在任何正式历史请求前通过 `reqContractDetails` identity resolution；只有唯一满足 `STK`/`SMART`/`USD`、非零 `conId`、非空 `primaryExchange` 的返回值才可冻结，其余为 unresolved/ambiguous fail-closed audit。
+
+**Decision:** B1-A 的统一 symbol normalization 规则固定为 trim、ASCII uppercase、literal period to single space 的 provider-syntax/share-class normalization；不允许人工逐股票 alias。每个 unique contract 的完整 deterministic contract-details snapshot 与 SHA-256 必须随 manifest 保存；能力探针固定为官方 `reqHeadTimeStamp` 的 `whatToShow=ADJUSTED_LAST`、`useRTH=1`、`formatDate=1`，不得调用任何 historical OHLCV API。
+
+**Reason:** conId、primaryExchange、currency 与 corporate-action capability 必须在正式 B1 acquisition 之前形成可复核的 provider identity；任何依赖收益、SETUP_03、CONFIRMED 或临时人工选择的替换都会把 provider readiness 与研究结果混合。B1-A 不做 PRIMARY/RESERVE replacement，不生成 validation dataset，不接触 HiThink formal OHLCV、SETUP_03、Google Sheets、交易或 OOS。
+
+**Decision:** TWS/IB Gateway、官方 `ibapi` client version、server version 与可靠的 TWS/IBG version 都是 readiness 的硬前置；缺失时状态为 `IBKR_CONNECTION_NOT_READY` 或 `IBKR_VERSION_NOT_PROVEN` 并停止。readiness manifest 的 version→SHA-256 contract 只有在真实 TWS/IBG capture 完成、人工审阅且未获取正式 OHLCV 后才能 pin；未准备好本机环境不伪造 conId、权限、head timestamp 或最终 `IBKR_US_PROVIDER_READINESS_FROZEN_NOT_ACQUIRED`。

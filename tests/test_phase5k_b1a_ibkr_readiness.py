@@ -1,0 +1,286 @@
+import ast
+import copy
+import json
+from pathlib import Path
+import unittest
+from types import SimpleNamespace
+
+from research.phase5k_b1a_ibkr_readiness import (
+    B0_SHA256,
+    B0_VERSION,
+    CURRENCY,
+    EXCHANGE,
+    FROZEN_STATUS,
+    FORMAT_DATE,
+    HEAD_READY_STATUS,
+    HEAD_UNAVAILABLE_STATUS,
+    IDENTITY_AMBIGUOUS_STATUS,
+    IDENTITY_NOT_RESOLVABLE_STATUS,
+    IDENTITY_UNIQUE_STATUS,
+    MANIFEST_VERSION,
+    PROVIDER_NOT_READY_STATUS,
+    REQ_CONTRACT_DETAILS,
+    REQ_HEAD_TIMESTAMP,
+    ReadinessError,
+    SEC_TYPE,
+    VERSION_NOT_PROVEN_STATUS,
+    WHAT_TO_SHOW,
+    ConnectionConfig,
+    build_contract_request,
+    build_head_timestamp_request,
+    build_readiness_manifest,
+    load_us_candidates,
+    manifest_integrity_hash,
+    normalize_ibkr_symbol,
+    resolve_identity_candidates,
+    run_readiness,
+    sha256_json,
+    validate_manifest,
+)
+from research.phase5k_a1_universe import load_manifest
+from research.phase5k_b0_dataset_contract import load_contract
+
+
+def _details(symbol="AAPL", con_id=265598, primary="NASDAQ", currency="USD"):
+    return SimpleNamespace(
+        contract=SimpleNamespace(
+            symbol=symbol,
+            conId=con_id,
+            secType="STK",
+            exchange="SMART",
+            primaryExchange=primary,
+            currency=currency,
+            localSymbol=symbol,
+            tradingClass=symbol.replace(" ", ""),
+        ),
+        validExchanges="SMART,AMEX,NYSE,NASDAQ",
+        longName="Apple Inc.",
+        underConId=0,
+    )
+
+
+class _FakeSession:
+    def __init__(self, details_by_symbol, probe_by_symbol, metadata=None):
+        self.details_by_symbol = details_by_symbol
+        self.probe_by_symbol = probe_by_symbol
+        self.metadata = metadata or {
+            "application": "TWS",
+            "api_client_version": "9.81.1",
+            "api_version": "9.81.1",
+            "server_version": 178,
+            "tws_version": "10.37",
+            "tws_version_source": "test-fixture",
+            "host_role": "localhost",
+            "connection_timestamp": "2026-08-28T00:00:00+00:00",
+        }
+        self.probe_requests = []
+
+    def preflight_metadata(self):
+        return self.metadata
+
+    def resolve_contract(self, canonical_symbol, ibkr_symbol):
+        return self.details_by_symbol.get(canonical_symbol, {"details": [], "errors": []})
+
+    def probe_head_timestamp(self, identity):
+        self.probe_requests.append(build_head_timestamp_request(identity))
+        return self.probe_by_symbol.get(identity["ibkr_symbol"], {
+            "request_timestamp": "2026-08-28T00:00:00+00:00",
+            "success": True,
+            "head_timestamp": "20170103 09:30:00",
+        })
+
+
+class Phase5KB1AReadinessTests(unittest.TestCase):
+    def test_exact_parent_pins_and_sixty_input_rows(self):
+        b0 = load_contract()
+        a1 = load_manifest()
+        self.assertEqual(b0["contract_version"], B0_VERSION)
+        self.assertEqual(b0["integrity"]["contract_sha256"], B0_SHA256)
+        self.assertEqual(a1["manifest_version"], "SETUP_03-CN-US-OFFICIAL-UNIVERSE-MANIFEST-2026-08-27-v2")
+        self.assertEqual(a1["integrity"]["manifest_sha256"], "sha256:ded740ef98d9dbba6051d2cd47d54066ac7485785a9e6ea116f7e64076868433")
+        rows = load_us_candidates(a1)
+        self.assertEqual(len(rows), 60)
+        self.assertEqual(sum(row["intended_role"] == "PRIMARY" for row in rows), 40)
+        self.assertEqual(sum(row["intended_role"] == "RESERVE" for row in rows), 20)
+
+    def test_connection_config_reads_only_required_env_and_safe_role(self):
+        config = ConnectionConfig.from_env({
+            "IBKR_HOST": "127.0.0.1",
+            "IBKR_PORT": "7497",
+            "IBKR_CLIENT_ID": "41",
+            "IBKR_APPLICATION": "TWS",
+            "IBKR_USERNAME": "must-not-be-read-by-config",
+        })
+        self.assertEqual(config.host_role, "localhost")
+        self.assertEqual(config.port, 7497)
+        self.assertEqual(config.client_id, 41)
+        with self.assertRaisesRegex(Exception, "missing required"):
+            ConnectionConfig.from_env({"IBKR_APPLICATION": "TWS"})
+
+    def test_symbol_normalization_is_mechanical_and_no_alias_table(self):
+        self.assertEqual(normalize_ibkr_symbol(" brk.b "), "BRK B")
+        self.assertEqual(normalize_ibkr_symbol("AAPL"), "AAPL")
+        with self.assertRaises(ValueError):
+            normalize_ibkr_symbol("AAPL/US")
+
+    def test_exact_identity_and_head_timestamp_contracts(self):
+        self.assertEqual(build_contract_request("BRK.B"), {
+            "method": REQ_CONTRACT_DETAILS,
+            "contract": {"symbol": "BRK B", "secType": SEC_TYPE, "exchange": EXCHANGE, "currency": CURRENCY},
+        })
+        request = build_head_timestamp_request({
+            "ibkr_symbol": "AAPL", "conId": 265598, "secType": SEC_TYPE,
+            "exchange": EXCHANGE, "primaryExchange": "NASDAQ", "currency": CURRENCY,
+        })
+        self.assertEqual(request["method"], REQ_HEAD_TIMESTAMP)
+        self.assertEqual(request["whatToShow"], WHAT_TO_SHOW)
+        self.assertEqual(request["useRTH"], 1)
+        self.assertEqual(request["formatDate"], FORMAT_DATE)
+        self.assertEqual(request["contract"]["conId"], 265598)
+        self.assertNotIn("reqHistoricalData", request)
+
+    def test_identity_selection_fail_closes_for_unique_ambiguous_and_unresolved(self):
+        unique = resolve_identity_candidates("AAPL", [_details()])
+        self.assertEqual(unique["status"], IDENTITY_UNIQUE_STATUS)
+        self.assertEqual(unique["identity"]["conId"], 265598)
+        ambiguous = resolve_identity_candidates("AAPL", [_details(), _details(con_id=999999)])
+        self.assertEqual(ambiguous["status"], IDENTITY_AMBIGUOUS_STATUS)
+        self.assertIsNone(ambiguous["identity"])
+        unresolved = resolve_identity_candidates("AAPL", [_details(currency="EUR")])
+        self.assertEqual(unresolved["status"], IDENTITY_NOT_RESOLVABLE_STATUS)
+        self.assertIsNone(unresolved["identity"])
+
+    def test_all_sixty_are_attempted_and_no_manual_contract_choice(self):
+        rows = load_us_candidates(load_manifest())
+        details_by_symbol = {
+            row["canonical_symbol"]: {"details": [_details(symbol=row["canonical_symbol"], con_id=100000 + row["manifest_rank"])]}
+            for row in rows
+        }
+        fake = _FakeSession(details_by_symbol, {})
+        manifest = run_readiness(fake)
+        self.assertEqual(len(manifest["candidates"]), 60)
+        self.assertEqual(manifest["readiness_summary"]["primary_40"]["unique_resolved"], 40)
+        self.assertEqual(manifest["readiness_summary"]["reserve_20"]["unique_resolved"], 20)
+        self.assertEqual(manifest["status"], FROZEN_STATUS)
+        self.assertEqual(len(fake.probe_requests), 60)
+        self.assertTrue(all(request["method"] == REQ_HEAD_TIMESTAMP for request in fake.probe_requests))
+        self.assertTrue(all(request["contract"]["secType"] == "STK" for request in fake.probe_requests))
+        self.assertTrue(all(request["contract"]["exchange"] == "SMART" for request in fake.probe_requests))
+        self.assertTrue(all(request["whatToShow"] == "ADJUSTED_LAST" for request in fake.probe_requests))
+        self.assertTrue(all(request["useRTH"] == 1 for request in fake.probe_requests))
+        self.assertTrue(all(request["formatDate"] == 1 for request in fake.probe_requests))
+        self.assertTrue(all("reqHistoricalData" not in request for request in fake.probe_requests))
+
+    def test_readiness_errors_do_not_replace_primary_or_use_signal_fields(self):
+        rows = load_us_candidates(load_manifest())
+        first = rows[0]["canonical_symbol"]
+        details_by_symbol = {
+            row["canonical_symbol"]: {"details": [_details(symbol=row["canonical_symbol"], con_id=200000 + row["manifest_rank"])]}
+            for row in rows
+        }
+        details_by_symbol[first] = {"details": [_details(symbol=first), _details(symbol=first, con_id=777777)]}
+        fake = _FakeSession(details_by_symbol, {})
+        manifest = run_readiness(fake)
+        self.assertEqual(manifest["status"], PROVIDER_NOT_READY_STATUS)
+        self.assertEqual(manifest["readiness_summary"]["total_candidate_pool"], 59)
+        self.assertEqual(manifest["candidates"][0]["readiness_status"], IDENTITY_AMBIGUOUS_STATUS)
+        serialized = json.dumps(manifest, ensure_ascii=False)
+        self.assertNotIn("confirmed_count", serialized.lower())
+        self.assertNotIn("forward_return", serialized.lower())
+        self.assertNotIn("mfe", serialized.lower())
+        self.assertNotIn("mae", serialized.lower())
+
+    def test_head_timestamp_permission_and_unavailable_are_objective(self):
+        rows = load_us_candidates(load_manifest())
+        details_by_symbol = {
+            row["canonical_symbol"]: {"details": [_details(symbol=row["canonical_symbol"], con_id=300000 + row["manifest_rank"])]}
+            for row in rows
+        }
+        permission_symbol = rows[0]["canonical_symbol"]
+        unavailable_symbol = rows[1]["canonical_symbol"]
+        fake = _FakeSession(details_by_symbol, {
+            permission_symbol: {"success": False, "head_timestamp": None, "error_code": 354, "error_message": "not subscribed"},
+            unavailable_symbol: {"success": False, "head_timestamp": None, "error_code": 321, "error_message": "service unavailable"},
+        })
+        manifest = run_readiness(fake)
+        self.assertEqual(manifest["candidates"][0]["readiness_status"], "NO_IBKR_PERMISSION")
+        self.assertEqual(manifest["candidates"][1]["readiness_status"], HEAD_UNAVAILABLE_STATUS)
+
+    def test_secret_and_account_identifiers_are_not_serialized(self):
+        rows = load_us_candidates(load_manifest())
+        details_by_symbol = {row["canonical_symbol"]: {"details": [], "errors": [
+            {"code": 354, "message": "account=DU1234567 password=do-not-record"},
+        ]} for row in rows}
+        fake = _FakeSession(details_by_symbol, {}, metadata={
+            "application": "TWS", "api_version": "9.81.1", "server_version": 178,
+            "tws_version": "10.37", "host_role": "localhost", "connection_timestamp": "2026-08-28T00:00:00+00:00",
+            "account_id": "DU1234567", "password": "do-not-record",
+        })
+        manifest = run_readiness(fake)
+        serialized = json.dumps(manifest, ensure_ascii=False)
+        self.assertNotIn("DU1234567", serialized)
+        self.assertNotIn("do-not-record", serialized)
+        self.assertIn("<account-redacted>", serialized)
+        self.assertNotIn("account_id", serialized)
+
+    def test_missing_version_metadata_fails_closed(self):
+        rows = load_us_candidates(load_manifest())
+        details_by_symbol = {row["canonical_symbol"]: {"details": []} for row in rows}
+        fake = _FakeSession(details_by_symbol, {}, metadata={
+            "application": "TWS", "api_version": "9.81.1", "server_version": 178,
+            "host_role": "localhost", "connection_timestamp": "2026-08-28T00:00:00+00:00",
+        })
+        with self.assertRaises(ReadinessError) as context:
+            run_readiness(fake)
+        self.assertEqual(context.exception.status, VERSION_NOT_PROVEN_STATUS)
+
+    def test_manifest_hash_requires_external_version_pin_and_same_version_rehash_fails(self):
+        rows = load_us_candidates(load_manifest())
+        records = []
+        for row in rows:
+            snapshot = {"fixture": row["canonical_symbol"]}
+            record = {
+                "market": "US", "canonical_symbol": row["canonical_symbol"], "canonical_identity": row["canonical_identity"],
+                "source_cohort": row["source_cohort"], "intended_role": row["intended_role"], "manifest_rank": row["manifest_rank"],
+                "ibkr_symbol": row["canonical_symbol"], "identity_request_timestamp": "2026-08-28T00:00:00+00:00",
+                "identity_status": IDENTITY_UNIQUE_STATUS, "contract_identity": {
+                    "ibkr_symbol": row["canonical_symbol"], "conId": 400000 + row["manifest_rank"], "secType": "STK",
+                    "exchange": "SMART", "primaryExchange": "NASDAQ", "currency": "USD", "localSymbol": row["canonical_symbol"],
+                    "tradingClass": row["canonical_symbol"], "validExchanges": "SMART,NASDAQ", "longName": "fixture",
+                },
+                "selected_contract_details_snapshot": {"snapshot": snapshot, "snapshot_sha256": sha256_json(snapshot)},
+                "selected_contract_details_snapshot_sha256": sha256_json(snapshot), "all_contract_details_snapshots": [], "identity_errors": [],
+                "adjusted_last_probe": {"success": True, "head_timestamp": "20170103 09:30:00"},
+                "readiness_status": HEAD_READY_STATUS,
+            }
+            records.append(record)
+        manifest = build_readiness_manifest(
+            b0=load_contract(), a1=load_manifest(),
+            connection={"application": "TWS", "api_version": "9.81.1", "server_version": 178, "tws_version": "10.37", "host_role": "localhost", "connection_timestamp": "2026-08-28T00:00:00+00:00"},
+            records=records, generated_at="2026-08-28T00:00:00+00:00",
+        )
+        pinned = {MANIFEST_VERSION: manifest_integrity_hash(manifest)}
+        validate_manifest(manifest, expected_hash_by_version=pinned)
+        changed = copy.deepcopy(manifest)
+        changed["candidates"][0]["contract_identity"]["conId"] += 1
+        changed["integrity"]["manifest_sha256"] = manifest_integrity_hash(changed)
+        with self.assertRaisesRegex(ValueError, "different canonical hash"):
+            validate_manifest(changed, expected_hash_by_version=pinned)
+
+    def test_static_source_has_no_historical_request_call_or_forbidden_dependencies(self):
+        source = Path("research/phase5k_b1a_ibkr_readiness.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                self.assertNotEqual(node.func.attr, "reqHistoricalData")
+        imported_roots = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported_roots.add(node.module.split(".")[0])
+        self.assertTrue(imported_roots.isdisjoint({"main", "providers", "core", "trading", "sheets_client"}))
+
+
+if __name__ == "__main__":
+    unittest.main()
