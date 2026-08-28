@@ -25,6 +25,7 @@ from research.development_dataset import (
     DEVELOPMENT_DATASET_VERSION,
     DEVELOPMENT_LABELS,
 )
+from research.market_sessions import build_market_session_dates, trading_day_distance
 from research.replay_input import ReplayInputManifest, build_input_manifest
 from trading.models import DecisionAction, SetupState
 from trading.replay import (
@@ -290,7 +291,18 @@ def _adjacent_rows(
     previous: float,
     current: float,
     reports_by_tolerance: Mapping[float, Mapping[str, SymbolReplayReport]],
+    market_session_dates: Mapping[str, tuple[date, ...]] | None = None,
 ) -> list[dict[str, Any]]:
+    if market_session_dates is None:
+        derived_dates: dict[str, set[date]] = {}
+        for report in reports_by_tolerance[previous].values():
+            derived_dates.setdefault(report.market, set()).update(
+                day.trade_date for day in report.days
+            )
+        market_session_dates = {
+            market: tuple(sorted(dates))
+            for market, dates in derived_dates.items()
+        }
     rows = []
     for market in ("CN", "US", "ALL"):
         old = _event_map(reports_by_tolerance[previous], market)
@@ -300,7 +312,23 @@ def _adjacent_rows(
         added = new_keys - old_keys
         disappeared = old_keys - new_keys
         matches = _nearest_date_matches(disappeared, added)
-        drifts = [abs((new_date - old_date).days) for _, old_date, new_date in matches]
+        calendar_drifts = [
+            abs((new_date - old_date).days)
+            for _, old_date, new_date in matches
+        ]
+        market_by_symbol = {
+            report.symbol: report.market
+            for report in reports_by_tolerance[previous].values()
+        }
+        trading_drifts = [
+            trading_day_distance(
+                old_date,
+                new_date,
+                market=market_by_symbol[symbol],
+                market_session_dates=market_session_dates,
+            )
+            for symbol, old_date, new_date in matches
+        ]
         rows.append({
             "previous_tolerance_pct": previous,
             "current_tolerance_pct": current,
@@ -313,8 +341,14 @@ def _adjacent_rows(
             "added_events": len(added),
             "disappeared_events": len(disappeared),
             "matched_date_events": len(matches),
-            "date_drift_median_days": median(drifts) if drifts else None,
-            "date_drift_P90_days": _quantile([float(value) for value in drifts], 0.9),
+            # Historical descriptive calendar-day fields.
+            "date_drift_median_days": median(calendar_drifts) if calendar_drifts else None,
+            "date_drift_P90_days": _quantile([float(value) for value in calendar_drifts], 0.9),
+            "calendar_day_drift_median_days": median(calendar_drifts) if calendar_drifts else None,
+            "calendar_day_drift_P90_days": _quantile([float(value) for value in calendar_drifts], 0.9),
+            # Formal qualification uses these trading-session fields.
+            "trading_day_drift_median_days": median(trading_drifts) if trading_drifts else None,
+            "trading_day_drift_P90_days": _quantile([float(value) for value in trading_drifts], 0.9),
             "diagnostic_only": True,
         })
     return rows
@@ -502,6 +536,7 @@ def run_development_stability(
     if not symbol_quotes:
         raise ValueError("development evidence requires valid symbol history")
     replay_manifest: ReplayInputManifest = build_input_manifest(symbol_quotes)
+    market_session_dates = build_market_session_dates(symbol_quotes)
     reports_by_tolerance: dict[float, dict[str, SymbolReplayReport]] = {}
     state_rows: list[dict[str, Any]] = []
     market_rows: list[dict[str, Any]] = []
@@ -531,7 +566,14 @@ def run_development_stability(
         confirmation_rows.extend(_confirmation_rows(tolerance, reports))
         concentration_rows.extend(_concentration_rows(tolerance, reports))
     for previous, current in zip(TOLERANCE_SEQUENCE, TOLERANCE_SEQUENCE[1:]):
-        adjacent_rows.extend(_adjacent_rows(previous, current, reports_by_tolerance))
+        adjacent_rows.extend(
+            _adjacent_rows(
+                previous,
+                current,
+                reports_by_tolerance,
+                market_session_dates,
+            )
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     files: list[dict[str, Any]] = []
@@ -692,14 +734,15 @@ def _render_summary(
             f"- `{tolerance:.1%}`：CN/US each conserve all diagnostic bars；最大 terminal reason "
             f"为 `{top['terminal_reason'] if top else 'N/A'}`（{top['count'] if top else 0}/{total if total else 0} across displayed markets）。"
         )
-    lines.extend(["", "## 相邻 tolerance stability（描述性）", "", "| previous→current | market | Jaccard | retention | added | disappeared | date-drift median/P90 |", "|---|---|---:|---:|---:|---:|---|"])
+    lines.extend(["", "## 相邻 tolerance stability（描述性）", "", "| previous→current | market | Jaccard | retention | added | disappeared | calendar-day drift median/P90 | trading-day drift median/P90 |", "|---|---|---:|---:|---:|---:|---|---|"])
     for row in adjacent_rows:
         def fmt(value: Any) -> str:
             return "—" if value is None else f"{float(value):.1f}d"
         lines.append(
             f"| {row['previous_tolerance_pct']:.1%}→{row['current_tolerance_pct']:.1%} | {row['market']} | "
             f"{row['jaccard']:.2%} | {row['retention']:.2%} | {row['added_events']} | {row['disappeared_events']} | "
-            f"{fmt(row['date_drift_median_days'])}/{fmt(row['date_drift_P90_days'])} |"
+            f"{fmt(row['calendar_day_drift_median_days'])}/{fmt(row['calendar_day_drift_P90_days'])} | "
+            f"{fmt(row['trading_day_drift_median_days'])}/{fmt(row['trading_day_drift_P90_days'])} |"
         )
     lines.extend(["", "## Concentration / sparse-event risk", ""])
     for row in concentration_rows:

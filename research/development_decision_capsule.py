@@ -22,7 +22,9 @@ from research.legacy_main_replay import (
     legacy_main_replay_identity,
     legacy_main_replay_setup03_history_cached,
 )
+from research.market_sessions import build_market_session_dates, trading_day_distance
 from research.replay_input import ReplayInputManifest, build_input_manifest, read_frozen_input
+from research.structural_validation_protocol_v2 import load_protocol
 from trading.models import DecisionAction, SetupState
 from trading.replay import replay_parity_mismatches, replay_setup03_history
 
@@ -46,6 +48,7 @@ EXPECTED_UNIVERSE_HASH = "sha256:0dde6a822ae57a7f048aa7b5097a69624138e3b8566602a
 EXPECTED_DATASET_MANIFEST_HASH = "sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216"
 EXPECTED_DATASET_AGGREGATE_HASH = "sha256:c9b3a4db8158da66f0030746498a692920fe95d72bdacc32499d1ab70c150356"
 EXPECTED_REPLAY_INPUT_HASH = "sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18"
+QUALIFICATION_TRANSITIONS = ((0.03, 0.04), (0.04, 0.05))
 
 _METRIC_FIELDS = (
     "symbol_count",
@@ -392,6 +395,37 @@ def _event_keys_for_market(
     return keys
 
 
+def _symbol_market_lookup(
+    compact_reports: list[dict[str, Any]],
+) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for item in compact_reports:
+        report = item["report"]
+        symbol = str(report["symbol"])
+        market = str(report["market"])
+        previous = lookup.setdefault(symbol, market)
+        if previous != market:
+            raise ValueError(f"symbol has inconsistent markets: {symbol}")
+    return lookup
+
+
+def _fallback_market_session_dates(
+    compact_reports: list[dict[str, Any]],
+) -> dict[str, tuple[date, ...]]:
+    """Build a test/backward-compatible session set from observed event dates."""
+    dates_by_market: dict[str, set[date]] = {}
+    for item in compact_reports:
+        report = item["report"]
+        dates_by_market.setdefault(str(report["market"]), set()).update(
+            date.fromisoformat(event_date)
+            for _, event_date in report["event_keys"]
+        )
+    return {
+        market: tuple(sorted(dates))
+        for market, dates in sorted(dates_by_market.items())
+    }
+
+
 def _nearest_matches(
     disappeared: set[tuple[str, date]], added: set[tuple[str, date]]
 ) -> list[tuple[str, date, date]]:
@@ -420,6 +454,7 @@ def _adjacent_summary(
     current: float,
     reports_by_tolerance: Mapping[float, list[dict[str, Any]]],
     market: str,
+    market_session_dates: Mapping[str, tuple[date, ...]] | None = None,
 ) -> dict[str, Any]:
     old = _event_keys_for_market(reports_by_tolerance[previous], market)
     new = _event_keys_for_market(reports_by_tolerance[current], market)
@@ -427,7 +462,51 @@ def _adjacent_summary(
     added = new - old
     disappeared = old - new
     matches = _nearest_matches(disappeared, added)
-    drifts = [abs((new_date - old_date).days) for _, old_date, new_date in matches]
+    all_reports = reports_by_tolerance[previous] + reports_by_tolerance[current]
+    symbol_markets = _symbol_market_lookup(all_reports)
+    sessions = market_session_dates or _fallback_market_session_dates(all_reports)
+    matched_pairs: list[dict[str, Any]] = []
+    for symbol, old_date, new_date in matches:
+        matched_market = market if market != "ALL" else symbol_markets[symbol]
+        matched_pairs.append(
+            {
+                "symbol": symbol,
+                "market": matched_market,
+                "old_date": old_date.isoformat(),
+                "new_date": new_date.isoformat(),
+                "calendar_day_drift": abs((new_date - old_date).days),
+                "trading_day_drift": trading_day_distance(
+                    old_date,
+                    new_date,
+                    market=matched_market,
+                    market_session_dates=sessions,
+                ),
+            }
+        )
+    calendar_day_drifts = [pair["calendar_day_drift"] for pair in matched_pairs]
+    trading_day_drifts = [pair["trading_day_drift"] for pair in matched_pairs]
+    bucket_ranges = (
+        ("0-2", 0, 2),
+        ("3-5", 3, 5),
+        ("6-10", 6, 10),
+        ("11-15", 11, 15),
+    )
+    trading_day_drift_buckets = {
+        label: sum(lower <= drift <= upper for drift in trading_day_drifts)
+        for label, lower, upper in bucket_ranges
+    }
+    trading_day_drift_buckets[">15"] = sum(
+        drift > 15 for drift in trading_day_drifts
+    )
+    extreme_drift_pairs = sorted(
+        matched_pairs,
+        key=lambda pair: (
+            -pair["trading_day_drift"],
+            pair["symbol"],
+            pair["old_date"],
+            pair["new_date"],
+        ),
+    )[:20]
     return {
         "previous_event_count": len(old),
         "current_event_count": len(new),
@@ -436,8 +515,18 @@ def _adjacent_summary(
         "disappeared": len(disappeared),
         "exact_date_jaccard": len(retained) / len(old | new) if old | new else 1.0,
         "nearest_date_matched_count": len(matches),
-        "date_drift_median": median(drifts) if drifts else None,
-        "date_drift_P90": _quantile([float(value) for value in drifts], 0.9),
+        "retention": len(retained) / len(old) if old else (1.0 if not new else 0.0),
+        # Historical descriptive fields retain calendar-day semantics.
+        "date_drift_median": median(calendar_day_drifts) if calendar_day_drifts else None,
+        "date_drift_P90": _quantile([float(value) for value in calendar_day_drifts], 0.9),
+        "calendar_day_drift_median": median(calendar_day_drifts) if calendar_day_drifts else None,
+        "calendar_day_drift_P90": _quantile([float(value) for value in calendar_day_drifts], 0.9),
+        # These are the only drift fields eligible for frozen qualification.
+        "trading_day_drift_median": median(trading_day_drifts) if trading_day_drifts else None,
+        "trading_day_drift_P90": _quantile([float(value) for value in trading_day_drifts], 0.9),
+        "matched_pairs": matched_pairs,
+        "trading_day_drift_buckets": trading_day_drift_buckets,
+        "extreme_drift_pairs": extreme_drift_pairs,
     }
 
 
@@ -601,8 +690,209 @@ def _build_flags(
     }
 
 
+def _threshold_observation(
+    threshold_id: str,
+    *,
+    candidate: float,
+    market: str,
+    pair: tuple[float, float] | None,
+    by_tolerance: Mapping[str, Mapping[str, Mapping[str, Any]]],
+    adjacent: Mapping[str, Mapping[str, Mapping[str, Any]]],
+) -> float | None:
+    if threshold_id == "minimum_confirmed_events_per_market_candidate":
+        return float(by_tolerance[f"{candidate:.1%}"][market]["CONFIRMED_EVENTS"])
+    if threshold_id == "maximum_symbol_confirmed_concentration":
+        return by_tolerance[f"{candidate:.1%}"][market]["max_symbol_event_share"]
+    if pair is None:
+        raise ValueError(f"adjacent threshold without pair: {threshold_id}")
+    transition = f"{pair[0]:.1%}→{pair[1]:.1%}"
+    row = adjacent[transition][market]
+    if threshold_id == "adjacent_confirmed_jaccard":
+        return row["exact_date_jaccard"]
+    if threshold_id == "adjacent_confirmed_retention":
+        return row["retention"]
+    if threshold_id == "matched_confirmed_event_date_drift_median":
+        return row["trading_day_drift_median"]
+    if threshold_id == "matched_confirmed_event_date_drift_p90":
+        return row["trading_day_drift_P90"]
+    if threshold_id == "adjacent_confirmed_rate_relative_increase":
+        previous = by_tolerance[f"{pair[0]:.1%}"][market]["CONFIRMED_per_1000_bars"]
+        current = by_tolerance[f"{pair[1]:.1%}"][market]["CONFIRMED_per_1000_bars"]
+        return current / previous - 1 if previous else None
+    raise ValueError(f"unsupported frozen qualification threshold: {threshold_id}")
+
+
+def _threshold_unit(threshold_id: str) -> str:
+    if threshold_id == "minimum_confirmed_events_per_market_candidate":
+        return "events"
+    if threshold_id in {
+        "matched_confirmed_event_date_drift_median",
+        "matched_confirmed_event_date_drift_p90",
+    }:
+        return "trading_days"
+    return "ratio"
+
+
+def _qualification_row(
+    *,
+    candidate: float,
+    market: str,
+    threshold_id: str,
+    frozen_threshold: Mapping[str, Any],
+    pair: tuple[float, float] | None,
+    by_tolerance: Mapping[str, Mapping[str, Mapping[str, Any]]],
+    adjacent: Mapping[str, Mapping[str, Mapping[str, Any]]],
+) -> dict[str, Any]:
+    observed = _threshold_observation(
+        threshold_id,
+        candidate=candidate,
+        market=market,
+        pair=pair,
+        by_tolerance=by_tolerance,
+        adjacent=adjacent,
+    )
+    operator = str(frozen_threshold["operator"])
+    threshold = float(frozen_threshold["threshold"])
+    passed = (
+        observed is not None
+        and (observed >= threshold if operator == ">=" else observed <= threshold)
+    )
+    margin = None
+    if observed is not None:
+        margin = observed - threshold if operator == ">=" else threshold - observed
+    return {
+        "candidate_pct": candidate,
+        "market": market,
+        "scope": "candidate" if pair is None else "adjacent_pair",
+        "adjacent_pair": list(pair) if pair is not None else None,
+        "threshold_id": threshold_id,
+        "observed_value": observed,
+        "operator": operator,
+        "frozen_threshold": threshold,
+        "unit": str(frozen_threshold.get("unit", _threshold_unit(threshold_id))),
+        "margin_to_threshold": margin,
+        "status": "PASS" if passed else "FAIL",
+    }
+
+
+def _build_qualification(
+    *,
+    by_tolerance: Mapping[str, Mapping[str, Mapping[str, Any]]],
+    adjacent: Mapping[str, Mapping[str, Mapping[str, Any]]],
+) -> dict[str, Any]:
+    """Execute the already-frozen Phase 5J-v2 qualification matrix."""
+    protocol = load_protocol()
+    thresholds = {
+        row["id"]: row for row in protocol["structural_validation_thresholds"]
+    }
+    selection_rule = protocol["parameter_selection_rule"]
+    matrix_definition = selection_rule["candidate_qualification_matrix"]
+    matrix_rows: list[dict[str, Any]] = []
+    for candidate_definition in matrix_definition:
+        candidate = float(candidate_definition["candidate_pct"])
+        candidate_threshold_ids = candidate_definition["candidate_level_threshold_ids"]
+        adjacent_threshold_ids = candidate_definition["adjacent_pair_threshold_ids"]
+        for market in ("CN", "US"):
+            for threshold_id in candidate_threshold_ids:
+                matrix_rows.append(
+                    _qualification_row(
+                        candidate=candidate,
+                        market=market,
+                        threshold_id=threshold_id,
+                        frozen_threshold=thresholds[threshold_id],
+                        pair=None,
+                        by_tolerance=by_tolerance,
+                        adjacent=adjacent,
+                    )
+                )
+            for pair_values in candidate_definition["adjacent_pairs"]:
+                pair = (float(pair_values[0]), float(pair_values[1]))
+                for threshold_id in adjacent_threshold_ids:
+                    matrix_rows.append(
+                        _qualification_row(
+                            candidate=candidate,
+                            market=market,
+                            threshold_id=threshold_id,
+                            frozen_threshold=thresholds[threshold_id],
+                            pair=pair,
+                            by_tolerance=by_tolerance,
+                            adjacent=adjacent,
+                        )
+                    )
+
+    evaluations: list[dict[str, Any]] = []
+    for candidate_definition in matrix_definition:
+        candidate = float(candidate_definition["candidate_pct"])
+        for market in ("CN", "US"):
+            rows = [
+                row
+                for row in matrix_rows
+                if row["candidate_pct"] == candidate and row["market"] == market
+            ]
+            failures = [row["threshold_id"] for row in rows if row["status"] != "PASS"]
+            evaluations.append(
+                {
+                    "candidate_pct": candidate,
+                    "market": market,
+                    "qualifies": not failures,
+                    "passed_threshold_ids": [
+                        row["threshold_id"] for row in rows if row["status"] == "PASS"
+                    ],
+                    "failed_threshold_ids": failures,
+                }
+            )
+
+    qualified_candidates = [
+        candidate
+        for candidate in (float(value) for value in selection_rule["ordered_candidates_pct"])
+        if all(
+            row["qualifies"]
+            for row in evaluations
+            if row["candidate_pct"] == candidate
+        )
+    ]
+    lexicographic_candidate = qualified_candidates[0] if qualified_candidates else None
+    status = (
+        "READY_FOR_SOL_FORMAL_FREEZE_DECISION"
+        if lexicographic_candidate is not None
+        else "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE"
+    )
+
+    drift_diagnostics: dict[str, dict[str, Any]] = {}
+    for previous, current in QUALIFICATION_TRANSITIONS:
+        transition = f"{previous:.1%}→{current:.1%}"
+        drift_diagnostics[transition] = {}
+        for market in ("CN", "US"):
+            row = adjacent[transition][market]
+            drift_diagnostics[transition][market] = {
+                "matched_pair_count": row["nearest_date_matched_count"],
+                "trading_day_drift_buckets": dict(row["trading_day_drift_buckets"]),
+                "extreme_drift_pairs_top20": list(row["extreme_drift_pairs"]),
+            }
+
+    failure_breakdown = [
+        dict(row) for row in matrix_rows if row["status"] == "FAIL"
+    ] if not qualified_candidates else []
+    return {
+        "protocol_version": protocol["protocol_version"],
+        "protocol_sha256": protocol["integrity"]["protocol_sha256"],
+        "selection_rule": {
+            "type": selection_rule["type"],
+            "ordered_candidates_pct": list(selection_rule["ordered_candidates_pct"]),
+        },
+        "matrix": matrix_rows,
+        "candidate_market_evaluations": evaluations,
+        "qualified_candidates": qualified_candidates,
+        "lexicographic_candidate": lexicographic_candidate,
+        "status": status,
+        "failure_breakdown": failure_breakdown,
+        "drift_diagnostics": drift_diagnostics,
+    }
+
+
 def _build_statistics(
     compact_reports: list[dict[str, Any]],
+    market_session_dates: Mapping[str, tuple[date, ...]] | None = None,
 ) -> dict[str, Any]:
     by_tolerance: dict[float, list[dict[str, Any]]] = {
         tolerance: [
@@ -618,9 +908,16 @@ def _build_statistics(
         }
         for tolerance in TOLERANCE_SEQUENCE
     }
+    sessions = market_session_dates or _fallback_market_session_dates(compact_reports)
     adjacent = {
         f"{previous:.1%}→{current:.1%}": {
-            market: _adjacent_summary(previous, current, by_tolerance, market)
+            market: _adjacent_summary(
+                previous,
+                current,
+                by_tolerance,
+                market,
+                sessions,
+            )
             for market in ("CN", "US", "ALL")
         }
         for previous, current in zip(TOLERANCE_SEQUENCE, TOLERANCE_SEQUENCE[1:])
@@ -651,8 +948,22 @@ def _build_statistics(
             for tolerance in TOLERANCE_SEQUENCE
         },
         "adjacent_tolerance_stability": adjacent,
+        "market_session_dates": {
+            market: [session_date.isoformat() for session_date in dates]
+            for market, dates in sorted(sessions.items())
+        },
         "cross_market_comparison": cross_market,
         "mechanical_flags": _build_flags(summaries, adjacent),
+        "qualification": _build_qualification(
+            by_tolerance={
+                f"{tolerance:.1%}": {
+                    market: summaries[tolerance][market]
+                    for market in ("CN", "US", "ALL")
+                }
+                for tolerance in TOLERANCE_SEQUENCE
+            },
+            adjacent=adjacent,
+        ),
     }
 
 
@@ -688,15 +999,18 @@ def build_capsule_payload(
     if parity.get("LEGACY_MAIN_PARITY_MISMATCHES") != 0:
         raise ValueError("cannot create decision capsule from replay mismatch")
     diagnostic = dataset_manifest["historical_yfinance_ohlc_diagnostic"]["summary"]
+    qualification = statistics["qualification"]
     return {
-        "schema_version": "setup03-development-strategy-decision-capsule-v2",
-        "status": "READY_FOR_SOL_STRATEGY_DECISION",
+        "schema_version": "setup03-development-strategy-decision-capsule-v3",
+        "status": qualification["status"],
         "scope": {
             "development_only": True,
             "formal_validation": False,
             "structure_only": True,
             "outcome_metrics_included": False,
             "tolerance_selection": False,
+            "frozen_qualification_matrix_executed": True,
+            "lexicographic_candidate_is_production_config": False,
             "strategy_modification": False,
         },
         "frozen_inputs": {
@@ -770,15 +1084,32 @@ def render_capsule_report(
     by_tolerance = statistics["by_tolerance"]
     adjacent = statistics["adjacent_tolerance_stability"]
     flags = statistics["mechanical_flags"]
+    qualification = statistics["qualification"]
 
     def pct(value: Any) -> str:
         return "—" if value is None else f"{float(value):.2%}"
 
+    def scalar(value: Any, unit: str) -> str:
+        if value is None:
+            return "null"
+        if unit == "ratio":
+            return f"{float(value):.2%}"
+        if unit == "trading_days":
+            return f"{float(value):.2f}"
+        return f"{float(value):.0f}"
+
+    def margin(value: Any, unit: str) -> str:
+        if value is None:
+            return "null"
+        if unit == "ratio":
+            return f"{float(value):+.2%}"
+        return f"{float(value):+.2f}"
+
     lines = [
         "<!-- DEVELOPMENT_ONLY; NOT_FORMAL_VALIDATION; NOT_FINAL_OOS -->",
-        "# SETUP_03 Development Strategy Decision Capsule v2",
+        "# SETUP_03 Development Strategy Decision Capsule v3",
         "",
-        "状态：`READY_FOR_SOL_STRATEGY_DECISION`。本报告只描述结构证据，不替研究设计者选择 tolerance。",
+        f"状态：`{payload['status']}`。本报告执行已冻结的 qualification matrix 与 lexicographic rule；不写入 production parameter。",
         "",
         "## Immutable bindings",
         "",
@@ -801,11 +1132,112 @@ def render_capsule_report(
         f"- Legacy vs precomputed current path mismatches：`{parity['legacy_vs_precomputed_mismatches']}`",
         "- Comparison includes every bar Setup/state/diagnostic, every terminal event/date, and Decision action/diagnostics/deterministic fields.",
         "",
+        "## Derived market session dates",
+        "",
+        "- `market_session_dates` is the sorted union of all valid local `Quote.trade_date` values in the frozen v2 replay input; no live calendar/provider was used.",
+    ]
+    for market, session_dates in statistics["market_session_dates"].items():
+        lines.append(
+            f"- `{market}`: {len(session_dates)} sessions, `{session_dates[0]}` through `{session_dates[-1]}`."
+        )
+    lines.extend([
+        "",
+        "## Frozen qualification matrix",
+        "",
+        f"- Protocol: `{qualification['protocol_version']}` / `{qualification['protocol_sha256']}`",
+        "- Every row below is one candidate × market × frozen threshold observation. `trading_day_drift` is the only qualification drift field; calendar-day drift is descriptive only.",
+        "",
+        "| candidate | market | scope | adjacent pair | threshold | observed | operator | frozen threshold | margin | status |",
+        "|---:|---|---|---|---|---:|:---:|---:|---:|---|",
+    ])
+    for row in qualification["matrix"]:
+        pair = "—" if row["adjacent_pair"] is None else f"{row['adjacent_pair'][0]:.1%}→{row['adjacent_pair'][1]:.1%}"
+        lines.append(
+            f"| {row['candidate_pct']:.1%} | {row['market']} | {row['scope']} | {pair} | `{row['threshold_id']}` | "
+            f"{scalar(row['observed_value'], row['unit'])} | `{row['operator']}` | {scalar(row['frozen_threshold'], row['unit'])} | "
+            f"{margin(row['margin_to_threshold'], row['unit'])} | `{row['status']}` |"
+        )
+    lines.extend([
+        "",
+        "## Candidate qualification and frozen lexicographic result",
+        "",
+        "| candidate | market | qualifies | failed threshold IDs |",
+        "|---:|---|---|---|",
+    ])
+    for row in qualification["candidate_market_evaluations"]:
+        lines.append(
+            f"| {row['candidate_pct']:.1%} | {row['market']} | `{row['qualifies']}` | "
+            f"{', '.join(f'`{item}`' for item in row['failed_threshold_ids']) or '—'} |"
+        )
+    selected = qualification["lexicographic_candidate"]
+    lines.extend([
+        "",
+        f"- `qualified_candidates`: `{json.dumps(qualification['qualified_candidates'], ensure_ascii=False)}`",
+        f"- `lexicographic_candidate`: `{selected if selected is not None else 'null'}`",
+        f"- `lexicographic_status`: `{qualification['status']}`",
+        "",
+        "## 3%→4% and 4%→5% drift evidence",
+        "",
+        "| transition | market | matched pairs | calendar median/P90 | trading-day median/P90 | buckets 0–2/3–5/6–10/11–15/>15 |",
+        "|---|---|---:|---:|---:|---|",
+    ])
+    for transition in ("3.0%→4.0%", "4.0%→5.0%"):
+        for market in ("CN", "US"):
+            row = adjacent[transition][market]
+            buckets = row["trading_day_drift_buckets"]
+            calendar_pair = f"{scalar(row['calendar_day_drift_median'], 'trading_days')} / {scalar(row['calendar_day_drift_P90'], 'trading_days')}"
+            trading_pair = f"{scalar(row['trading_day_drift_median'], 'trading_days')} / {scalar(row['trading_day_drift_P90'], 'trading_days')}"
+            bucket_text = "/".join(str(buckets[key]) for key in ("0-2", "3-5", "6-10", "11-15", ">15"))
+            lines.append(
+                f"| {transition} | {market} | {row['nearest_date_matched_count']} | {calendar_pair} | {trading_pair} | {bucket_text} |"
+            )
+
+    if qualification["status"] == "VALIDATION_FAIL_NOT_READY_FOR_FORMAL_FREEZE":
+        lines.extend([
+            "",
+            "## Qualification failure breakdown",
+            "",
+            "| candidate | market | scope | adjacent pair | frozen threshold | observed | operator | margin to threshold |",
+            "|---:|---|---|---|---|---:|:---:|---:|",
+        ])
+        for row in qualification["failure_breakdown"]:
+            pair = "—" if row["adjacent_pair"] is None else f"{row['adjacent_pair'][0]:.1%}→{row['adjacent_pair'][1]:.1%}"
+            lines.append(
+                f"| {row['candidate_pct']:.1%} | {row['market']} | {row['scope']} | {pair} | `{row['threshold_id']}` | "
+                f"{scalar(row['observed_value'], row['unit'])} | `{row['operator']} {scalar(row['frozen_threshold'], row['unit'])}` | "
+                f"{margin(row['margin_to_threshold'], row['unit'])} |"
+            )
+        lines.extend([
+            "",
+            "## Extreme trading-day drift pairs (descriptive)",
+            "",
+            "The following pairs are retained as evidence; none is deleted or re-matched.",
+        ])
+        for transition in ("3.0%→4.0%", "4.0%→5.0%"):
+            for market in ("CN", "US"):
+                diag = qualification["drift_diagnostics"][transition][market]
+                lines.extend([
+                    "",
+                    f"### {transition} / {market}",
+                    "",
+                    f"- matched pair count: `{diag['matched_pair_count']}`",
+                    f"- buckets (0–2 / 3–5 / 6–10 / 11–15 / >15): `{diag['trading_day_drift_buckets']['0-2']} / {diag['trading_day_drift_buckets']['3-5']} / {diag['trading_day_drift_buckets']['6-10']} / {diag['trading_day_drift_buckets']['11-15']} / {diag['trading_day_drift_buckets']['>15']}`",
+                    "",
+                    "| symbol | old date | new date | trading-day distance | calendar-day distance |",
+                    "|---|---|---|---:|---:|",
+                ])
+                for pair in diag["extreme_drift_pairs_top20"]:
+                    lines.append(
+                        f"| {pair['symbol']} | {pair['old_date']} | {pair['new_date']} | {pair['trading_day_drift']} | {pair['calendar_day_drift']} |"
+                    )
+
+    lines.extend([
+        "",
         "## CN / US / ALL core numbers",
         "",
         "| tolerance | market | symbols | bars | platform | platform/1000 | NONE | WATCH | ARMED | CONFIRMED state days | FAILED | CONFIRMED events | CONFIRMED/1000 | ENTRY_ALLOWED | ENTRY_ALLOWED/1000 |",
         "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
-    ]
+    ])
     for tolerance in TOLERANCE_SEQUENCE:
         for market in ("CN", "US", "ALL"):
             row = by_tolerance[f"{tolerance:.1%}"][market]
@@ -824,8 +1256,8 @@ def render_capsule_report(
             row = market_rows[market]
             drift = (
                 "—"
-                if row["date_drift_median"] is None
-                else f"{float(row['date_drift_median']):.1f} / {float(row['date_drift_P90']):.1f} days"
+                if row["trading_day_drift_median"] is None
+                else f"{float(row['trading_day_drift_median']):.1f} / {float(row['trading_day_drift_P90']):.1f} trading days"
             )
             lines.append(
                 f"| {transition} | {market} | {row['previous_event_count']} | {row['current_event_count']} | {row['retained']} | {row['added']} | {row['disappeared']} | {row['exact_date_jaccard']:.2%} | {row['nearest_date_matched_count']} | {drift} |"
@@ -860,7 +1292,7 @@ def render_capsule_report(
         "- This capsule contains no returns, MFE, MAE, P&L, winrate, or final OOS metrics.",
         "- No dataset/universe change, re-fetch, provider/symbol substitution, formal validation, strategy change, PR creation, or merge was performed.",
         "",
-        "`READY_FOR_SOL_STRATEGY_DECISION`",
+        f"`{payload['status']}`",
         "",
     ])
     return "\n".join(lines)

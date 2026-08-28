@@ -25,6 +25,7 @@ from research.development_decision_capsule import (
     run_legacy_main_parity,
     write_capsule,
 )
+from research.market_sessions import build_market_session_dates
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,12 +48,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--capsule",
         type=Path,
-        default=PROJECT_ROOT / "research/development/development_strategy_decision_capsule_v2.json",
+        default=PROJECT_ROOT / "research/development/development_strategy_decision_capsule_v3.json",
     )
     parser.add_argument(
         "--report",
         type=Path,
-        default=PROJECT_ROOT / "research/development/development_strategy_decision_capsule_v2.md",
+        default=PROJECT_ROOT / "research/development/development_strategy_decision_capsule_v3.md",
     )
     args = parser.parse_args(argv)
 
@@ -74,7 +75,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     compact_reports = parity.pop("compact_reports")
-    statistics = _build_statistics(compact_reports)
+    statistics = _build_statistics(
+        compact_reports,
+        market_session_dates=build_market_session_dates(symbol_quotes),
+    )
     payload = build_capsule_payload(
         dataset_manifest=dataset_manifest,
         universe_manifest=universe_manifest,
