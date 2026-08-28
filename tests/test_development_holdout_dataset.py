@@ -1,5 +1,8 @@
+from copy import deepcopy
 from datetime import date
+import json
 from pathlib import Path
+import tempfile
 import unittest
 
 import pandas as pd
@@ -11,7 +14,9 @@ from research.development_holdout_dataset import (
     READY_STATUS,
     _request_contract,
     build_dataset_manifest,
+    dataset_manifest_integrity_hash,
     load_dataset_manifest,
+    load_frozen_holdout,
 )
 from research.development_holdout_universe import load_holdout_universe_manifest
 
@@ -33,6 +38,77 @@ class DevelopmentHoldoutDatasetTests(unittest.TestCase):
         self.assertEqual(manifest["coverage_status"], READY_STATUS)
         self.assertEqual(manifest["aggregate_symbol_count"], 40)
         self.assertEqual(manifest["aggregate_valid_bar_count"], 86305)
+
+    def test_tracked_replay_wrapper_is_cross_bound_and_self_consistent(self):
+        root = Path(__file__).resolve().parents[1]
+        dataset_path = root / "research" / "development_holdout" / "dataset_manifest.json"
+        replay_path = root / "research" / "development_holdout" / "replay_manifest.json"
+        frozen_path = root / "artifacts" / "phase5j_v3_development_holdout" / "development_holdout_replay_input.jsonl.gz"
+
+        manifest, _, replay_manifest = load_frozen_holdout(dataset_path, frozen_path, replay_path)
+        wrapper = json.loads(replay_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(wrapper["dataset_manifest_sha256"], manifest["integrity"]["manifest_sha256"])
+        self.assertEqual(
+            wrapper["replay_manifest"]["aggregate_hash"],
+            manifest["replay_input_manifest_sha256"],
+        )
+        self.assertEqual(wrapper["replay_manifest"], replay_manifest.to_dict())
+        self.assertEqual(
+            wrapper["integrity"]["manifest_sha256"],
+            dataset_manifest_integrity_hash(wrapper),
+        )
+        self.assertEqual(wrapper["replay_manifest"]["total_symbol_count"], 40)
+        self.assertEqual(wrapper["replay_manifest"]["total_bar_count"], 86305)
+
+    def test_replay_cross_binding_mutations_fail_closed(self):
+        root = Path(__file__).resolve().parents[1]
+        dataset_path = root / "research" / "development_holdout" / "dataset_manifest.json"
+        replay_path = root / "research" / "development_holdout" / "replay_manifest.json"
+        frozen_path = root / "artifacts" / "phase5j_v3_development_holdout" / "development_holdout_replay_input.jsonl.gz"
+        manifest, _, replay_manifest = load_frozen_holdout(dataset_path, frozen_path, replay_path)
+        wrapper = json.loads(replay_path.read_text(encoding="utf-8"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            for name, mutated in (
+                ("dataset-binding", {**wrapper, "dataset_manifest_sha256": "sha256:" + "0" * 64}),
+                (
+                    "replay-binding",
+                    {
+                        **wrapper,
+                        "replay_manifest": {
+                            **wrapper["replay_manifest"],
+                            "aggregate_hash": "sha256:" + "1" * 64,
+                        },
+                    },
+                ),
+            ):
+                mutated = deepcopy(mutated)
+                mutated["integrity"] = {
+                    "manifest_sha256": dataset_manifest_integrity_hash(mutated),
+                }
+                mutated_path = temp / f"{name}.json"
+                mutated_path.write_text(
+                    json.dumps(mutated, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                with self.subTest(name=name):
+                    with self.assertRaises(ValueError):
+                        load_frozen_holdout(dataset_path, frozen_path, mutated_path)
+
+            mutated_dataset = deepcopy(manifest)
+            mutated_dataset["replay_input_manifest_sha256"] = "sha256:" + "2" * 64
+            mutated_dataset["integrity"] = {
+                "manifest_sha256": dataset_manifest_integrity_hash(mutated_dataset),
+            }
+            mutated_dataset_path = temp / "dataset-replay-binding.json"
+            mutated_dataset_path.write_text(
+                json.dumps(mutated_dataset, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                load_frozen_holdout(mutated_dataset_path, frozen_path, replay_path)
 
     def test_provider_contract_is_fixed_by_market(self):
         universe = load_holdout_universe_manifest()

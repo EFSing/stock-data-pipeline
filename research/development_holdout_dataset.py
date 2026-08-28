@@ -50,12 +50,15 @@ REPLAY_MANIFEST_PATH = HOLDOUT_ARTIFACT_DIR / "development_holdout_replay_manife
 FROZEN_INPUT_PATH = HOLDOUT_ARTIFACT_DIR / "development_holdout_replay_input.jsonl.gz"
 DATASET_SCHEMA_VERSION = "setup03-phase5j-v3-development-holdout-dataset-manifest-v1"
 DATASET_VERSION = "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1"
+REPLAY_MANIFEST_SCHEMA_VERSION = "setup03-phase5j-v3-development-holdout-replay-manifest-v1"
 DATASET_STATUS = "DEVELOPMENT_HOLDOUT_DATASET_FROZEN_NOT_FORMAL_VALIDATION"
 READY_STATUS = "DEVELOPMENT_HOLDOUT_READY_FOR_V3_REPLAY"
 BLOCKER_STATUS = "DEVELOPMENT_HOLDOUT_PROVIDER_OR_QC_BLOCKER_FAIL_CLOSED"
 START_DATE = date(2017, 1, 1)
 END_DATE = date(2026, 8, 26)
 REQUIRED_SYMBOLS_BY_MARKET = {"CN": 20, "US": 20}
+EXPECTED_HOLDOUT_SYMBOL_COUNT = 40
+EXPECTED_HOLDOUT_BAR_COUNT = 86305
 
 
 def canonical_json(value: Any) -> str:
@@ -269,9 +272,52 @@ def load_dataset_manifest(path: Path = DATASET_MANIFEST_PATH) -> dict[str, Any]:
     return manifest
 
 
+def validate_replay_manifest(
+    replay_wrapper: Mapping[str, Any],
+    dataset_manifest: Mapping[str, Any],
+    replay_input_manifest: Any | None = None,
+) -> None:
+    """Validate the one-way dataset -> replay wrapper freeze bindings."""
+    if replay_wrapper.get("schema_version") != REPLAY_MANIFEST_SCHEMA_VERSION:
+        raise ValueError("holdout replay wrapper schema changed")
+    if replay_wrapper.get("dataset_version") != DATASET_VERSION:
+        raise ValueError("holdout replay wrapper dataset identity changed")
+    if replay_wrapper.get("dataset_manifest_sha256") != dataset_manifest.get("integrity", {}).get("manifest_sha256"):
+        raise ValueError("holdout replay wrapper dataset binding changed")
+    if replay_wrapper.get("integrity", {}).get("manifest_sha256") != dataset_manifest_integrity_hash(replay_wrapper):
+        raise ValueError("holdout replay wrapper integrity mismatch")
+    if replay_wrapper.get("controls") != {
+        "development_only": True,
+        "formal_validation": False,
+        "final_oos_accessed": False,
+        "provider_split": {"CN": CN_DEVELOPMENT_PROVIDER_ID, "US": DEVELOPMENT_PROVIDER_ID},
+    }:
+        raise ValueError("holdout replay wrapper controls changed")
+
+    embedded_replay = replay_wrapper.get("replay_manifest")
+    if not isinstance(embedded_replay, Mapping):
+        raise ValueError("holdout replay wrapper is missing its replay manifest")
+    if embedded_replay.get("aggregate_hash") != dataset_manifest.get("replay_input_manifest_sha256"):
+        raise ValueError("holdout replay wrapper replay aggregate binding changed")
+    if int(embedded_replay.get("total_symbol_count", -1)) != EXPECTED_HOLDOUT_SYMBOL_COUNT:
+        raise ValueError("holdout replay wrapper symbol count changed")
+    if int(embedded_replay.get("total_bar_count", -1)) != EXPECTED_HOLDOUT_BAR_COUNT:
+        raise ValueError("holdout replay wrapper bar count changed")
+    if dataset_manifest.get("aggregate_symbol_count") != EXPECTED_HOLDOUT_SYMBOL_COUNT:
+        raise ValueError("holdout dataset symbol count changed")
+    if dataset_manifest.get("aggregate_valid_bar_count") != EXPECTED_HOLDOUT_BAR_COUNT:
+        raise ValueError("holdout dataset bar count changed")
+    if replay_input_manifest is not None and embedded_replay != replay_input_manifest.to_dict():
+        raise ValueError("holdout replay wrapper does not match frozen replay input")
+
+
 def _write_replay_manifest(path: Path, dataset_manifest: Mapping[str, Any], replay_manifest: Any) -> None:
+    if dataset_manifest.get("coverage_status") != READY_STATUS:
+        raise ValueError("cannot write a replay wrapper for a non-ready dataset")
+    if dataset_manifest.get("replay_input_manifest_sha256") != replay_manifest.aggregate_hash:
+        raise ValueError("final dataset manifest must bind the replay input before writing its wrapper")
     payload = {
-        "schema_version": "setup03-phase5j-v3-development-holdout-replay-manifest-v1",
+        "schema_version": REPLAY_MANIFEST_SCHEMA_VERSION,
         "dataset_version": DATASET_VERSION,
         "dataset_manifest_sha256": dataset_manifest["integrity"]["manifest_sha256"],
         "replay_manifest": replay_manifest.to_dict(),
@@ -283,6 +329,7 @@ def _write_replay_manifest(path: Path, dataset_manifest: Mapping[str, Any], repl
         },
     }
     payload["integrity"] = {"manifest_sha256": dataset_manifest_integrity_hash(payload)}
+    validate_replay_manifest(payload, dataset_manifest, replay_manifest)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -326,28 +373,34 @@ def acquire_and_freeze_holdout(
     frozen_manifest = write_frozen_input(output_dir / FROZEN_INPUT_PATH.name, symbol_quotes)
     if frozen_manifest != replay_manifest:
         raise ValueError("holdout replay input changed during serialization")
-    _write_replay_manifest(output_dir / REPLAY_MANIFEST_PATH.name, provisional, replay_manifest)
     manifest, symbol_quotes, _ = build_dataset_manifest(
         universe, acquired, replay_manifest_hash=replay_manifest.aggregate_hash
     )
     (output_dir / DATASET_MANIFEST_PATH.name).write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+    _write_replay_manifest(output_dir / REPLAY_MANIFEST_PATH.name, manifest, replay_manifest)
     return manifest, symbol_quotes
 
 
 def load_frozen_holdout(
     manifest_path: Path = DATASET_MANIFEST_PATH,
     replay_input_path: Path = FROZEN_INPUT_PATH,
+    replay_manifest_path: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, list[Quote]], Any]:
     manifest = load_dataset_manifest(manifest_path)
     if manifest["coverage_status"] != READY_STATUS:
         raise DevelopmentDataError(f"holdout dataset is not replay-ready: {manifest['coverage_status']}")
     symbol_quotes, replay_manifest = read_frozen_input(replay_input_path)
+    wrapper_path = replay_manifest_path or manifest_path.with_name(REPLAY_MANIFEST_PATH.name)
+    replay_wrapper = json.loads(wrapper_path.read_text(encoding="utf-8"))
+    validate_replay_manifest(replay_wrapper, manifest, replay_manifest)
     if manifest.get("replay_input_manifest_sha256") != replay_manifest.aggregate_hash:
         raise ValueError("holdout replay input manifest hash changed")
-    if replay_manifest.total_symbol_count != 40:
+    if replay_manifest.total_symbol_count != EXPECTED_HOLDOUT_SYMBOL_COUNT:
         raise ValueError("holdout replay symbol count changed")
+    if replay_manifest.total_bar_count != EXPECTED_HOLDOUT_BAR_COUNT:
+        raise ValueError("holdout replay bar count changed")
     return manifest, symbol_quotes, replay_manifest
 
 
@@ -355,5 +408,5 @@ __all__ = [
     "BLOCKER_STATUS", "DATASET_MANIFEST_PATH", "DATASET_STATUS", "DATASET_VERSION",
     "FROZEN_INPUT_PATH", "HOLDOUT_ARTIFACT_DIR", "READY_STATUS", "REPLAY_MANIFEST_PATH",
     "acquire_and_freeze_holdout", "build_dataset_manifest", "load_dataset_manifest",
-    "load_frozen_holdout", "validate_dataset_manifest",
+    "load_frozen_holdout", "validate_dataset_manifest", "validate_replay_manifest",
 ]

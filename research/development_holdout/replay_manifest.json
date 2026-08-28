@@ -1,7 +1,7 @@
 {
   "schema_version": "setup03-phase5j-v3-development-holdout-replay-manifest-v1",
   "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
-  "dataset_manifest_sha256": "sha256:b72bd5b5e3eed12ba2734a26d2bb3e16355e1cbaa4a6bc4d90b53afb364aa2aa",
+  "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
   "replay_manifest": {
     "schema_version": "setup03-replay-input-v1",
     "aggregate_hash": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
@@ -300,6 +300,6 @@
     }
   },
   "integrity": {
-    "manifest_sha256": "sha256:7ec963c9d769a504e7c3aa9b938859db59a0b418fea22e994c80f656e3917e13"
+    "manifest_sha256": "sha256:6746fa0914ef20916ec9006492f2043ed9d35fc65b74995e1cab903837890148"
   }
 }
