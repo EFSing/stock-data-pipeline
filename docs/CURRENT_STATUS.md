@@ -12,7 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` 当前真实 SHA：`21c73977195682df576750648765b1b74d8824e2`；PR #32 已 squash merge，父提交为 `142b7345a5640b1e87932e41f3dc9311172bf54c`，本地 `origin/main` 已刷新到同一 SHA。
 - Current checkout: `research/setup03-atr-boundary-redesign`；PR #32 `Phase 5J-v4: lifecycle attribution` 已关闭并 merge，当前 v5 PR #33 `stop ATR boundary structural development` 为 OPEN、base `main`。独立 PR #31 `hotfix/production-market-data-stability` 仍保持独立，不能当作当前分支状态。
-- Main push CI: run `33259644890` 覆盖 `21c73977195682df576750648765b1b74d8824e2` 并成功；PR #33 final HEAD `8addad8aed26554502f93c6b83e93cb4609916c7` 的 exact-head CI run `33262629774` 已成功。
+- Main push CI: run `33259644890` 覆盖 `21c73977195682df576750648765b1b74d8824e2` 并成功；PR #33 final HEAD `72ecdb0970e36d842e22d89e094ca84eef992679` 的 exact-head CI run `33263680899` 已成功。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
@@ -86,7 +86,7 @@ V0.2
 
 ## Next
 
-- 当前 branch 的 closeout：PR #33 final HEAD `8addad8aed26554502f93c6b83e93cb4609916c7` 的 exact-head CI run `33262629774` 已成功；停在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，不 merge、不启动 Wave Engine、新研究、formal validation、Phase 5K-B1 或 Final OOS。
+- 当前 branch 的 closeout：PR #33 final HEAD `72ecdb0970e36d842e22d89e094ca84eef992679` 的 exact-head CI run `33263680899` 已成功；停在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，不 merge、不启动 Wave Engine、新研究、formal validation、Phase 5K-B1 或 Final OOS。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
