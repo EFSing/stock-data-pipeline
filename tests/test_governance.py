@@ -50,13 +50,14 @@ class GovernanceTests(unittest.TestCase):
         self.assertIn("Wave Scenario", self.handoff)
         self.assertIn("Weekly State", self.handoff)
 
-    def test_atr_boundary_freeze_is_recorded_before_data_acquisition(self):
+    def test_atr_boundary_closeout_state_is_recorded(self):
         expected_protocol_sha = "sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4"
         expected_universe_sha = "sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b"
         self.assertIn(expected_protocol_sha, self.handoff)
         self.assertIn(expected_universe_sha, self.handoff)
         self.assertIn("ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED", self.current_status)
-        self.assertIn("尚未获取 OHLCV", self.current_status)
+        self.assertIn("40/40 frozen clean symbols", self.current_status)
+        self.assertIn("STOP_SETUP_03_STRUCTURAL_DEVELOPMENT", self.current_status)
 
     def test_registry_records_verified_recovery_gates(self):
         self.assertEqual(self.registry["schema_version"], "repository-frozen-artifact-registry-v1")
