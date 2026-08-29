@@ -12,6 +12,12 @@ SETUP_03 Platform Breakout：价格在横盘平台内整理，形成明确阻力
 时间语义：按 bar 顺序推进状态机，任何状态判定只用 `data <= t`。
 CONFIRMED / FAILED 只终止当前 Setup 实例，Detector 会继续扫描后续新平台，
 最终返回最新 Setup。
+
+`ATR_NORMALIZED_BOUNDARY_MODE` is retained only as a research implementation for
+the completed Phase 5J-v5 reproducibility record. It is explicitly
+`RESEARCH_ONLY` / `NOT_PRODUCTION_AUTHORIZED` / `FAILED_STRUCTURAL_CANDIDATE_FAMILY`.
+Production callers omit this optional mode and therefore keep the percentage
+boundary default.
 """
 from __future__ import annotations
 
@@ -35,6 +41,9 @@ from trading.indicators import atr
 
 PERCENTAGE_BOUNDARY_MODE = "PERCENTAGE"
 ATR_NORMALIZED_BOUNDARY_MODE = "ATR_NORMALIZED"
+ATR_NORMALIZED_BOUNDARY_SCOPE = "RESEARCH_ONLY"
+ATR_NORMALIZED_BOUNDARY_AUTHORIZATION = "NOT_PRODUCTION_AUTHORIZED"
+ATR_NORMALIZED_BOUNDARY_STATUS = "FAILED_STRUCTURAL_CANDIDATE_FAMILY"
 
 
 class SetupGateReason(str, Enum):

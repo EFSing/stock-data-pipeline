@@ -5,7 +5,10 @@ from core import Quote
 
 from trading.models import SetupState, SwingKind, SwingPoint
 from trading.setup import (
+    ATR_NORMALIZED_BOUNDARY_AUTHORIZATION,
     ATR_NORMALIZED_BOUNDARY_MODE,
+    ATR_NORMALIZED_BOUNDARY_SCOPE,
+    ATR_NORMALIZED_BOUNDARY_STATUS,
     detect_platform_breakout,
     detect_platform_breakout_history_with_diagnostics,
 )
@@ -45,6 +48,17 @@ class PlatformBreakoutTests(unittest.TestCase):
     BREAK_L = [112, 115, 117, 119]
     BREAKDOWN_H = [95, 92, 88, 85]
     BREAKDOWN_L = [92, 89, 85, 82]
+
+    def test_atr_normalized_mode_is_explicitly_research_only(self):
+        self.assertEqual(ATR_NORMALIZED_BOUNDARY_SCOPE, "RESEARCH_ONLY")
+        self.assertEqual(
+            ATR_NORMALIZED_BOUNDARY_AUTHORIZATION,
+            "NOT_PRODUCTION_AUTHORIZED",
+        )
+        self.assertEqual(
+            ATR_NORMALIZED_BOUNDARY_STATUS,
+            "FAILED_STRUCTURAL_CANDIDATE_FAMILY",
+        )
 
     def test_no_setup_without_platform(self):
         highs = [100, 105, 110, 115, 120, 125, 130, 135, 140]

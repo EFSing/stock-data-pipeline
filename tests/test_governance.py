@@ -59,6 +59,27 @@ class GovernanceTests(unittest.TestCase):
         self.assertIn("40/40 frozen clean symbols", self.current_status)
         self.assertIn("STOP_SETUP_03_STRUCTURAL_DEVELOPMENT", self.current_status)
 
+    def test_atr_normalized_mode_is_outside_production_entrypoints(self):
+        setup_source = (ROOT / "trading" / "setup.py").read_text(encoding="utf-8")
+        for marker in (
+            "RESEARCH_ONLY",
+            "NOT_PRODUCTION_AUTHORIZED",
+            "FAILED_STRUCTURAL_CANDIDATE_FAMILY",
+        ):
+            self.assertIn(marker, setup_source)
+
+        production_entrypoints = (
+            "main.py",
+            "trading/events.py",
+            ".github/workflows/asia-close.yml",
+            ".github/workflows/us-close.yml",
+            ".github/workflows/setup03-replay.yml",
+        )
+        for relative_path in production_entrypoints:
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn("ATR_NORMALIZED", source, relative_path)
+            self.assertNotIn("platform_boundary_mode", source, relative_path)
+
     def test_registry_records_verified_recovery_gates(self):
         self.assertEqual(self.registry["schema_version"], "repository-frozen-artifact-registry-v1")
         self.assertEqual(self.entry["status"], "FULLY_RECOVERABLE")

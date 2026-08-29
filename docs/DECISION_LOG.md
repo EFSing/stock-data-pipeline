@@ -605,3 +605,11 @@ Shared causal-swing versus precomputed-swing parity passed for 280 cells, 616,52
 **Decision:** Set `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`. Do not select an ATR threshold, tune another ATR period/family, compensate markets, independently tune high/low boundaries, change terminal/rearm orchestration, modify production, or use the result for Final OOS/formal validation. Return the next core research recommendation to Wave Scenario Engine → `SETUP_01` → `SETUP_02`. Any future SETUP_03 continuation requires a new explicit research decision and a new protocol/version.
 
 **Boundary:** The evidence remains development-only and structure-only. No returns, forward returns, MFE, MAE, P&L, winrate or expectancy was accessed; formal Phase 5K-B1, IBKR formal OHLCV and Final OOS remain unread.
+
+### Closeout audit: retain ATR-normalized implementation as failed research-only candidate family
+
+**Evidence:** `trading/setup.py` contains the optional `ATR_NORMALIZED_BOUNDARY_MODE` branch required to reproduce the Phase 5J-v5 structure-only evidence. The current `main.py` parameter parser emits only the existing percentage boundary inputs; `SheetsClient.config()` exposes the `参数设置` rows without adding a mode selector; production workflows invoke the existing entrypoints without ATR mode arguments; and `trading.events.evaluate_setup03_event()` forwards the production setup parameter dictionary without selecting ATR mode. The default on the shared Setup entrypoint remains `PERCENTAGE`.
+
+**Decision:** Preserve the research implementation and explicitly mark it `RESEARCH_ONLY`, `NOT_PRODUCTION_AUTHORIZED`, and `FAILED_STRUCTURAL_CANDIDATE_FAMILY`. Add regression coverage for the marker and for the production parameter/Decision path so the ATR mode cannot become an implicit production selection.
+
+**Boundary:** This is a closeout governance and regression clarification only. It does not change the percentage production default, Sheets schema, workflow behavior, Decision semantics, Trading Core outputs, terminal/rearm behavior, or any existing trade behavior. The Phase 5J-v5 result remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`; no ATR threshold is selected and no new research is started.

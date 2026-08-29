@@ -17,7 +17,7 @@
 - **当前冻结点:** protocol `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`，SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；metadata-only clean universe manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`；dataset 已冻结为 40 symbols / 88,075 bars，manifest SHA-256 `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`。
 - **Scope:** 仅保留现有 causal swing、strict as-of、lifecycle、breakout、confirmed/failed、Decision、Entry Zone、stop/target/RR、execution、terminal/rearm；本任务只改变 boundary semantics。已使用既有 CN BaoStock / US yfinance development contract 生成 hash-pinned clean-holdout dataset/replay artifacts，并运行结构性资格矩阵与一次 deterministic repeat。
 - **明确禁止事项:** 不做固定百分比搜索、市场/高低边界分别调参或 terminal/rearm 改造；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不访问 Final OOS、正式 Phase 5K-B1、IBKR formal universe OHLCV；不修改 production 或 Trading Core；不以结果换股或重写旧 artifact。
-- **完成条件:** 数据身份、结构-only qualification matrix、parity/repro 已完成；剩余是测试、治理文件、commit/push、PR 和 exact-head CI，最终停在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
+- **完成条件:** 数据身份、结构-only qualification matrix、parity/repro、治理修正与 ATR production-isolation regression 已完成；剩余是本次 closeout commit/push 和新的 exact-head CI，最终停在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
 - **停止条件:** qualification 已明确无 candidate 存活；创建 PR 并核对 exact-head CI 后停止，不进入新的 ATR family、terminal/rearm redesign、formal validation 或 Final OOS。普通代码、测试、diagnostic、artifact/hash 问题自行修复。
 
 ## 2. Current Repository State
@@ -26,9 +26,9 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@21c73977195682df576750648765b1b74d8824e2`；该 SHA 是 PR #32 的 squash merge commit，父提交为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
 - **working branch:** `research/setup03-atr-boundary-redesign`（当前研究分支）。
-- **current HEAD:** `THIS_COMMIT`（当前 closeout reconciliation 提交的真实 SHA 必须以 `git rev-parse HEAD` 解析）。
+- **current HEAD:** `8addad8aed26554502f93c6b83e93cb4609916c7`（PR #33 当前已核实的真实 final HEAD）。
 - **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` 已关闭并 squash merge，merge commit `21c73977195682df576750648765b1b74d8824e2`。当前 v5 PR #33 `stop ATR boundary structural development` 为 OPEN、base `main`；独立 PR #31 `hotfix/production-market-data-stability` 仍保持分离。
-- **latest remote main CI:** run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，completed `success`；PR #33 final code head `36ae335d075f2700768912e0fa16fe0c6bfaadc1` 的 exact-head CI run `33262507715` completed `success`。
+- **latest remote main CI:** run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，completed `success`；PR #33 final HEAD `8addad8aed26554502f93c6b83e93cb4609916c7` 的 exact-head CI run `33262629774` completed `success`。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head CI run `33248943280` success；它不属于当前 checkout。
 - **working tree expected state:** tracked files 包含本任务的 governance/research changes 与最终 CI 回归断言；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
 - **current project/phase status:** PR #32 的 v4 状态为 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`，已按用户授权完成 squash merge；当前 v5 qualification 已完成并为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。formal validation、Final OOS、Phase 5K-B1 仍未执行。
@@ -39,20 +39,22 @@
 - loader 已修复 dataset → replay wrapper 的 provisional-hash cross-binding 顺序问题；现有 frozen identities 与研究结果不变，tracked wrapper integrity 为 `sha256:6746fa0914ef20916ec9006492f2043ed9d35fc65b74995e1cab903837890148`。
 - 本地 recovery bundle 已生成：`artifacts/frozen_backups/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip`，3,086,881 bytes，ZIP SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；bundle 含 5 个文件，成员 hash 见 registry/recovery manifest。
 - 外部 ChatGPT 审计已将 exact ZIP bytes 上传 Google Drive `交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/`，file ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`；独立重新读取后的 recovered ZIP SHA-256 与上传前完全一致。该 session 不重复访问 Google Drive。
-- 本次治理初始化与本轮 cloud recovery correction：新增/更新治理文件与 governance test；不改变业务逻辑和 frozen artifact bytes。治理修正 commit 使用 `THIS_COMMIT`，实际 SHA 以 Git 为准。
+- 本次治理初始化与本轮 cloud recovery correction：新增/更新治理文件与 governance test；不改变业务逻辑和 frozen artifact bytes。治理修正 commit 的 SHA 以 Git/PR 最终核对为准。
 - Phase 5J-v4 exact Sol specification 已落为 machine-readable protocol、中文说明、hash-pinned loader 与 protocol regression tests；canonical protocol SHA-256 为 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`。本独立 freeze task 未运行真实 holdout attribution。
 - Phase 5J-v4 在 40 symbols / 86,305 bars 上生成 258,915 trace rows、1,031 lifecycles、177 real first-divergence episodes；对 `origin/main@142b7345…` 完成 120 cells / 258,915 Setup bar comparisons / 1,028 terminal-event comparisons，Setup/event mismatches 均为 0。capsule file SHA-256 `sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f`，deterministic trace SHA-256 `sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4`；tracked provenance hashes 使用 Git-normalized LF bytes，跨 Windows/Linux 稳定。
 - v5 clean holdout acquisition：冻结 universe 的 40/40 symbols 均 `VALID_ACCEPTED`，CN 42,355 + US 45,720 = 88,075 bars；dataset manifest `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`，normalized aggregate `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`，replay aggregate `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`；provider/QC exceptions=0，未使用 formal B1/IBKR。
 - v5 ATR structure-only qualification：4 candidates 的 124-row matrix 中 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；parity 为 280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches，deterministic repeat `PASS`。capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`，最终状态 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
+- `trading/setup.py` 的 `ATR_NORMALIZED_BOUNDARY_MODE` 保留用于研究复现，并明确标记为 `RESEARCH_ONLY` / `NOT_PRODUCTION_AUTHORIZED` / `FAILED_STRUCTURAL_CANDIDATE_FAMILY`；`main.py`、Sheets 参数解析、workflow 与 Decision 入口均不选择该 mode，percentage production default 与既有交易行为不变。
 
 ## 4. Pending Work
 
 ### Required Next
 
-1. 更新并核对 HANDOFF/CURRENT_STATUS/DECISION_LOG，记录 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 及所有 frozen identities。
-2. 运行完整 `python -m unittest discover -s tests -v`、compile/hash checks、`git diff --check`。
-3. 提交并 push v5 closeout，创建 PR，核对 `headSha == final HEAD` 的 exact-head CI。
-4. CI 成功后停止；不 merge、不启动 formal validation、Phase 5K-B1、Final OOS 或 terminal/rearm redesign。
+1. [x] 更新并核对 HANDOFF/CURRENT_STATUS/DECISION_LOG，记录 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 及所有 frozen identities。
+2. [x] 审计并锁定 ATR-normalized research implementation 的 production 隔离与失败候选族状态。
+3. [x] 运行完整 `python -m unittest discover -s tests -v`、compile/hash checks、`git diff --check`。
+4. [ ] 提交并 push 本次 closeout，核对 `headSha == final HEAD` 的新的 exact-head CI。
+5. [ ] CI 成功后停止；不 merge、不启动 Wave Engine、不启动任何新研究、formal validation、Phase 5K-B1、Final OOS 或 terminal/rearm redesign。
 
 ### Deferred
 
@@ -134,10 +136,10 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #32 main push run `33259644890` 已覆盖 squash merge SHA `21c7397719…` 并成功；PR #33 code head `36ae335d075f2700768912e0fa16fe0c6bfaadc1` 的 exact-head run `33262507715` 已成功 | 只接受 `headSha == final HEAD` 的 CI；最终 run 以 GitHub PR/Actions 事实为准 | No |
+| environment / verification | PR #32 main push run `33259644890` 已覆盖 squash merge SHA `21c7397719…` 并成功；PR #33 final HEAD `8addad8aed26554502f93c6b83e93cb4609916c7` 的 exact-head run `33262629774` 已成功 | 只接受 `headSha == final HEAD` 的 CI；新的 closeout push 后必须重新核对最终 run | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | 当前已到 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；没有 candidate 可带入 formal validation | PR #33 exact-head CI `33262507715` 已成功；不启动 formal validation、B1 或 Final OOS | Yes for any further SETUP_03 work |
+| Sol / user decision node | 当前已到 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；没有 candidate 可带入 formal validation | PR #33 exact-head CI `33262629774` 已成功；本 closeout 不启动 Wave Engine 或任何新研究、formal validation、B1 或 Final OOS | Yes for any further SETUP_03 work |
 | project coordination | PR #31 is an independent OPEN hotfix；当前研究 PR 为 #33 | do not mix worktrees or infer PR #33 status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
@@ -216,11 +218,11 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T00:18:31+08:00`
+- `last_updated_at`: `2026-08-30T00:40:59+08:00`
 - `verified_main_sha`: `21c73977195682df576750648765b1b74d8824e2`
-- `verified_branch_head`: `THIS_COMMIT`（branch=`research/setup03-atr-boundary-redesign`；真实 SHA 以 Git 解析）
-- `latest_test_result`: full unittest `326/326` passed；qualification parity `280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches`；deterministic repeat `PASS`；compile/hash/diff checks passed
-- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；PR #33 code head `36ae335d075f2700768912e0fa16fe0c6bfaadc1` exact-head run `33262507715`，success
+- `verified_branch_head`: `8addad8aed26554502f93c6b83e93cb4609916c7`（branch=`research/setup03-atr-boundary-redesign`）
+- `latest_test_result`: full unittest `329/329` passed；qualification parity `280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches`；deterministic repeat `PASS`；ATR bindings/hash/compile/diff checks passed
+- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；PR #33 final HEAD `8addad8aed26554502f93c6b83e93cb4609916c7` exact-head run `33262629774`，success
 - `updated_by_task`: `research: finalize SETUP_03 ATR boundary stop-state and CI closeout`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

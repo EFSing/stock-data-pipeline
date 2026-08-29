@@ -1,3 +1,4 @@
+import inspect
 import unittest
 from dataclasses import replace
 from datetime import date, datetime, timedelta
@@ -25,6 +26,13 @@ from trading.models import (
     RiskReward,
     Setup,
     SetupState,
+)
+from trading.setup import (
+    PERCENTAGE_BOUNDARY_MODE,
+    SetupDiagnostics,
+    SetupGateReason,
+    SetupWithDiagnostics,
+    detect_platform_breakout_with_diagnostics,
 )
 
 
@@ -113,6 +121,43 @@ class DecisionParameterTests(unittest.TestCase):
             },
         )
         self.assertEqual(risk_capital, 1000.0)
+
+    @patch("trading.events.detect_platform_breakout_with_diagnostics")
+    def test_production_event_path_uses_percentage_default_not_atr_mode(self, detect):
+        setup_parameters = {
+            "swing_lookback": 5,
+            "platform_window": 40,
+            "platform_tolerance_pct": 0.0,
+            "arm_proximity_pct": 0.0,
+        }
+        decision_parameters = {
+            "swing_lookback": 5,
+            "atr_period": 14,
+            "atr_buffer": 0.5,
+            "max_chase_atr": 0.5,
+        }
+        detect.return_value = SetupWithDiagnostics(
+            Setup("SETUP_03", SetupState.NONE),
+            SetupDiagnostics(
+                SetupGateReason.INSUFFICIENT_HIGH_SWINGS,
+                SetupState.NONE,
+                0,
+            ),
+        )
+
+        evaluation = evaluate_setup03_event(
+            [quote()], 1000.0, setup_parameters, decision_parameters
+        )
+
+        self.assertEqual(evaluation.setup.state, SetupState.NONE)
+        detect.assert_called_once_with([quote()], **setup_parameters)
+        self.assertNotIn("platform_boundary_mode", detect.call_args.kwargs)
+        self.assertEqual(
+            inspect.signature(detect_platform_breakout_with_diagnostics)
+            .parameters["platform_boundary_mode"]
+            .default,
+            PERCENTAGE_BOUNDARY_MODE,
+        )
 
     def test_missing_decision_parameter_fails_fast(self):
         with self.assertRaisesRegex(ValueError, "setup_swing_lookback"):
