@@ -525,3 +525,17 @@
 **Revisit condition:** Reopen only if the external object becomes unavailable, the recovered bytes/hash no longer match, a governance/Git/PR/CI/artifact conflict appears, or the frozen research contract is explicitly changed with a new version and preserved prior identity.
 
 **Relevant commit / PR:** this correction is intended for commit `docs: record verified frozen artifact cloud recovery` on `research/phase5j-v4-lifecycle-attribution`; PR remains `NONE` until the Phase 5J-v4 work is complete and reviewed.
+
+---
+
+## 2026-08-29
+
+### Audit note: Phase 5J-v4 execution is blocked by missing repository-verifiable contract
+
+**Evidence checked:** After the cloud-recovery governance correction, the current checkout, all local and remote refs, reflog/unreachable commits, existing local artifacts, and the supplied original task attachment were searched for `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` and its protocol/source/tests. Only the phase name supplied by the user was found; no v4 contract or implementation was located.
+
+**Decision:** Mark the current execution blocker as `PHASE5J_V4_PROTOCOL_NOT_PRESENT`. Do not invent causal attribution rules, historical symptom concordance definitions, windows, thresholds, inputs, outputs, or evidence semantics from the phase name alone. No Phase 5J-v4 run, new research artifact, or v4 PR is claimed.
+
+**Boundary:** The second Phase 5J-v3 holdout remains exact and `FULLY_RECOVERABLE` according to the externally supplied cloud audit. Its dataset/replay/universe/protocol identities remain unchanged. Phase 5J-v3 remains development-only and structure-only with `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`; Final OOS, provider access, production changes, and Phase 5K-B1 remain out of scope.
+
+**Resolution condition:** Resume only when the exact frozen v4 protocol, source, and tests are restored or supplied in a repository-verifiable commit/path. Then re-read them, validate the holdout bindings, and continue under the existing as-of, causal, frozen-input, descriptive-only, and outcome-access boundaries.

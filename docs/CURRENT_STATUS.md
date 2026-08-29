@@ -10,10 +10,10 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA：`142b7345a5640b1e87932e41f3dc9311172bf54c`。本地 `origin/main` 仍为 `3a2c6699559074161b56281dd16084264f7dc717`，下一次开发前必须刷新，不能用旧 remote-tracking ref 做基线判断。
-- Current checkout: `research/phase5j-v4-lifecycle-attribution`；治理核心 commit 为 `7ec8a7fdd9d4a20d42fe0bb848deb688635583c5`，最终 reconciliation tip 以 `git rev-parse HEAD` 为准；该本地分支没有 PR。前序 PR #30 已合并，merge commit 为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
-- Current checkout exact-head CI: run `33193832124`，`CI Test Gate`，head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`，success。另有独立 PR #31 `hotfix/production-market-data-stability` 为 OPEN，head `bb006ae5ca61e76192c751e9bd818584fc42f051`，不能当作当前分支状态。
-- 当前项目正式状态：Phase 5J-v3 第二套 development holdout 已完成并合并，但 structure-only qualification 结果为 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`；不是生产参数冻结，也不是 `SETUP_03_STRUCTURALLY_REJECTED`。本轮用户已确认继续已冻结的 Phase 5J-v4 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`。
+- GitHub `main` 当前真实 SHA：`142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main` 已通过 `git fetch origin main` 刷新到同一 SHA。
+- Current checkout: `research/phase5j-v4-lifecycle-attribution`；cloud-recovery correction 重放 commit 为 `92a33940133485d9cd04228b2488cd3c40bb75b1`，最终 tip 以 `git rev-parse HEAD` 为准；该本地分支没有 PR。前序 PR #30 已合并，merge commit 为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
+- Current checkout exact-head CI: `NONE` for current local tip because the branch has not been pushed；predecessor run `33193832124` covered old head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba` and succeeded。另有独立 PR #31 `hotfix/production-market-data-stability` 为 OPEN，head `bb006ae5ca61e76192c751e9bd818584fc42f051`，不能当作当前分支状态。
+- 当前项目正式状态：Phase 5J-v3 第二套 development holdout 已完成并合并，但 structure-only qualification 结果为 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`；不是生产参数冻结，也不是 `SETUP_03_STRUCTURALLY_REJECTED`。本轮用户已确认继续 Phase 5J-v4 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，但仓库、refs、reflog/unreachable commits、已有 artifacts 和原始任务附件均未找到对应 frozen protocol/source/tests，当前未执行 v4，状态为 `PHASE5J_V4_PROTOCOL_NOT_PRESENT`。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
@@ -67,7 +67,7 @@ V0.2
 
 ## Next
 
-- 当前 branch 的 Required Next 是：读取并核对已冻结的 Phase 5J-v4 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` protocol、现有 source/tests 与 registry，再在已恢复且 hash-pinned 的第二套 holdout 上执行其既定 descriptive/causal attribution workflow；不得重新获取或重生成 frozen input。
+- 当前 branch 的 Required Next 是：取得或恢复可由仓库核对的 Phase 5J-v4 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` frozen protocol、source 与 tests；当前状态为 `PHASE5J_V4_PROTOCOL_NOT_PRESENT`，不得从 phase 名称自行发明 causal attribution、historical symptom concordance、时间窗或输出规则，也不得重新获取或重生成 frozen input。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - 等待 Sol 对 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` 的正式决定；在新授权前不改 SETUP_03、不启动 Final OOS 或 Phase 5K-B1
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
@@ -89,3 +89,4 @@ V0.2
 - Phase 5E workflow 仍需只读 Google Sheets 获取生产参数；真实 run 首次 attempt 曾遇到 Google API HTTP 503，原 run 重跑后成功。当前未新增 Sheets 初始化重试，外部服务瞬时不可用仍可能令手动诊断失败
 - Phase 5K-A0 五市场 source audit 不可用；Phase 5J-v2 已将后续 deployment/validation scope 改为 CN/US，但 development-validation 标的、manifest hash 与结构证据仍必须按 v2 protocol 先冻结，不能用 SETUP_03 输出补足覆盖或替换标的；HiThink 若继续接入必须先取得真实 API Key/授权并完成成功响应与 provenance 复核；最终 OOS 仍未启动且禁止访问
 - correctness-critical Phase 5J-v3 second-holdout 的 raw/normalized/replay payload 均在 ignored `artifacts/`，但 exact ZIP 已记录 Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`，并由外部审计完成独立 cloud reread；registry 已满足 `PERSISTENT_BACKUP_PRESENT` / `RECOVERY_VERIFIED` / `FULLY_RECOVERABLE`。早期 development universe v1 仍是 `UNRECOVERABLE`。
+- Phase 5J-v4 protocol/source/tests 缺失是当前真实 unresolved ambiguity；在提供 exact frozen contract 前，不能执行研究、生成 v4 evidence 或创建声称 v4 完成的 PR。

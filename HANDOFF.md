@@ -5,7 +5,7 @@
 ## 1. Current Objective
 
 - **当前 Phase / task:** `Phase 5J-v4 — SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，继续使用已冻结的第二套 development holdout。其 persistent backup/recovery prerequisite 已由外部审计完成并登记。
-- **具体目标:** 读取并核对 Phase 5J-v4 的冻结 protocol、现有实现与测试，在 exact hash-pinned second holdout 上完成既定 descriptive/causal attribution 与 historical symptom concordance evidence；不把 development evidence 解释为 production decision。
+- **具体目标:** 读取并核对 Phase 5J-v4 的冻结 protocol、现有实现与测试，在 exact hash-pinned second holdout 上完成既定 descriptive/causal attribution 与 historical symptom concordance evidence；不把 development evidence 解释为 production decision。当前因仓库内未找到 v4 protocol/source/tests，执行尚未开始。
 - **为什么现在做:** correctness-critical raw/normalized/replay payload 虽位于被 Git 忽略的 `artifacts/`，但 exact ZIP 已上传 Google Drive，并由外部审计独立重新读取且 SHA-256 一致，跨设备恢复 gate 已满足。
 - **Scope:** 仅使用现有 frozen protocol、second-holdout bundle、tracked provenance 与既有 research contracts；更新 v4 research evidence、registry/status/handoff/decision records，并为最终 review 准备 PR。
 - **明确禁止事项:** 不访问 provider；不重新获取或重生成 bars；不修改 frozen manifests、protocol、symbol roster、既有 capsule 或既有 canonical hashes；不访问 Final OOS；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不修改 production、Trading Core、Decision、execution 或 Google Sheets；不把近似重生成文件当作原 frozen artifact。
@@ -16,15 +16,15 @@
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub remote `main@142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main@3a2c6699559074161b56281dd16084264f7dc717` 过旧，必须先 `git fetch origin main`。
+- **main/base SHA:** GitHub remote `main@142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main` 已通过 `git fetch origin main` 刷新到同一 SHA。
 - **working branch:** `research/phase5j-v4-lifecycle-attribution`（仅本地）
-- **current HEAD:** `THIS_COMMIT`（当前治理快照 reconciliation commit；治理核心 commit 为 `7ec8a7fdd9d4a20d42fe0bb848deb688635583c5`；以 `git rev-parse HEAD` 解析最终 tip）。
+- **current HEAD:** `THIS_COMMIT`（治理 commits 已重放到刷新后的 `origin/main`；cloud-recovery correction 的当前重放 commit 为 `92a33940133485d9cd04228b2488cd3c40bb75b1`；以 `git rev-parse HEAD` 解析最终 tip）。
 - **PR:** `NONE` for current branch. Predecessor PR #30 was merged with merge commit `142b7345a5640b1e87932e41f3dc9311172bf54c`.
-- **latest exact-head CI:** run `33193832124`, workflow `CI Test Gate`, head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`, `success`。
+- **latest exact-head CI:** `NONE` for current local tip `92a33940133485d9cd04228b2488cd3c40bb75b1` because the branch has not been pushed; predecessor run `33193832124` covered old head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba` and was `success`。
 - **latest remote main CI:** run `33195350848`, head `142b7345a5640b1e87932e41f3dc9311172bf54c`, `success`。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `bb006ae5ca61e76192c751e9bd818584fc42f051`, exact-head CI run `33248386042` success；它不属于当前 checkout。
 - **working tree expected state:** tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
-- **current project/phase status:** V0.2 production pipeline 已运行；Phase 5J-v3 holdout 已合并但结构资格结果需要 Sol 决策；second-holdout backup 已由外部审计验证为 `FULLY_RECOVERABLE`；本轮治理修正后继续 Phase 5J-v4，formal validation、Final OOS、Phase 5K-B1 仍未执行。
+- **current project/phase status:** V0.2 production pipeline 已运行；Phase 5J-v3 holdout 已合并但结构资格结果需要 Sol 决策；second-holdout backup 已由外部审计验证为 `FULLY_RECOVERABLE`；用户已授权继续 Phase 5J-v4，但仓库中未找到其 frozen protocol/source/tests，当前执行被 `PHASE5J_V4_PROTOCOL_NOT_PRESENT` 阻塞；formal validation、Final OOS、Phase 5K-B1 仍未执行。
 
 ## 3. Completed Work
 
@@ -46,7 +46,7 @@
 
 ### Deferred
 
-- Phase 5J-v4 lifecycle attribution：当前仅由 branch name 暗示，正式 protocol/objective 未核实。
+- Phase 5J-v4 lifecycle attribution：用户已确认正式任务名为 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，但当前 checkout、所有 refs、reflog/unreachable commits、已有 artifacts 和原始任务附件均未找到对应 protocol/source/tests；未自行补造规则。
 - Sol 对 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` 的决定。
 - Formal Phase 5K-B1、Final OOS、IBKR readiness 和任何 production parameter/strategy change。
 
@@ -106,8 +106,9 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | local `origin/main` is stale at `3a2c669…`; GitHub remote main is `142b734…` | `git fetch origin main`, then re-check exact ref and merge-base | Blocks trustworthy base/PR comparison, not documentation-only work |
+| environment / verification | local `origin/main` 已刷新为 GitHub remote main `142b734…`；current branch 已重放到该基线，但 current tip 尚无 exact-head CI | push 后等待匹配 `headSha` 的 CI；在此之前不声称 current PR-ready | Blocks PR readiness, not blocker documentation |
 | research/design blocker | `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` | wait for explicit Sol decision; preserve current evidence | Yes for parameter/strategy changes; descriptive v4 attribution remains bounded by the frozen contract |
+| unresolved ambiguity | `PHASE5J_V4_PROTOCOL_NOT_PRESENT`; only the phase name is available, with no repository-verifiable protocol/source/tests | provide or restore the exact frozen v4 protocol/implementation/test location or commit; do not invent causal/symptom rules | Yes, blocks v4 execution and PR readiness |
 | project coordination | PR #31 is an independent OPEN hotfix; current branch has PR `NONE` | do not mix worktrees or infer current branch status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
@@ -167,9 +168,9 @@
 
 1. `git status --short --branch`，若并行 `.hotfix-worktree/` 重新出现则保持隔离，确认没有未授权删除/覆盖。
 2. `git fetch origin main`，确认 GitHub `main@142b7345…` 与本地 ref，并重算 current branch/base 关系。
-3. 读取并验证 Phase 5J-v4 的 frozen protocol、source、tests 和现有 artifact identities；不重复访问 Google Drive。
-4. 执行 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，保持 as-of、causal、frozen-input、descriptive-only 与 outcome-access 边界。
-5. 更新治理与研究 evidence、核对 PR/CI/artifact，完成 PR 后停止，不 merge。
+3. 定位并读取 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` 的 exact frozen protocol、source 和 tests；当前仓库核对未找到，不能自行设计替代物，也不重复访问 Google Drive。
+4. 只有 protocol/source/tests 可核对后，才使用 registry 中的 exact second-holdout identity 执行 v4，并保持 as-of、causal、frozen-input、descriptive-only 与 outcome-access 边界。
+5. protocol blocker 解除且 v4 evidence 完成后，再更新治理与研究 evidence、核对 PR/CI/artifact，创建 PR 后停止，不 merge。
 
 ## 11. Handoff Checklist
 
@@ -188,11 +189,11 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-29T19:18:33+08:00`
+- `last_updated_at`: `2026-08-29T19:30:00+08:00`
 - `verified_main_sha`: `142b7345a5640b1e87932e41f3dc9311172bf54c`
 - `verified_branch_head`: `THIS_COMMIT`（以 `git rev-parse HEAD` 解析最终 reconciliation commit；治理前 working HEAD 为 `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`）
-- `latest_test_result`: 本轮治理修正待验证；更新后运行 governance、full unittest、compileall、registry JSON、hash 与 `git diff --check`
+- `latest_test_result`: governance、full unittest、compileall、registry JSON、hash 与 `git diff --check` 已在 cloud-recovery correction 后通过；本次 protocol blocker 记录后的文档变更待做最终验证
 - `latest_ci_run`: `33195350848` on remote main success；current checkout exact-head `33193832124` success
-- `updated_by_task`: `docs: record verified frozen artifact cloud recovery`
+- `updated_by_task`: `docs: record Phase 5J-v4 protocol blocker`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
