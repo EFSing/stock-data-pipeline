@@ -661,3 +661,11 @@ The live `持仓股股票行情数据中台` readback covered all 10 enabled hol
 **Shadow boundary:** `scripts/run_wave_shadow.py` and manual `wave-shadow.yml` read enabled holdings and explicit qfq history, then write only JSON/CSV report artifacts and a summary. They do not write Google Sheets, history, Decision, production configuration, ENTRY, returns, MFE/MAE, P&L, or OOS results.
 
 **Reason:** This creates the minimum auditable structural context required before independent SETUP_01/02 work while preserving strict as-of causality, uncertainty labeling, the existing single-source Fibonacci implementation, and the project-wide no-SETUP_03-reopen boundary.
+
+### Closeout evidence: v1 shadow is ready for Sol review, with one fail-closed data-quality exception
+
+**Evidence:** PR #35 head `713c553002c44d789b0b2fb447ecbc8994557cf3` passed exact-head CI run `33268068010`; the read-only shadow workflow run `33268067998` completed successfully and produced JSON/CSV artifacts for all 10 enabled holdings. The report evaluated 9 holdings, recorded 1 error, and had `unknown_primary_ratio=0.5`; primary family counts were `DOWNTREND_OR_INVALID_FOR_LONG=3`, `WAVE_2_TO_3_CANDIDATE=1`, `UPTREND_UNKNOWN_WAVE=4`, `ABC_CORRECTION_CANDIDATE=1`, and `NO_VALID_SCENARIO=1`.
+
+**Data quality boundary:** MU/美光科技 has an empty `历史数据源`. The runner did not guess a provider and returned `NO_VALID_SCENARIO` with an explicit error, making the report status `PARTIAL_DATA_QUALITY`. The remaining nine rows were evaluated without Sheets writes, history/Decision writes, `ENTRY_ALLOWED`, returns, OOS or other outcome access. The missing source must be resolved explicitly before claiming a complete 10/10 shadow.
+
+**Decision:** Set `WAVE_SCENARIO_ENGINE_V1_SHADOW_READY_FOR_SOL_REVIEW`. Keep PR #35 open and do not auto-merge it. Sol review must decide whether the finite v1 scenario semantics are acceptable and how to repair/re-run the MU configuration; no independent SETUP_01/02 trading implementation is authorized yet.
