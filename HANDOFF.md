@@ -189,10 +189,10 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-29T19:30:00+08:00`
+- `last_updated_at`: `2026-08-29T19:33:55+08:00`
 - `verified_main_sha`: `142b7345a5640b1e87932e41f3dc9311172bf54c`
 - `verified_branch_head`: `THIS_COMMIT`（以 `git rev-parse HEAD` 解析最终 reconciliation commit；治理前 working HEAD 为 `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`）
-- `latest_test_result`: governance、full unittest、compileall、registry JSON、hash 与 `git diff --check` 已在 cloud-recovery correction 后通过；本次 protocol blocker 记录后的文档变更待做最终验证
+- `latest_test_result`: governance `4/4`、full `unittest` `288/288`、compileall、registry JSON、frozen hash 与 `git diff --check` 已通过（含本次 protocol blocker 记录）
 - `latest_ci_run`: `33195350848` on remote main success；current checkout exact-head `33193832124` success
 - `updated_by_task`: `docs: record Phase 5J-v4 protocol blocker`
 
