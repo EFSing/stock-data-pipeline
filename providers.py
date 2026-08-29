@@ -44,10 +44,23 @@ def _number(value):
     return None if number != number else number
 
 
-def _as_date(value) -> date:
-    if hasattr(value, "date"):
-        return value.date()
-    return date.fromisoformat(str(value)[:10])
+def _as_date(value, timezone_name: str | None = None) -> date:
+    """Normalize a provider timestamp to the market's local session date."""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value).strip()
+        if not text:
+            raise ValueError("行情日期为空")
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return date.fromisoformat(text[:10])
+    if parsed.tzinfo is not None and timezone_name:
+        parsed = parsed.astimezone(ZoneInfo(timezone_name))
+    return parsed.date()
 
 
 def _records_to_quotes(frame, watch: dict, source: str, volume_multiplier: float = 1.0) -> list[Quote]:
@@ -69,7 +82,10 @@ def _records_to_quotes(frame, watch: dict, source: str, volume_multiplier: float
                 symbol=str(watch["统一代码"]),
                 name=str(watch["名称"]),
                 market=str(watch["市场"]),
-                trade_date=_as_date(row.get("日期", row.get("Date"))),
+                trade_date=_as_date(
+                    row.get("日期", row.get("Date")),
+                    str(watch.get("时区") or "UTC"),
+                ),
                 source=source,
                 open=_number(row.get("开盘", row.get("Open"))) or close,
                 high=_number(row.get("最高", row.get("High"))) or close,
@@ -333,6 +349,44 @@ def fetch_yfinance(watch: dict, adjust: str, start: date, end: date) -> list[Quo
         ) from chart_error
 
 
+def fetch_baostock_latest(watch: dict, end: date) -> list[Quote]:
+    """Fetch a bounded recent window for latest-only operation."""
+    return fetch_baostock(watch, "raw", end - timedelta(days=7), end)
+
+
+def fetch_yfinance_latest(watch: dict, end: date) -> list[Quote]:
+    """Fetch only a small recent window for the latest quote path."""
+    import yfinance as yf
+
+    symbol = str(watch["yfinance代码"])
+    yfinance_error: Exception | None = None
+    try:
+        frame = yf.Ticker(symbol).history(
+            period="5d",
+            interval="1d",
+            auto_adjust=False,
+            actions=False,
+            repair=False,
+        )
+        if not frame.empty:
+            frame = frame.reset_index().rename(columns={"Date": "日期"})
+            return _records_to_quotes(frame, watch, "yfinance")
+    except Exception as exc:
+        yfinance_error = exc
+
+    try:
+        return _fetch_yahoo_chart(
+            watch, "raw", end - timedelta(days=7), end
+        )
+    except Exception as chart_error:
+        if yfinance_error is None:
+            raise
+        raise RuntimeError(
+            f"yfinance最新行情失败：{yfinance_error}；"
+            f"Yahoo Chart回退失败：{chart_error}"
+        ) from chart_error
+
+
 def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
     """Fetch daily bars from Yahoo's keyless chart endpoint.
 
@@ -413,6 +467,17 @@ PROVIDERS: dict[str, Callable[[dict, str, date, date], list[Quote]]] = {
     "yfinance": fetch_yfinance,
 }
 
+LATEST_PROVIDERS: dict[str, Callable[[dict, date], list[Quote]]] = {
+    "BaoStock": fetch_baostock_latest,
+    "Tencent": lambda watch, end: fetch_tencent(
+        watch, "raw", end - timedelta(days=7), end
+    ),
+    "Sina": lambda watch, end: fetch_sina(
+        watch, "raw", end - timedelta(days=7), end
+    ),
+    "yfinance": fetch_yfinance_latest,
+}
+
 # Only these configured sources provide historical qfq bars. YahooChart remains
 # an internal qfq-capable fallback behind the yfinance provider.
 QFQ_HISTORY_SOURCES = frozenset({"BaoStock", "yfinance"})
@@ -474,4 +539,36 @@ def fetch_with_retry(
             errors.append(f"{candidate}数据失效：{stale_error}")
         else:
             errors.append(f"{candidate}连续{attempts}次抓取失败：{last_error}")
+    raise RuntimeError("；".join(errors)) from last_error
+
+
+def fetch_latest_with_retry(
+    source: str,
+    watch: dict,
+    end: date,
+    retry_count: int,
+    retry_wait_seconds: float,
+) -> list[Quote]:
+    """Fetch recent quote evidence without entering full-history fetch."""
+    market = str(watch.get("市场"))
+    candidates = _configured_source_candidates(source, market, "raw")
+    unknown = [candidate for candidate in candidates if candidate not in LATEST_PROVIDERS]
+    if unknown:
+        raise ValueError(f"未知数据源：{unknown[0]}")
+
+    errors: list[str] = []
+    last_error: Exception | None = None
+    attempts = max(1, retry_count)
+    for candidate in candidates:
+        for attempt in range(1, attempts + 1):
+            try:
+                quotes = LATEST_PROVIDERS[candidate](watch, end)
+                if not quotes:
+                    raise LookupError("返回空数据")
+                return sorted(quotes, key=lambda item: item.trade_date)
+            except Exception as exc:
+                last_error = exc
+                if attempt < attempts:
+                    time.sleep(max(0, retry_wait_seconds))
+        errors.append(f"{candidate}最新行情连续{attempts}次抓取失败：{last_error}")
     raise RuntimeError("；".join(errors)) from last_error

@@ -613,3 +613,19 @@ Shared causal-swing versus precomputed-swing parity passed for 280 cells, 616,52
 **Decision:** Preserve the research implementation and explicitly mark it `RESEARCH_ONLY`, `NOT_PRODUCTION_AUTHORIZED`, and `FAILED_STRUCTURAL_CANDIDATE_FAMILY`. Add regression coverage for the marker and for the production parameter/Decision path so the ATR mode cannot become an implicit production selection.
 
 **Boundary:** This is a closeout governance and regression clarification only. It does not change the percentage production default, Sheets schema, workflow behavior, Decision semantics, Trading Core outputs, terminal/rearm behavior, or any existing trade behavior. The Phase 5J-v5 result remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`; no ATR threshold is selected and no new research is started.
+
+## 2026-08-30
+
+### Decision: production holdings date is a market-session field, not a run-time field
+
+**Context:** The live `最新行情` sheet contains both `交易日期` and `抓取时间`. The prior production orchestration used wall-clock `expected_latest_trade_date()` as a freshness target and combined latest quote publication with historical/qfq/SETUP_03/Decision work. This was unsafe for delayed Friday-to-Saturday runs, market-local US sessions, and future-dated provider observations. The actual latest-row mapping is now explicitly audited: `main.run()` writes `交易日期` from the chosen `Quote.trade_date`, while `抓取时间` is the Beijing `fetched_at` timestamp.
+
+**Decision:** Establish the long-term invariant `交易日期 = 市场真实 session trade_date` and `运行时间 = 北京时间 fetched_at`; neither field may substitute for the other. A-share dates remain A-share market dates. US dates remain the US local regular-session date and must not be incremented because the Beijing run has crossed midnight. Provider timestamps are normalized in the security's market timezone before becoming `Quote.trade_date`.
+
+**Decision:** Production latest source selection is evidence-first and fail-closed: reject future-dated quotes; derive the latest completed session from sane observed source dates and the market-local close buffer; prefer the newer sane source when source dates differ; treat the older source as stale; and keep the row `待复核` with an explicit single-source/stale note when two sources do not validate the same session. An ordinary-weekday freshness guard is a lower bound only and does not infer exchange holidays.
+
+**Decision:** Scheduled Asia/US jobs use explicit `latest` mode and write only `最新行情`, `校验记录`, and `运行日志`. They do not fetch/write historical data or qfq, do not run SETUP_03 or Decision, and report `history_rows_written=0`. `full` mode is available only through explicit manual `workflow_dispatch` selection (and deliberate local CLI use); existing percentage production defaults and trading behavior remain unchanged.
+
+**Reason:** Separating market-session evidence from Beijing run time removes the date-shift ambiguity while preserving the existing display-time convention. Separating latest-only orchestration from full strategy processing prevents a routine holdings refresh from rewriting history or triggering a strategy path.
+
+**Evidence / Boundary:** Regression coverage includes A-share and US Friday-to-Beijing-Saturday delays, source-date mismatch in both directions, same-date dual validation, future dates, before/after close, weekend/weekday guards, and UTC/BJT timestamp boundaries. The production Sheet smoke must verify every enabled holding's trade date, chosen/verifier source, validation status and Beijing run time before this hotfix is declared `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`. No Wave Engine, new research, Final OOS, or automatic hotfix merge is authorized.

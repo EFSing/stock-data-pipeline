@@ -4,9 +4,17 @@ from unittest.mock import patch
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 
-from core import Quote, expected_latest_trade_date, fresher_quote, quote_sanity_issue, validate_quotes
+from core import (
+    Quote,
+    expected_latest_trade_date,
+    fresher_quote,
+    latest_completed_market_session,
+    ordinary_calendar_freshness_guard,
+    quote_sanity_issue,
+    validate_quotes,
+)
 from main import as_ratio, beijing_now, select_history_series, wanted_markets_for_group
-from providers import PROVIDERS, fetch_sina, fetch_tencent, fetch_with_retry, fetch_yfinance
+from providers import PROVIDERS, _as_date, fetch_sina, fetch_tencent, fetch_with_retry, fetch_yfinance
 from sheets_client import SheetsClient
 
 
@@ -62,6 +70,10 @@ class ValidationTests(unittest.TestCase):
         result = validate_quotes(quote("主源"), quote("校验源", day=date(2026, 8, 13)), 0.0005, 0.02)
         self.assertEqual(result.status, "待复核")
         self.assertFalse(result.date_match)
+        self.assertEqual(
+            result.note,
+            "校验源日期滞后，已采用更新来源；最新交易日仅单源可用",
+        )
 
     def test_rejects_volume_mismatch(self):
         result = validate_quotes(quote("主源"), quote("校验源", volume=900_000), 0.0005, 0.02)
@@ -81,6 +93,23 @@ class ValidationTests(unittest.TestCase):
         primary = quote("主源", day=date(2026, 8, 14))
         verifier = quote("校验源", day=date(2026, 8, 17))
         self.assertIs(fresher_quote(primary, verifier), verifier)
+
+    def test_newer_verifier_is_selected_but_not_marked_verified(self):
+        primary = quote("yfinance", day=date(2026, 8, 27))
+        verifier = quote("Tencent", day=date(2026, 8, 28))
+        self.assertIs(fresher_quote(primary, verifier), verifier)
+        result = validate_quotes(primary, verifier, 0.0005, 0.02)
+        self.assertEqual(result.status, "待复核")
+        self.assertIn("主源日期滞后", result.note)
+        self.assertIn("仅单源可用", result.note)
+
+    def test_newer_primary_is_selected_but_not_marked_verified(self):
+        primary = quote("yfinance", day=date(2026, 8, 28))
+        verifier = quote("Tencent", day=date(2026, 8, 27))
+        self.assertIs(fresher_quote(primary, verifier), primary)
+        result = validate_quotes(primary, verifier, 0.0005, 0.02)
+        self.assertEqual(result.status, "待复核")
+        self.assertIn("校验源日期滞后", result.note)
 
     def test_keeps_primary_when_trade_dates_match(self):
         primary = quote("主源")
@@ -107,6 +136,104 @@ class ValidationTests(unittest.TestCase):
     def test_does_not_expect_same_day_before_close_buffer(self):
         fetched_at = datetime(2026, 8, 17, 8, 5, tzinfo=timezone.utc)
         self.assertIsNone(expected_latest_trade_date("Asia/Shanghai", "16:00", fetched_at))
+
+    def test_cn_friday_close_to_saturday_delay_keeps_friday_session(self):
+        fetched_at = datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+        observed = [
+            quote("yfinance", day=date(2026, 8, 28)),
+            quote("Tencent", day=date(2026, 8, 28)),
+        ]
+        self.assertEqual(
+            latest_completed_market_session(
+                "Asia/Shanghai", "15:00", fetched_at, observed
+            ),
+            date(2026, 8, 28),
+        )
+
+    def test_us_friday_close_to_beijing_saturday_keeps_us_session_date(self):
+        fetched_at = datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+        observed = [
+            quote("yfinance", day=date(2026, 8, 28)),
+            quote("Tencent", day=date(2026, 8, 28)),
+        ]
+        self.assertEqual(
+            latest_completed_market_session(
+                "America/New_York", "16:00", fetched_at, observed
+            ),
+            date(2026, 8, 28),
+        )
+
+    def test_latest_completed_session_before_after_close_and_weekend(self):
+        previous = quote("Tencent", day=date(2026, 8, 27))
+        current = quote("Tencent", day=date(2026, 8, 28))
+        before_close = datetime(2026, 8, 28, 19, 0, tzinfo=timezone.utc)
+        after_close = datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc)
+        weekend = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            latest_completed_market_session(
+                "America/New_York", "16:00", before_close, [previous, current]
+            ),
+            date(2026, 8, 27),
+        )
+        self.assertEqual(
+            latest_completed_market_session(
+                "America/New_York", "16:00", after_close, [previous, current]
+            ),
+            date(2026, 8, 28),
+        )
+        self.assertEqual(
+            latest_completed_market_session(
+                "America/New_York", "16:00", weekend, [previous, current]
+            ),
+            date(2026, 8, 28),
+        )
+
+    def test_ordinary_calendar_guard_covers_weekday_and_weekend(self):
+        self.assertEqual(
+            ordinary_calendar_freshness_guard(
+                "America/New_York", "16:00",
+                datetime(2026, 8, 28, 19, 30, tzinfo=timezone.utc),
+            ),
+            date(2026, 8, 27),
+        )
+        self.assertEqual(
+            ordinary_calendar_freshness_guard(
+                "America/New_York", "16:00",
+                datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc),
+            ),
+            date(2026, 8, 28),
+        )
+        self.assertEqual(
+            ordinary_calendar_freshness_guard(
+                "America/New_York", "16:00",
+                datetime(2026, 8, 28, 19, 0, tzinfo=timezone.utc),
+            ),
+            date(2026, 8, 27),
+        )
+
+    def test_future_dated_quote_is_not_a_completed_session(self):
+        future = quote("yfinance", day=date(2026, 8, 29))
+        self.assertIsNone(
+            latest_completed_market_session(
+                "America/New_York", "16:00",
+                datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc),
+                [future],
+            )
+        )
+
+    def test_provider_timestamp_uses_market_local_session_date(self):
+        self.assertEqual(
+            _as_date("2026-08-29T00:30:00Z", "America/New_York"),
+            date(2026, 8, 28),
+        )
+        self.assertEqual(
+            _as_date(datetime(2026, 8, 29, 0, 30, tzinfo=timezone.utc), "America/New_York"),
+            date(2026, 8, 28),
+        )
+        self.assertEqual(
+            _as_date("2026-08-28T07:30:00Z", "Asia/Shanghai"),
+            date(2026, 8, 28),
+        )
 
     def test_rejects_open_outside_daily_range(self):
         invalid = replace(quote("主源"), open=97.0, low=98.0)
