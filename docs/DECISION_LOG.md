@@ -589,3 +589,19 @@ Freeze the only permitted v5 structural family before OHLCV acquisition: ATR-nor
 **Boundary:** Only platform boundary semantics may vary; causal swing, strict as-of, lifecycle, breakout, confirmed/failed, Decision, Entry Zone, stop/target/RR, execution, terminal and rearm semantics remain fixed. Incumbent fixed-percentages are descriptive reference only, not a search. No second boundary family, market-specific tuning, high/low independent tuning, outcomes, Final OOS, formal Phase 5K-B1, or production change is permitted. The clean roster was selected from A1 metadata snapshots before OHLCV and excludes A1 formal, development v1, second holdout and candidate design identities.
 
 **Next gate:** After the freeze commit, acquire only the new clean holdout under the existing CN BaoStock / US yfinance development contract, then run structure-only qualification and one deterministic repeat. Stop with `READY_FOR_FORMAL_VALIDATION` if a candidate survives every registered gate in both markets; stop with `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` if none survives; or use `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` if the frozen independent universe is insufficient. Do not merge the resulting PR or start formal validation without the next explicit decision.
+
+---
+
+## 2026-08-30
+
+### Decision: stop SETUP_03 structural development after the registered ATR family failed stability qualification
+
+**Evidence:** The frozen clean holdout acquired 40/40 accepted symbols and 88,075 bars (CN 42,355; US 45,720) under the existing CN BaoStock qfq / US yfinance adjusted development contract. Dataset manifest SHA-256 is `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`; normalized aggregate is `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`; replay aggregate is `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`; provider/QC exceptions are zero.
+
+The four pre-registered ATR thresholds `1.0/1.5/2.0/2.5` all passed candidate-level minimum events, event-symbol coverage, concentration, HHI and zero-event pathology checks. None survived every independent adjacent pair gate in both CN and US. The 1.0→1.5 pair had exact Jaccard `45.10%` CN / `52.21%` US and lifecycle divergence `94.31%` / `88.02%`; the 2.0→2.5 pair improved Jaccard to `78.95%` / `73.91%`, but lifecycle divergence remained `62.91%` / `79.25%`. The complete matrix has 124 rows.
+
+Shared causal-swing versus precomputed-swing parity passed for 280 cells, 616,525 bar comparisons and 3,253 terminal-event comparisons with zero mismatches. The full structure-only run was repeated once with identical canonical digest (`sha256:baa52ae56873b44599b4188c8e17aa251788c4708af59236b2247d822dc631b7`). Decision capsule canonical payload is `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`.
+
+**Decision:** Set `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`. Do not select an ATR threshold, tune another ATR period/family, compensate markets, independently tune high/low boundaries, change terminal/rearm orchestration, modify production, or use the result for Final OOS/formal validation. Return the next core research recommendation to Wave Scenario Engine → `SETUP_01` → `SETUP_02`. Any future SETUP_03 continuation requires a new explicit research decision and a new protocol/version.
+
+**Boundary:** The evidence remains development-only and structure-only. No returns, forward returns, MFE, MAE, P&L, winrate or expectancy was accessed; formal Phase 5K-B1, IBKR formal OHLCV and Final OOS remain unread.

@@ -13,12 +13,12 @@
 ## 1. Current Objective
 
 - **当前 Phase / task:** `Phase 5J-v5 — ATR_NORMALIZED_PLATFORM_BOUNDARY_LAST_INDEPENDENT_DEVELOPMENT_HOLDOUT`。
-- **具体目标:** 在 PR #32 已合并且 Sol 已授权 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` 后，按唯一预注册的 ATR-normalized boundary family，在最后一套独立 development holdout 上完成结构-only qualification；不把结果解释为 production decision。
-- **当前冻结点:** protocol `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`，SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；metadata-only clean universe manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`。截至本快照尚未获取该 holdout OHLCV。
-- **Scope:** 仅保留现有 causal swing、strict as-of、lifecycle、breakout、confirmed/failed、Decision、Entry Zone、stop/target/RR、execution、terminal/rearm；本任务只改变 boundary semantics。数据获取冻结后使用既有 CN BaoStock / US yfinance development contract，生成新的 hash-pinned clean-holdout dataset/replay artifacts，并只运行结构性资格矩阵与一次 deterministic repeat。
+- **具体目标:** 在 PR #32 已合并且 Sol 已授权 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` 后，按唯一预注册的 ATR-normalized boundary family，在最后一套独立 development holdout 上完成结构-only qualification；该 qualification 已完成且没有 candidate 存活，不把结果解释为 production decision。
+- **当前冻结点:** protocol `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`，SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；metadata-only clean universe manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`；dataset 已冻结为 40 symbols / 88,075 bars，manifest SHA-256 `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`。
+- **Scope:** 仅保留现有 causal swing、strict as-of、lifecycle、breakout、confirmed/failed、Decision、Entry Zone、stop/target/RR、execution、terminal/rearm；本任务只改变 boundary semantics。已使用既有 CN BaoStock / US yfinance development contract 生成 hash-pinned clean-holdout dataset/replay artifacts，并运行结构性资格矩阵与一次 deterministic repeat。
 - **明确禁止事项:** 不做固定百分比搜索、市场/高低边界分别调参或 terminal/rearm 改造；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不访问 Final OOS、正式 Phase 5K-B1、IBKR formal universe OHLCV；不修改 production 或 Trading Core；不以结果换股或重写旧 artifact。
-- **完成条件:** 完成数据身份、结构-only qualification matrix、parity/repro、测试、治理文件、commit/push、PR 和 exact-head CI，并停在 `READY_FOR_FORMAL_VALIDATION`、`STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 或真实的 `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` 节点。
-- **停止条件:** qualification 已产生上述明确结果、数据/协议真实性出现 blocker、或需要 Sol/用户选择正式验证参数。普通代码、测试、diagnostic、artifact/hash 问题自行修复。
+- **完成条件:** 数据身份、结构-only qualification matrix、parity/repro 已完成；剩余是测试、治理文件、commit/push、PR 和 exact-head CI，最终停在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
+- **停止条件:** qualification 已明确无 candidate 存活；创建 PR 并核对 exact-head CI 后停止，不进入新的 ATR family、terminal/rearm redesign、formal validation 或 Final OOS。普通代码、测试、diagnostic、artifact/hash 问题自行修复。
 
 ## 2. Current Repository State
 
@@ -42,24 +42,26 @@
 - 本次治理初始化与本轮 cloud recovery correction：新增/更新治理文件与 governance test；不改变业务逻辑和 frozen artifact bytes。治理修正 commit 使用 `THIS_COMMIT`，实际 SHA 以 Git 为准。
 - Phase 5J-v4 exact Sol specification 已落为 machine-readable protocol、中文说明、hash-pinned loader 与 protocol regression tests；canonical protocol SHA-256 为 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`。本独立 freeze task 未运行真实 holdout attribution。
 - Phase 5J-v4 在 40 symbols / 86,305 bars 上生成 258,915 trace rows、1,031 lifecycles、177 real first-divergence episodes；对 `origin/main@142b7345…` 完成 120 cells / 258,915 Setup bar comparisons / 1,028 terminal-event comparisons，Setup/event mismatches 均为 0。capsule file SHA-256 `sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f`，deterministic trace SHA-256 `sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4`；tracked provenance hashes 使用 Git-normalized LF bytes，跨 Windows/Linux 稳定。
+- v5 clean holdout acquisition：冻结 universe 的 40/40 symbols 均 `VALID_ACCEPTED`，CN 42,355 + US 45,720 = 88,075 bars；dataset manifest `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`，normalized aggregate `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`，replay aggregate `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`；provider/QC exceptions=0，未使用 formal B1/IBKR。
+- v5 ATR structure-only qualification：4 candidates 的 124-row matrix 中 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；parity 为 280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches，deterministic repeat `PASS`。capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`，最终状态 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
 
 ## 4. Pending Work
 
 ### Required Next
 
-1. 提交并 push 当前 protocol/universe freeze 与治理身份 hardening；确认 protocol/universe SHA 不变。
-2. 仅按冻结的 CN BaoStock / US yfinance development contract 获取 20 CN + 20 US clean holdout，生成 hash-pinned dataset/replay manifest；任何失败都 fail closed。
-3. 运行 ATR candidates `1.0/1.5/2.0/2.5` 的结构-only qualification、固定百分比 incumbent 仅作描述性 reference、以及一次 deterministic repeat；不读取任何 outcome。
-4. 更新正式状态与交接快照，创建 v5 PR，核对最终 head SHA 的 CI 后停止在明确结果节点。
+1. 更新并核对 HANDOFF/CURRENT_STATUS/DECISION_LOG，记录 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 及所有 frozen identities。
+2. 运行完整 `python -m unittest discover -s tests -v`、compile/hash checks、`git diff --check`。
+3. 提交并 push v5 closeout，创建 PR，核对 `headSha == final HEAD` 的 exact-head CI。
+4. CI 成功后停止；不 merge、不启动 formal validation、Phase 5K-B1、Final OOS 或 terminal/rearm redesign。
 
 ### Deferred
 
-- Sol 对 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` 的决定。
+- 如需继续 SETUP_03，等待新的明确研究决策并注册新 protocol/version；当前结果不授权任何 threshold 或 production 选择。
 - Formal Phase 5K-B1、Final OOS、IBKR readiness 和任何 production parameter/strategy change。
 
 ### Prohibited For Now
 
-- 第二次 protocol freeze 后的 provider/data fetch 以外的任何数据源扩张、symbol replacement、dataset identity rewrite。
+- 新的 provider/data fetch、数据源扩张、symbol replacement、dataset identity rewrite 或第二个 ATR/volatility family。
 - SETUP_03 / Trading Core / Decision / execution / production Sheets semantic changes；本任务只允许 ATR boundary research implementation。
 - Final OOS、formal validation、returns/MFE/MAE/P&L/outcome access。
 - 根据收益或信号结果选择/替换标的、参数或 backup 内容。
@@ -106,6 +108,11 @@
 | `research/phase5j_v4_evidence.py` | mechanical aggregation, parity, concordance, hashes/report | research-only |
 | `scripts/run_phase5j_v4_lifecycle_attribution.py` | frozen end-to-end runner | no provider/outcome/OOS path |
 | `research/development/phase5j_v4_*` | capsule/report/per-symbol/root/cascade/counterfactual/concordance artifacts | tracked development-only evidence |
+| `research/atr_boundary_protocol.py` / `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` | v5 ATR boundary protocol/hash gate | research-only frozen contract |
+| `research/atr_boundary_universe.py` / `research/atr_boundary_universe_manifest.json` | metadata-only final clean roster | selection before OHLCV; result-independent |
+| `research/atr_boundary_dataset.py` / `research/atr_boundary_clean_holdout/*` | new clean-holdout acquisition and tracked manifests | BaoStock/yfinance development data identity |
+| `research/atr_boundary_qualification.py` / `research/atr_boundary_qualification/*` | structure-only candidate/adjacent/lifecycle matrix, parity and repeat | no Decision/outcome/OOS path |
+| `scripts/acquire_atr_boundary_holdout.py` / `scripts/run_atr_boundary_qualification.py` | bounded acquisition and qualification runners | explicit stop-state output |
 
 ## 7. Frozen Identities And Invariants
 
@@ -118,6 +125,9 @@
 - Backup container: 3,086,881 bytes, SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；Google Drive persistent backup and independent cloud reread are externally verified, current status `FULLY_RECOVERABLE`。
 - Recovery manifest records source artifact commit `3a2c6699559074161b56281dd16084264f7dc717` as a historical local-ref-only provenance pin；this is not the current remote `main` SHA and must not be silently rewritten.
 - Invariants: no provider fallback/history splice/date fill/synthetic bar/OHLC mutation/result-driven symbol replacement；no future data; `signal(t)` only uses `data <= t`；frozen protocol, manifests, roster, hashes and exact replay bytes cannot be silently changed。
+- v5 ATR protocol: `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`, SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe `SETUP_03-ATR-BOUNDARY-CLEAN-HOLDOUT-CN-US-2026-08-29-v1`, manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`。
+- v5 dataset: 40 symbols / 88,075 bars；manifest SHA-256 `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`，normalized aggregate `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`，replay aggregate `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`。
+- v5 qualification: candidates `1.0/1.5/2.0/2.5` all candidate-level PASS；adjacent/lifecycle gates leave `qualified_candidates=[]`，selected candidate `null`，parity/repro PASS；final status `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。Capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`。
 
 ## 8. Known Issues / Blockers
 
@@ -125,9 +135,9 @@
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | PR #32 main push run `33259644890` 已覆盖 squash merge SHA `21c7397719…` 并成功；当前 v5 分支尚未有最终 exact-head CI | v5 push 后只接受 `headSha == final HEAD` 的 CI | Blocks final PR readiness until exact-head success |
-| research/design blocker | v4 `MIXED_CAUSAL_STRUCTURE` 已得到 Sol 的 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` 授权；v5 仅验证预注册 ATR family | 保持 terminal/rearm 与其余 Setup semantics 不变；不扩展到第二 family | Yes for any unapproved production/strategy change |
+| research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | 资格通过后只到 `READY_FOR_FORMAL_VALIDATION`；无 candidate 通过则 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；holdout 不足则 `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` | 创建 PR、核对 exact-head CI，然后停；不启动 formal validation、B1 或 Final OOS | Yes after PR readiness |
+| Sol / user decision node | 当前已到 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；没有 candidate 可带入 formal validation | 创建 PR、核对 exact-head CI，然后停；不启动 formal validation、B1 或 Final OOS | Yes after PR readiness |
 | project coordination | PR #31 is an independent OPEN hotfix；当前研究 PR 为 #32 | do not mix worktrees or infer PR #32 status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
@@ -185,11 +195,9 @@
 
 ## 10. Next Action
 
-1. 提交并 push protocol/universe/governance freeze checkpoint，确认 base 为 `main@21c73977195682df576750648765b1b74d8824e2`。
-2. 在 freeze checkpoint 之后按 manifest 获取并冻结 clean holdout dataset/replay input；保留 raw/normalized bytes 与 hashes，不使用 formal B1/IBKR。
-3. 运行结构-only ATR qualification 与 deterministic repeat，记录全量 qualification matrix、parity、repro、dataset/artifact identities。
-4. 更新本文件、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md`，提交并 push v5 PR，检查最终 head 的 exact CI。
-5. 根据唯一允许的结果码停在 formal-validation decision node；不 merge、不运行 Final OOS、不开始 Phase 5K-B1，不擅自进入 terminal/rearm redesign。
+1. 运行完整 unittest、compile/hash checks、`git diff --check`，确认所有 tracked qualification artifacts 与 manifests 可重算。
+2. 提交并 push v5 closeout，创建 PR，检查 `headSha == final HEAD` 的 exact-head CI。
+3. CI 成功后报告 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，并停止；不 merge、不运行 formal validation、Final OOS 或 Phase 5K-B1，不进入 terminal/rearm redesign。
 
 ## 11. Handoff Checklist
 

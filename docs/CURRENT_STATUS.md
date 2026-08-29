@@ -26,6 +26,9 @@ V0.2
 - Protocol: `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json`，version `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`，canonical SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`。
 - Clean development universe: `research/atr_boundary_universe_manifest.json`，40 symbols（CN 20 / US 20），manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`；仅以 A1 metadata snapshots 做结果无关选择，已排除 A1 formal、development v1、second holdout 与候选设计身份，尚未获取 OHLCV。
 - Qualification boundary: only ATR-normalized platform boundary with Wilder ATR period 14 and pre-registered thresholds `1.0/1.5/2.0/2.5`; existing causal/as-of/lifecycle/breakout/terminal/rearm/Decision/execution semantics remain unchanged. Incumbent fixed percentages are descriptive reference only；不读取 returns/MFE/MAE/P&L/winrate/expectancy，不启动 formal Phase 5K-B1 或 Final OOS。
+- Qualification result: 40/40 frozen clean symbols、88,075 bars、provider/QC exceptions=0；all candidate-level gates passed, but every candidate was eliminated by at least one registered adjacent Jaccard/retention/date-drift/lifecycle gate. Full matrix has 124 rows；`qualified_candidates=[]`，`selected_candidate_atr=null`，parity 280 cells / 616,525 bars / 3,253 terminal-event comparisons with 0 mismatches，deterministic repeat `PASS`。
+- Result identities: dataset manifest `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`，normalized aggregate `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`，replay input aggregate `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`；capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`。
+- Final bounded status: `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。不选择 ATR threshold、不改 production、不改 terminal/rearm；下一核心路线建议回到 Wave Scenario Engine → `SETUP_01` → `SETUP_02`，formal validation、Phase 5K-B1 与 Final OOS 仍未执行。
 
 ## Completed
 
@@ -82,9 +85,9 @@ V0.2
 
 ## Next
 
-- 当前 branch 的 Required Next：先提交并 push protocol/universe/governance freeze checkpoint；随后按冻结的 CN BaoStock / US yfinance development contract 获取 clean holdout，执行结构-only ATR qualification 与 deterministic repeat，创建 v5 PR 并核对最终 head 的 exact-head CI。
+- 当前 branch 的 Required Next：更新 HANDOFF/CURRENT_STATUS/DECISION_LOG 完成 v5 closeout，运行完整 unittest、compile/hash/diff checks，提交并 push，创建 v5 PR 并核对最终 head 的 exact-head CI；随后停在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
-- v5 只允许在 `READY_FOR_FORMAL_VALIDATION`、`STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 或 `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` 停止；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign
+- v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）
