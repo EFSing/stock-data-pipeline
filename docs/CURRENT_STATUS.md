@@ -11,9 +11,9 @@ V0.2
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` 当前真实 SHA：`142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main` 已通过 `git fetch origin main` 刷新到同一 SHA。
-- Current checkout: `research/phase5j-v4-lifecycle-attribution`；cloud-recovery correction 重放 commit 为 `92a33940133485d9cd04228b2488cd3c40bb75b1`，最终 tip 以 `git rev-parse HEAD` 为准；该本地分支没有 PR。前序 PR #30 已合并，merge commit 为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
-- Current checkout exact-head CI: `NONE` for current local tip because the branch has not been pushed；predecessor run `33193832124` covered old head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba` and succeeded。另有独立 PR #31 `hotfix/production-market-data-stability` 为 OPEN，head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head run `33248943280` success，不能当作当前分支状态。
-- 当前项目正式状态：Phase 5J-v4 已在 protocol freeze commit `4be4545bc2ddf54c3e970a162160c9fe3e464d4d` 之后完成 exact second-holdout attribution，机械状态 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`。结果是 `MIXED_CAUSAL_STRUCTURE`，不选择 tolerance、不改 production；当前等待完整验证、PR 与 exact-head CI。
+- Current checkout: `research/phase5j-v4-lifecycle-attribution`；PR #32 `Phase 5J-v4: lifecycle causal attribution` 为 OPEN、base `main`、未 merge。protocol freeze commit 为 `4be4545bc2ddf54c3e970a162160c9fe3e464d4d`，implementation/evidence commit 为 `573745b12ba39f28de738791ac7d91e737372481`，cross-platform provenance correction 为 `a71640291eb993a2d3f8c06dcccc71909bdc51d5`；最终治理 tip 以 `git rev-parse HEAD` 为准。
+- Current checkout CI: run `33259097880` 覆盖 `a71640291eb993a2d3f8c06dcccc71909bdc51d5` 并成功；最终 HANDOFF reconciliation tip push 后仍必须从 PR #32 核对自己的 exact-head run。另有独立 PR #31 `hotfix/production-market-data-stability`，不能当作当前分支状态。
+- 当前项目正式状态：Phase 5J-v4 已在 protocol freeze commit `4be4545bc2ddf54c3e970a162160c9fe3e464d4d` 之后完成 exact second-holdout attribution、完整本地验证、PR 与 substantive-head CI，机械状态 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`。结果是 `MIXED_CAUSAL_STRUCTURE`，不选择 tolerance、不改 production；PR 保持 OPEN 且不 merge，等待 Sol structure decision。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
@@ -72,7 +72,7 @@ V0.2
 
 ## Next
 
-- 当前 branch 的 Required Next 是：完成 full/focused tests 与静态/hash/registry 检查，提交 implementation/evidence/governance，push 并创建新 PR；等待 exact-head CI 后停止在 Sol decision node，不 merge、不实施 redesign。
+- 当前 branch 的 Required Next 仅是：核对最终 HANDOFF reconciliation tip 的 exact-head CI；成功后停止在 Sol decision node，不 merge、不实施 redesign。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - 等待 Sol 对 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` 的正式决定；在新授权前不改 SETUP_03、不启动 Final OOS 或 Phase 5K-B1
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）

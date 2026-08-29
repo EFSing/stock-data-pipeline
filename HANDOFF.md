@@ -5,7 +5,7 @@
 ## 1. Current Objective
 
 - **当前 Phase / task:** `Phase 5J-v4 — SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，继续使用已冻结的第二套 development holdout。其 persistent backup/recovery prerequisite 已由外部审计完成并登记。
-- **具体目标:** Phase 5J-v4 protocol 已先独立冻结，exact second holdout attribution、counterfactual diagnostics、historical symptom concordance 与 deterministic artifacts 已完成；当前只剩完整测试、治理 commit、push/PR 与 exact-head CI 对账，不把 development evidence 解释为 production decision。
+- **具体目标:** Phase 5J-v4 protocol 已先独立冻结，exact second holdout attribution、counterfactual diagnostics、historical symptom concordance、deterministic artifacts、完整验证与 PR 已完成；当前停在 Sol structure decision node，不把 development evidence 解释为 production decision。
 - **为什么现在做:** correctness-critical raw/normalized/replay payload 虽位于被 Git 忽略的 `artifacts/`，但 exact ZIP 已上传 Google Drive，并由外部审计独立重新读取且 SHA-256 一致，跨设备恢复 gate 已满足。
 - **Scope:** 仅使用现有 frozen protocol、second-holdout bundle、tracked provenance 与既有 research contracts；更新 v4 research evidence、registry/status/handoff/decision records，并为最终 review 准备 PR。
 - **明确禁止事项:** 不访问 provider；不重新获取或重生成 bars；不修改 frozen manifests、protocol、symbol roster、既有 capsule 或既有 canonical hashes；不访问 Final OOS；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不修改 production、Trading Core、Decision、execution 或 Google Sheets；不把近似重生成文件当作原 frozen artifact。
@@ -17,10 +17,10 @@
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main` 已通过 `git fetch origin main` 刷新到同一 SHA。
-- **working branch:** `research/phase5j-v4-lifecycle-attribution`（仅本地）
-- **current HEAD:** `THIS_COMMIT`（治理 commits 已重放到刷新后的 `origin/main`；cloud-recovery correction 的当前重放 commit 为 `92a33940133485d9cd04228b2488cd3c40bb75b1`；以 `git rev-parse HEAD` 解析最终 tip）。
-- **PR:** `NONE` for current branch. Predecessor PR #30 was merged with merge commit `142b7345a5640b1e87932e41f3dc9311172bf54c`.
-- **latest exact-head CI:** `NONE` for the current local tip because the branch has not been pushed; predecessor run `33193832124` covered old head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba` and was `success`。
+- **working branch:** `research/phase5j-v4-lifecycle-attribution`（已推送 origin）
+- **current HEAD:** `THIS_COMMIT`（protocol freeze `4be4545bc2ddf54c3e970a162160c9fe3e464d4d`；implementation/evidence `573745b12ba39f28de738791ac7d91e737372481`；cross-platform provenance correction `a71640291eb993a2d3f8c06dcccc71909bdc51d5`；以 `git rev-parse HEAD` 解析最终治理 tip）。
+- **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` is `OPEN`, base `main`, not merged: `https://github.com/EFSing/stock-data-pipeline/pull/32`。Predecessor PR #30 was merged with merge commit `142b7345a5640b1e87932e41f3dc9311172bf54c`.
+- **latest exact-head CI:** run `33259097880` covered `a71640291eb993a2d3f8c06dcccc71909bdc51d5` and succeeded after correcting tracked provenance hashes to Git-normalized LF bytes。This HANDOFF-only reconciliation commit must receive its own exact-head CI after push; verify it from PR #32 rather than inferring from the predecessor run.
 - **latest remote main CI:** run `33232320454`, head `142b7345a5640b1e87932e41f3dc9311172bf54c`, `success`。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head CI run `33248943280` success；它不属于当前 checkout。
 - **working tree expected state:** tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
@@ -40,9 +40,8 @@
 
 ### Required Next
 
-1. 运行 focused/full unittest、compileall、JSON/hash/registry、`git diff --check`，修复普通 correctness 问题。
-2. commit implementation/evidence/governance，push 当前分支并创建新 PR（不 merge）。
-3. 等待并核对 PR exact-head CI；成功后停止在 Sol decision node。
+1. 从 PR #32 核对最终 HANDOFF reconciliation tip 的 exact-head CI；成功后不再修改本分支。
+2. 停止在 Sol decision node，等待明确结构设计决定；PR 保持 OPEN 且不 merge。
 
 ### Deferred
 
@@ -116,11 +115,11 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | local `origin/main` 已刷新为 GitHub remote main `142b734…`；current branch 已重放到该基线，但 current tip 尚无 exact-head CI | push 后等待匹配 `headSha` 的 CI；在此之前不声称 current PR-ready | Blocks PR readiness, not blocker documentation |
+| environment / verification | PR #32 run `33259097880` 已覆盖 `a71640291e…` 并成功；最终 HANDOFF reconciliation tip 仍须在 push 后核对自己的 exact-head CI | 从 PR #32 读取匹配最终 `headRefOid` 的 run；不得用 predecessor run 替代 | Blocks final PR readiness until exact-head success |
 | research/design blocker | `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` | wait for explicit Sol decision; preserve current evidence | Yes for parameter/strategy changes; descriptive v4 attribution remains bounded by the frozen contract |
 | protocol persistence | Earlier v4 design had not been persisted; this was `PHASE5J_V4_PROTOCOL_NOT_YET_PERSISTED`, `NOT_AN_ARTIFACT_LOSS_EVENT` | exact Sol specification is now version/hash frozen; attribution may begin only after the freeze commit | No after freeze commit |
 | Sol decision node | `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`; mixed boundary roots plus terminal-index cascade | create PR, verify exact-head CI, then stop without implementing redesign | Yes after PR readiness |
-| project coordination | PR #31 is an independent OPEN hotfix; current branch has PR `NONE` | do not mix worktrees or infer current branch status from PR #31 | No, if kept separate |
+| project coordination | PR #31 is an independent OPEN hotfix；当前研究 PR 为 #32 | do not mix worktrees or infer PR #32 status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
 ## 9. Lessons / Pitfalls — DO NOT REPEAT
