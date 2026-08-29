@@ -2,7 +2,7 @@
   "schema_version": "repository-frozen-artifact-registry-v1",
   "repository": "EFSing/stock-data-pipeline",
   "registry_status": "ACTIVE_HOLDOUT_FULLY_RECOVERABLE",
-  "last_verified_at": "2026-08-29T19:18:33+08:00",
+  "last_verified_at": "2026-08-29T20:54:56+08:00",
   "verified_against": {
     "remote_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c",
     "working_branch": "research/phase5j-v4-lifecycle-attribution",
@@ -84,7 +84,7 @@
         "source_main_commit_resolution": "Local git ref only; historical artifact provenance, not current remote main.",
         "frozen_at": "2026-08-29",
         "setup03_run": false,
-        "phase5j_v4_run": false,
+        "phase5j_v4_run_during_backup_staging": false,
         "final_oos_accessed": false,
         "provider_accessed_during_backup_staging": false,
         "formal_validation": false,
@@ -128,6 +128,74 @@
         "Do not access provider, SETUP_03, formal validation, Final OOS, or outcome metrics while completing backup recovery."
       ],
       "notes": "Historical Phase 5E-5I artifact directories are not included in this initial active registry entry; register them before future correctness-critical reuse. The earlier development universe v1 and its associated artifact payload remain UNRECOVERABLE and are not covered by this verified second-holdout backup."
+    },
+    {
+      "artifact_id": "phase5j-v4-lifecycle-attribution-evidence",
+      "artifact_type": "derived_deterministic_research_evidence",
+      "purpose": "Audit the causal root and downstream lifecycle propagation of SETUP_03 tolerance divergence on the exact second frozen holdout.",
+      "lifecycle": "DEVELOPMENT_ONLY",
+      "status": "TRACKED_EVIDENCE_WITH_LOCAL_REGENERABLE_TRACE",
+      "labels": [
+        "DEVELOPMENT_ONLY",
+        "NOT_FORMAL_VALIDATION",
+        "NOT_FINAL_OOS",
+        "RESEARCH_CAUSAL_DIAGNOSTIC_ONLY",
+        "NOT_A_CANDIDATE_RULE"
+      ],
+      "tracked_provenance_paths": [
+        "research/development/phase5j_v4_lifecycle_attribution_capsule_v1.json",
+        "research/development/phase5j_v4_lifecycle_attribution_report_v1.md",
+        "research/development/phase5j_v4_artifact_hashes.json",
+        "research/development/phase5j_v4_per_symbol_lifecycle_attribution.csv",
+        "research/development/phase5j_v4_root_cause_summary.csv",
+        "research/development/phase5j_v4_cascade_table.csv",
+        "research/development/phase5j_v4_cascade_graph.json",
+        "research/development/phase5j_v4_anchor_divergence_summary.csv",
+        "research/development/phase5j_v4_counterfactual_summary.csv",
+        "research/development/phase5j_v4_historical_symptom_concordance.csv"
+      ],
+      "ignored_payload_paths": [
+        "artifacts/phase5j_v4_lifecycle_attribution/phase5j_v4_lifecycle_trace.jsonl.gz"
+      ],
+      "canonical_identities": {
+        "protocol_version": "SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1",
+        "protocol_sha256": "sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe",
+        "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+        "replay_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+        "symbol_count": 40,
+        "bar_count": 86305,
+        "trace_row_count": 258915,
+        "base_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c"
+      },
+      "exact_file_hashes": {
+        "capsule_file_sha256": "sha256:5e2fcc5bfd8f7361c63e392e76969bb724fb2b35d58691d83848b001d67fab7c",
+        "capsule_canonical_payload_sha256": "sha256:89f033d069d3da939dbf20b46866d70aaec983ab4c9a63f07859a17b8008814c",
+        "trace_gzip_sha256": "sha256:b7027ba5a72cf620846347d339362ceb7ce5e85cab0bd3f8af30f1618d797441",
+        "report_sha256": "sha256:64be5027a9f04abb43c222fa9d975acef5ea1de0cae6b3daa4db0eccaed942b3"
+      },
+      "recovery_gates": {
+        "LOCAL_PRESENT": true,
+        "HASH_VERIFIED": true,
+        "PERSISTENT_BACKUP_PRESENT": false,
+        "RECOVERY_VERIFIED": false,
+        "FULLY_RECOVERABLE": false
+      },
+      "regeneration": {
+        "status": "DETERMINISTIC_REGENERATION_VERIFIED",
+        "source_input_artifact_id": "phase5j-v3-development-holdout-frozen-bundle",
+        "source_input_status": "FULLY_RECOVERABLE",
+        "command": "python scripts/run_phase5j_v4_lifecycle_attribution.py",
+        "independent_repeat_hash_match": true,
+        "trace_is_not_a_new_dataset": true
+      },
+      "boundaries": {
+        "production_setup_output_mismatches": 0,
+        "confirmed_failed_event_output_mismatches": 0,
+        "phase5j_v3_matching_modified": false,
+        "phase5j_v3_qualification_modified": false,
+        "final_oos_accessed": false,
+        "outcome_metrics_accessed": false
+      }
     }
   ],
   "external_audit_notes": [

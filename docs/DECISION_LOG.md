@@ -551,3 +551,17 @@
 **Decision:** Persist the supplied exact Sol specification as `research/protocols/setup03_phase5j_v4_lifecycle_attribution_protocol.json`, version `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`, canonical SHA-256 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`, with a concise Chinese companion and version/hash-pinned loader/tests. Freeze the exact second holdout identity, adjacent 3%→4% and 4%→5% pairs, FIRST_DIVERGENCE_BAR semantics, deterministic mutually exclusive root taxonomy, separate propagation taxonomy, research-only lineage, single-mechanism counterfactuals, historical symptom concordance scope, parity requirements, outputs, recommendations and stop state before any real holdout attribution is run.
 
 **Boundary:** This freeze task does not read real holdout attribution results, refetch early development v1, create a third dataset, access A1 formal OHLCV or Final OOS, read outcomes, change production SETUP_03, or modify Phase 5J-v3 matching/qualification. Real attribution may begin only after the independent commit `research: freeze Phase 5J-v4 lifecycle attribution protocol` exists.
+
+---
+
+## 2026-08-29
+
+### Decision: Phase 5J-v4 causal attribution is ready for Sol structural decision
+
+**Evidence:** After protocol freeze commit `4be4545bc2ddf54c3e970a162160c9fe3e464d4d`, the exact second holdout produced 258,915 every-bar trace rows, 1,031 deterministic lifecycles and 177 real first-divergence episodes. Pooled root ranking is low-span 88, high-span 69, both-span 20. The 3%→4% pair is low/high/both 53/28/9 and both CN/US are low-span dominant; 4%→5% is 35/41/11, with CN high-span dominant and US low-span dominant. This is `MIXED_CAUSAL_STRUCTURE`, not a single-mechanism result and not a tolerance selection.
+
+**Propagation / counterfactual:** 3%→4% has 90 roots and 76 downstream divergent lifecycles; 4%→5% has 87/69. Downstream propagation is terminal-index cascade or no cascade, with max depth 4. Holding the lower-tolerance terminal-index seam fixed / suppressing terminal-index propagation removes or restores 76 and 69 downstream lifecycles respectively; fixing detection/anchors produces no additional same-root recovery in this evidence. All interventions are `RESEARCH_CAUSAL_DIAGNOSTIC_ONLY` and `NOT_A_CANDIDATE_RULE`.
+
+**Parity / boundaries:** Against `origin/main@142b7345a5640b1e87932e41f3dc9311172bf54c`, 120 cells, 258,915 Setup bar outputs and 1,028 CONFIRMED/FAILED events have zero mismatches. The second holdout, Phase 5J-v3 qualification and prior frozen tracked content are unchanged; no provider/refetch/third dataset/A1 formal OHLCV/outcome/Final OOS/Phase 5K-B1 path was used. Historical PR #29 evidence is symptom-only: CN 3→4 partial, US 3→4 concordant, CN/US 4→5 partial, all `NOT_CAUSAL_REPLICATION`.
+
+**Decision:** Set `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`. Recommend `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` then `REDESIGN_TERMINAL_REARM_ORCHESTRATION`; do not implement either in this phase. Capsule file SHA-256 is `sha256:5e2fcc5bfd8f7361c63e392e76969bb724fb2b35d58691d83848b001d67fab7c`; deterministic trace SHA-256 is `sha256:b7027ba5a72cf620846347d339362ceb7ce5e85cab0bd3f8af30f1618d797441`.
