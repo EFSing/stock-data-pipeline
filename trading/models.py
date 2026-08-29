@@ -76,6 +76,81 @@ class MarketStructure:
     lows: tuple[SwingPoint, ...]
 
 
+class WaveScenarioFamily(str, Enum):
+    """有限的 Wave Scenario v1 taxonomy。
+
+    这些是结构候选而不是 Elliott Wave 的完整自动数浪结果。
+    """
+
+    WAVE_2_TO_3_CANDIDATE = "WAVE_2_TO_3_CANDIDATE"
+    WAVE_3_CONTINUATION_CANDIDATE = "WAVE_3_CONTINUATION_CANDIDATE"
+    ABC_CORRECTION_CANDIDATE = "ABC_CORRECTION_CANDIDATE"
+    UPTREND_UNKNOWN_WAVE = "UPTREND_UNKNOWN_WAVE"
+    DOWNTREND_OR_INVALID_FOR_LONG = "DOWNTREND_OR_INVALID_FOR_LONG"
+    NO_VALID_SCENARIO = "NO_VALID_SCENARIO"
+
+
+@dataclass(frozen=True)
+class PriceRegion:
+    """一个可解释的价格候选区间（inclusive）。"""
+
+    label: str
+    lower: float
+    upper: float
+
+
+@dataclass(frozen=True)
+class WaveLeg:
+    """由两个已确认 Swing 构成的结构腿。"""
+
+    start: SwingPoint
+    end: SwingPoint
+    direction: str
+
+
+@dataclass(frozen=True)
+class WaveScenario:
+    """Wave Engine v1 的一个主/备选结构情景。
+
+    ``evidence_score`` 是满足的显式规则数，不是模型概率或收益评分。
+    ``setup*_context_eligible`` 只表示结构上下文是否满足，不表示允许入场。
+    """
+
+    family: WaveScenarioFamily
+    evidence: tuple[str, ...]
+    counter_evidence: tuple[str, ...]
+    evidence_score: int
+    confirmed_swings: tuple[SwingPoint, ...]
+    candidate_impulse_leg: Optional[WaveLeg]
+    candidate_retracement_leg: Optional[WaveLeg]
+    fibonacci_retracement_regions: tuple[PriceRegion, ...]
+    fibonacci_extension_regions: tuple[PriceRegion, ...]
+    structural_invalidation: Optional[float]
+    scenario_invalidation_reason: str
+    setup01_context_eligible: bool
+    setup02_context_eligible: bool
+
+    @property
+    def confidence_score(self) -> int:
+        """兼容用户术语；实际值仍是规则计数而非主观概率。"""
+        return self.evidence_score
+
+
+@dataclass(frozen=True)
+class WaveScenarioEvaluation:
+    """截至一个交易日的完整 Wave Scenario 评估。"""
+
+    protocol_version: str
+    as_of_date: date
+    as_of_close: float
+    weekly_state: Trend
+    daily_state: Trend
+    weekly_swings: tuple[SwingPoint, ...]
+    daily_swings: tuple[SwingPoint, ...]
+    primary_scenario: WaveScenario
+    alternate_scenario: WaveScenario
+
+
 @dataclass(frozen=True)
 class FibonacciLevels:
     swing_high: float

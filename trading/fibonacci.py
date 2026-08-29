@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-from trading.models import FibonacciLevels, SwingKind, SwingPoint
+from trading.models import FibonacciLevels, PriceRegion, SwingKind, SwingPoint
 
 RETRACEMENT_RATIOS: dict[str, float] = {
     "0.382": 0.382,
@@ -62,3 +62,25 @@ def fibonacci_levels(a: SwingPoint, b: SwingPoint) -> FibonacciLevels:
         swing_high=max(a.price, b.price),
         swing_low=min(a.price, b.price),
     )
+
+
+def fibonacci_regions(levels: FibonacciLevels) -> tuple[tuple[PriceRegion, ...], tuple[PriceRegion, ...]]:
+    """把既有 Fibonacci levels 转成相邻 ratio 的候选价格区间。
+
+    计算唯一复用 ``fibonacci_levels_from_prices`` 的结果；本函数不引入
+    第二套 ratio 或价格公式。相邻层级按价格排序后组成 inclusive region。
+    """
+    def regions(values: dict[str, float]) -> tuple[PriceRegion, ...]:
+        # Keep the canonical ratio order from RETRACEMENT_RATIOS /
+        # EXTENSION_RATIOS; lower/upper are normalized independently below.
+        ordered = list(values.items())
+        return tuple(
+            PriceRegion(
+                label=f"{ordered[index][0]}-{ordered[index + 1][0]}",
+                lower=min(ordered[index][1], ordered[index + 1][1]),
+                upper=max(ordered[index][1], ordered[index + 1][1]),
+            )
+            for index in range(len(ordered) - 1)
+        )
+
+    return regions(levels.retracements), regions(levels.extensions)

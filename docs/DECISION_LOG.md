@@ -647,3 +647,17 @@ The live `持仓股股票行情数据中台` readback covered all 10 enabled hol
 **Decision:** Set `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`. Keep scheduled Asia/US jobs on latest-only; retain full mode as explicit manual-only workflow dispatch. The invariant remains `交易日期 = 市场真实 session trade_date` and `运行时间 = 北京时间 fetched_at`.
 
 **Boundary:** Do not merge PR #34 automatically. Do not start Wave Engine, new research, Final OOS, formal validation, or any SETUP_03 continuation.
+
+### Decision: implement a finite causal Wave Scenario Engine v1 and read-only shadow
+
+**Context:** After PR #34 closeout and the registered `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` result, the next authorized core route is Wave Scenario Engine → `SETUP_01` → `SETUP_02`. The first engine must provide structural context without reopening SETUP_03 or pretending to be a complete Elliott Wave counter.
+
+**Decision:** Register `WAVE-SCENARIO-ENGINE-2026-08-30-v1`. The engine exposes only `WAVE_2_TO_3_CANDIDATE`, `WAVE_3_CONTINUATION_CANDIDATE`, `ABC_CORRECTION_CANDIDATE`, `UPTREND_UNKNOWN_WAVE`, `DOWNTREND_OR_INVALID_FOR_LONG`, and `NO_VALID_SCENARIO`. It always returns primary and alternate scenarios with explicit evidence, counter-evidence, rule-count evidence score, confirmed Swing identities, candidate legs, Fibonacci regions, structural invalidation, invalidation reason, and SETUP_01/02 context eligibility.
+
+**Causal boundary:** Inputs are first bounded to `data <= as_of_date`; daily structure reuses existing confirmed Swing and Market Structure semantics; weekly bars aggregate actual session dates and exclude the current ISO week from the parent state. A fixed as-of evaluation must be invariant to appended future bars. Weekly downtrend blocks long-side context even when daily prices rebound. Wave 2 remains WATCH-like until its structural evidence is sufficient; a Fib/EMA/RSI hit alone cannot start Wave 3.
+
+**Fibonacci boundary:** The engine calls the existing `trading.fibonacci` implementation and only converts its levels into adjacent candidate regions. Fib is context, not a standalone signal. Evidence score is a count of named satisfied predicates, not a probability and not calibrated by returns.
+
+**Shadow boundary:** `scripts/run_wave_shadow.py` and manual `wave-shadow.yml` read enabled holdings and explicit qfq history, then write only JSON/CSV report artifacts and a summary. They do not write Google Sheets, history, Decision, production configuration, ENTRY, returns, MFE/MAE, P&L, or OOS results.
+
+**Reason:** This creates the minimum auditable structural context required before independent SETUP_01/02 work while preserving strict as-of causality, uncertainty labeling, the existing single-source Fibonacci implementation, and the project-wide no-SETUP_03-reopen boundary.
