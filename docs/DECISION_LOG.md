@@ -573,3 +573,19 @@
 **Decision:** Define tracked text provenance file identity as SHA-256 over LF-normalized bytes, enforce the same rule in governance tests and Phase 5J-v4 prior-frozen parity, and regenerate the v4 capsule/report/hash manifest. Canonical dataset, replay, protocol, and payload identities are unchanged; this decision only removes checkout-platform ambiguity.
 
 **Why:** A tracked provenance identity must be stable across supported Windows development and Linux CI checkouts. Raw worktree EOL bytes are not a portable Git content identity.
+
+---
+
+## 2026-08-29
+
+### Decision: preserve project-wide strategy identity and freeze the final SETUP_03 ATR boundary development family
+
+**Context:** PR #32 Phase 5J-v4 was independently verified and squash-merged into remote `main@21c73977195682df576750648765b1b74d8824e2`; main push CI run `33259644890` succeeded. Sol accepted the bounded next step `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`. Existing governance wording could nevertheless be read as if Platform Breakout were the whole project.
+
+**Decision:** Make the project identity explicit in `AGENTS.md` and `HANDOFF.md`: the long-term strategy is the `docs/TRADING_SYSTEM_SPEC.md` flow `Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit`, with four first-version Setup families (`SETUP_01` Wave 2 → Wave 3, `SETUP_02` Wave 3 Continuation, `SETUP_03` Platform Breakout, `SETUP_04` Extreme Fear Reversal). `SETUP_03` is one sub-strategy; its current Phase or commit depth does not change the overall route, and route changes require explicit user approval plus a decision-log entry.
+
+Freeze the only permitted v5 structural family before OHLCV acquisition: ATR-normalized platform boundary with Wilder ATR period 14, current as-of reference bar, symmetric high/low ATR denominator and pre-registered thresholds `1.0/1.5/2.0/2.5`. The protocol is `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json`, version `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`, canonical SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b`. The metadata-only clean development universe is frozen at 20 CN + 20 US symbols, manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`.
+
+**Boundary:** Only platform boundary semantics may vary; causal swing, strict as-of, lifecycle, breakout, confirmed/failed, Decision, Entry Zone, stop/target/RR, execution, terminal and rearm semantics remain fixed. Incumbent fixed-percentages are descriptive reference only, not a search. No second boundary family, market-specific tuning, high/low independent tuning, outcomes, Final OOS, formal Phase 5K-B1, or production change is permitted. The clean roster was selected from A1 metadata snapshots before OHLCV and excludes A1 formal, development v1, second holdout and candidate design identities.
+
+**Next gate:** After the freeze commit, acquire only the new clean holdout under the existing CN BaoStock / US yfinance development contract, then run structure-only qualification and one deterministic repeat. Stop with `READY_FOR_FORMAL_VALIDATION` if a candidate survives every registered gate in both markets; stop with `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` if none survives; or use `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` if the frozen independent universe is insufficient. Do not merge the resulting PR or start formal validation without the next explicit decision.

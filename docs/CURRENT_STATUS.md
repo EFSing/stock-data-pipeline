@@ -10,12 +10,22 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA：`142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main` 已通过 `git fetch origin main` 刷新到同一 SHA。
-- Current checkout: `research/phase5j-v4-lifecycle-attribution`；PR #32 `Phase 5J-v4: lifecycle causal attribution` 为 OPEN、base `main`、未 merge。protocol freeze commit 为 `4be4545bc2ddf54c3e970a162160c9fe3e464d4d`，implementation/evidence commit 为 `573745b12ba39f28de738791ac7d91e737372481`，cross-platform provenance correction 为 `a71640291eb993a2d3f8c06dcccc71909bdc51d5`；最终治理 tip 以 `git rev-parse HEAD` 为准。
-- Current checkout CI: run `33259097880` 覆盖 `a71640291eb993a2d3f8c06dcccc71909bdc51d5` 并成功；最终 HANDOFF reconciliation tip push 后仍必须从 PR #32 核对自己的 exact-head run。另有独立 PR #31 `hotfix/production-market-data-stability`，不能当作当前分支状态。
-- 当前项目正式状态：Phase 5J-v4 已在 protocol freeze commit `4be4545bc2ddf54c3e970a162160c9fe3e464d4d` 之后完成 exact second-holdout attribution、完整本地验证、PR 与 substantive-head CI，机械状态 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`。结果是 `MIXED_CAUSAL_STRUCTURE`，不选择 tolerance、不改 production；PR 保持 OPEN 且不 merge，等待 Sol structure decision。
+- GitHub `main` 当前真实 SHA：`21c73977195682df576750648765b1b74d8824e2`；PR #32 已 squash merge，父提交为 `142b7345a5640b1e87932e41f3dc9311172bf54c`，本地 `origin/main` 已刷新到同一 SHA。
+- Current checkout: `research/setup03-atr-boundary-redesign`；PR #32 `Phase 5J-v4: lifecycle attribution` 已关闭并 merge，当前 v5 分支尚未创建 PR。独立 PR #31 `hotfix/production-market-data-stability` 仍保持独立，不能当作当前分支状态。
+- Main push CI: run `33259644890` 覆盖 `21c73977195682df576750648765b1b74d8824e2` 并成功；v5 final head exact-head CI 尚未产生。
+- 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已冻结唯一 ATR-normalized boundary protocol 与 40-symbol metadata-only clean universe，仍为未获取数据/未执行 qualification。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
+
+## Current Task: SETUP_03 ATR Boundary Redesign
+
+### Project Strategy Identity
+
+总体策略以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一正式事实源，主线为 `Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit`。第一版四类 Setup 为：`SETUP_01`（Wave 2 → Wave 3）、`SETUP_02`（Wave 3 Continuation）、`SETUP_03`（Platform Breakout）、`SETUP_04`（Extreme Fear Reversal）。`SETUP_03` 只是一个子策略；当前 Phase 或 commit 深度不改变总体策略路线。
+
+- Protocol: `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json`，version `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`，canonical SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`。
+- Clean development universe: `research/atr_boundary_universe_manifest.json`，40 symbols（CN 20 / US 20），manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`；仅以 A1 metadata snapshots 做结果无关选择，已排除 A1 formal、development v1、second holdout 与候选设计身份，尚未获取 OHLCV。
+- Qualification boundary: only ATR-normalized platform boundary with Wilder ATR period 14 and pre-registered thresholds `1.0/1.5/2.0/2.5`; existing causal/as-of/lifecycle/breakout/terminal/rearm/Decision/execution semantics remain unchanged. Incumbent fixed percentages are descriptive reference only；不读取 returns/MFE/MAE/P&L/winrate/expectancy，不启动 formal Phase 5K-B1 或 Final OOS。
 
 ## Completed
 
@@ -72,9 +82,9 @@ V0.2
 
 ## Next
 
-- 当前 branch 的 Required Next 仅是：核对最终 HANDOFF reconciliation tip 的 exact-head CI；成功后停止在 Sol decision node，不 merge、不实施 redesign。
+- 当前 branch 的 Required Next：先提交并 push protocol/universe/governance freeze checkpoint；随后按冻结的 CN BaoStock / US yfinance development contract 获取 clean holdout，执行结构-only ATR qualification 与 deterministic repeat，创建 v5 PR 并核对最终 head 的 exact-head CI。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
-- 等待 Sol 对 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` 的正式决定；在新授权前不改 SETUP_03、不启动 Final OOS 或 Phase 5K-B1
+- v5 只允许在 `READY_FOR_FORMAL_VALIDATION`、`STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 或 `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` 停止；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）

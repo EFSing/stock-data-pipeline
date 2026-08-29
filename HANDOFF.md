@@ -2,29 +2,36 @@
 
 > 本文件是下一台设备 / 下一次开发会话的可执行交接快照，不是完整历史流水账。新会话第一步读取本文件，然后读取 `docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md`，再核对真实 Git / PR / CI / artifact 状态。
 
+## PROJECT STRATEGY IDENTITY
+
+- 本项目不是单一 Platform Breakout 系统；长期总体策略的唯一正式事实源是 `docs/TRADING_SYSTEM_SPEC.md`。
+- 总体主线：`Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit`。
+- 第一版四类 Setup：`SETUP_01`（Wave 2 → Wave 3）、`SETUP_02`（Wave 3 Continuation）、`SETUP_03`（Platform Breakout）、`SETUP_04`（Extreme Fear Reversal）。
+- `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
+- 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
+
 ## 1. Current Objective
 
-- **当前 Phase / task:** `Phase 5J-v4 — SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，继续使用已冻结的第二套 development holdout。其 persistent backup/recovery prerequisite 已由外部审计完成并登记。
-- **具体目标:** Phase 5J-v4 protocol 已先独立冻结，exact second holdout attribution、counterfactual diagnostics、historical symptom concordance、deterministic artifacts、完整验证与 PR 已完成；当前停在 Sol structure decision node，不把 development evidence 解释为 production decision。
-- **为什么现在做:** correctness-critical raw/normalized/replay payload 虽位于被 Git 忽略的 `artifacts/`，但 exact ZIP 已上传 Google Drive，并由外部审计独立重新读取且 SHA-256 一致，跨设备恢复 gate 已满足。
-- **Scope:** 仅使用现有 frozen protocol、second-holdout bundle、tracked provenance 与既有 research contracts；更新 v4 research evidence、registry/status/handoff/decision records，并为最终 review 准备 PR。
-- **明确禁止事项:** 不访问 provider；不重新获取或重生成 bars；不修改 frozen manifests、protocol、symbol roster、既有 capsule 或既有 canonical hashes；不访问 Final OOS；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不修改 production、Trading Core、Decision、execution 或 Google Sheets；不把近似重生成文件当作原 frozen artifact。
-- **完成条件:** Phase 5J-v4 frozen workflow 产生可审计的 machine-readable/report evidence，保留 causal/as-of/identity/invariant checks，测试与静态检查通过，治理记录与实际 Git/PR/CI/artifact 状态一致，并创建 PR（不 merge）。
-- **停止条件:** instrumentation 无法在不改变 production semantics 下完成；exact frozen holdout 出现真实性问题；新的真实 governance blocker；attribution 已形成 Sol 结构决策；或 PR fully ready。普通代码、测试、diagnostic、artifact/hash 问题自行修复。
+- **当前 Phase / task:** `Phase 5J-v5 — ATR_NORMALIZED_PLATFORM_BOUNDARY_LAST_INDEPENDENT_DEVELOPMENT_HOLDOUT`。
+- **具体目标:** 在 PR #32 已合并且 Sol 已授权 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` 后，按唯一预注册的 ATR-normalized boundary family，在最后一套独立 development holdout 上完成结构-only qualification；不把结果解释为 production decision。
+- **当前冻结点:** protocol `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`，SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；metadata-only clean universe manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`。截至本快照尚未获取该 holdout OHLCV。
+- **Scope:** 仅保留现有 causal swing、strict as-of、lifecycle、breakout、confirmed/failed、Decision、Entry Zone、stop/target/RR、execution、terminal/rearm；本任务只改变 boundary semantics。数据获取冻结后使用既有 CN BaoStock / US yfinance development contract，生成新的 hash-pinned clean-holdout dataset/replay artifacts，并只运行结构性资格矩阵与一次 deterministic repeat。
+- **明确禁止事项:** 不做固定百分比搜索、市场/高低边界分别调参或 terminal/rearm 改造；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不访问 Final OOS、正式 Phase 5K-B1、IBKR formal universe OHLCV；不修改 production 或 Trading Core；不以结果换股或重写旧 artifact。
+- **完成条件:** 完成数据身份、结构-only qualification matrix、parity/repro、测试、治理文件、commit/push、PR 和 exact-head CI，并停在 `READY_FOR_FORMAL_VALIDATION`、`STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 或真实的 `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` 节点。
+- **停止条件:** qualification 已产生上述明确结果、数据/协议真实性出现 blocker、或需要 Sol/用户选择正式验证参数。普通代码、测试、diagnostic、artifact/hash 问题自行修复。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub remote `main@142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main` 已通过 `git fetch origin main` 刷新到同一 SHA。
-- **working branch:** `research/phase5j-v4-lifecycle-attribution`（已推送 origin）
-- **current HEAD:** `THIS_COMMIT`（protocol freeze `4be4545bc2ddf54c3e970a162160c9fe3e464d4d`；implementation/evidence `573745b12ba39f28de738791ac7d91e737372481`；cross-platform provenance correction `a71640291eb993a2d3f8c06dcccc71909bdc51d5`；以 `git rev-parse HEAD` 解析最终治理 tip）。
-- **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` is `OPEN`, base `main`, not merged: `https://github.com/EFSing/stock-data-pipeline/pull/32`。Predecessor PR #30 was merged with merge commit `142b7345a5640b1e87932e41f3dc9311172bf54c`.
-- **latest exact-head CI:** run `33259097880` covered `a71640291eb993a2d3f8c06dcccc71909bdc51d5` and succeeded after correcting tracked provenance hashes to Git-normalized LF bytes。This HANDOFF-only reconciliation commit must receive its own exact-head CI after push; verify it from PR #32 rather than inferring from the predecessor run.
-- **latest remote main CI:** run `33232320454`, head `142b7345a5640b1e87932e41f3dc9311172bf54c`, `success`。
+- **main/base SHA:** GitHub remote `main@21c73977195682df576750648765b1b74d8824e2`；该 SHA 是 PR #32 的 squash merge commit，父提交为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
+- **working branch:** `research/setup03-atr-boundary-redesign`（当前研究分支）。
+- **current HEAD:** 当前协议/选择器/ATR boundary implementation 仍在本地未完成 freeze commit 上；以 `git rev-parse HEAD` 和后续 exact-head CI 为准，不使用 `THIS_COMMIT` 占位替代真实 SHA。
+- **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` 已关闭并 squash merge，merge commit `21c73977195682df576750648765b1b74d8824e2`。当前 v5 分支尚未创建 PR；独立 PR #31 `hotfix/production-market-data-stability` 仍保持分离。
+- **latest remote main CI:** run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，completed `success`。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head CI run `33248943280` success；它不属于当前 checkout。
 - **working tree expected state:** tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
-- **current project/phase status:** Phase 5J-v4 mechanical status 为 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`。largest root 为 `LOW_SPAN_THRESHOLD_CROSSING`，但 high/low/both 三类 root 均存在，故 `ATTRIBUTION_EVIDENCE_STATUS=MIXED_CAUSAL_STRUCTURE`；建议只到 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` then `REDESIGN_TERMINAL_REARM_ORCHESTRATION`，不实施策略修改。formal validation、Final OOS、Phase 5K-B1 仍未执行。
+- **current project/phase status:** PR #32 的 v4 状态为 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`，已按用户授权完成 squash merge；当前 v5 为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED` / clean universe `FROZEN_NOT_ACQUIRED`。formal validation、Final OOS、Phase 5K-B1 仍未执行。
 
 ## 3. Completed Work
 
@@ -40,8 +47,10 @@
 
 ### Required Next
 
-1. 从 PR #32 核对最终 HANDOFF reconciliation tip 的 exact-head CI；成功后不再修改本分支。
-2. 停止在 Sol decision node，等待明确结构设计决定；PR 保持 OPEN 且不 merge。
+1. 提交并 push 当前 protocol/universe freeze 与治理身份 hardening；确认 protocol/universe SHA 不变。
+2. 仅按冻结的 CN BaoStock / US yfinance development contract 获取 20 CN + 20 US clean holdout，生成 hash-pinned dataset/replay manifest；任何失败都 fail closed。
+3. 运行 ATR candidates `1.0/1.5/2.0/2.5` 的结构-only qualification、固定百分比 incumbent 仅作描述性 reference、以及一次 deterministic repeat；不读取任何 outcome。
+4. 更新正式状态与交接快照，创建 v5 PR，核对最终 head SHA 的 CI 后停止在明确结果节点。
 
 ### Deferred
 
@@ -50,8 +59,8 @@
 
 ### Prohibited For Now
 
-- provider/data fetch、symbol replacement、dataset regeneration、frozen identity rewrite。
-- SETUP_03 / Trading Core / Decision / execution / production Sheets changes。
+- 第二次 protocol freeze 后的 provider/data fetch 以外的任何数据源扩张、symbol replacement、dataset identity rewrite。
+- SETUP_03 / Trading Core / Decision / execution / production Sheets semantic changes；本任务只允许 ATR boundary research implementation。
 - Final OOS、formal validation、returns/MFE/MAE/P&L/outcome access。
 - 根据收益或信号结果选择/替换标的、参数或 backup 内容。
 
@@ -115,10 +124,10 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #32 run `33259097880` 已覆盖 `a71640291e…` 并成功；最终 HANDOFF reconciliation tip 仍须在 push 后核对自己的 exact-head CI | 从 PR #32 读取匹配最终 `headRefOid` 的 run；不得用 predecessor run 替代 | Blocks final PR readiness until exact-head success |
-| research/design blocker | `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` | wait for explicit Sol decision; preserve current evidence | Yes for parameter/strategy changes; descriptive v4 attribution remains bounded by the frozen contract |
-| protocol persistence | Earlier v4 design had not been persisted; this was `PHASE5J_V4_PROTOCOL_NOT_YET_PERSISTED`, `NOT_AN_ARTIFACT_LOSS_EVENT` | exact Sol specification is now version/hash frozen; attribution may begin only after the freeze commit | No after freeze commit |
-| Sol decision node | `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`; mixed boundary roots plus terminal-index cascade | create PR, verify exact-head CI, then stop without implementing redesign | Yes after PR readiness |
+| environment / verification | PR #32 main push run `33259644890` 已覆盖 squash merge SHA `21c7397719…` 并成功；当前 v5 分支尚未有最终 exact-head CI | v5 push 后只接受 `headSha == final HEAD` 的 CI | Blocks final PR readiness until exact-head success |
+| research/design blocker | v4 `MIXED_CAUSAL_STRUCTURE` 已得到 Sol 的 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` 授权；v5 仅验证预注册 ATR family | 保持 terminal/rearm 与其余 Setup semantics 不变；不扩展到第二 family | Yes for any unapproved production/strategy change |
+| protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
+| Sol / user decision node | 资格通过后只到 `READY_FOR_FORMAL_VALIDATION`；无 candidate 通过则 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；holdout 不足则 `READY_FOR_DECISION_INSUFFICIENT_CLEAN_DEVELOPMENT_HOLDOUT_UNIVERSE` | 创建 PR、核对 exact-head CI，然后停；不启动 formal validation、B1 或 Final OOS | Yes after PR readiness |
 | project coordination | PR #31 is an independent OPEN hotfix；当前研究 PR 为 #32 | do not mix worktrees or infer PR #32 status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
@@ -176,11 +185,11 @@
 
 ## 10. Next Action
 
-1. `git status --short --branch`，若并行 `.hotfix-worktree/` 重新出现则保持隔离，确认没有未授权删除/覆盖。
-2. `git fetch origin main`，确认 GitHub `main@142b7345…` 与本地 ref，并重算 current branch/base 关系。
-3. 运行完整验证并提交 Phase 5J-v4 implementation/evidence/governance commit。
-4. push `research/phase5j-v4-lifecycle-attribution`，创建新 PR，不 merge。
-5. 等待 exact-head CI success；随后报告 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 并停止，不启动 redesign、Final OOS 或 Phase 5K-B1。
+1. 提交并 push protocol/universe/governance freeze checkpoint，确认 base 为 `main@21c73977195682df576750648765b1b74d8824e2`。
+2. 在 freeze checkpoint 之后按 manifest 获取并冻结 clean holdout dataset/replay input；保留 raw/normalized bytes 与 hashes，不使用 formal B1/IBKR。
+3. 运行结构-only ATR qualification 与 deterministic repeat，记录全量 qualification matrix、parity、repro、dataset/artifact identities。
+4. 更新本文件、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md`，提交并 push v5 PR，检查最终 head 的 exact CI。
+5. 根据唯一允许的结果码停在 formal-validation decision node；不 merge、不运行 Final OOS、不开始 Phase 5K-B1，不擅自进入 terminal/rearm redesign。
 
 ## 11. Handoff Checklist
 
@@ -199,11 +208,11 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-29T20:54:56+08:00`
-- `verified_main_sha`: `142b7345a5640b1e87932e41f3dc9311172bf54c`
-- `verified_branch_head`: `THIS_COMMIT`（以 `git rev-parse HEAD` 解析最终 reconciliation commit；治理前 working HEAD 为 `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`）
-- `latest_test_result`: Phase 5J-v4 focused `24/24`、full unittest `312/312`、compileall、protocol/registry/capsule JSON、artifact hash manifest、deterministic repeat 与 `git diff --check` passed
-- `latest_ci_run`: `33232320454` on remote main success；current local tip has no exact-head CI
-- `updated_by_task`: `research: attribute Phase 5J-v4 lifecycle divergence`
+- `last_updated_at`: `2026-08-29T00:00:00+08:00`（本快照将在 freeze/data/qualification/PR checkpoints 继续更新）
+- `verified_main_sha`: `21c73977195682df576750648765b1b74d8824e2`
+- `verified_branch_head`: 当前以 `git rev-parse HEAD` 为准；branch=`research/setup03-atr-boundary-redesign`
+- `latest_test_result`: v5 focused protocol/universe/setup tests `18/18` passed；full unittest 与 final qualification 仍待执行
+- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；v5 final head CI 尚未产生
+- `updated_by_task`: `research: freeze SETUP_03 ATR boundary structural qualification`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

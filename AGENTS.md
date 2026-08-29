@@ -3,6 +3,21 @@
 > 本文件是所有 AI 开发工具（DeepSeek、Codex、ChatGPT 等）协作开发本项目的统一规则与唯一入口。
 > **GitHub 仓库是本项目唯一可信事实来源，聊天记录不是项目记忆。** 不要在每次对话中重新设计整个系统。
 
+## 项目总体策略身份与层级
+
+本项目不是单一 Platform Breakout 系统。长期总体交易框架的唯一正式事实源是 `docs/TRADING_SYSTEM_SPEC.md`，总体主线为：
+
+`Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit`
+
+第一版四类 Setup：
+
+- `SETUP_01` = Wave 2 → Wave 3
+- `SETUP_02` = Wave 3 Continuation
+- `SETUP_03` = Platform Breakout
+- `SETUP_04` = Extreme Fear Reversal
+
+`SETUP_03` 只是四类 Setup 之一。任一 Setup 当前开发深度、commit 数量或 Phase 数量，不得被解释为项目总体策略或优先级已经改变。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 属于总体核心路线。除非用户明确批准，并记录在 `docs/DECISION_LOG.md`，否则不得擅自改变总体路线。本文件不复制完整 `TRADING_SYSTEM_SPEC`，避免双事实源。
+
 ## 新会话启动与交接治理（必须遵守）
 
 每个新电脑、新 clone 或新 Codex 会话，在实现、研究、数据访问或修改前必须按以下顺序执行：

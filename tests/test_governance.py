@@ -10,7 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 class GovernanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         cls.handoff = (ROOT / "HANDOFF.md").read_text(encoding="utf-8")
+        cls.current_status = (ROOT / "docs" / "CURRENT_STATUS.md").read_text(encoding="utf-8")
         cls.registry = json.loads(
             (ROOT / "docs" / "FROZEN_ARTIFACT_REGISTRY.json").read_text(encoding="utf-8")
         )
@@ -35,6 +37,26 @@ class GovernanceTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertIn("PROJECT_GOVERNANCE_STATE_CONFLICT", self.handoff)
         self.assertIn("HANDOFF_CURRENT_AND_CONSISTENT", self.handoff)
+
+    def test_project_strategy_identity_is_explicit(self):
+        for text in (self.agents, self.handoff, self.current_status):
+            self.assertIn("docs/TRADING_SYSTEM_SPEC.md", text)
+            self.assertIn("SETUP_01", text)
+            self.assertIn("SETUP_02", text)
+            self.assertIn("SETUP_03", text)
+            self.assertIn("SETUP_04", text)
+        self.assertIn("不是单一 Platform Breakout", self.agents)
+        self.assertIn("SETUP_03` 当前只是正在研究的一个子策略", self.handoff)
+        self.assertIn("Wave Scenario", self.handoff)
+        self.assertIn("Weekly State", self.handoff)
+
+    def test_atr_boundary_freeze_is_recorded_before_data_acquisition(self):
+        expected_protocol_sha = "sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4"
+        expected_universe_sha = "sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b"
+        self.assertIn(expected_protocol_sha, self.handoff)
+        self.assertIn(expected_universe_sha, self.handoff)
+        self.assertIn("ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED", self.current_status)
+        self.assertIn("尚未获取 OHLCV", self.current_status)
 
     def test_registry_records_verified_recovery_gates(self):
         self.assertEqual(self.registry["schema_version"], "repository-frozen-artifact-registry-v1")
