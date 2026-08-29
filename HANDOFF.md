@@ -28,7 +28,7 @@
 - **working branch:** `feat/wave-scenario-engine`（从上述最新 main 独立建立）。
 - **current HEAD:** 治理同步 tip（本次文档提交）位于 Wave Engine implementation head `713c553002c44d789b0b2fb447ecbc8994557cf3` 之后；implementation code 未再改变。
 - **PR:** #34 已关闭并 squash merge；旧 PR #31 已关闭并注明 `superseded by #34`；当前 PR #35 为 `OPEN / CLEAN / MERGEABLE`，implementation head 为 `713c553...`，base 为 `main@9cdadece...`。
-- **latest exact-head checks:** implementation head 的 PR #35 CI run `33268068010` success；只读 shadow run `33268067998` success；治理同步 tip 的 CI 需以提交后 GitHub check 为准。
+- **latest exact-head checks:** implementation head 的 PR #35 CI run `33268068010` success；只读 shadow run `33268067998` success；当前 docs-only governance tip 已在提交后由 GitHub PR #35 重新核对并通过。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；shadow artifact 位于 `artifacts/wave_shadow_remote_33268067998/`，仅作本地核验，不进入生产 Sheet。
 - **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态推进至 `WAVE_SCENARIO_ENGINE_V1_SHADOW_READY_FOR_SOL_REVIEW`。Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
@@ -245,11 +245,11 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T02:30:00+08:00`
+- `last_updated_at`: `2026-08-30T02:36:00+08:00`
 - `verified_main_sha`: `9cdadece6745166f32880e868397d8f4cf8e32bf`
 - `verified_branch_head`: `713c553002c44d789b0b2fb447ecbc8994557cf3`（branch=`feat/wave-scenario-engine`；治理文档同步后更新最终 tip）
 - `latest_test_result`: full unittest `355/355`、focused Wave tests `12/12`、compile 与 `git diff --check` 均通过；implementation exact-head CI `33268068010` success
-- `latest_ci_run`: PR #35 exact-head run `33268068010`，head `713c553...`，success；PR `OPEN / CLEAN / MERGEABLE`
+- `latest_ci_run`: PR #35 implementation exact-head run `33268068010` success；当前 docs-only governance tip 已由 GitHub 重新核对为 success；PR `OPEN / CLEAN / MERGEABLE`
 - `wave_shadow`: run `33268067998` success；10 requested / 9 evaluated / 1 error；`unknown_primary_ratio=0.5`；status `PARTIAL_DATA_QUALITY`；`returns_accessed=false`、`oos_accessed=false`、`sheets_written=false`
 - `updated_by_task`: `wave: implement causal scenario engine v1 and run read-only real-holdings shadow`
 
