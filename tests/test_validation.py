@@ -4,6 +4,8 @@ from unittest.mock import patch
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 
+import pandas as pd
+
 from core import (
     Quote,
     expected_latest_trade_date,
@@ -14,7 +16,16 @@ from core import (
     validate_quotes,
 )
 from main import as_ratio, beijing_now, select_history_series, wanted_markets_for_group
-from providers import PROVIDERS, _as_date, fetch_sina, fetch_tencent, fetch_with_retry, fetch_yfinance
+from providers import (
+    PROVIDERS,
+    _as_date,
+    fetch_latest_with_retry,
+    fetch_sina,
+    fetch_tencent,
+    fetch_with_retry,
+    fetch_yfinance,
+    fetch_yfinance_latest,
+)
 from sheets_client import SheetsClient
 
 
@@ -262,6 +273,43 @@ class ValidationTests(unittest.TestCase):
             result = fetch_yfinance(watch, "raw", date(2026, 8, 1), date(2026, 8, 17))
         self.assertEqual(result, fallback)
         chart.assert_called_once_with(watch, "raw", date(2026, 8, 1), date(2026, 8, 17))
+
+    def test_yfinance_latest_uses_bounded_window_when_period_tail_is_incomplete(self):
+        calls = []
+
+        class IncompleteTailTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, **kwargs):
+                calls.append(kwargs)
+                return pd.DataFrame(
+                    {
+                        "Open": [36.8, 29.24],
+                        "High": [38.5, 31.38],
+                        "Low": [36.12, 26.86],
+                        "Close": [36.16, None],
+                        "Volume": [4_677_985, 20_084_657],
+                    },
+                    index=pd.to_datetime(["2026-08-27", "2026-08-28"]),
+                )
+
+        fallback = [quote("YahooChart", close=27.32, day=date(2026, 8, 28))]
+        fake_yfinance = SimpleNamespace(Ticker=IncompleteTailTicker)
+        watch = {
+            "统一代码": "SIVE.SE", "名称": "Sivers Semiconductors", "市场": "SE",
+            "yfinance代码": "SIVE.ST", "币种": "SEK", "时区": "Europe/Stockholm",
+        }
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
+            "providers._fetch_yahoo_chart", return_value=fallback
+        ) as chart:
+            result = fetch_yfinance_latest(watch, date(2026, 8, 30))
+
+        self.assertEqual(result, fallback)
+        self.assertEqual(calls[0]["start"], "2026-08-23")
+        self.assertEqual(calls[0]["end"], "2026-08-31")
+        self.assertNotIn("period", calls[0])
+        chart.assert_called_once_with(watch, "raw", date(2026, 8, 23), date(2026, 8, 30))
 
     def test_tencent_snapshot_parser(self):
         payload = (

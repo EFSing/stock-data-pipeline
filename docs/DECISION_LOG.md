@@ -629,3 +629,11 @@ Shared causal-swing versus precomputed-swing parity passed for 280 cells, 616,52
 **Reason:** Separating market-session evidence from Beijing run time removes the date-shift ambiguity while preserving the existing display-time convention. Separating latest-only orchestration from full strategy processing prevents a routine holdings refresh from rewriting history or triggering a strategy path.
 
 **Evidence / Boundary:** Regression coverage includes A-share and US Friday-to-Beijing-Saturday delays, source-date mismatch in both directions, same-date dual validation, future dates, before/after close, weekend/weekday guards, and UTC/BJT timestamp boundaries. The production Sheet smoke must verify every enabled holding's trade date, chosen/verifier source, validation status and Beijing run time before this hotfix is declared `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`. No Wave Engine, new research, Final OOS, or automatic hotfix merge is authorized.
+
+### Production smoke finding: bounded latest provider windows are required
+
+**Evidence:** The first real latest-only smoke wrote correct market dates for CN/HK/US, but `SIVE.ST` remained at `2026-08-27` and was explicitly marked `待复核` because yfinance's `period=5d` response exposed a `2026-08-28` row with missing `close`. A direct Yahoo Chart request using explicit `period1/period2` returned a sane `2026-08-28` OHLCV row. The missing-close row must not be converted into a fabricated quote.
+
+**Decision:** The latest yfinance provider uses an explicit bounded `start/end` window tied to the run's bounded date, and retries through bounded Yahoo Chart when the provider tail is incomplete. If all available rows remain incomplete or stale, preserve the valid older quote and keep the row explicitly pending; never fill a missing price or mark it verified.
+
+**Boundary:** This is a production latest-data freshness correction only. It does not change market-session date semantics, source-verification rules, percentage production defaults, Trading Core, SETUP_03, historical/qfq/Decision behavior, or the no-Wave-Engine/no-new-research boundary.

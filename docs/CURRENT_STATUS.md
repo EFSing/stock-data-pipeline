@@ -29,6 +29,7 @@ V0.2
 - PR #31 已完整审计但仍是旧 main 上的 `OPEN / DIRTY / CONFLICTING` PR；本分支只从新 main 重新移植必要生产修复，不直接 merge/rebase #31。
 - 当前生产根因已定位：旧 `main.run()` 用 wall-clock `expected_latest_trade_date()` 作为最新性判断，且 scheduled path 与 full history/qfq/SETUP_03/Decision 共用编排；虽然 `最新行情.交易日期` 当前由 `chosen.trade_date` 映射，日期选择、延迟周末、未来日期和 US session-date 边界缺少独立 fail-closed 保护。
 - 当前修复已加入 source-date evidence、ordinary-calendar freshness guard、future-date rejection、market-local timestamp normalization，以及显式 `latest/full` 隔离。长期不变量：`交易日期 = 市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`；二者不得互相替代。
+- 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`、但显式 bounded Yahoo Chart 可返回 `2026-08-28` 收盘价；正在将 latest yfinance 改为显式 bounded 日期窗口并在不完整尾行时回退，禁止填补或伪造价格。
 - 当前状态：代码与 focused regression 已完成，待 full suite、push、exact-head CI 和真实 latest-only production smoke/Sheet 回读后再标记 `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`。
 
 ## Completed

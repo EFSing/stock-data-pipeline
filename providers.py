@@ -360,17 +360,23 @@ def fetch_yfinance_latest(watch: dict, end: date) -> list[Quote]:
 
     symbol = str(watch["yfinance代码"])
     yfinance_error: Exception | None = None
+    yfinance_rows: list[Quote] = []
     try:
         frame = yf.Ticker(symbol).history(
-            period="5d",
+            start=(end - timedelta(days=7)).isoformat(),
+            end=(end + timedelta(days=1)).isoformat(),
             interval="1d",
             auto_adjust=False,
             actions=False,
             repair=False,
         )
         if not frame.empty:
-            frame = frame.reset_index().rename(columns={"Date": "日期"})
-            return _records_to_quotes(frame, watch, "yfinance")
+            frame = frame.sort_index().reset_index().rename(columns={"Date": "日期"})
+            records = frame.to_dict("records")
+            yfinance_rows = _records_to_quotes(frame, watch, "yfinance")
+            latest_close = _number(records[-1].get("收盘", records[-1].get("Close")))
+            if latest_close is not None:
+                return yfinance_rows
     except Exception as exc:
         yfinance_error = exc
 
@@ -379,6 +385,8 @@ def fetch_yfinance_latest(watch: dict, end: date) -> list[Quote]:
             watch, "raw", end - timedelta(days=7), end
         )
     except Exception as chart_error:
+        if yfinance_rows:
+            return yfinance_rows
         if yfinance_error is None:
             raise
         raise RuntimeError(
