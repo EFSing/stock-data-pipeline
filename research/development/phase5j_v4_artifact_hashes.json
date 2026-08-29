@@ -34,14 +34,14 @@
     }
   },
   "capsule": {
-    "canonical_payload_sha256": "sha256:69e075c214f8d6439bb47fc93f08d71a7a0ad74088aef41c0ab474969c7e96ac",
-    "file_sha256": "sha256:33fea52774618474a7e343db17f92a2f5d0b2160fda8530f1a11daa0f41b3762",
+    "canonical_payload_sha256": "sha256:a2e9a48cac483bca6aae9aeec4d5405634118632e7c34170aef863f24991e797",
+    "file_sha256": "sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f",
     "path": "research/development/phase5j_v4_lifecycle_attribution_capsule_v1.json"
   },
   "protocol_sha256": "sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe",
   "report": {
     "path": "research/development/phase5j_v4_lifecycle_attribution_report_v1.md",
-    "sha256": "sha256:a06db503bfd472c6e006165c1759b8a1fd439549307bd68c99653bf209053274"
+    "sha256": "sha256:8a4709f7c69f4842e5ff3251c27946545c45aa4f6193a657eb61929be2e68cd5"
   },
   "schema_version": "setup03-phase5j-v4-artifact-hashes-v1"
 }

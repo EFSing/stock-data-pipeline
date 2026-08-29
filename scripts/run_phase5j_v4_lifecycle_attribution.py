@@ -81,17 +81,17 @@ def _relative_path(path: Path) -> str:
 def _prior_frozen_parity(base_ref: str) -> dict[str, Any]:
     rows = []
     for relative in PRIOR_FROZEN_PATHS:
-        current = (PROJECT_ROOT / relative).read_bytes()
-        baseline = _git("show", f"{base_ref}:{relative}")
+        current = (PROJECT_ROOT / relative).read_bytes().replace(b"\r\n", b"\n")
+        baseline = _git("show", f"{base_ref}:{relative}").replace(b"\r\n", b"\n")
         current_hash = f"sha256:{hashlib.sha256(current).hexdigest()}"
         baseline_hash = f"sha256:{hashlib.sha256(baseline).hexdigest()}"
-        normalized_identical = current.replace(b"\r\n", b"\n") == baseline.replace(b"\r\n", b"\n")
+        normalized_identical = current == baseline
         rows.append({
             "path": relative,
             "current_sha256": current_hash,
             "base_sha256": baseline_hash,
             "identical": normalized_identical,
-            "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
+            "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
         })
     return {"rows": rows, "mismatches": sum(not row["identical"] for row in rows)}
 

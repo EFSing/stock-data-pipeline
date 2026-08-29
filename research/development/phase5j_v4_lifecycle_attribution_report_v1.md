@@ -6,7 +6,7 @@
 
 - protocol: `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1` / `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`
 - dataset: 40 symbols / 86,305 bars / `sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2`
-- attribution capsule file SHA-256: `sha256:33fea52774618474a7e343db17f92a2f5d0b2160fda8530f1a11daa0f41b3762`
+- attribution capsule file SHA-256: `sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f`
 - production parity: setup mismatches `0`，event mismatches `0`
 - 禁止指标访问：returns/MFE/MAE/P&L/winrate/profit factor/expectancy 全部 false；Final OOS 未访问。
 

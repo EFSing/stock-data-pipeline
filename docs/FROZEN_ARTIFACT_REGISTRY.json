@@ -73,15 +73,16 @@
         }
       },
       "exact_file_hashes": {
-        "tracked_dataset_manifest_file_sha256": "sha256:6b45900458f0d1a5ef857ba54745f6ec456482fbb8a30943ccf01edb0cb7e48d",
-        "tracked_replay_manifest_file_sha256": "sha256:7194da0aa11d0b461377a654a641ee3191e6fa7acc54a479e8d2c2c95194f818",
-        "tracked_universe_manifest_file_sha256": "sha256:59fdbe417e44909a01885d1e3e0305a681ee17cd96bcf287143ad6814a0cbb27",
-        "tracked_capsule_file_sha256": "sha256:f8038643acc009bae41b1b9e72616e6e2b2da0c653efb4e8ca055bff4d04c271",
+        "tracked_dataset_manifest_file_sha256": "sha256:cfc82dce3eac9d18caa011be90f9bd6f7e2327206ac1d6e60eabdb93cdce3ee5",
+        "tracked_replay_manifest_file_sha256": "sha256:98372fde86ec206e411eadda4ac6126266ee2530b7456b95857800b959e512f0",
+        "tracked_universe_manifest_file_sha256": "sha256:895554d31523deae103fc1ae8195b094ad51489f5a9e5e34a552fccfd9353ff9",
+        "tracked_capsule_file_sha256": "sha256:110a95ba826a41aa7593636a1ad4e33f6cf45b9d0a43d9e31407bd92772180c0",
         "recovery_manifest_file_sha256": "sha256:c5a6043de7b331fb51a70853c8d3e0a7995ae8ab63a1e80250ebf6a0f0963024"
       },
       "provenance": {
         "source_main_commit_recorded_by_recovery_manifest": "3a2c6699559074161b56281dd16084264f7dc717",
         "source_main_commit_resolution": "Local git ref only; historical artifact provenance, not current remote main.",
+        "tracked_file_hash_semantics": "SHA-256 of Git-normalized LF bytes so tracked provenance identities are stable across Windows and Linux checkouts.",
         "frozen_at": "2026-08-29",
         "setup03_run": false,
         "phase5j_v4_run_during_backup_staging": false,
@@ -168,10 +169,10 @@
         "base_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c"
       },
       "exact_file_hashes": {
-        "capsule_file_sha256": "sha256:5e2fcc5bfd8f7361c63e392e76969bb724fb2b35d58691d83848b001d67fab7c",
-        "capsule_canonical_payload_sha256": "sha256:89f033d069d3da939dbf20b46866d70aaec983ab4c9a63f07859a17b8008814c",
-        "trace_gzip_sha256": "sha256:b7027ba5a72cf620846347d339362ceb7ce5e85cab0bd3f8af30f1618d797441",
-        "report_sha256": "sha256:64be5027a9f04abb43c222fa9d975acef5ea1de0cae6b3daa4db0eccaed942b3"
+        "capsule_file_sha256": "sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f",
+        "capsule_canonical_payload_sha256": "sha256:a2e9a48cac483bca6aae9aeec4d5405634118632e7c34170aef863f24991e797",
+        "trace_gzip_sha256": "sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4",
+        "report_sha256": "sha256:8a4709f7c69f4842e5ff3251c27946545c45aa4f6193a657eb61929be2e68cd5"
       },
       "recovery_gates": {
         "LOCAL_PRESENT": true,

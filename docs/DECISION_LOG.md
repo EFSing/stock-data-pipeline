@@ -564,4 +564,12 @@
 
 **Parity / boundaries:** Against `origin/main@142b7345a5640b1e87932e41f3dc9311172bf54c`, 120 cells, 258,915 Setup bar outputs and 1,028 CONFIRMED/FAILED events have zero mismatches. The second holdout, Phase 5J-v3 qualification and prior frozen tracked content are unchanged; no provider/refetch/third dataset/A1 formal OHLCV/outcome/Final OOS/Phase 5K-B1 path was used. Historical PR #29 evidence is symptom-only: CN 3→4 partial, US 3→4 concordant, CN/US 4→5 partial, all `NOT_CAUSAL_REPLICATION`.
 
-**Decision:** Set `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`. Recommend `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` then `REDESIGN_TERMINAL_REARM_ORCHESTRATION`; do not implement either in this phase. Capsule file SHA-256 is `sha256:5e2fcc5bfd8f7361c63e392e76969bb724fb2b35d58691d83848b001d67fab7c`; deterministic trace SHA-256 is `sha256:b7027ba5a72cf620846347d339362ceb7ce5e85cab0bd3f8af30f1618d797441`.
+**Decision:** Set `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`. Recommend `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` then `REDESIGN_TERMINAL_REARM_ORCHESTRATION`; do not implement either in this phase. Capsule file SHA-256 is `sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f`; deterministic trace SHA-256 is `sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4`.
+
+### Decision: tracked provenance file hashes use Git-normalized LF bytes
+
+**Context:** PR #32's first CI run exposed that Windows CRLF working-tree bytes and Linux/Git LF bytes produced different raw SHA-256 values for unchanged tracked provenance files. The existing content comparison already normalized EOLs, but the recorded per-file hashes did not.
+
+**Decision:** Define tracked text provenance file identity as SHA-256 over LF-normalized bytes, enforce the same rule in governance tests and Phase 5J-v4 prior-frozen parity, and regenerate the v4 capsule/report/hash manifest. Canonical dataset, replay, protocol, and payload identities are unchanged; this decision only removes checkout-platform ambiguity.
+
+**Why:** A tracked provenance identity must be stable across supported Windows development and Linux CI checkouts. Raw worktree EOL bytes are not a portable Git content identity.

@@ -10693,7 +10693,7 @@
     "symbol_count": 40
   },
   "integrity": {
-    "canonical_payload_sha256": "sha256:69e075c214f8d6439bb47fc93f08d71a7a0ad74088aef41c0ab474969c7e96ac",
+    "canonical_payload_sha256": "sha256:a2e9a48cac483bca6aae9aeec4d5405634118632e7c34170aef863f24991e797",
     "hash_scope": "canonical JSON with integrity.canonical_payload_sha256=null"
   },
   "lineage": [
@@ -27713,71 +27713,71 @@
       "rows": [
         {
           "base_sha256": "sha256:6aa5544b6cceb463de63e8ae2ea768f599afc7b321fcf26796dcec7dbba48b5b",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
           "current_sha256": "sha256:6aa5544b6cceb463de63e8ae2ea768f599afc7b321fcf26796dcec7dbba48b5b",
           "identical": true,
           "path": "research/setup03_phase5j_v3_event_matching_protocol.json"
         },
         {
           "base_sha256": "sha256:895554d31523deae103fc1ae8195b094ad51489f5a9e5e34a552fccfd9353ff9",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:59fdbe417e44909a01885d1e3e0305a681ee17cd96bcf287143ad6814a0cbb27",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:895554d31523deae103fc1ae8195b094ad51489f5a9e5e34a552fccfd9353ff9",
           "identical": true,
           "path": "research/development_holdout/universe_manifest.json"
         },
         {
           "base_sha256": "sha256:cfc82dce3eac9d18caa011be90f9bd6f7e2327206ac1d6e60eabdb93cdce3ee5",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:6b45900458f0d1a5ef857ba54745f6ec456482fbb8a30943ccf01edb0cb7e48d",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:cfc82dce3eac9d18caa011be90f9bd6f7e2327206ac1d6e60eabdb93cdce3ee5",
           "identical": true,
           "path": "research/development_holdout/dataset_manifest.json"
         },
         {
           "base_sha256": "sha256:98372fde86ec206e411eadda4ac6126266ee2530b7456b95857800b959e512f0",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:7194da0aa11d0b461377a654a641ee3191e6fa7acc54a479e8d2c2c95194f818",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:98372fde86ec206e411eadda4ac6126266ee2530b7456b95857800b959e512f0",
           "identical": true,
           "path": "research/development_holdout/replay_manifest.json"
         },
         {
           "base_sha256": "sha256:110a95ba826a41aa7593636a1ad4e33f6cf45b9d0a43d9e31407bd92772180c0",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:f8038643acc009bae41b1b9e72616e6e2b2da0c653efb4e8ca055bff4d04c271",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:110a95ba826a41aa7593636a1ad4e33f6cf45b9d0a43d9e31407bd92772180c0",
           "identical": true,
           "path": "research/development/development_holdout_decision_capsule_v1.json"
         },
         {
           "base_sha256": "sha256:ef47e25afcef6764fa5b345609d667b6bde3801e8c398c8c73effe7e3cad6be1",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:647eda001c6f82c476e0cc8e565ddd71961a12dd6e1dc88c1fcf2c2885289d2d",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:ef47e25afcef6764fa5b345609d667b6bde3801e8c398c8c73effe7e3cad6be1",
           "identical": true,
           "path": "research/development/development_holdout_decision_capsule_v1.md"
         },
         {
           "base_sha256": "sha256:5b7912fd5a9e90e92f5688d925be087b8b1a54434a0ced6bbfd861151d1fd580",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:5a0726dccc0bbe273e32b05a71434bec8dde85859483cc9e3f1745d630b17458",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:5b7912fd5a9e90e92f5688d925be087b8b1a54434a0ced6bbfd861151d1fd580",
           "identical": true,
           "path": "research/development/development_strategy_decision_capsule_v2.json"
         },
         {
           "base_sha256": "sha256:21eef166fdd76040ed46097feeb6465899d40d248bb9a21b197f82f188a9b040",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:c9038c22773efc52bf28a739dbd0f9dbc9085d142e3fad63f698814bbd4ccac9",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:21eef166fdd76040ed46097feeb6465899d40d248bb9a21b197f82f188a9b040",
           "identical": true,
           "path": "research/development/development_strategy_decision_capsule_v2.md"
         },
         {
           "base_sha256": "sha256:85994c97f3892cc4b4108c5e6e0969c05d84fda9a012896a9686b9e374173e84",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:3fa511fa43b146fae9d1a17799b1ae17ce44ba4915ec4813d7120e53eef5b24c",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:85994c97f3892cc4b4108c5e6e0969c05d84fda9a012896a9686b9e374173e84",
           "identical": true,
           "path": "research/development/development_strategy_decision_capsule_v3.json"
         },
         {
           "base_sha256": "sha256:5df7ec91d47f8d7e7e3caf3b6e0acaa3beb31a96b6e4bdf6fcfbc2f6f9221dd3",
-          "comparison": "Git content after checkout EOL normalization; current raw file SHA-256 is recorded separately",
-          "current_sha256": "sha256:df737563ea906e863f69b1729437527cdcc1d2f4a48ebca776326d0e55ce0f96",
+          "comparison": "SHA-256 of Git-normalized LF bytes; stable across Windows and Linux checkouts",
+          "current_sha256": "sha256:5df7ec91d47f8d7e7e3caf3b6e0acaa3beb31a96b6e4bdf6fcfbc2f6f9221dd3",
           "identical": true,
           "path": "research/development/development_strategy_decision_capsule_v3.md"
         }

@@ -64,7 +64,8 @@ class GovernanceTests(unittest.TestCase):
             "tracked_capsule_file_sha256": "research/development/development_holdout_decision_capsule_v1.json",
         }
         for registry_key, relative_path in paths.items():
-            digest = hashlib.sha256((ROOT / relative_path).read_bytes()).hexdigest()
+            tracked_bytes = (ROOT / relative_path).read_bytes().replace(b"\r\n", b"\n")
+            digest = hashlib.sha256(tracked_bytes).hexdigest()
             self.assertEqual(hashes[registry_key], f"sha256:{digest}", relative_path)
 
     def test_governance_entry_does_not_contain_credentials(self):
