@@ -1,0 +1,174 @@
+{
+  "schema_version": "setup03-phase5j-v4-lifecycle-attribution-protocol-v1",
+  "protocol_version": "SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1",
+  "phase": "Phase 5J-v4",
+  "official_name": "SETUP_03_PLATFORM_IDENTITY_LIFECYCLE_DIVERGENCE_ATTRIBUTION",
+  "setup_type": "SETUP_03",
+  "status": "LIFECYCLE_ATTRIBUTION_PROTOCOL_FROZEN_NOT_EXECUTED",
+  "research_scope": "SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE",
+  "objective": "Explain why the existing SETUP_03 state machine produces material platform/event lifecycle divergence across the adjacent 3% to 4% and 4% to 5% platform-tolerance pairs; do not search for or select a tolerance.",
+  "evidence_scope": {
+    "exact_causal_replay": {
+      "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+      "dataset_role": "SECOND_FROZEN_DEVELOPMENT_HOLDOUT_ONLY",
+      "total_symbol_count": 40,
+      "total_bar_count": 86305,
+      "market_symbol_counts": {"CN": 20, "US": 20},
+      "market_bar_counts": {"CN": 41274, "US": 45031},
+      "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+      "normalized_aggregate_sha256": "sha256:b08832bdad7c2a857d7b60fc7b56a75d09594ee648008ab852bde4a8a56405b1",
+      "replay_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+      "recovery_status": "FULLY_RECOVERABLE"
+    },
+    "historical_structure_symptom_evidence": {
+      "source": "tracked PR #29 capsule and report only",
+      "causal_status": "NOT_CAUSAL_REPLICATION",
+      "allowed_files": [
+        {"path": "research/development/development_strategy_decision_capsule_v2.json", "file_sha256": "sha256:5a0726dccc0bbe273e32b05a71434bec8dde85859483cc9e3f1745d630b17458"},
+        {"path": "research/development/development_strategy_decision_capsule_v2.md", "file_sha256": "sha256:c9038c22773efc52bf28a739dbd0f9dbc9085d142e3fad63f698814bbd4ccac9"},
+        {"path": "research/development/development_strategy_decision_capsule_v3.json", "file_sha256": "sha256:3fa511fa43b146fae9d1a17799b1ae17ce44ba4915ec4813d7120e53eef5b24c"},
+        {"path": "research/development/development_strategy_decision_capsule_v3.md", "file_sha256": "sha256:df737563ea906e863f69b1729437527cdcc1d2f4a48ebca776326d0e55ce0f96"}
+      ],
+      "allowed_metrics": ["per-market event counts at 3/4/5", "event density", "platform density", "tolerance increase direction", "exact-date Jaccard", "exact retained/retention independent of residual assignment", "symbol concentration", "sparse-event structure"],
+      "prohibited_as_causal_replication": ["residual date drift median", "residual date drift P90", "extreme nearest-date pairs including 832 or 392"]
+    },
+    "early_development_v1": {
+      "total_symbol_count": 40,
+      "total_bar_count": 84284,
+      "replay_aggregate_sha256_prefix": "sha256:9271560e",
+      "exact_bytes_recovery_status": "UNRECOVERABLE",
+      "refetch_prohibited": true,
+      "causal_replay_prohibited": true
+    },
+    "third_development_dataset_prohibited": true
+  },
+  "prohibited_evidence": ["Final OOS", "A1 formal 120 historical OHLCV", "forward returns", "MFE", "MAE", "P&L", "winrate", "profit factor", "expectancy"],
+  "prohibited_actions": ["modify production SETUP_03", "search tolerance", "add tolerance candidate", "create a market-specific production rule", "create a regime-specific production rule", "create a volatility-normalized production rule", "modify Phase 5J-v3 frozen qualification", "modify the Phase 5J-v3 event-matching protocol", "refetch early development v1", "create a third development dataset", "access Final OOS", "start formal Phase 5K-B1"],
+  "production_semantics": {
+    "implementation": "reuse the production SETUP_03 state-machine path",
+    "instrumentation": "read-only research wrapper or read-only diagnostics only",
+    "instrumentation_must_not_change_output": true,
+    "as_of_rule": "trace at bar t may use only data with index <= t and swings with confirmed_index <= t",
+    "tolerances": [0.03, 0.04, 0.05],
+    "adjacent_pairs": [[0.03, 0.04], [0.04, 0.05]],
+    "fixed_setup_parameters": {"swing_lookback": 5, "platform_window": 40, "arm_proximity_pct": 0.0}
+  },
+  "lifecycle_trace": {
+    "grain": ["market", "symbol", "tolerance", "trade_date", "bar_index"],
+    "required_fields": ["market", "symbol", "trade_date", "bar_index", "tolerance", "confirmed_swing_identities_available_as_of_t", "new_confirmed_swing_eligibility", "high_swing_count", "low_swing_count", "market_structure_classification", "high_span", "low_span", "platform_gate_pass", "platform_gate_failure_reasons", "platform_detected_this_bar", "setup_state", "detected_index", "state_entered_index", "breakout_price", "structural_invalidation", "confirmed_index", "terminal_type", "terminal_date", "last_terminal_index", "arm_threshold"],
+    "correctness_relevant_equivalence_fields": ["confirmed_swing_identities_available_as_of_t", "new_confirmed_swing_eligibility", "high_swing_count", "low_swing_count", "market_structure_classification", "high_span", "low_span", "platform_gate_pass", "platform_gate_failure_reasons", "platform_detected_this_bar", "setup_state", "detected_index", "state_entered_index", "breakout_price", "structural_invalidation", "confirmed_index", "terminal_type", "terminal_date", "last_terminal_index", "arm_threshold"]
+  },
+  "first_divergence_bar": {
+    "definition": "For the same symbol and adjacent tolerance pair, the earliest aligned bar at which one or more correctness-relevant equivalence fields differ after all earlier aligned bars were equivalent.",
+    "required_start_point_for_root_classification": true,
+    "final_event_back_inference_prohibited": true,
+    "no_divergence_value": null
+  },
+  "root_cause_taxonomy": {
+    "primary_is_deterministic": true,
+    "primary_is_mutually_exclusive": true,
+    "secondary_causes_allowed": true,
+    "post_result_taxonomy_revision_prohibited": true,
+    "ordered_primary_rules": [
+      {"cause": "HIGH_SPAN_THRESHOLD_CROSSING", "when": "at the first divergence bar only high_span gate pass/fail differs across the adjacent thresholds"},
+      {"cause": "LOW_SPAN_THRESHOLD_CROSSING", "when": "at the first divergence bar only low_span gate pass/fail differs across the adjacent thresholds"},
+      {"cause": "BOTH_SPAN_THRESHOLD_CROSSING", "when": "at the first divergence bar both high_span and low_span gate pass/fail differ across the adjacent thresholds"},
+      {"cause": "STRUCTURE_INPUT_DIVERGENCE", "when": "at the first divergence bar the confirmed swing identity set, high/low counts, or market-structure classification differs and the new-swing eligibility predicate does not differ"},
+      {"cause": "NEW_SWING_ELIGIBILITY_DIVERGENCE", "when": "at the first divergence bar new-confirmed-swing eligibility differs"},
+      {"cause": "PLATFORM_FIRST_DETECTION_DIVERGENCE", "when": "at the first divergence bar platform_detected_this_bar or detected_index differs and no earlier rule applies"},
+      {"cause": "FROZEN_BREAKOUT_ANCHOR_DIVERGENCE", "when": "at the first divergence bar frozen breakout_price differs and no earlier rule applies"},
+      {"cause": "FROZEN_INVALIDATION_ANCHOR_DIVERGENCE", "when": "at the first divergence bar frozen structural_invalidation differs and no earlier rule applies"},
+      {"cause": "TERMINAL_STATE_DIVERGENCE", "when": "at the first divergence bar terminal type/date, confirmed_index, setup_state, or last_terminal_index differs and no earlier rule applies"},
+      {"cause": "OTHER_UNCLASSIFIED", "when": "the first divergence is real but none of the frozen ordered rules applies"}
+    ]
+  },
+  "propagation_taxonomy": {
+    "root_and_descendants_must_be_separate": true,
+    "descendants_are_not_new_root_causes": true,
+    "classes": ["NO_CASCADE", "TERMINAL_INDEX_CASCADE", "ANCHOR_PROPAGATION", "ELIGIBILITY_CASCADE", "MULTI_STAGE_CASCADE"],
+    "ordered_rules": [
+      {"class": "NO_CASCADE", "when": "the root divergence has no downstream divergent lifecycle"},
+      {"class": "TERMINAL_INDEX_CASCADE", "when": "all descendants arise through divergent last_terminal_index and re-arm timing only"},
+      {"class": "ANCHOR_PROPAGATION", "when": "all descendants arise through frozen breakout/invalidation anchor differences only"},
+      {"class": "ELIGIBILITY_CASCADE", "when": "all descendants arise through new-swing eligibility differences only"},
+      {"class": "MULTI_STAGE_CASCADE", "when": "two or more propagation mechanisms occur or a descendant mechanism changes stage"}
+    ],
+    "required_fields": ["root_lifecycle", "downstream_divergent_lifecycle_count", "cascade_depth", "amplification_ratio"]
+  },
+  "lifecycle_lineage": {
+    "identity_scope": "RESEARCH_ONLY_DETERMINISTIC_ATTRIBUTION_IDENTITY",
+    "identity_fields": ["symbol", "tolerance", "lifecycle_ordinal", "first_detected_date", "frozen_breakout", "frozen_invalidation", "terminal_date", "terminal_type"],
+    "ordinal_rule": "within symbol and tolerance, order lifecycles by first detected bar, then terminal bar, then frozen breakout, then frozen invalidation; ordinals are one-based",
+    "adjacent_tolerance_classes": ["SAME_ROOT_SAME_TERMINAL", "SAME_ROOT_SHIFTED_TERMINAL", "SAME_ROOT_DIFFERENT_ANCHOR", "SPLIT", "MERGE", "ADDED_LIFECYCLE", "DISAPPEARED_LIFECYCLE", "CASCADE_DESCENDANT"],
+    "matching_rule": "match exact same detection root first; then classify one-to-many as SPLIT, many-to-one as MERGE, unmatched higher-tolerance as ADDED_LIFECYCLE, unmatched lower-tolerance as DISAPPEARED_LIFECYCLE, and causally downstream unmatched items as CASCADE_DESCENDANT",
+    "phase5j_v3_matching_must_not_change": true,
+    "phase5j_v3_qualification_must_not_change": true
+  },
+  "counterfactual_rules": {
+    "scope": "second frozen 86,305-bar holdout only",
+    "labels": ["RESEARCH_CAUSAL_DIAGNOSTIC_ONLY", "NOT_A_CANDIDATE_RULE"],
+    "one_mechanism_per_counterfactual": true,
+    "production_path_prohibited": true,
+    "experiments": [
+      {"id": "A", "intervention": "hold lower-tolerance last_terminal_index fixed while changing only the tolerance gate", "measure": "reduction in downstream divergent lifecycle count"},
+      {"id": "B", "intervention": "hold the lower-tolerance first detection bar fixed while allowing the higher tolerance", "measure": "reduction in breakout/invalidation anchor divergence"},
+      {"id": "C", "intervention": "hold lower-tolerance frozen breakout and invalidation anchors fixed", "measure": "whether terminal divergence remains"},
+      {"id": "D", "intervention": "suppress terminal-index propagation by feeding the lower-tolerance terminal index into subsequent higher-tolerance re-arm eligibility", "measure": "count of originally added/disappeared downstream lifecycles restored to concordance"}
+    ]
+  },
+  "historical_symptom_concordance": {
+    "dimensions": {"markets": ["CN", "US"], "adjacent_pairs": [[0.03, 0.04], [0.04, 0.05]]},
+    "states": ["CONCORDANT", "PARTIALLY_CONCORDANT", "DISCORDANT", "INSUFFICIENT"],
+    "classification_rule": "CONCORDANT when every available allowed direction/sign and sparse/concentration structural symptom agrees; PARTIALLY_CONCORDANT when at least one agrees and at least one disagrees; DISCORDANT when available comparable symptoms all disagree; INSUFFICIENT when no allowed comparable symptom exists.",
+    "required_label": "NOT_CAUSAL_REPLICATION"
+  },
+  "mechanical_results": {
+    "dimensions": {"markets": ["CN", "US", "POOLED"], "adjacent_pairs": [[0.03, 0.04], [0.04, 0.05]]},
+    "root_cause_fields": ["count", "share", "affected_symbols", "affected_root_lifecycles"],
+    "cascade_fields": ["root_divergence_count", "downstream_divergence_count", "downstream_root_ratio", "max_depth", "descendants_share_of_all_divergent_lifecycles"],
+    "threshold_crossing_fields": ["high_span_contribution", "low_span_contribution", "both_contribution", "distance_from_lower_frozen_tolerance_threshold", "distance_from_upper_frozen_tolerance_threshold"],
+    "threshold_margin_use": "DESCRIPTION_ONLY_NOT_TOLERANCE_DESIGN",
+    "anchor_divergence_fields": ["detection_shift", "breakout_anchor_difference", "invalidation_anchor_difference", "terminal_shift"]
+  },
+  "research_evidence_state": {
+    "largest_root_cause_required": true,
+    "allowed_attribution_evidence_status": ["CLEAR_SINGLE_MECHANISM", "ROOT_CAUSE_WITH_STRONG_CASCADE_AMPLIFICATION", "MIXED_CAUSAL_STRUCTURE", "INSUFFICIENT_CAUSAL_EVIDENCE"],
+    "classification_rule": "Emit the observed root ranking, concentration pattern, cascade structure, coverage, and unresolved OTHER count as a machine-readable rationale; do not invent a numeric post-result threshold. CLEAR_SINGLE_MECHANISM requires an unambiguous dominant mechanism across market and pair slices without material contradiction; ROOT_CAUSE_WITH_STRONG_CASCADE_AMPLIFICATION additionally requires the same root to produce visibly multi-lifecycle downstream propagation; MIXED_CAUSAL_STRUCTURE applies when material roots or slice conclusions conflict; INSUFFICIENT_CAUSAL_EVIDENCE applies when trace, parity, coverage, or classification is inadequate.",
+    "post_result_numeric_threshold_prohibited": true
+  },
+  "next_research_recommendation": {
+    "allowed": ["REDESIGN_PLATFORM_IDENTITY", "REDESIGN_PLATFORM_BOUNDARY_SEMANTICS", "REDESIGN_TERMINAL_REARM_ORCHESTRATION", "REDESIGN_PLATFORM_IDENTITY_THEN_REDESIGN_TERMINAL_REARM_ORCHESTRATION", "REDESIGN_PLATFORM_BOUNDARY_SEMANTICS_THEN_REDESIGN_TERMINAL_REARM_ORCHESTRATION", "PRESERVE_SETUP03_AND_REVISIT_VALIDATION_ASSUMPTIONS", "STOP_SETUP03_DEVELOPMENT"],
+    "recommendation_only": true,
+    "implementation_prohibited": true,
+    "causal_order_required_when_root_and_propagation_are_different_layers": true
+  },
+  "parity_requirements": {
+    "comparison_base": "current origin/main at execution time, recorded by exact commit SHA",
+    "production_setup_output_unchanged": true,
+    "confirmed_failed_event_output_unchanged": true,
+    "second_holdout_identity_unchanged": {"total_symbol_count": 40, "total_bar_count": 86305, "replay_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2"},
+    "phase5j_v3_qualification_unchanged": true,
+    "prior_frozen_artifact_hashes_unchanged": true,
+    "final_oos_untouched": true,
+    "mismatch_policy": "treat any mismatch as a correctness bug and fix it without changing the frozen research rules"
+  },
+  "synthetic_regression_fixtures": ["simple high-span crossing", "low-span crossing", "both-span crossing", "first detection divergence", "breakout anchor divergence", "invalidation anchor divergence", "terminal-state divergence", "terminal-index cascade", "multi-lifecycle cascade"],
+  "synthetic_evidence_role": "CLASSIFIER_VALIDATION_ONLY_NOT_REAL_MARKET_EVIDENCE",
+  "output_schema": {
+    "required_artifacts": ["machine-readable protocol", "protocol SHA", "attribution capsule", "Chinese attribution report", "per-symbol lifecycle attribution", "root-cause summary", "cascade table or graph artifact", "counterfactual summary", "historical symptom concordance", "deterministic hashes"],
+    "capsule_required_sections": ["identity", "boundaries", "parity", "trace_conservation", "first_divergences", "lineage", "root_cause_summary", "cascade_summary", "counterfactual_summary", "historical_symptom_concordance", "largest_root_cause", "attribution_evidence_status", "attribution_evidence_rationale", "next_research_recommendation", "artifact_hashes"],
+    "row_order": "market, symbol, adjacent lower tolerance, adjacent upper tolerance, root lifecycle ordinal, bar index, lineage class",
+    "canonical_json": "UTF-8, object keys sorted, separators comma/colon, ensure_ascii=false, NaN and Infinity prohibited"
+  },
+  "stop_and_decision_states": {
+    "stop_conditions": ["instrumentation cannot be completed without changing production semantics", "the exact frozen holdout has an authenticity problem", "a new real governance blocker is found", "attribution has formed a Sol structural decision", "PR is fully ready"],
+    "ordinary_code_test_diagnostic_artifact_hash_failures_must_be_resolved": true,
+    "final_state": "PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION",
+    "create_new_pr": true,
+    "merge_prohibited": true
+  },
+  "integrity": {
+    "protocol_sha256": "sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe",
+    "hash_scope": "canonical JSON with the complete integrity object omitted"
+  }
+}

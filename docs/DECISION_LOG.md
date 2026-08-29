@@ -539,3 +539,15 @@
 **Boundary:** The second Phase 5J-v3 holdout remains exact and `FULLY_RECOVERABLE` according to the externally supplied cloud audit. Its dataset/replay/universe/protocol identities remain unchanged. Phase 5J-v3 remains development-only and structure-only with `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`; Final OOS, provider access, production changes, and Phase 5K-B1 remain out of scope.
 
 **Resolution condition:** Resume only when the exact frozen v4 protocol, source, and tests are restored or supplied in a repository-verifiable commit/path. Then re-read them, validate the holdout bindings, and continue under the existing as-of, causal, frozen-input, descriptive-only, and outcome-access boundaries.
+
+---
+
+## 2026-08-29
+
+### Decision: freeze the Phase 5J-v4 lifecycle attribution protocol before results
+
+**Correction:** The earlier `PHASE5J_V4_PROTOCOL_NOT_PRESENT` observation was factually correct about repository contents but incorrectly framed as a recovery blocker. Phase 5J-v4 had only completed Sol research design and had never been persisted, hashed, committed, implemented, or tested. The correct prior state is `PHASE5J_V4_PROTOCOL_NOT_YET_PERSISTED`; this is `NOT_AN_ARTIFACT_LOSS_EVENT`.
+
+**Decision:** Persist the supplied exact Sol specification as `research/protocols/setup03_phase5j_v4_lifecycle_attribution_protocol.json`, version `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`, canonical SHA-256 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`, with a concise Chinese companion and version/hash-pinned loader/tests. Freeze the exact second holdout identity, adjacent 3%→4% and 4%→5% pairs, FIRST_DIVERGENCE_BAR semantics, deterministic mutually exclusive root taxonomy, separate propagation taxonomy, research-only lineage, single-mechanism counterfactuals, historical symptom concordance scope, parity requirements, outputs, recommendations and stop state before any real holdout attribution is run.
+
+**Boundary:** This freeze task does not read real holdout attribution results, refetch early development v1, create a third dataset, access A1 formal OHLCV or Final OOS, read outcomes, change production SETUP_03, or modify Phase 5J-v3 matching/qualification. Real attribution may begin only after the independent commit `research: freeze Phase 5J-v4 lifecycle attribution protocol` exists.

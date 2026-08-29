@@ -5,12 +5,12 @@
 ## 1. Current Objective
 
 - **当前 Phase / task:** `Phase 5J-v4 — SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，继续使用已冻结的第二套 development holdout。其 persistent backup/recovery prerequisite 已由外部审计完成并登记。
-- **具体目标:** 读取并核对 Phase 5J-v4 的冻结 protocol、现有实现与测试，在 exact hash-pinned second holdout 上完成既定 descriptive/causal attribution 与 historical symptom concordance evidence；不把 development evidence 解释为 production decision。当前因仓库内未找到 v4 protocol/source/tests，执行尚未开始。
+- **具体目标:** 已按用户提供的 exact Sol specification 正式建立并冻结 Phase 5J-v4 protocol；在 protocol freeze 独立 commit 完成后，在 exact hash-pinned second holdout 上实施 read-only lifecycle attribution、counterfactual diagnostics 与 historical symptom concordance evidence，不把 development evidence 解释为 production decision。
 - **为什么现在做:** correctness-critical raw/normalized/replay payload 虽位于被 Git 忽略的 `artifacts/`，但 exact ZIP 已上传 Google Drive，并由外部审计独立重新读取且 SHA-256 一致，跨设备恢复 gate 已满足。
 - **Scope:** 仅使用现有 frozen protocol、second-holdout bundle、tracked provenance 与既有 research contracts；更新 v4 research evidence、registry/status/handoff/decision records，并为最终 review 准备 PR。
 - **明确禁止事项:** 不访问 provider；不重新获取或重生成 bars；不修改 frozen manifests、protocol、symbol roster、既有 capsule 或既有 canonical hashes；不访问 Final OOS；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不修改 production、Trading Core、Decision、execution 或 Google Sheets；不把近似重生成文件当作原 frozen artifact。
 - **完成条件:** Phase 5J-v4 frozen workflow 产生可审计的 machine-readable/report evidence，保留 causal/as-of/identity/invariant checks，测试与静态检查通过，治理记录与实际 Git/PR/CI/artifact 状态一致，并创建 PR（不 merge）。
-- **停止条件:** 发现 v4 protocol/implementation/evidence 缺失或冲突；任何 hash、binding、count、chronology 或 causal check 失败；遇到需要改变 frozen input、provider/data access、production rule、Final OOS 或重大研究解释的决策；或真实 Git/PR/CI 状态无法核对。
+- **停止条件:** instrumentation 无法在不改变 production semantics 下完成；exact frozen holdout 出现真实性问题；新的真实 governance blocker；attribution 已形成 Sol 结构决策；或 PR fully ready。普通代码、测试、diagnostic、artifact/hash 问题自行修复。
 
 ## 2. Current Repository State
 
@@ -20,11 +20,11 @@
 - **working branch:** `research/phase5j-v4-lifecycle-attribution`（仅本地）
 - **current HEAD:** `THIS_COMMIT`（治理 commits 已重放到刷新后的 `origin/main`；cloud-recovery correction 的当前重放 commit 为 `92a33940133485d9cd04228b2488cd3c40bb75b1`；以 `git rev-parse HEAD` 解析最终 tip）。
 - **PR:** `NONE` for current branch. Predecessor PR #30 was merged with merge commit `142b7345a5640b1e87932e41f3dc9311172bf54c`.
-- **latest exact-head CI:** `NONE` for current local tip `92a33940133485d9cd04228b2488cd3c40bb75b1` because the branch has not been pushed; predecessor run `33193832124` covered old head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba` and was `success`。
-- **latest remote main CI:** run `33195350848`, head `142b7345a5640b1e87932e41f3dc9311172bf54c`, `success`。
-- **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `bb006ae5ca61e76192c751e9bd818584fc42f051`, exact-head CI run `33248386042` success；它不属于当前 checkout。
+- **latest exact-head CI:** `NONE` for the current local tip because the branch has not been pushed; predecessor run `33193832124` covered old head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba` and was `success`。
+- **latest remote main CI:** run `33232320454`, head `142b7345a5640b1e87932e41f3dc9311172bf54c`, `success`。
+- **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head CI run `33248943280` success；它不属于当前 checkout。
 - **working tree expected state:** tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
-- **current project/phase status:** V0.2 production pipeline 已运行；Phase 5J-v3 holdout 已合并但结构资格结果需要 Sol 决策；second-holdout backup 已由外部审计验证为 `FULLY_RECOVERABLE`；用户已授权继续 Phase 5J-v4，但仓库中未找到其 frozen protocol/source/tests，当前执行被 `PHASE5J_V4_PROTOCOL_NOT_PRESENT` 阻塞；formal validation、Final OOS、Phase 5K-B1 仍未执行。
+- **current project/phase status:** V0.2 production pipeline 已运行；Phase 5J-v3 holdout 已合并但结构资格结果需要 Sol 决策；second-holdout backup 已由外部审计验证为 `FULLY_RECOVERABLE`。Phase 5J-v4 不是 artifact loss：此前只有 Sol 设计、尚未落库，现已建立 protocol `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`，状态 `LIFECYCLE_ATTRIBUTION_PROTOCOL_FROZEN_NOT_EXECUTED`；formal validation、Final OOS、Phase 5K-B1 仍未执行。
 
 ## 3. Completed Work
 
@@ -33,20 +33,20 @@
 - 本地 recovery bundle 已生成：`artifacts/frozen_backups/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip`，3,086,881 bytes，ZIP SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；bundle 含 5 个文件，成员 hash 见 registry/recovery manifest。
 - 外部 ChatGPT 审计已将 exact ZIP bytes 上传 Google Drive `交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/`，file ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`；独立重新读取后的 recovered ZIP SHA-256 与上传前完全一致。该 session 不重复访问 Google Drive。
 - 本次治理初始化与本轮 cloud recovery correction：新增/更新治理文件与 governance test；不改变业务逻辑和 frozen artifact bytes。治理修正 commit 使用 `THIS_COMMIT`，实际 SHA 以 Git 为准。
+- Phase 5J-v4 exact Sol specification 已落为 machine-readable protocol、中文说明、hash-pinned loader 与 protocol regression tests；canonical protocol SHA-256 为 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`。本独立 freeze task 未运行真实 holdout attribution。
 
 ## 4. Pending Work
 
 ### Required Next
 
-1. 读取并核对 Phase 5J-v4 protocol、现有 research implementation 与 tests，确认 scope、输入、输出与禁止的 outcome access。
-2. 使用 registry 中已验证的 exact second-holdout identity，运行既定 Phase 5J-v4 causal attribution / historical symptom concordance workflow；不得重新抓取或重生成输入。
+1. 在 protocol freeze commit 后实现 read-only lifecycle trace、FIRST_DIVERGENCE_BAR、root/propagation classifier、lineage 与单机制 counterfactual，并用 synthetic fixtures 验证分类器。
+2. 使用 registry 中已验证的 exact second-holdout identity，运行冻结的 Phase 5J-v4 causal attribution / historical symptom concordance workflow；不得重新抓取或重生成输入。
 3. 保存 machine-readable evidence/report、运行 loader/cross-binding/chronology/causal checks 与完整测试，检查是否触发 Sol/研究决策 blocker。
 4. 更新 `docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md`、`HANDOFF.md` 与必要 registry provenance，再核对真实 Git/PR/CI/artifact。
 5. 完成 PR-ready 检查后创建 PR；不 merge，不扩大到 Final OOS、provider、production 或 Phase 5K-B1。
 
 ### Deferred
 
-- Phase 5J-v4 lifecycle attribution：用户已确认正式任务名为 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，但当前 checkout、所有 refs、reflog/unreachable commits、已有 artifacts 和原始任务附件均未找到对应 protocol/source/tests；未自行补造规则。
 - Sol 对 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` 的决定。
 - Formal Phase 5K-B1、Final OOS、IBKR readiness 和任何 production parameter/strategy change。
 
@@ -90,10 +90,15 @@
 | `docs/DECISION_LOG.md` | 记录本次治理设计的长期理由 | governance / decision history |
 | `docs/FROZEN_ARTIFACT_POLICY.md` | artifact 恢复与状态规则 | governance / protocol |
 | `docs/FROZEN_ARTIFACT_REGISTRY.json` | 当前重要 artifact 的机器可读 identity/status | governance / registry |
+| `research/protocols/setup03_phase5j_v4_lifecycle_attribution_protocol.json` | Phase 5J-v4 machine-readable frozen protocol | research protocol；真实 attribution 前冻结 |
+| `research/protocols/setup03_phase5j_v4_lifecycle_attribution_protocol.md` | Phase 5J-v4 中文协议说明 | research protocol documentation |
+| `research/phase5j_v4_protocol.py` | version/hash/invariant loader | research-only integrity gate |
+| `tests/test_phase5j_v4_protocol.py` | protocol immutability regression | research protocol tests |
 
 ## 7. Frozen Identities And Invariants
 
 - Phase 5J-v3 event-matching protocol: `SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1`, canonical SHA-256 `sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816`。
+- Phase 5J-v4 lifecycle-attribution protocol: `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`, canonical SHA-256 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`；state `LIFECYCLE_ATTRIBUTION_PROTOCOL_FROZEN_NOT_EXECUTED`。
 - Holdout universe: `SETUP_03-DEVELOPMENT-HOLDOUT-CN-US-2026-08-29-v2`, manifest SHA-256 `sha256:aca071eea6e93b8beecf7c2925a86f006e242a031fe32b5f2e33423037d00a65`；symbol-list SHA-256 `sha256:dc81b5b8c96408b0d18a161f946aeaf5ad616060d82cd6b6f8497a5b26bef036`。
 - Dataset: `SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1`，canonical manifest SHA-256 `sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f`，normalized aggregate `sha256:b08832bdad7c2a857d7b60fc7b56a75d09594ee648008ab852bde4a8a56405b1`，replay aggregate `sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2`。
 - Dataset coverage: CN 20 / 41,274 bars；US 20 / 45,031 bars；total 40 symbols / 86,305 bars；provider split is `BAOSTOCK_DEVELOPMENT_QFQ` / `YFINANCE_DEVELOPMENT_HISTORICAL`。
@@ -108,7 +113,7 @@
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | local `origin/main` 已刷新为 GitHub remote main `142b734…`；current branch 已重放到该基线，但 current tip 尚无 exact-head CI | push 后等待匹配 `headSha` 的 CI；在此之前不声称 current PR-ready | Blocks PR readiness, not blocker documentation |
 | research/design blocker | `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` | wait for explicit Sol decision; preserve current evidence | Yes for parameter/strategy changes; descriptive v4 attribution remains bounded by the frozen contract |
-| unresolved ambiguity | `PHASE5J_V4_PROTOCOL_NOT_PRESENT`; only the phase name is available, with no repository-verifiable protocol/source/tests | provide or restore the exact frozen v4 protocol/implementation/test location or commit; do not invent causal/symptom rules | Yes, blocks v4 execution and PR readiness |
+| protocol persistence | Earlier v4 design had not been persisted; this was `PHASE5J_V4_PROTOCOL_NOT_YET_PERSISTED`, `NOT_AN_ARTIFACT_LOSS_EVENT` | exact Sol specification is now version/hash frozen; attribution may begin only after the freeze commit | No after freeze commit |
 | project coordination | PR #31 is an independent OPEN hotfix; current branch has PR `NONE` | do not mix worktrees or infer current branch status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
@@ -168,9 +173,9 @@
 
 1. `git status --short --branch`，若并行 `.hotfix-worktree/` 重新出现则保持隔离，确认没有未授权删除/覆盖。
 2. `git fetch origin main`，确认 GitHub `main@142b7345…` 与本地 ref，并重算 current branch/base 关系。
-3. 定位并读取 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` 的 exact frozen protocol、source 和 tests；当前仓库核对未找到，不能自行设计替代物，也不重复访问 Google Drive。
-4. 只有 protocol/source/tests 可核对后，才使用 registry 中的 exact second-holdout identity 执行 v4，并保持 as-of、causal、frozen-input、descriptive-only 与 outcome-access 边界。
-5. protocol blocker 解除且 v4 evidence 完成后，再更新治理与研究 evidence、核对 PR/CI/artifact，创建 PR 后停止，不 merge。
+3. 提交独立 protocol freeze commit `research: freeze Phase 5J-v4 lifecycle attribution protocol`；该 commit 前不读取真实 holdout attribution 结果。
+4. freeze commit 后实现并验证 research-only lifecycle attribution，再使用 registry 中的 exact second-holdout identity 执行 v4，保持 as-of、causal、frozen-input、descriptive-only 与 outcome-access 边界。
+5. v4 evidence 完成后更新治理与研究 evidence、核对 PR/CI/artifact，创建 PR 后停止，不 merge。
 
 ## 11. Handoff Checklist
 
@@ -192,8 +197,8 @@
 - `last_updated_at`: `2026-08-29T19:33:55+08:00`
 - `verified_main_sha`: `142b7345a5640b1e87932e41f3dc9311172bf54c`
 - `verified_branch_head`: `THIS_COMMIT`（以 `git rev-parse HEAD` 解析最终 reconciliation commit；治理前 working HEAD 为 `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`）
-- `latest_test_result`: governance `4/4`、full `unittest` `288/288`、compileall、registry JSON、frozen hash 与 `git diff --check` 已通过（含本次 protocol blocker 记录）
-- `latest_ci_run`: `33195350848` on remote main success；current checkout exact-head `33193832124` success
-- `updated_by_task`: `docs: record Phase 5J-v4 protocol blocker`
+- `latest_test_result`: Phase 5J-v4 protocol + governance focused tests `9/9` passed；canonical protocol hash recomputation、JSON parse 与 `git diff --check` passed；previous full `unittest` `288/288`
+- `latest_ci_run`: `33232320454` on remote main success；current local tip has no exact-head CI
+- `updated_by_task`: `research: freeze Phase 5J-v4 lifecycle attribution protocol`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
