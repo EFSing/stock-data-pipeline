@@ -488,6 +488,187 @@ class DecisionPipelineTests(unittest.TestCase):
 
 
 class LatestOnlyPipelineTests(unittest.TestCase):
+    def test_latest_only_both_sources_stale_after_weekday_close_is_partial(self):
+        config = {
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+        }
+        watch = {
+            "启用": True,
+            "市场": "US",
+            "主数据源": "yfinance",
+            "校验数据源": "Tencent",
+            "时区": "America/New_York",
+            "收盘时间": "16:00",
+            "统一代码": "STALE_BOTH",
+        }
+        fetched_at = datetime(2026, 9, 1, 0, 30, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("providers.fetch_with_retry") as full_fetch,
+            patch("main.evaluate_set03_decision") as evaluate,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = config
+            client.records.return_value = [watch]
+            client.upsert_latest.return_value = 1
+            latest_fetch.side_effect = lambda source, current_watch, *_args: [
+                replace(
+                    quote(source=source, day=date(2026, 8, 28)),
+                    symbol=current_watch["统一代码"],
+                )
+            ]
+
+            summary = run("us", mode="latest")
+
+        self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
+        self.assertEqual(summary["verified"], 0)
+        self.assertEqual(summary["single_source_current"], 0)
+        self.assertEqual(summary["pending_review"], 1)
+        self.assertEqual(summary["history_rows_written"], 0)
+        self.assertEqual(summary["decision_rows_written"], 0)
+        row = client.upsert_latest.call_args.args[0][0]
+        self.assertEqual(row["交易日期"], date(2026, 8, 28))
+        self.assertEqual(row["校验状态"], "待复核")
+        self.assertIn("普通日历freshness guard2026-08-31", row["备注"])
+        self.assertNotEqual(summary["status"], "SUCCESS")
+        full_fetch.assert_not_called()
+        evaluate.assert_not_called()
+        client.upsert_history.assert_not_called()
+        client.upsert_decisions.assert_not_called()
+
+    def test_latest_only_saturday_both_sources_thursday_is_partial(self):
+        config = {
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+        }
+        watch = {
+            "启用": True,
+            "市场": "US",
+            "主数据源": "yfinance",
+            "校验数据源": "Tencent",
+            "时区": "America/New_York",
+            "收盘时间": "16:00",
+            "统一代码": "THURSDAY_ONLY",
+        }
+        fetched_at = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = config
+            client.records.return_value = [watch]
+            client.upsert_latest.return_value = 1
+            latest_fetch.side_effect = lambda source, current_watch, *_args: [
+                replace(
+                    quote(source=source, day=date(2026, 8, 27)),
+                    symbol=current_watch["统一代码"],
+                )
+            ]
+
+            summary = run("us", mode="latest")
+
+        self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
+        self.assertEqual(summary["verified"], 0)
+        self.assertEqual(summary["pending_review"], 1)
+        row = client.upsert_latest.call_args.args[0][0]
+        self.assertEqual(row["校验状态"], "待复核")
+        self.assertIn("普通日历freshness guard2026-08-28", row["备注"])
+
+    def test_latest_only_newer_monday_source_remains_single_source_pending(self):
+        config = {
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+        }
+        watch = {
+            "启用": True,
+            "市场": "US",
+            "主数据源": "yfinance",
+            "校验数据源": "Tencent",
+            "时区": "America/New_York",
+            "收盘时间": "16:00",
+            "统一代码": "MONDAY_CURRENT",
+        }
+        fetched_at = datetime(2026, 9, 1, 0, 30, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = config
+            client.records.return_value = [watch]
+
+            def fetch_result(source, current_watch, *_args):
+                day = date(2026, 8, 31) if source == "yfinance" else date(2026, 8, 28)
+                return [replace(quote(source=source, day=day), symbol=current_watch["统一代码"])]
+
+            latest_fetch.side_effect = fetch_result
+            summary = run("us", mode="latest")
+
+        self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
+        self.assertEqual(summary["verified"], 0)
+        self.assertEqual(summary["single_source_current"], 1)
+        self.assertEqual(summary["pending_review"], 1)
+        row = client.upsert_latest.call_args.args[0][0]
+        self.assertEqual(row["交易日期"], date(2026, 8, 31))
+        self.assertEqual(row["校验状态"], "待复核")
+        self.assertIn("校验源日期滞后", row["备注"])
+        self.assertNotIn("普通日历freshness guard", row["备注"])
+
+    def test_latest_only_future_source_cannot_hide_calendar_staleness_of_old_source(self):
+        config = {
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+        }
+        watch = {
+            "启用": True,
+            "市场": "US",
+            "主数据源": "yfinance",
+            "校验数据源": "Tencent",
+            "时区": "America/New_York",
+            "收盘时间": "16:00",
+            "统一代码": "FUTURE_PLUS_OLD",
+        }
+        fetched_at = datetime(2026, 9, 1, 0, 30, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = config
+            client.records.return_value = [watch]
+
+            def fetch_result(source, current_watch, *_args):
+                day = date(2026, 9, 1) if source == "yfinance" else date(2026, 8, 28)
+                return [replace(quote(source=source, day=day), symbol=current_watch["统一代码"])]
+
+            latest_fetch.side_effect = fetch_result
+            summary = run("us", mode="latest")
+
+        self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
+        self.assertEqual(summary["verified"], 0)
+        self.assertEqual(summary["pending_review"], 1)
+        self.assertEqual(summary["stale_sources_rejected"], 1)
+        row = client.upsert_latest.call_args.args[0][0]
+        self.assertEqual(row["交易日期"], date(2026, 8, 28))
+        self.assertEqual(row["校验状态"], "待复核")
+        self.assertIn("未来交易日行情已拒绝", row["备注"])
+        self.assertIn("普通日历freshness guard2026-08-31", row["备注"])
+
     def test_latest_only_chooses_newer_source_without_fake_verification(self):
         config = {
             "retry_count": "1",
@@ -515,7 +696,7 @@ class LatestOnlyPipelineTests(unittest.TestCase):
                 "统一代码": "VERIFIER_STALE",
             },
         ]
-        fetched_at = datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+        fetched_at = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
         with (
             patch("sheets_client.SheetsClient") as client_class,
             patch("providers.fetch_latest_with_retry") as latest_fetch,
@@ -585,7 +766,7 @@ class LatestOnlyPipelineTests(unittest.TestCase):
             "收盘时间": "16:00",
             "统一代码": "TEST",
         }
-        fetched_at = datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+        fetched_at = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
         with (
             patch("sheets_client.SheetsClient") as client_class,
             patch("providers.fetch_latest_with_retry") as latest_fetch,

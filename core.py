@@ -131,6 +131,39 @@ def expected_latest_trade_date(
     return local_now.date() if local_now >= close_at else None
 
 
+def ordinary_calendar_freshness_guard(
+    timezone_name: str,
+    close_time_text: str,
+    fetched_at: datetime,
+    buffer_minutes: int = 20,
+) -> date:
+    """Return a deterministic ordinary-calendar freshness date.
+
+    This is a freshness guard only.  It does not assert that the market was
+    open on the returned weekday and deliberately does not use an exchange
+    holiday calendar.
+    """
+    zone = ZoneInfo(timezone_name)
+    local_now = fetched_at.astimezone(zone)
+    guard_date = local_now.date()
+    if local_now.weekday() >= 5:
+        while guard_date.weekday() >= 5:
+            guard_date -= timedelta(days=1)
+        return guard_date
+
+    hour, minute = (int(part) for part in close_time_text.split(":", 1))
+    close_at = datetime.combine(
+        guard_date, time(hour, minute), zone
+    ) + timedelta(minutes=buffer_minutes)
+    if local_now >= close_at:
+        return guard_date
+
+    guard_date -= timedelta(days=1)
+    while guard_date.weekday() >= 5:
+        guard_date -= timedelta(days=1)
+    return guard_date
+
+
 def latest_completed_market_session(
     timezone_name: str,
     close_time_text: str,
@@ -143,7 +176,9 @@ def latest_completed_market_session(
     This deliberately does not manufacture exchange holidays or infer a
     weekday's session from wall-clock time.  A quote dated today is accepted
     only after that market's close buffer; on weekends and delayed runs the
-    newest valid observed source date remains the freshness target.
+    newest valid observed source date remains the source-evidence result.  It
+    must be compared with ``ordinary_calendar_freshness_guard`` before a
+    production latest row can be marked verified.
     """
     zone = ZoneInfo(timezone_name)
     local_now = fetched_at.astimezone(zone)

@@ -12,13 +12,14 @@ GitHub Actions scheduler (cron)
 SheetsClient.config() / records("自选清单")          ← Google Sheets
         ↓
 对每个自选标的 (启用=True 且市场∈目标组):
-    latest_completed_market_session()               [core: source-date evidence]
     fetch_latest_with_retry(主数据源)                [providers: latest mode]
     fetch_latest_with_retry(校验数据源)              [providers: latest mode]
         → yfinance → YahooChart 回退
         → BaoStock (仅 A股)
         → Tencent / Sina 快照回退 (CN/HK/US)
         ↓
+    latest_completed_market_session()               [core: source-date evidence]
+    ordinary_calendar_freshness_guard()             [core: ordinary-calendar lower bound]
     validate_quotes(primary, verifier)              [core]
     quote_sanity_issue(primary / verifier)           [core]
     fresher_quote(primary, verifier)                 [core: 日期优先；同日质量优先]
@@ -41,7 +42,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 ### Execution modes
 
-`--mode latest` 是亚洲/欧美 scheduled workflow 的生产路径：只读取自选清单，使用短窗口 latest quote provider，执行 source-date freshness、双源校验和最新行情写入，并追加校验记录/运行日志。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且 `history_rows_written=0`。
+`--mode latest` 是亚洲/欧美 scheduled workflow 的生产路径：只读取自选清单，使用短窗口 latest quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、双源校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar guard 时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市且不推断节假日。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且 `history_rows_written=0`。
 
 `--mode full` 保留需要历史数据的手动路径，继续执行未复权历史、qfq、SETUP_03 和 Decision。它不由 daily schedule 调用；workflow_dispatch 可显式选择该模式。
 
@@ -105,8 +106,9 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `validate_quotes()`：双源校验（日期、收盘价、成交量容差）
 - `relative_diff()`、`latest_quote()`
 - `fresher_quote()`：先比较有效交易日期；同日主源字段异常而校验源正常时采用校验源，两源均正常或均异常时保持主源
-- `market_close_confirmed()`、`expected_latest_trade_date()`：收盘时间与时区判断；生产 freshness 使用 evidence-based `latest_completed_market_session()`，不依赖延迟运行时的 weekday
-- `latest_completed_market_session()`：只从有效 source quote date 推导已完成市场 session，收盘前排除当日、周末保留最近有效日期、未来日期 fail closed，不猜节假日
+- `market_close_confirmed()`、`expected_latest_trade_date()`：收盘时间与时区判断；后者的无 observation 形式保留兼容用途
+- `ordinary_calendar_freshness_guard()`：按本地 weekday、收盘 buffer 返回 ordinary-calendar freshness 下限；不使用交易所节假日 calendar，不声明返回日期实际开市
+- `latest_completed_market_session()`：只从有效 source quote date 推导 source-evidence 结果，收盘前排除当日、未来日期 fail closed；生产 latest 必须另与 ordinary-calendar guard 比较，不把 source consensus 等同于 freshness proof
 - `quote_sanity_issue()`：OHLCV 字段一致性检查
 - 依赖：仅标准库
 

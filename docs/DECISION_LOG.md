@@ -8,13 +8,17 @@
 
 **Reason:** 每日生产任务不应因更新最新行情而重写多年历史或触发策略计算。隔离执行边界可独立恢复持仓行情中台，并保留现有 full/history/strategy semantics。
 
-**Decision:** latest freshness 只使用有效 source quote 的已完成交易日期：先比较 `trade_date`，再应用 provider priority；不同日期时采用更新来源但状态保持 `待复核`，并记录“最新交易日仅单源可用”。同日才执行既有价格/成交量容差校验；不降低任何 validation threshold，不修改用户 Sheet 中的主源/校验源配置。
+**Decision:** latest 的来源选择仍先使用有效 source quote 的已完成交易日期：先比较 `trade_date`，再应用 provider priority；不同日期时采用更新来源但状态保持 `待复核`，并记录“最新交易日仅单源可用”。该 source evidence 结果不单独构成 freshness proof；同日才执行既有价格/成交量容差校验；不降低任何 validation threshold，不修改用户 Sheet 中的主源/校验源配置。
 
 **Reason:** provider priority 是 preference，不是 freshness validity。周末延迟运行不能由 wall-clock weekday 将 freshness guard 变成 `None`；缺少可靠交易所日历时，不能猜节假日或把单源最新行情伪装为双源已验证。
 
 **Decision:** `latest_completed_market_session()` 在收盘前排除当日、在周末/延迟运行保留最近有效 source date，并拒绝未来日期；`expected_latest_trade_date()` 的无 source-observation 兼容语义保留给现有 research caller，生产 latest 编排不再将其作为 freshness guard。
 
-**Reason:** 这是不引入交易所假日猜测的 deterministic fail-closed 方案，同时覆盖 Friday 正常收盘、延迟到 Saturday、Monday 收盘前、weekday 收盘后、weekend、stale source、same-date source 与 future-dated source。
+**Reason:** source-date evidence 是来源选择基础，但不能证明双源已经追上当前普通日历日期；因此不能把 source-only 逻辑称为 fully fail-closed。
+
+**Amendment:** Sol re-audit 发现双源都停在旧普通交易日时，单纯取 source observations 最大日期会把 stale-both 误标为 `已验证/SUCCESS`。PR #31 新增 `ordinary_calendar_freshness_guard()`：weekday 收盘 buffer 后返回当天、weekday 收盘前返回最近前一 weekday、周六/周日返回最近 Friday。该 guard 与 source evidence 分开，只作为 freshness 下限，不声明该日一定实际开市，也不引入交易所节假日猜测。有效 source date 早于 guard 时，latest 仍可保留最新可用行情用于显示，但强制 `待复核/PARTIAL_DATA_QUALITY`；future date 继续拒绝，source freshness 仍优先于 provider priority。
+
+**Evidence / Boundary:** regression A-F 覆盖 Monday after close 双源 Friday、Saturday 双源 Friday、Saturday 双源 Thursday、Monday before close Friday、Monday after close 一源 Monday/一源 Friday、future source + legal old source。latest-only 的 `history_rows_written=0`、无 qfq/SETUP_03/Decision 保持不变；full、用户 Sheet source 配置、SETUP_03、研究/frozen artifacts、Phase 5J-v4 与 Final OOS 均未修改。当前停止在 `PR_31_READY_FOR_SOL_RE_AUDIT`，等待 Sol re-audit 后再决定 squash merge。
 
 **Dependency audit:** scheduled run `33211501615` 的已记录安装结果为 `yfinance 1.7.0`，而 `requirements.txt` 仍是 `yfinance>=0.2.65`。本 hotfix regression/smoke 未证明 exact pin 的兼容安全性，因此本 PR 不盲目 pin；将版本 pinning 作为 follow-up risk。
 

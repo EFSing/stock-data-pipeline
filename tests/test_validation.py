@@ -9,6 +9,7 @@ from core import (
     expected_latest_trade_date,
     fresher_quote,
     latest_completed_market_session,
+    ordinary_calendar_freshness_guard,
     quote_sanity_issue,
     validate_quotes,
 )
@@ -156,6 +157,40 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(
             expected_latest_trade_date(
                 "Asia/Shanghai", "16:00", fetched_at, observed_quotes=observed
+            ),
+            date(2026, 8, 28),
+        )
+
+    def test_ordinary_calendar_guard_is_deterministic_without_exchange_calendar(self):
+        self.assertEqual(
+            ordinary_calendar_freshness_guard(
+                "Asia/Shanghai",
+                "16:00",
+                datetime(2026, 8, 31, 10, 0, tzinfo=timezone.utc),
+            ),
+            date(2026, 8, 31),
+        )
+        self.assertEqual(
+            ordinary_calendar_freshness_guard(
+                "Asia/Shanghai",
+                "16:00",
+                datetime(2026, 8, 31, 7, 0, tzinfo=timezone.utc),
+            ),
+            date(2026, 8, 28),
+        )
+        self.assertEqual(
+            ordinary_calendar_freshness_guard(
+                "Asia/Shanghai",
+                "16:00",
+                datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc),
+            ),
+            date(2026, 8, 28),
+        )
+        self.assertEqual(
+            ordinary_calendar_freshness_guard(
+                "Asia/Shanghai",
+                "16:00",
+                datetime(2026, 8, 30, 1, 0, tzinfo=timezone.utc),
             ),
             date(2026, 8, 28),
         )

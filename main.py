@@ -12,6 +12,7 @@ from core import (
     latest_quote,
     latest_completed_market_session,
     market_close_confirmed,
+    ordinary_calendar_freshness_guard,
     quote_sanity_issue,
     validate_quotes,
 )
@@ -347,6 +348,20 @@ def run(group: str, mode: str = "full") -> dict:
             })
             continue
 
+        calendar_stale_note = ""
+        if mode == "latest":
+            calendar_guard = ordinary_calendar_freshness_guard(
+                str(watch["时区"]),
+                str(watch["收盘时间"]),
+                fetched_at,
+            )
+            if completed_date < calendar_guard:
+                calendar_stale_note = (
+                    f"有效来源最新日期{completed_date.isoformat()}"
+                    f"早于普通日历freshness guard{calendar_guard.isoformat()}；"
+                    "不推断交易所节假日，行情仅保留显示并待复核"
+                )
+
         primary = latest_quote(primary_quotes, max_trade_date=completed_date)
         verifier = latest_quote(verifier_quotes, max_trade_date=completed_date)
         if primary is not None and verifier is not None and primary.trade_date != verifier.trade_date:
@@ -387,6 +402,8 @@ def run(group: str, mode: str = "full") -> dict:
             displayed_status = "待复核"
         if future_note:
             displayed_status = "待复核"
+        if calendar_stale_note:
+            displayed_status = "待复核"
 
         freshness_single_source = "最新交易日仅单源可用" in result.note
         if displayed_status == "已验证":
@@ -411,6 +428,7 @@ def run(group: str, mode: str = "full") -> dict:
             (
                 result.note,
                 stale_note,
+                calendar_stale_note,
                 sanity_note,
                 future_note,
                 source_selection_note,
@@ -442,6 +460,7 @@ def run(group: str, mode: str = "full") -> dict:
                 for item in (
                     result.note,
                     stale_note,
+                    calendar_stale_note,
                     sanity_note,
                     future_note,
                     source_selection_note,

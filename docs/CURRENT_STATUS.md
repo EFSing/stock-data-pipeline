@@ -26,7 +26,7 @@ V0.2
 - SETUP_03 审计整改 PR #12 已合并；带真实 Secrets 的 3 年只读 replay 在生产参数 `platform_tolerance_pct=0` 下客观为 `events=0`
 - Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics（PR #13 已合并）：直接消费统一 CONFIRMED 事件流水；T 日生产 Decision gate 后，仅 `ENTRY_ALLOWED` 在 T+1 Open 尝试三分支执行。真实 Core → ReplayEvent → EXECUTED 集成测试、CONFIRMED → Decision → T+1 守恒漏斗、退出 bar 保守 MFE/MAE 与实际 `observation_days` 口径均已冻结；真实 3 年只读 workflow `32747728644`（9 标的/6037 bars）：生产参数 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；固定 54 组累计 `206 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，计数守恒且不排名、不优化、不改生产参数
 - Development Strategy Stability Evidence（当前 development branch）：以 A1 v2 保存的官方 source snapshots 为唯一候选来源，先排除全部 120 个 A1 formal identities，再按新的固定 SHA-256 非信号规则冻结 CN/US 各 20 个 development symbols；universe manifest `sha256:0dde6a822ae57a7f048aa7b5097a69624138e3b8566602ad1fba25ee3b473046`、symbol list `sha256:03f9d0973340d27c04e9d53c86722100c0b0e6c42d7249147409781a73e904d5`，计算交集为空。未使用 IBKR、final OOS 或 formal Phase 5K 数据。
-- P0 `HOLDINGS_MARKET_DATA_PRODUCTION_STABILITY_HOTFIX`（PR #31，branch `hotfix/production-market-data-stability`，base `main@142b7345a5640b1e87932e41f3dc9311172bf54c`）：完成 freshness-first source selection、delayed/weekend fail-closed semantics、独立 latest/full execution mode、scheduled latest-only workflow、质量摘要与 regression coverage。状态：`PRODUCTION_MARKET_DATA_HOTFIX_READY_FOR_SOL_AUDIT`；未写生产 Sheet，未运行 Phase 5J-v4、SETUP_03 research 或 Final OOS。
+- P0 `HOLDINGS_MARKET_DATA_PRODUCTION_STABILITY_HOTFIX`（PR #31，branch `hotfix/production-market-data-stability`，base `main@142b7345a5640b1e87932e41f3dc9311172bf54c`）：保留 freshness-first source selection、独立 latest/full execution mode 与 scheduled latest-only workflow；新增与 source evidence 分离的 deterministic ordinary-calendar freshness guard，双源共同落后于 guard 时仅保留行情显示并标记 `待复核/PARTIAL_DATA_QUALITY`。已覆盖 stale-both、weekend、before-close、single-source-current 与 future-date regression。状态：`PR_31_READY_FOR_SOL_RE_AUDIT`；未写生产 Sheet，未运行 Phase 5J-v4、SETUP_03 research 或 Final OOS。`HANDOFF_CURRENT_AND_CONSISTENT`。
 
 ## In Progress
 
@@ -55,6 +55,7 @@ V0.2
 
 ## Next
 
+- PR #31 等待 Sol re-audit；approved 后才允许 squash merge。Phase 5J-v4 暂停且未修改，Final OOS 保持 sealed/unread。
 - 等待 Sol 对 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` 的正式决定；在新授权前不改 SETUP_03、不启动 Final OOS 或 Phase 5K-B1
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
