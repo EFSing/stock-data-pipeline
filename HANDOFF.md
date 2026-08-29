@@ -26,12 +26,12 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@21c73977195682df576750648765b1b74d8824e2`；该 SHA 是 PR #32 的 squash merge commit，父提交为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
 - **working branch:** `research/setup03-atr-boundary-redesign`（当前研究分支）。
-- **current HEAD:** `f003dc4` (`research: close out ATR boundary structural qualification`)；最终完整治理 reconciliation tip 仍以 `git rev-parse HEAD` 为准。
-- **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` 已关闭并 squash merge，merge commit `21c73977195682df576750648765b1b74d8824e2`。当前 v5 分支尚未创建 PR；独立 PR #31 `hotfix/production-market-data-stability` 仍保持分离。
-- **latest remote main CI:** run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，completed `success`。
+- **current HEAD:** `THIS_COMMIT`（当前 closeout reconciliation 提交的真实 SHA 必须以 `git rev-parse HEAD` 解析）。
+- **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` 已关闭并 squash merge，merge commit `21c73977195682df576750648765b1b74d8824e2`。当前 v5 PR #33 `stop ATR boundary structural development` 为 OPEN、base `main`；独立 PR #31 `hotfix/production-market-data-stability` 仍保持分离。
+- **latest remote main CI:** run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，completed `success`；v5 exact-head CI 在最终 closeout push 后核对，并以最终 head matching run 为准。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head CI run `33248943280` success；它不属于当前 checkout。
 - **working tree expected state:** tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
-- **current project/phase status:** PR #32 的 v4 状态为 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`，已按用户授权完成 squash merge；当前 v5 为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED` / clean universe `FROZEN_NOT_ACQUIRED`。formal validation、Final OOS、Phase 5K-B1 仍未执行。
+- **current project/phase status:** PR #32 的 v4 状态为 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`，已按用户授权完成 squash merge；当前 v5 qualification 已完成并为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。formal validation、Final OOS、Phase 5K-B1 仍未执行。
 
 ## 3. Completed Work
 
@@ -134,11 +134,11 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #32 main push run `33259644890` 已覆盖 squash merge SHA `21c7397719…` 并成功；当前 v5 分支尚未有最终 exact-head CI | v5 push 后只接受 `headSha == final HEAD` 的 CI | Blocks final PR readiness until exact-head success |
+| environment / verification | PR #32 main push run `33259644890` 已覆盖 squash merge SHA `21c7397719…` 并成功；PR #33 final closeout push 后必须核对 matching exact-head CI | 只接受 `headSha == final HEAD` 的 CI；最终 run 以 GitHub PR/Actions 事实为准 | Blocks final PR readiness until exact-head success |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | 当前已到 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；没有 candidate 可带入 formal validation | 创建 PR、核对 exact-head CI，然后停；不启动 formal validation、B1 或 Final OOS | Yes after PR readiness |
-| project coordination | PR #31 is an independent OPEN hotfix；当前研究 PR 为 #32 | do not mix worktrees or infer PR #32 status from PR #31 | No, if kept separate |
+| Sol / user decision node | 当前已到 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；没有 candidate 可带入 formal validation | PR #33 exact-head CI 成功后停止；不启动 formal validation、B1 或 Final OOS | Yes after PR readiness |
+| project coordination | PR #31 is an independent OPEN hotfix；当前研究 PR 为 #33 | do not mix worktrees or infer PR #33 status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
 ## 9. Lessons / Pitfalls — DO NOT REPEAT
@@ -218,9 +218,9 @@
 
 - `last_updated_at`: `2026-08-30T00:08:40+08:00`
 - `verified_main_sha`: `21c73977195682df576750648765b1b74d8824e2`
-- `verified_branch_head`: `f003dc4`；branch=`research/setup03-atr-boundary-redesign`
+- `verified_branch_head`: `THIS_COMMIT`（branch=`research/setup03-atr-boundary-redesign`；真实 SHA 以 Git 解析）
 - `latest_test_result`: full unittest `326/326` passed；qualification parity `280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches`；deterministic repeat `PASS`；compile/hash/diff checks passed
-- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；v5 final head exact-head CI pending push
+- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；PR #33 final head exact-head CI 在最终 push 后核对并记录于最终报告
 - `updated_by_task`: `research: close out SETUP_03 ATR boundary structural qualification`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
