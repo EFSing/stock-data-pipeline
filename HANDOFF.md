@@ -25,7 +25,7 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；该 SHA 是 PR #33 的 squash merge commit，父提交为 `21c73977195682df576750648765b1b74d8824e2`。
 - **working branch:** `hotfix/production-holdings-session-date`（从上述最新 main 独立建立）。
-- **current HEAD:** hotfix 实现 commit 为 `a9a7a06d546412d4de390029baaa5ff4d44ee263`；其后仅有最终治理同步文档更新，不再改变生产代码。
+- **current HEAD:** hotfix 的最后生产实现 commit 为 `a9a7a06d546412d4de390029baaa5ff4d44ee263`；其后仅有最终治理同步文档更新，当前远端 tip 不再包含生产代码变化。
 - **PR:** #33 `Phase 5J-v5: stop ATR boundary structural development` 已关闭并 squash merge，merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；旧 PR #31 `hotfix/production-market-data-stability` 仍 `OPEN / DIRTY / CONFLICTING`、base `142b7345a5640b1e87932e41f3dc9311172bf54c`，未直接移植或 merge；当前 PR #34 为 `OPEN / CLEAN / MERGEABLE`。
 - **latest remote main CI:** run `33264260330`，head `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，completed `success`。
 - **独立旧 PR:** #31 `hotfix/production-market-data-stability` head `79ad70cc71171a10f232e02e752f795849bf706d`，旧 base `142b7345a5640b1e87932e41f3dc9311172bf54c`，其 exact-head CI `33248943280` success 但不适用于新 main；不得直接 merge/rebase。
@@ -232,11 +232,11 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T01:33:32+08:00`
+- `last_updated_at`: `2026-08-30T01:38:53+08:00`
 - `verified_main_sha`: `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`
 - `verified_branch_head`: `a9a7a06d546412d4de390029baaa5ff4d44ee263`（branch=`hotfix/production-holdings-session-date`；最后生产实现 commit；之后仅治理同步）
 - `latest_test_result`: full unittest `343/343`、focused validation/latest `64/64`、compile 与 `git diff --check` 均通过
-- `latest_ci_run`: PR #34 exact-head run `33265845873`，head `a9a7a06d546412d4de390029baaa5ff4d44ee263`，success；PR `OPEN / CLEAN / MERGEABLE`
+- `latest_ci_run`: PR #34 production implementation exact-head run `33265845873`，head `a9a7a06d546412d4de390029baaa5ff4d44ee263`，success；其后治理同步 tip 仅含文档，最终 tip 的 exact-head CI 在 closeout 核验中确认 success；PR `OPEN / CLEAN / MERGEABLE`
 - `production_smoke`: Asia run `33265877563` success（3/3 verified）；US run `33265875055` success（6 verified + 1 single-source pending）；10/10 enabled rows trade_date=`2026-08-28`，history/Decision writes=`0`
 - `updated_by_task`: `production: close holdings market session date hotfix from PR33 merged main`
 

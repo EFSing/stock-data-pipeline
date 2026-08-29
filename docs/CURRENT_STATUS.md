@@ -31,7 +31,7 @@ V0.2
 - 当前修复已加入 source-date evidence、ordinary-calendar freshness guard、future-date rejection、market-local timestamp normalization，以及显式 `latest/full` 隔离。长期不变量：`交易日期 = 市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`；二者不得互相替代。
 - 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`；已改为显式 bounded 日期窗口并逐日回退至 bounded Yahoo Chart，禁止填补或伪造价格。
 - 最终真实 latest-only smoke：Asia run `33265877563` 成功（3/3 verified）；US run `33265875055` 成功（6 verified、SIVE 1 single-source current/pending）。10/10 启用持仓的 `最新行情.交易日期` 均为市场真实 `2026-08-28`；SIVE 的 `2026-08-28` 来自 bounded Yahoo Chart，未再落后到 8/27。所有 `抓取时间` 为北京时间 `2026-08-30 01:28:31` 或 `01:32:25`，Sheet 格式分别为 DATE 与 DATE_TIME；两次 workflow 均 `history_rows_written=0`、`decision_rows_written=0`。
-- 当前状态：`PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`。PR #34 head `a9a7a06d546412d4de390029baaa5ff4d44ee263` 的 exact-head CI `33265845873` success；真实 Sheet 已完成日期/来源/校验/运行时间核验，SIVE 保持单源待复核，不伪造双源验证。
+- 当前状态：`PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`。PR #34 生产实现 head `a9a7a06d546412d4de390029baaa5ff4d44ee263` 的 exact-head CI `33265845873` success；其后仅有治理文档同步，最终 tip 的 exact-head CI 在 closeout 核验中确认 success。真实 Sheet 已完成日期/来源/校验/运行时间核验，SIVE 保持单源待复核，不伪造双源验证。
 
 ## Completed
 
@@ -89,7 +89,7 @@ V0.2
 ## Next
 
 - PR #33 已完成 squash merge：真实 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，main exact-head CI `33264260330` success；研究停止态为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，下一核心路线为 Wave Scenario Engine → `SETUP_01` → `SETUP_02`，本任务不启动 Wave Engine。
-- 当前 P0 hotfix 已从上述 main 独立建立为 PR #34；最终 head `a9a7a06d546412d4de390029baaa5ff4d44ee263` 的 exact-head CI `33265845873` success，PR 为 OPEN/CLEAN/MERGEABLE；不自动 merge 新 hotfix PR。
+- 当前 P0 hotfix 已从上述 main 独立建立为 PR #34；生产实现 head 与其后治理同步 tip 均已通过 exact-head CI，PR 当前为 OPEN/CLEAN/MERGEABLE；不自动 merge 新 hotfix PR。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
