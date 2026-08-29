@@ -301,7 +301,7 @@ class ValidationTests(unittest.TestCase):
             "yfinance代码": "SIVE.ST", "币种": "SEK", "时区": "Europe/Stockholm",
         }
         with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
-            "providers._fetch_yahoo_chart", return_value=fallback
+            "providers._fetch_yahoo_chart_latest", return_value=fallback
         ) as chart:
             result = fetch_yfinance_latest(watch, date(2026, 8, 30))
 
@@ -309,7 +309,7 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(calls[0]["start"], "2026-08-23")
         self.assertEqual(calls[0]["end"], "2026-08-31")
         self.assertNotIn("period", calls[0])
-        chart.assert_called_once_with(watch, "raw", date(2026, 8, 23), date(2026, 8, 30))
+        chart.assert_called_once_with(watch, date(2026, 8, 30))
 
     def test_tencent_snapshot_parser(self):
         payload = (

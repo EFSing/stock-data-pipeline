@@ -381,9 +381,8 @@ def fetch_yfinance_latest(watch: dict, end: date) -> list[Quote]:
         yfinance_error = exc
 
     try:
-        return _fetch_yahoo_chart(
-            watch, "raw", end - timedelta(days=7), end
-        )
+        chart_rows = _fetch_yahoo_chart_latest(watch, end)
+        return chart_rows or yfinance_rows
     except Exception as chart_error:
         if yfinance_rows:
             return yfinance_rows
@@ -393,6 +392,29 @@ def fetch_yfinance_latest(watch: dict, end: date) -> list[Quote]:
             f"yfinance最新行情失败：{yfinance_error}；"
             f"Yahoo Chart回退失败：{chart_error}"
         ) from chart_error
+
+
+def _fetch_yahoo_chart_latest(watch: dict, end: date) -> list[Quote]:
+    """Fetch the newest sane Yahoo Chart session from a bounded daily probe.
+
+    Some Yahoo range responses expose an incomplete newest row while a
+    one-session bounded request contains the completed OHLCV bar.  Probe only
+    the recent seven calendar days, newest first, and never fill a missing
+    close from another field.
+    """
+    errors: list[str] = []
+    for offset in range(8):
+        day = end - timedelta(days=offset)
+        try:
+            rows = _fetch_yahoo_chart(watch, "raw", day, day)
+        except Exception as exc:
+            errors.append(f"{day.isoformat()}: {exc}")
+            continue
+        if rows:
+            return rows
+    if errors:
+        raise RuntimeError("；".join(errors))
+    return []
 
 
 def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
