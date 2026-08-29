@@ -25,11 +25,11 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；该 SHA 是 PR #33 的 squash merge commit，父提交为 `21c73977195682df576750648765b1b74d8824e2`。
 - **working branch:** `hotfix/production-holdings-session-date`（从上述最新 main 独立建立）。
-- **current HEAD:** 当前 hotfix 的实现/治理修改尚未 commit；基线 HEAD 为 `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`。
-- **PR:** #33 `Phase 5J-v5: stop ATR boundary structural development` 已关闭并 squash merge，merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；旧 PR #31 `hotfix/production-market-data-stability` 仍 `OPEN / DIRTY / CONFLICTING`、base `142b7345a5640b1e87932e41f3dc9311172bf54c`，未直接移植或 merge。
+- **current HEAD:** hotfix 实现 commit 为 `a9a7a06d546412d4de390029baaa5ff4d44ee263`；其后仅有最终治理同步文档更新，不再改变生产代码。
+- **PR:** #33 `Phase 5J-v5: stop ATR boundary structural development` 已关闭并 squash merge，merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；旧 PR #31 `hotfix/production-market-data-stability` 仍 `OPEN / DIRTY / CONFLICTING`、base `142b7345a5640b1e87932e41f3dc9311172bf54c`，未直接移植或 merge；当前 PR #34 为 `OPEN / CLEAN / MERGEABLE`。
 - **latest remote main CI:** run `33264260330`，head `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，completed `success`。
 - **独立旧 PR:** #31 `hotfix/production-market-data-stability` head `79ad70cc71171a10f232e02e752f795849bf706d`，旧 base `142b7345a5640b1e87932e41f3dc9311172bf54c`，其 exact-head CI `33248943280` success 但不适用于新 main；不得直接 merge/rebase。
-- **working tree expected state:** 当前 hotfix 含生产日期修复、focused regression 与治理文档修改；ignored `artifacts/` 保持 ignored；PR #31 的 worktree/branch 不纳入本次提交。
+- **working tree expected state:** 当前 hotfix 含生产日期修复、focused regression 与治理文档修改；最终治理同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；PR #31 的 worktree/branch 不纳入本次提交。
 - **current project/phase status:** PR #32 的 v4 状态为 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`，已按用户授权完成 squash merge；当前 v5 qualification 已完成并为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。formal validation、Final OOS、Phase 5K-B1 仍未执行。
 
 ## 3. Completed Work
@@ -47,6 +47,9 @@
 - PR #33 已完成远端 squash merge，merge commit 为 `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，main exact-head CI `33264260330` success；未启动 Wave Engine。
 - PR #31 全部 diff 已审计：旧治理文件基于 `main@142b7345a5640b1e87932e41f3dc9311172bf54c`，不直接移植；本分支只重新实现 latest/full 隔离、source-date freshness、ordinary-calendar guard、future-date rejection 和时区归一化。
 - 已完成生产根因链审计：`main.run()` 构造 latest row 时的 `交易日期` 只允许来自 `chosen.trade_date`，`抓取时间` 只来自北京时间 `fetched_at`；真实 Sheet 元数据与 `自选清单`/`最新行情` 已只读核对，目标表为「持仓股股票行情数据中台」。
+- 已完成最终验证：全量 unittest `343/343`、focused validation/latest `64/64`、compile、`git diff --check` 与 PR #34 exact-head CI `33265845873` 均成功；实现 head 为 `a9a7a06d546412d4de390029baaa5ff4d44ee263`。
+- 最终 production smoke：Asia `33265877563` 与 US `33265875055` 均为 workflow_dispatch/latest、成功，summary 分别为 `3/3 verified` 与 `6 verified + 1 single-source current/pending`，两者 `history_rows_written=0`、`decision_rows_written=0`。真实 Sheet 中 10/10 启用持仓交易日期均为 `2026-08-28`，SIVE 的 Friday 行来自 bounded Yahoo Chart；日期列为 DATE、运行时间列为北京时间 DATE_TIME。
+- 最终状态：`PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；SIVE 保留单源待复核，未伪造双源验证。`HANDOFF_CURRENT_AND_CONSISTENT`。
 
 ## 4. Pending Work
 
@@ -55,9 +58,10 @@
 1. [x] 核对并 squash merge PR #33，确认 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11` 与 main CI `33264260330` success。
 2. [x] 从最新 main 建立 `hotfix/production-holdings-session-date`，完整审计 PR #31 并重新实现必要生产修复。
 3. [x] 补齐 CN/US delayed Friday、source-date mismatch、future-date、close boundary、weekend/weekday 和 UTC/BJT session-date regression。
-4. [ ] 运行 full unittest、focused validation/latest tests、compile、hash/diff checks，commit + push hotfix。
-5. [ ] 手动运行对应的 latest-only production workflow，真实回读最新行情 Sheet 每个启用持仓标的的日期、来源、校验状态与北京时间运行时间。
-6. [ ] 创建新 hotfix PR，确认 exact-head CI success、PR CLEAN/MERGEABLE 与 `HANDOFF_CURRENT_AND_CONSISTENT`；不自动 merge。
+4. [x] 运行 full unittest、focused validation/latest tests、compile、hash/diff checks，commit + push hotfix。
+5. [x] 手动运行 Asia/US latest-only production workflow，真实回读最新行情 Sheet 每个启用持仓标的的日期、来源、校验状态与北京时间运行时间。
+6. [x] 创建 PR #34，确认最终 exact-head CI `33265845873` success、PR CLEAN/MERGEABLE，并完成最终治理同步；不自动 merge。
+7. [x] 达成 `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；停止，不启动 Wave Engine。
 
 ### Deferred
 
@@ -207,9 +211,9 @@
 
 1. [x] 完成 PR #33 squash merge，并确认 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11` 的 main exact-head CI `33264260330` success。
 2. [x] 完整审计旧 PR #31；从新 main 建立 `hotfix/production-holdings-session-date`，完成生产日期/latest-only 修复与 focused regression。
-3. [ ] 运行 full unittest、compile、hash/diff checks，commit + push hotfix 并创建独立新 PR。
-4. [ ] 手动运行对应 latest-only production workflow，回读真实 Sheet 中每个启用持仓的市场交易日期、chosen/verifier source、校验状态和北京时间运行时间。
-5. [ ] 新 hotfix PR exact-head CI success、CLEAN/MERGEABLE 且治理文件更新为 `HANDOFF_CURRENT_AND_CONSISTENT` 后停止；不自动 merge、不启动 Wave Engine。
+3. [x] 运行 full unittest、compile、hash/diff checks，commit + push hotfix 并创建 PR #34。
+4. [x] 手动运行 Asia/US latest-only production workflow，回读真实 Sheet 中每个启用持仓的市场交易日期、chosen/verifier source、校验状态和北京时间运行时间。
+5. [x] PR #34 exact-head CI `33265845873` success、CLEAN/MERGEABLE，最终状态为 `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；不自动 merge、不启动 Wave Engine。
 
 ## 11. Handoff Checklist
 
@@ -228,11 +232,12 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T01:20:00+08:00`
+- `last_updated_at`: `2026-08-30T01:33:32+08:00`
 - `verified_main_sha`: `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`
-- `verified_branch_head`: `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`（branch=`hotfix/production-holdings-session-date`；hotfix baseline before commit）
-- `latest_test_result`: focused validation/latest regression passed `63/63`；full unittest、compile/hash/diff checks and production smoke pending
-- `latest_ci_run`: main push run `33264260330`，head `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，success；PR #33 已 squash merge
-- `updated_by_task`: `production: start holdings market session date hotfix from PR33 merged main`
+- `verified_branch_head`: `a9a7a06d546412d4de390029baaa5ff4d44ee263`（branch=`hotfix/production-holdings-session-date`；最后生产实现 commit；之后仅治理同步）
+- `latest_test_result`: full unittest `343/343`、focused validation/latest `64/64`、compile 与 `git diff --check` 均通过
+- `latest_ci_run`: PR #34 exact-head run `33265845873`，head `a9a7a06d546412d4de390029baaa5ff4d44ee263`，success；PR `OPEN / CLEAN / MERGEABLE`
+- `production_smoke`: Asia run `33265877563` success（3/3 verified）；US run `33265875055` success（6 verified + 1 single-source pending）；10/10 enabled rows trade_date=`2026-08-28`，history/Decision writes=`0`
+- `updated_by_task`: `production: close holdings market session date hotfix from PR33 merged main`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

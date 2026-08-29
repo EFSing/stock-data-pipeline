@@ -637,3 +637,13 @@ Shared causal-swing versus precomputed-swing parity passed for 280 cells, 616,52
 **Decision:** The latest yfinance provider uses an explicit bounded `start/end` window tied to the run's bounded date, and retries through bounded Yahoo Chart when the provider tail is incomplete. If all available rows remain incomplete or stale, preserve the valid older quote and keep the row explicitly pending; never fill a missing price or mark it verified.
 
 **Boundary:** This is a production latest-data freshness correction only. It does not change market-session date semantics, source-verification rules, percentage production defaults, Trading Core, SETUP_03, historical/qfq/Decision behavior, or the no-Wave-Engine/no-new-research boundary.
+
+### Final live verification: production holdings session-date bug fixed
+
+**Evidence:** PR #34 implementation head `a9a7a06d546412d4de390029baaa5ff4d44ee263` passed exact-head CI `33265845873`; PR #34 is `OPEN / CLEAN / MERGEABLE`. Final manual latest-only workflow runs `33265877563` (Asia) and `33265875055` (US) both completed successfully from that head. Their summaries reported Asia `3/3 verified` and US `6 verified + 1 single-source current/pending`, with `history_rows_written=0` and `decision_rows_written=0` in both runs.
+
+The live `持仓股股票行情数据中台` readback covered all 10 enabled holdings. Every `最新行情.交易日期` is the market session date `2026-08-28`, including US Friday session dates and SIVE's Friday row obtained through bounded Yahoo Chart; no future date, Beijing cross-midnight +1, or stale 2026-08-27 row remained. `抓取时间` remains Beijing time (`2026-08-30 01:28:31` / `01:32:25`) and is formatted as DATE_TIME, while `交易日期` is formatted as DATE. US source-date mismatches remain explicitly `待复核`; SIVE remains explicitly single-source `待复核`, not falsely dual-source verified.
+
+**Decision:** Set `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`. Keep scheduled Asia/US jobs on latest-only; retain full mode as explicit manual-only workflow dispatch. The invariant remains `交易日期 = 市场真实 session trade_date` and `运行时间 = 北京时间 fetched_at`.
+
+**Boundary:** Do not merge PR #34 automatically. Do not start Wave Engine, new research, Final OOS, formal validation, or any SETUP_03 continuation.

@@ -11,7 +11,7 @@ V0.2
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` 当前真实 SHA：`b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；PR #33 已 squash merge，父提交为 `21c73977195682df576750648765b1b74d8824e2`，本地 `main` 与 `origin/main` 已刷新到同一 SHA。
-- Current checkout: `hotfix/production-holdings-session-date`，从 PR #33 merge 后的最新 main 建立。PR #33 `Phase 5J-v5: stop ATR boundary structural development` 已关闭并 merge；独立旧 PR #31 `hotfix/production-market-data-stability` 仍 OPEN、base 为旧 main，未直接移植或 merge。
+- Current checkout: `hotfix/production-holdings-session-date`，从 PR #33 merge 后的最新 main 建立。PR #33 `Phase 5J-v5: stop ATR boundary structural development` 已关闭并 merge；独立旧 PR #31 `hotfix/production-market-data-stability` 仍 OPEN、base 为旧 main，未直接移植或 merge；当前 hotfix PR #34 仍 OPEN、CLEAN、MERGEABLE。
 - Main push CI: run `33264260330` 覆盖 `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11` 并成功。PR #33 merge commit 为 `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
@@ -29,8 +29,9 @@ V0.2
 - PR #31 已完整审计但仍是旧 main 上的 `OPEN / DIRTY / CONFLICTING` PR；本分支只从新 main 重新移植必要生产修复，不直接 merge/rebase #31。
 - 当前生产根因已定位：旧 `main.run()` 用 wall-clock `expected_latest_trade_date()` 作为最新性判断，且 scheduled path 与 full history/qfq/SETUP_03/Decision 共用编排；虽然 `最新行情.交易日期` 当前由 `chosen.trade_date` 映射，日期选择、延迟周末、未来日期和 US session-date 边界缺少独立 fail-closed 保护。
 - 当前修复已加入 source-date evidence、ordinary-calendar freshness guard、future-date rejection、market-local timestamp normalization，以及显式 `latest/full` 隔离。长期不变量：`交易日期 = 市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`；二者不得互相替代。
-- 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`、但显式 bounded Yahoo Chart 可返回 `2026-08-28` 收盘价；正在将 latest yfinance 改为显式 bounded 日期窗口并在不完整尾行时回退，禁止填补或伪造价格。
-- 当前状态：代码与 focused regression 已完成，待 full suite、push、exact-head CI 和真实 latest-only production smoke/Sheet 回读后再标记 `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`。
+- 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`；已改为显式 bounded 日期窗口并逐日回退至 bounded Yahoo Chart，禁止填补或伪造价格。
+- 最终真实 latest-only smoke：Asia run `33265877563` 成功（3/3 verified）；US run `33265875055` 成功（6 verified、SIVE 1 single-source current/pending）。10/10 启用持仓的 `最新行情.交易日期` 均为市场真实 `2026-08-28`；SIVE 的 `2026-08-28` 来自 bounded Yahoo Chart，未再落后到 8/27。所有 `抓取时间` 为北京时间 `2026-08-30 01:28:31` 或 `01:32:25`，Sheet 格式分别为 DATE 与 DATE_TIME；两次 workflow 均 `history_rows_written=0`、`decision_rows_written=0`。
+- 当前状态：`PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`。PR #34 head `a9a7a06d546412d4de390029baaa5ff4d44ee263` 的 exact-head CI `33265845873` success；真实 Sheet 已完成日期/来源/校验/运行时间核验，SIVE 保持单源待复核，不伪造双源验证。
 
 ## Completed
 
@@ -54,7 +55,7 @@ V0.2
 
 ## Completed / Recorded Research Outcomes
 
-> Remote PR reconciliation at initialization: PRs #14–#22, #25–#27 and #29–#30 are merged; PRs #23, #24 and #28 are closed without merge; PR #31 is the only currently open PR observed and belongs to a separate hotfix branch. Individual bullets below preserve research outcomes and are not a substitute for current PR state.
+> Remote PR reconciliation at initialization: PRs #14–#22, #25–#27 and #29–#30 are merged; PRs #23, #24 and #28 are closed without merge; PR #31 remains an old-base independent hotfix and current PR #34 is the active production date hotfix. Individual bullets below preserve research outcomes and are not a substitute for current PR state.
 
 - Phase 5C SETUP_03 Decision Gate Diagnostics（PR #14 已合并）：Decision 同一次生产计算返回原 `Decision` 与只读 `DecisionDiagnostics`，ReplayEvent 原样携带 diagnostics，research 固定 54 组只投影、不重算交易条件；新增逐事件/逐参数组合 CSV，并强制 reason 守恒；全量 164/164 通过。真实 3 年只读 workflow `32821290764` 成功（9/9 标的、6032 bars、skipped=0）：生产参数仍为 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；54 组为 `197 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，27 组有 CONFIRMED、3 组有 ENTRY_ALLOWED。Decision gate 为 `139 ABOVE_ENTRY_ZONE + 54 RR_BELOW_MINIMUM + 4 ENTRY_ALLOWED`，其余 reason（含 OTHER/invalid context）均为 0；不排名、不选 best、不修改生产参数或交易行为
 - Phase 5D Replay Input Reproducibility（PR #15 已合并，基于 PR #14 的堆叠开发）：对实际进入 replay 的完整 Quote 生成逐 symbol/全数据集 SHA-256 manifest；支持六类显式 manifest diff、确定性 frozen input、跳过 live fetch 的 frozen replay 与 artifact 间自动比较。任何 frozen 内容与嵌入 manifest 不一致时 fail fast；`artifacts/` 已加入 gitignore。全量 172/172 通过。真实 live runs `32826696259` / `32828129539` 均成功：均为 9 symbols / 6032 bars、bar count 与日期范围相同，但 aggregate hash 由 `sha256:2b8203…c54703` 变为 `sha256:8166e1…09e36`，6 symbols 为 `CONTENT_CHANGED_WITH_SAME_BAR_COUNT`，grid funnel 由 `207 CONFIRMED → 4 ENTRY_ALLOWED → 0 EXECUTED` 变为 `200 → 4 ENTRY_ALLOWED → 0 EXECUTED`。frozen run `32829662164` 从首轮 artifact 重放成功：9/9 `IDENTICAL`，aggregate/frozen bytes/六份核心报告 hash 与 funnel 全部一致，验证 same input + same config/code 可重复
@@ -88,7 +89,7 @@ V0.2
 ## Next
 
 - PR #33 已完成 squash merge：真实 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，main exact-head CI `33264260330` success；研究停止态为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，下一核心路线为 Wave Scenario Engine → `SETUP_01` → `SETUP_02`，本任务不启动 Wave Engine。
-- 当前 P0 hotfix 从上述 main 建立；完成后必须创建独立新 PR，核对其 exact-head CI success、PR CLEAN/MERGEABLE 和 `HANDOFF_CURRENT_AND_CONSISTENT`，不自动 merge 新 hotfix PR。
+- 当前 P0 hotfix 已从上述 main 独立建立为 PR #34；最终 head `a9a7a06d546412d4de390029baaa5ff4d44ee263` 的 exact-head CI `33265845873` success，PR 为 OPEN/CLEAN/MERGEABLE；不自动 merge 新 hotfix PR。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
