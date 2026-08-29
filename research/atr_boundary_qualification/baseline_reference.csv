@@ -1,0 +1,5 @@
+﻿reference_pct,market,symbol_count,bar_count,platform_detection_count,confirmed_event_count,terminal_event_count,max_symbol_confirmed_share,confirmed_hhi,zero_confirmed_event_pathology
+0.0,CN,20,42355,212,114,212,0.08771929824561403,0.06248076331178823,False
+0.0,US,20,45720,212,123,212,0.0975609756097561,0.0644457664088836,False
+0.1,CN,20,42355,254,135,254,0.08148148148148149,0.06063100137174211,False
+0.1,US,20,45720,256,140,255,0.1,0.06306122448979593,False

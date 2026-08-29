@@ -12,6 +12,12 @@ SETUP_03 Platform Breakout：价格在横盘平台内整理，形成明确阻力
 时间语义：按 bar 顺序推进状态机，任何状态判定只用 `data <= t`。
 CONFIRMED / FAILED 只终止当前 Setup 实例，Detector 会继续扫描后续新平台，
 最终返回最新 Setup。
+
+`ATR_NORMALIZED_BOUNDARY_MODE` is retained only as a research implementation for
+the completed Phase 5J-v5 reproducibility record. It is explicitly
+`RESEARCH_ONLY` / `NOT_PRODUCTION_AUTHORIZED` / `FAILED_STRUCTURAL_CANDIDATE_FAMILY`.
+Production callers omit this optional mode and therefore keep the percentage
+boundary default.
 """
 from __future__ import annotations
 
@@ -30,6 +36,14 @@ from trading.models import (
 )
 from trading.structure import market_structure
 from trading.swing import find_swings
+from trading.indicators import atr
+
+
+PERCENTAGE_BOUNDARY_MODE = "PERCENTAGE"
+ATR_NORMALIZED_BOUNDARY_MODE = "ATR_NORMALIZED"
+ATR_NORMALIZED_BOUNDARY_SCOPE = "RESEARCH_ONLY"
+ATR_NORMALIZED_BOUNDARY_AUTHORIZATION = "NOT_PRODUCTION_AUTHORIZED"
+ATR_NORMALIZED_BOUNDARY_STATUS = "FAILED_STRUCTURAL_CANDIDATE_FAMILY"
 
 
 class SetupGateReason(str, Enum):
@@ -41,6 +55,9 @@ class SetupGateReason(str, Enum):
     STRUCTURE_NOT_RANGE_OR_TRANSITION = "STRUCTURE_NOT_RANGE_OR_TRANSITION"
     HIGH_SPAN_EXCEEDS_TOLERANCE = "HIGH_SPAN_EXCEEDS_TOLERANCE"
     LOW_SPAN_EXCEEDS_TOLERANCE = "LOW_SPAN_EXCEEDS_TOLERANCE"
+    ATR_UNAVAILABLE = "ATR_UNAVAILABLE"
+    HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD = "HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD"
+    LOW_ATR_WIDTH_EXCEEDS_THRESHOLD = "LOW_ATR_WIDTH_EXCEEDS_THRESHOLD"
     WATCH_BELOW_ARM_THRESHOLD = "WATCH_BELOW_ARM_THRESHOLD"
     ARMED_NOT_BREAKOUT = "ARMED_NOT_BREAKOUT"
     STRUCTURAL_INVALIDATION = "STRUCTURAL_INVALIDATION"
@@ -71,6 +88,14 @@ class SetupDiagnostics:
     new_confirmed_swing_eligibility: bool = False
     platform_gate_pass: bool | None = None
     last_terminal_index: int = -1
+    platform_boundary_mode: str = PERCENTAGE_BOUNDARY_MODE
+    platform_atr_period: int = 14
+    causal_atr: float | None = None
+    high_cluster_width: float | None = None
+    low_cluster_width: float | None = None
+    high_cluster_width_atr: float | None = None
+    low_cluster_width_atr: float | None = None
+    platform_boundary_threshold: float | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +132,10 @@ def _platform_gate_diagnostics(
     window_swings: list[SwingPoint],
     last_terminal_index: int,
     platform_tolerance_pct: float,
+    *,
+    platform_boundary_mode: str = PERCENTAGE_BOUNDARY_MODE,
+    platform_boundary_threshold_atr: float | None = None,
+    causal_atr: float | None = None,
 ) -> tuple[SetupGateReason | None, dict]:
     """Evaluate the existing platform gates once and expose their operands."""
     highs = [s.price for s in window_swings if s.kind is SwingKind.HIGH]
@@ -119,6 +148,18 @@ def _platform_gate_diagnostics(
     )
     high_span = (max(highs) - min(highs)) / max(highs) if len(highs) >= 2 else None
     low_span = (max(lows) - min(lows)) / max(lows) if len(lows) >= 2 else None
+    high_cluster_width = max(highs) - min(highs) if len(highs) >= 2 else None
+    low_cluster_width = max(lows) - min(lows) if len(lows) >= 2 else None
+    high_cluster_width_atr = (
+        high_cluster_width / causal_atr
+        if high_cluster_width is not None and causal_atr is not None and causal_atr > 0
+        else None
+    )
+    low_cluster_width_atr = (
+        low_cluster_width / causal_atr
+        if low_cluster_width is not None and causal_atr is not None and causal_atr > 0
+        else None
+    )
 
     failed: list[SetupGateReason] = []
     if not has_new_swing:
@@ -129,10 +170,19 @@ def _platform_gate_diagnostics(
         failed.append(SetupGateReason.INSUFFICIENT_LOW_SWINGS)
     if trend is not None and trend not in (Trend.RANGE, Trend.TRANSITION):
         failed.append(SetupGateReason.STRUCTURE_NOT_RANGE_OR_TRANSITION)
-    if high_span is not None and high_span > platform_tolerance_pct:
-        failed.append(SetupGateReason.HIGH_SPAN_EXCEEDS_TOLERANCE)
-    if low_span is not None and low_span > platform_tolerance_pct:
-        failed.append(SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE)
+    if platform_boundary_mode == PERCENTAGE_BOUNDARY_MODE:
+        if high_span is not None and high_span > platform_tolerance_pct:
+            failed.append(SetupGateReason.HIGH_SPAN_EXCEEDS_TOLERANCE)
+        if low_span is not None and low_span > platform_tolerance_pct:
+            failed.append(SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE)
+    else:
+        if causal_atr is None or causal_atr <= 0:
+            failed.append(SetupGateReason.ATR_UNAVAILABLE)
+        elif platform_boundary_threshold_atr is not None:
+            if high_cluster_width_atr is not None and high_cluster_width_atr > platform_boundary_threshold_atr:
+                failed.append(SetupGateReason.HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD)
+            if low_cluster_width_atr is not None and low_cluster_width_atr > platform_boundary_threshold_atr:
+                failed.append(SetupGateReason.LOW_ATR_WIDTH_EXCEEDS_THRESHOLD)
 
     # Priority exactly follows the production predicate: new-swing orchestration,
     # high/low sufficiency, structure, high span, then low span.
@@ -141,8 +191,14 @@ def _platform_gate_diagnostics(
         SetupGateReason.INSUFFICIENT_HIGH_SWINGS,
         SetupGateReason.INSUFFICIENT_LOW_SWINGS,
         SetupGateReason.STRUCTURE_NOT_RANGE_OR_TRANSITION,
-        SetupGateReason.HIGH_SPAN_EXCEEDS_TOLERANCE,
-        SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE,
+        *(
+            (SetupGateReason.HIGH_SPAN_EXCEEDS_TOLERANCE,
+             SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE)
+            if platform_boundary_mode == PERCENTAGE_BOUNDARY_MODE
+            else (SetupGateReason.ATR_UNAVAILABLE,
+                  SetupGateReason.HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD,
+                  SetupGateReason.LOW_ATR_WIDTH_EXCEEDS_THRESHOLD)
+        ),
     )
     reason = next((candidate for candidate in priority if candidate in failed), None)
     return reason, {
@@ -151,6 +207,17 @@ def _platform_gate_diagnostics(
         "trend": trend,
         "high_span": high_span,
         "low_span": low_span,
+        "causal_atr": causal_atr,
+        "high_cluster_width": high_cluster_width,
+        "low_cluster_width": low_cluster_width,
+        "high_cluster_width_atr": high_cluster_width_atr,
+        "low_cluster_width_atr": low_cluster_width_atr,
+        "platform_boundary_mode": platform_boundary_mode,
+        "platform_boundary_threshold": (
+            platform_tolerance_pct
+            if platform_boundary_mode == PERCENTAGE_BOUNDARY_MODE
+            else platform_boundary_threshold_atr
+        ),
         "auxiliary_failed_conditions": tuple(failed),
     }
 
@@ -178,6 +245,9 @@ def detect_platform_breakout(
     platform_tolerance_pct: float = 0.0,
     arm_proximity_pct: float = 0.0,
     swings: Optional[list[SwingPoint]] = None,
+    platform_boundary_mode: str = PERCENTAGE_BOUNDARY_MODE,
+    platform_atr_period: int = 14,
+    platform_boundary_threshold_atr: float | None = None,
 ) -> Setup:
     """按时间顺序推进 SETUP_03 状态机，返回截至最后一个 bar 的最新 Setup。
 
@@ -200,6 +270,9 @@ def detect_platform_breakout(
         platform_tolerance_pct=platform_tolerance_pct,
         arm_proximity_pct=arm_proximity_pct,
         swings=swings,
+        platform_boundary_mode=platform_boundary_mode,
+        platform_atr_period=platform_atr_period,
+        platform_boundary_threshold_atr=platform_boundary_threshold_atr,
     ).setup
 
 
@@ -211,6 +284,9 @@ def detect_platform_breakout_with_diagnostics(
     arm_proximity_pct: float = 0.0,
     swings: Optional[list[SwingPoint]] = None,
     history: Optional[list[SetupWithDiagnostics]] = None,
+    platform_boundary_mode: str = PERCENTAGE_BOUNDARY_MODE,
+    platform_atr_period: int = 14,
+    platform_boundary_threshold_atr: float | None = None,
 ) -> SetupWithDiagnostics:
     """Run the production state machine once and return read-only gate evidence."""
     validate_quote_series(quotes)
@@ -220,10 +296,28 @@ def detect_platform_breakout_with_diagnostics(
         raise ValueError(f"platform_tolerance_pct 不能为负：{platform_tolerance_pct}")
     if arm_proximity_pct < 0:
         raise ValueError(f"arm_proximity_pct 不能为负：{arm_proximity_pct}")
+    platform_boundary_mode = str(platform_boundary_mode).upper()
+    if platform_boundary_mode not in (
+        PERCENTAGE_BOUNDARY_MODE,
+        ATR_NORMALIZED_BOUNDARY_MODE,
+    ):
+        raise ValueError(f"unsupported platform boundary mode: {platform_boundary_mode}")
+    if platform_boundary_mode == ATR_NORMALIZED_BOUNDARY_MODE:
+        if platform_atr_period <= 0:
+            raise ValueError(f"platform_atr_period 必须为正整数：{platform_atr_period}")
+        if platform_boundary_threshold_atr is None or platform_boundary_threshold_atr <= 0:
+            raise ValueError(
+                "platform_boundary_threshold_atr must be positive in ATR_NORMALIZED mode"
+            )
 
     n = len(quotes)
     if swings is None:
         swings = find_swings(quotes, lookback=swing_lookback)
+    platform_atr_values = (
+        atr(quotes, platform_atr_period)
+        if platform_boundary_mode == ATR_NORMALIZED_BOUNDARY_MODE
+        else None
+    )
 
     state = SetupState.NONE
     breakout_price: Optional[float] = None
@@ -240,7 +334,12 @@ def detect_platform_breakout_with_diagnostics(
         searching = state in (SetupState.NONE, SetupState.CONFIRMED, SetupState.FAILED)
         trace_window = _confirmed_swings_in_window(swings, t, platform_window)
         trace_gate_reason, trace_gate_values = _platform_gate_diagnostics(
-            trace_window, last_terminal_index, platform_tolerance_pct
+            trace_window,
+            last_terminal_index,
+            platform_tolerance_pct,
+            platform_boundary_mode=platform_boundary_mode,
+            platform_boundary_threshold_atr=platform_boundary_threshold_atr,
+            causal_atr=(platform_atr_values[t] if platform_atr_values is not None else None),
         )
         trace_fields = {
             "high_count": trace_gate_values["high_count"],
@@ -253,6 +352,14 @@ def detect_platform_breakout_with_diagnostics(
                 trace_window, last_terminal_index
             ),
             "last_terminal_index": last_terminal_index,
+            "platform_boundary_mode": trace_gate_values["platform_boundary_mode"],
+            "platform_atr_period": platform_atr_period,
+            "causal_atr": trace_gate_values["causal_atr"],
+            "high_cluster_width": trace_gate_values["high_cluster_width"],
+            "low_cluster_width": trace_gate_values["low_cluster_width"],
+            "high_cluster_width_atr": trace_gate_values["high_cluster_width_atr"],
+            "low_cluster_width_atr": trace_gate_values["low_cluster_width_atr"],
+            "platform_boundary_threshold": trace_gate_values["platform_boundary_threshold"],
         }
 
         if searching:
@@ -422,6 +529,9 @@ def detect_platform_breakout_history_with_diagnostics(
     platform_tolerance_pct: float = 0.0,
     arm_proximity_pct: float = 0.0,
     swings: Optional[list[SwingPoint]] = None,
+    platform_boundary_mode: str = PERCENTAGE_BOUNDARY_MODE,
+    platform_atr_period: int = 14,
+    platform_boundary_threshold_atr: float | None = None,
 ) -> tuple[SetupWithDiagnostics, ...]:
     """Return one as-of Setup/diagnostics snapshot per input bar.
 
@@ -439,6 +549,9 @@ def detect_platform_breakout_history_with_diagnostics(
         platform_tolerance_pct=platform_tolerance_pct,
         arm_proximity_pct=arm_proximity_pct,
         swings=swings,
+        platform_boundary_mode=platform_boundary_mode,
+        platform_atr_period=platform_atr_period,
+        platform_boundary_threshold_atr=platform_boundary_threshold_atr,
         history=history,
     )
     if len(history) != len(quotes):

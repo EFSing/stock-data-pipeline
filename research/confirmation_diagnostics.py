@@ -16,6 +16,9 @@ REASON_LABELS = {
     SetupGateReason.STRUCTURE_NOT_RANGE_OR_TRANSITION: "结构不是 RANGE/TRANSITION",
     SetupGateReason.HIGH_SPAN_EXCEEDS_TOLERANCE: "平台高点离散度超过容差",
     SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE: "平台低点离散度超过容差",
+    SetupGateReason.ATR_UNAVAILABLE: "当前 as-of bar 没有可用的正 ATR",
+    SetupGateReason.HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD: "平台高点 ATR 标准化宽度超过阈值",
+    SetupGateReason.LOW_ATR_WIDTH_EXCEEDS_THRESHOLD: "平台低点 ATR 标准化宽度超过阈值",
     SetupGateReason.WATCH_BELOW_ARM_THRESHOLD: "已识别平台但收盘未达到逼近/突破阈值",
     SetupGateReason.ARMED_NOT_BREAKOUT: "已逼近平台上沿但收盘未严格突破",
     SetupGateReason.STRUCTURAL_INVALIDATION: "收盘跌破平台结构失效价",
@@ -147,6 +150,9 @@ def confirmation_gate_artifacts(
         SetupGateReason.STRUCTURE_NOT_RANGE_OR_TRANSITION,
         SetupGateReason.HIGH_SPAN_EXCEEDS_TOLERANCE,
         SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE,
+        SetupGateReason.ATR_UNAVAILABLE,
+        SetupGateReason.HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD,
+        SetupGateReason.LOW_ATR_WIDTH_EXCEEDS_THRESHOLD,
     )
     remaining = sum(diag.platform_search_evaluated for diag in diagnostics)
     gate_rows: list[dict] = []
@@ -236,6 +242,10 @@ def _near_miss_metrics(
         rows.append((SetupGateReason.HIGH_SPAN_EXCEEDS_TOLERANCE, "high_span超容差幅度", diag.high_span - diag.platform_tolerance_pct))
     if SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE in failed and diag.low_span is not None:
         rows.append((SetupGateReason.LOW_SPAN_EXCEEDS_TOLERANCE, "low_span超容差幅度", diag.low_span - diag.platform_tolerance_pct))
+    if SetupGateReason.HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD in failed and diag.high_cluster_width_atr is not None and diag.platform_boundary_threshold is not None:
+        rows.append((SetupGateReason.HIGH_ATR_WIDTH_EXCEEDS_THRESHOLD, "high_cluster_width_atr超阈值幅度", diag.high_cluster_width_atr - diag.platform_boundary_threshold))
+    if SetupGateReason.LOW_ATR_WIDTH_EXCEEDS_THRESHOLD in failed and diag.low_cluster_width_atr is not None and diag.platform_boundary_threshold is not None:
+        rows.append((SetupGateReason.LOW_ATR_WIDTH_EXCEEDS_THRESHOLD, "low_cluster_width_atr超阈值幅度", diag.low_cluster_width_atr - diag.platform_boundary_threshold))
     if diag.reason in (
         SetupGateReason.WATCH_BELOW_ARM_THRESHOLD,
         SetupGateReason.ARMED_NOT_BREAKOUT,

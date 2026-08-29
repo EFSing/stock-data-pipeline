@@ -1,0 +1,11 @@
+{
+  "artifacts": {
+    "adjacent_stability_matrix.csv": "sha256:bed45db2ab40c4bd0e3cb8a280b2dc1aabfdf8e6123cdb047052b10e12c919ef",
+    "baseline_reference.csv": "sha256:3e556485d923cf5722d30b6b5f49640b26d3b55627a650ef892ba185703e1085",
+    "candidate_level_matrix.csv": "sha256:e6abcae7d116bc4f98f34b23fa9d8909ff8ec21087216865f49bd4f29e5b8370",
+    "decision_capsule.json": "sha256:ac182d1442fd816c4eab5d6ae3e0cf2b4b8b55909b0ab7acab29b7ddc5c44c70",
+    "lifecycle_divergence_matrix.csv": "sha256:0f9e9cb8b4d05dcc1f39c2a6796a056fc04cdf03f7b6d60c9c25233dc71a6694",
+    "report.md": "sha256:8eeb97fbd946099ab82f02989c0dc549a7c62a649c9a2eaab92d7dfa3bfaf005"
+  },
+  "schema_version": "setup03-atr-boundary-artifact-hashes-v1"
+}

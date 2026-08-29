@@ -4,7 +4,14 @@ from datetime import date, timedelta
 from core import Quote
 
 from trading.models import SetupState, SwingKind, SwingPoint
-from trading.setup import detect_platform_breakout
+from trading.setup import (
+    ATR_NORMALIZED_BOUNDARY_AUTHORIZATION,
+    ATR_NORMALIZED_BOUNDARY_MODE,
+    ATR_NORMALIZED_BOUNDARY_SCOPE,
+    ATR_NORMALIZED_BOUNDARY_STATUS,
+    detect_platform_breakout,
+    detect_platform_breakout_history_with_diagnostics,
+)
 from trading.swing import find_swings
 
 
@@ -41,6 +48,17 @@ class PlatformBreakoutTests(unittest.TestCase):
     BREAK_L = [112, 115, 117, 119]
     BREAKDOWN_H = [95, 92, 88, 85]
     BREAKDOWN_L = [92, 89, 85, 82]
+
+    def test_atr_normalized_mode_is_explicitly_research_only(self):
+        self.assertEqual(ATR_NORMALIZED_BOUNDARY_SCOPE, "RESEARCH_ONLY")
+        self.assertEqual(
+            ATR_NORMALIZED_BOUNDARY_AUTHORIZATION,
+            "NOT_PRODUCTION_AUTHORIZED",
+        )
+        self.assertEqual(
+            ATR_NORMALIZED_BOUNDARY_STATUS,
+            "FAILED_STRUCTURAL_CANDIDATE_FAMILY",
+        )
 
     def test_no_setup_without_platform(self):
         highs = [100, 105, 110, 115, 120, 125, 130, 135, 140]
@@ -218,6 +236,55 @@ class PlatformBreakoutTests(unittest.TestCase):
         self.assertEqual(s.state, SetupState.WATCH)
         self.assertEqual(s.breakout_price, 110.0)
         self.assertEqual(s.structural_invalidation, 90.0)
+
+    def test_atr_normalized_boundary_exposes_causal_operands(self):
+        quotes = ser(self.BASE_H + [108], self.BASE_L + [106])
+        history = detect_platform_breakout_history_with_diagnostics(
+            quotes,
+            swing_lookback=2,
+            platform_window=20,
+            platform_boundary_mode=ATR_NORMALIZED_BOUNDARY_MODE,
+            platform_atr_period=2,
+            platform_boundary_threshold_atr=1.0,
+        )
+        latest = history[-1]
+        self.assertEqual(latest.diagnostics.platform_boundary_mode, ATR_NORMALIZED_BOUNDARY_MODE)
+        self.assertEqual(latest.diagnostics.platform_atr_period, 2)
+        self.assertIsNotNone(latest.diagnostics.causal_atr)
+        self.assertIsNotNone(latest.diagnostics.high_cluster_width_atr)
+        self.assertIsNotNone(latest.diagnostics.low_cluster_width_atr)
+        self.assertEqual(latest.diagnostics.platform_boundary_threshold, 1.0)
+
+    def test_atr_boundary_is_causal_when_future_bars_are_appended(self):
+        prefix = ser(self.BASE_H + [108], self.BASE_L + [106])
+        future = ser([120, 122, 124], [112, 114, 116])
+        # Keep dates strictly increasing while making the future bars explicit.
+        future = [q(prefix[-1].trade_date + timedelta(days=i + 1), item.high, item.low) for i, item in enumerate(future)]
+        kwargs = {
+            "swing_lookback": 2,
+            "platform_window": 20,
+            "platform_boundary_mode": ATR_NORMALIZED_BOUNDARY_MODE,
+            "platform_atr_period": 2,
+            "platform_boundary_threshold_atr": 1.0,
+        }
+        short = detect_platform_breakout_history_with_diagnostics(prefix, **kwargs)
+        full = detect_platform_breakout_history_with_diagnostics(prefix + future, **kwargs)
+        for before, after in zip(short, full):
+            self.assertEqual(before.setup, after.setup)
+            self.assertEqual(before.diagnostics.causal_atr, after.diagnostics.causal_atr)
+            self.assertEqual(before.diagnostics.high_cluster_width_atr, after.diagnostics.high_cluster_width_atr)
+            self.assertEqual(before.diagnostics.low_cluster_width_atr, after.diagnostics.low_cluster_width_atr)
+
+    def test_atr_boundary_requires_positive_threshold(self):
+        with self.assertRaisesRegex(ValueError, "threshold_atr"):
+            detect_platform_breakout_history_with_diagnostics(
+                ser(self.BASE_H, self.BASE_L),
+                swing_lookback=2,
+                platform_window=20,
+                platform_boundary_mode=ATR_NORMALIZED_BOUNDARY_MODE,
+                platform_atr_period=2,
+                platform_boundary_threshold_atr=0.0,
+            )
 
 
 if __name__ == "__main__":
