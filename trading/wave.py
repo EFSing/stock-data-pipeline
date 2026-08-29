@@ -69,7 +69,11 @@ def _aggregate_week(quotes: list[Quote]) -> Quote:
 def aggregate_completed_weekly_quotes(
     quotes: list[Quote], as_of_date: date
 ) -> list[Quote]:
-    """按 session date 聚合、并排除截至 t 尚未完成的当前 ISO 周。"""
+    """按 session date 聚合，并排除截至 t 尚未完成的当前 ISO 周。
+
+    日线 as-of 语义把周五收盘后的周视为已完成；周一至周四仍排除
+    当前周。若调用方传入周末日期，也允许纳入此前已观察到的周五周线。
+    """
     bounded = [quote for quote in quotes if quote.trade_date <= as_of_date]
     if not bounded:
         return []
@@ -78,10 +82,11 @@ def aggregate_completed_weekly_quotes(
         groups[_week_key(quote.trade_date)].append(quote)
 
     current_week = _week_key(as_of_date)
+    current_week_complete = as_of_date.weekday() >= 4
     return [
         _aggregate_week(groups[key])
         for key in sorted(groups)
-        if key < current_week
+        if key < current_week or (key == current_week and current_week_complete)
     ]
 
 
@@ -323,7 +328,11 @@ def evaluate_wave_scenario(
                 invalidation_reason="retracement broke the impulse origin; Wave 2→3 is invalid",
             )
 
-    if expansion is not None and weekly_structure.trend is Trend.UPTREND:
+    if (
+        expansion is not None
+        and weekly_structure.trend is Trend.UPTREND
+        and daily_structure.trend is Trend.UPTREND
+    ):
         low0, high1, low2, high3 = expansion
         last_confirmed_low = daily_structure.lows[-1] if daily_structure.lows else low2
         holds_structure = bounded[-1].close > last_confirmed_low.price

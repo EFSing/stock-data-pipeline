@@ -28,8 +28,9 @@ is represented explicitly; it is never forced into a wave count.
    `confirmed_index` is available at the as-of prefix are eligible.
 3. Weekly bars use the security's actual session dates. They are grouped by
    ISO week and aggregate open/high/low/close/volume from observed sessions.
-   The current ISO week is excluded from the weekly parent state so an
-   incomplete current-week close cannot become a historical input.
+   A Monday-to-Thursday current ISO week is excluded from the weekly parent
+   state so an incomplete current-week close cannot become a historical input;
+   a Friday-close or later as-of may include the completed observed week.
 4. Weekly state is the parent context for daily state. `DOWNTREND` weekly
    context blocks long-side SETUP_01/02 context eligibility even when daily
    prices rebound.
@@ -45,8 +46,8 @@ not exceeded the impulse peak is reported as WATCH-like context; the engine
 does not claim that Wave 3 has started.
 
 `WAVE_3_CONTINUATION_CANDIDATE` requires a confirmed higher-high /
-higher-low expansion sequence, daily `UPTREND`, weekly `UPTREND`, and a
-current close above the latest confirmed higher-low. EMA, RSI, or Fibonacci
+higher-low expansion sequence, current daily `UPTREND`, weekly `UPTREND`, and
+a current close above the latest confirmed higher-low. EMA, RSI, or Fibonacci
 alone cannot produce this family.
 
 `ABC_CORRECTION_CANDIDATE` recognizes only the bounded five-point form

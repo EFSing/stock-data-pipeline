@@ -235,6 +235,17 @@ class WaveScenarioEngineTests(unittest.TestCase):
         self.assertEqual(weekly[-1].trade_date, completed[-1].trade_date)
         self.assertNotIn(current_week[-1].trade_date, [item.trade_date for item in weekly])
 
+    def test_friday_close_makes_observed_current_week_complete(self):
+        monday = date(2026, 1, 5)
+        quotes = [
+            _quote(monday + timedelta(days=index), "NEUTRAL", 100.0 + index)
+            for index in range(5)
+        ]
+        weekly = aggregate_completed_weekly_quotes(quotes, quotes[-1].trade_date)
+        self.assertEqual(len(weekly), 1)
+        self.assertEqual(weekly[0].trade_date, quotes[-1].trade_date)
+        self.assertEqual(weekly[0].close, quotes[-1].close)
+
     def test_only_confirmed_swings_are_exposed_and_fib_regions_reuse_levels(self):
         quotes = pivot_quotes([
             ("LOW", 100.0), ("HIGH", 140.0), ("LOW", 115.0), ("HIGH", 150.0)
