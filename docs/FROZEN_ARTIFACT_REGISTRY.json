@@ -1,0 +1,122 @@
+{
+  "schema_version": "repository-frozen-artifact-registry-v1",
+  "repository": "EFSing/stock-data-pipeline",
+  "registry_status": "INITIALIZED_ACTIVE_HOLDOUT_ENTRY",
+  "last_verified_at": "2026-08-29T18:52:57+08:00",
+  "verified_against": {
+    "remote_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c",
+    "working_branch": "research/phase5j-v4-lifecycle-attribution",
+    "working_head_before_governance_commit": "5891a2df62e2d3e4623b93b1c4f368e53b4d47ba",
+    "governance_commit": "THIS_COMMIT"
+  },
+  "status_definitions": {
+    "LOCAL_PRESENT": "Target bytes exist in the current checkout.",
+    "HASH_VERIFIED": "Registered exact bytes and canonical identities were recomputed and matched.",
+    "PERSISTENT_BACKUP_PRESENT": "An approved persistent immutable object exists and is locatable by recorded identity.",
+    "RECOVERY_VERIFIED": "The persistent object was restored into a clean directory and passed artifact-specific checks.",
+    "FULLY_RECOVERABLE": "All four boolean gates are true; this is never inferred from a local copy alone."
+  },
+  "artifacts": [
+    {
+      "artifact_id": "phase5j-v3-development-holdout-frozen-bundle",
+      "artifact_type": "frozen_replay_input_and_provenance_bundle",
+      "purpose": "Exact cross-device recovery of the Phase 5J-v3 development-only holdout input and its manifests.",
+      "lifecycle": "DEVELOPMENT_ONLY",
+      "status": "FROZEN_ARTIFACT_BACKUP_STAGED_CLOUD_UPLOAD_REQUIRED",
+      "labels": [
+        "DEVELOPMENT_ONLY",
+        "NOT_FORMAL_VALIDATION",
+        "NOT_FINAL_OOS",
+        "LOCAL_ONLY_PENDING_PERSISTENT_BACKUP"
+      ],
+      "tracked_provenance_paths": [
+        "research/development_holdout/dataset_manifest.json",
+        "research/development_holdout/replay_manifest.json",
+        "research/development_holdout/universe_manifest.json",
+        "research/development/development_holdout_decision_capsule_v1.json",
+        "research/development/development_holdout_decision_capsule_v1.md"
+      ],
+      "ignored_payload_paths": [
+        "artifacts/phase5j_v3_development_holdout/development_holdout_replay_input.jsonl.gz",
+        "artifacts/phase5j_v3_development_holdout/raw_baostock/CN/",
+        "artifacts/phase5j_v3_development_holdout/raw_yfinance/US/",
+        "artifacts/phase5j_v3_development_holdout/normalized_bars/"
+      ],
+      "local_backup_container": {
+        "path": "artifacts/frozen_backups/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip",
+        "bytes": 3086881,
+        "sha256": "sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599",
+        "member_count": 5,
+        "member_hashes_source": "artifacts/frozen_backups/SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1/recovery_manifest.json"
+      },
+      "canonical_identities": {
+        "protocol_version": "SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1",
+        "protocol_sha256": "sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816",
+        "universe_version": "SETUP_03-DEVELOPMENT-HOLDOUT-CN-US-2026-08-29-v2",
+        "universe_manifest_sha256": "sha256:aca071eea6e93b8beecf7c2925a86f006e242a031fe32b5f2e33423037d00a65",
+        "symbol_list_sha256": "sha256:dc81b5b8c96408b0d18a161f946aeaf5ad616060d82cd6b6f8497a5b26bef036",
+        "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+        "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+        "normalized_aggregate_sha256": "sha256:b08832bdad7c2a857d7b60fc7b56a75d09594ee648008ab852bde4a8a56405b1",
+        "replay_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+        "symbol_count": 40,
+        "bar_count": 86305,
+        "market_bar_counts": {
+          "CN": 41274,
+          "US": 45031
+        },
+        "provider_split": {
+          "CN": "BAOSTOCK_DEVELOPMENT_QFQ",
+          "US": "YFINANCE_DEVELOPMENT_HISTORICAL"
+        }
+      },
+      "exact_file_hashes": {
+        "tracked_dataset_manifest_file_sha256": "sha256:6b45900458f0d1a5ef857ba54745f6ec456482fbb8a30943ccf01edb0cb7e48d",
+        "tracked_replay_manifest_file_sha256": "sha256:7194da0aa11d0b461377a654a641ee3191e6fa7acc54a479e8d2c2c95194f818",
+        "tracked_universe_manifest_file_sha256": "sha256:59fdbe417e44909a01885d1e3e0305a681ee17cd96bcf287143ad6814a0cbb27",
+        "tracked_capsule_file_sha256": "sha256:f8038643acc009bae41b1b9e72616e6e2b2da0c653efb4e8ca055bff4d04c271",
+        "recovery_manifest_file_sha256": "sha256:c5a6043de7b331fb51a70853c8d3e0a7995ae8ab63a1e80250ebf6a0f0963024"
+      },
+      "provenance": {
+        "source_main_commit_recorded_by_recovery_manifest": "3a2c6699559074161b56281dd16084264f7dc717",
+        "source_main_commit_resolution": "Local git ref only; historical artifact provenance, not current remote main.",
+        "frozen_at": "2026-08-29",
+        "setup03_run": false,
+        "phase5j_v4_run": false,
+        "final_oos_accessed": false,
+        "provider_accessed_during_backup_staging": false,
+        "formal_validation": false,
+        "ibkr_used": false
+      },
+      "recovery_gates": {
+        "LOCAL_PRESENT": true,
+        "HASH_VERIFIED": true,
+        "PERSISTENT_BACKUP_PRESENT": false,
+        "RECOVERY_VERIFIED": false,
+        "FULLY_RECOVERABLE": false
+      },
+      "persistent_backup": {
+        "status": "MISSING_APPROVED_DESTINATION",
+        "location": null,
+        "immutable_object_id": null,
+        "retention": null,
+        "detached_sha256": null
+      },
+      "recovery_verification": {
+        "status": "LOCAL_PRE_ARCHIVE_AND_ARCHIVE_BYTES_VERIFIED_ONLY",
+        "clean_directory_restore_at": null,
+        "method": [
+          "Existing loader validated the staged frozen dataset, replay manifest, universe manifest, cross-bindings, 40 symbols, and 86305 bars before archive staging.",
+          "Bundle payload files were hashed before archive creation; the ZIP was hashed as an opaque transport container.",
+          "Independent restore from approved persistent storage has not occurred."
+        ]
+      },
+      "invariants": [
+        "Do not modify frozen protocol, universe, dataset, replay identities, roster, or opaque replay bytes.",
+        "Do not replace missing bytes with a re-fetched or approximately regenerated artifact.",
+        "Do not access provider, SETUP_03, Phase 5J-v4, formal validation, Final OOS, or outcome metrics while completing backup recovery."
+      ],
+      "notes": "Historical Phase 5E-5I artifact directories are not included in this initial active registry entry; register them before future correctness-critical reuse."
+    }
+  ]
+}

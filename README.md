@@ -64,3 +64,14 @@ python -m unittest discover -s tests -v
 ## 使用边界
 
 这些数据源均为免费公开数据，可能因上游网站改版、限流或节假日更新时间变化而暂时失败。程序的处理原则是：宁可标记“待复核”，也不把未确认数据当作最新正式收盘。
+
+## 多设备 / 多会话开发交接
+
+新电脑、新 clone 或新 Codex 会话开始时，按顺序读取：
+
+1. `HANDOFF.md`：当前可执行交接快照；
+2. `docs/CURRENT_STATUS.md`：正式项目状态；
+3. `docs/DECISION_LOG.md`：长期决策及理由；
+4. 当前任务相关的 architecture / protocol / governance 文件。
+
+随后必须核对真实 Git、远端 PR、CI、artifact 和 hash。文档与客观状态冲突时，标记 `PROJECT_GOVERNANCE_STATE_CONFLICT` 并停止猜测。重要但未进入 Git 的 replay input、raw/normalized data 或其他 artifact，遵循 [`docs/FROZEN_ARTIFACT_POLICY.md`](docs/FROZEN_ARTIFACT_POLICY.md)，并以 [`docs/FROZEN_ARTIFACT_REGISTRY.json`](docs/FROZEN_ARTIFACT_REGISTRY.json) 为机器可读登记表。

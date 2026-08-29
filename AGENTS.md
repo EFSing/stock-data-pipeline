@@ -3,6 +3,21 @@
 > 本文件是所有 AI 开发工具（DeepSeek、Codex、ChatGPT 等）协作开发本项目的统一规则与唯一入口。
 > **GitHub 仓库是本项目唯一可信事实来源，聊天记录不是项目记忆。** 不要在每次对话中重新设计整个系统。
 
+## 新会话启动与交接治理（必须遵守）
+
+每个新电脑、新 clone 或新 Codex 会话，在实现、研究、数据访问或修改前必须按以下顺序执行：
+
+1. 读取根目录 `HANDOFF.md`，了解当前唯一主任务、边界和可直接执行的下一步。
+2. 读取 `docs/CURRENT_STATUS.md`，了解正式项目状态。
+3. 读取 `docs/DECISION_LOG.md`，了解仍然有效的历史决策与理由。
+4. 读取与当前任务直接相关的 governance / protocol / architecture 文件。
+5. 核对真实 Git、远端 PR、CI、artifact 和 hash 状态；不得以聊天记录或旧的本地 remote-tracking ref 代替远端事实。
+
+如果治理文件与客观 Git / PR / CI / artifact 证据冲突，状态必须标记为
+`PROJECT_GOVERNANCE_STATE_CONFLICT`，停止继续实现，先用客观证据完成核对；不得自行猜测哪个状态正确。
+
+每完成一个具有独立意义的逻辑任务，或准备报告 `TASK_COMPLETE`、`PHASE_COMPLETE`、`PR_FULLY_READY`、`READY_FOR_REVIEW`、`READY_FOR_DECISION` 前，必须更新 `HANDOFF.md`，并确认其状态为 `HANDOFF_CURRENT_AND_CONSISTENT`。
+
 ## 每次修改代码之前（必须按顺序）
 
 1. 阅读本文件 `AGENTS.md`
