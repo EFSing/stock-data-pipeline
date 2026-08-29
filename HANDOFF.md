@@ -18,12 +18,12 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@142b7345a5640b1e87932e41f3dc9311172bf54c`；本地 `origin/main@3a2c6699559074161b56281dd16084264f7dc717` 过旧，必须先 `git fetch origin main`。
 - **working branch:** `research/phase5j-v4-lifecycle-attribution`（仅本地）
-- **current HEAD:** `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`；治理初始化提交完成后以 `git rev-parse HEAD` 为准。
+- **current HEAD:** `THIS_COMMIT`（当前治理快照 reconciliation commit；治理核心 commit 为 `7ec8a7fdd9d4a20d42fe0bb848deb688635583c5`；以 `git rev-parse HEAD` 解析最终 tip）。
 - **PR:** `NONE` for current branch. Predecessor PR #30 was merged with merge commit `142b7345a5640b1e87932e41f3dc9311172bf54c`.
 - **latest exact-head CI:** run `33193832124`, workflow `CI Test Gate`, head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`, `success`。
 - **latest remote main CI:** run `33195350848`, head `142b7345a5640b1e87932e41f3dc9311172bf54c`, `success`。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `bb006ae5ca61e76192c751e9bd818584fc42f051`, exact-head CI run `33248386042` success；它不属于当前 checkout。
-- **working tree expected state:** 治理提交后 tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；未追踪 `.hotfix-worktree/` 是并行 hotfix worktree，本任务必须保留且不得纳入 commit。
+- **working tree expected state:** tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
 - **current project/phase status:** V0.2 production pipeline 已运行；Phase 5J-v3 holdout 已合并但结构资格结果需要 Sol 决策；当前 backup staged 但未持久化；Phase 5J-v4、formal validation、Final OOS、Phase 5K-B1 均未执行。
 
 ## 3. Completed Work
@@ -107,7 +107,7 @@
 | environment / verification | local `origin/main` is stale at `3a2c669…`; GitHub remote main is `142b734…` | `git fetch origin main`, then re-check exact ref and merge-base | Blocks trustworthy base/PR comparison, not documentation-only work |
 | research/design blocker | `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` | wait for explicit Sol decision; preserve current evidence | Yes for parameter/strategy changes |
 | project coordination | PR #31 is an independent OPEN hotfix; current branch has PR `NONE` | do not mix worktrees or infer current branch status from PR #31 | No, if kept separate |
-| environment | untracked `.hotfix-worktree/` exists in this checkout | preserve and exclude from governance commit | No |
+| environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
 ## 9. Lessons / Pitfalls — DO NOT REPEAT
 
@@ -163,7 +163,7 @@
 
 ## 10. Next Action
 
-1. `git status --short --branch`，保留 `.hotfix-worktree/`，确认没有未授权删除/覆盖。
+1. `git status --short --branch`，若并行 `.hotfix-worktree/` 重新出现则保持隔离，确认没有未授权删除/覆盖。
 2. `git fetch origin main`，确认 GitHub `main@142b7345…` 与本地 ref，并重算 current branch/base 关系。
 3. 确认 approved persistent storage；若没有明确目的地或凭证，停止并保持 `FROZEN_ARTIFACT_BACKUP_STAGED_CLOUD_UPLOAD_REQUIRED`。
 4. 上传 ZIP，记录不可变对象身份、bytes、SHA-256；在 clean directory 恢复并运行既有 loader/cross-binding/count checks。
@@ -186,9 +186,9 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-29T19:05:21+08:00`
+- `last_updated_at`: `2026-08-29T19:08:59+08:00`
 - `verified_main_sha`: `142b7345a5640b1e87932e41f3dc9311172bf54c`
-- `verified_branch_head`: `THIS_COMMIT`（以 `git rev-parse HEAD` 解析本文件所在治理提交；初始化前 working HEAD 为 `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`）
+- `verified_branch_head`: `THIS_COMMIT`（以 `git rev-parse HEAD` 解析最终 reconciliation commit；治理前 working HEAD 为 `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`）
 - `latest_test_result`: governance test `4/4` passed；full `python -m unittest discover -s tests -v` `288/288` passed；registry JSON valid；`git diff --check` passed
 - `latest_ci_run`: `33195350848` on remote main success；current checkout exact-head `33193832124` success
 - `updated_by_task`: `chore: establish project handoff governance`

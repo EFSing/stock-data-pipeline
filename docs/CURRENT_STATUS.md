@@ -11,11 +11,11 @@ V0.2
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` 当前真实 SHA：`142b7345a5640b1e87932e41f3dc9311172bf54c`。本地 `origin/main` 仍为 `3a2c6699559074161b56281dd16084264f7dc717`，下一次开发前必须刷新，不能用旧 remote-tracking ref 做基线判断。
-- Current checkout: `research/phase5j-v4-lifecycle-attribution` at `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`；该本地分支没有 PR。前序 PR #30 已合并，merge commit 为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
+- Current checkout: `research/phase5j-v4-lifecycle-attribution`；治理核心 commit 为 `7ec8a7fdd9d4a20d42fe0bb848deb688635583c5`，最终 reconciliation tip 以 `git rev-parse HEAD` 为准；该本地分支没有 PR。前序 PR #30 已合并，merge commit 为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
 - Current checkout exact-head CI: run `33193832124`，`CI Test Gate`，head `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`，success。另有独立 PR #31 `hotfix/production-market-data-stability` 为 OPEN，head `bb006ae5ca61e76192c751e9bd818584fc42f051`，不能当作当前分支状态。
 - 当前项目正式状态：Phase 5J-v3 第二套 development holdout 已完成并合并，但 structure-only qualification 结果为 `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`；不是生产参数冻结，也不是 `SETUP_03_STRUCTURALLY_REJECTED`。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证，但仍为 `FROZEN_ARTIFACT_BACKUP_STAGED_CLOUD_UPLOAD_REQUIRED`；raw/normalized/replay payload 位于 ignored `artifacts/`，未具备 persistent backup 和 recovery verification。
-- 本文件中的治理初始化会保留已有 backup staging 记录；`.hotfix-worktree/` 为未追踪的并行 hotfix worktree，本任务不添加、不删除、不修改。
+- 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
 ## Completed
 

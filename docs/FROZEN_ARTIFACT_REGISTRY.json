@@ -7,7 +7,7 @@
     "remote_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c",
     "working_branch": "research/phase5j-v4-lifecycle-attribution",
     "working_head_before_governance_commit": "5891a2df62e2d3e4623b93b1c4f368e53b4d47ba",
-    "governance_commit": "THIS_COMMIT"
+    "governance_commit": "7ec8a7fdd9d4a20d42fe0bb848deb688635583c5"
   },
   "status_definitions": {
     "LOCAL_PRESENT": "Target bytes exist in the current checkout.",
