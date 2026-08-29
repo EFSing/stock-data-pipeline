@@ -7,14 +7,14 @@
 ```text
 GitHub Actions scheduler (cron)
         ↓
-main.py  (CLI 入口: --group asia|us|all, --fixture)
+        main.py  (CLI 入口: --group asia|us|all, --mode latest|full, --fixture)
         ↓
 SheetsClient.config() / records("自选清单")          ← Google Sheets
         ↓
 对每个自选标的 (启用=True 且市场∈目标组):
-    expected_latest_trade_date()                    [core]
-    fetch_with_retry(主数据源)                       [providers]
-    fetch_with_retry(校验数据源)                     [providers]
+    latest_completed_market_session()               [core: source-date evidence]
+    fetch_latest_with_retry(主数据源)                [providers: latest mode]
+    fetch_latest_with_retry(校验数据源)              [providers: latest mode]
         → yfinance → YahooChart 回退
         → BaoStock (仅 A股)
         → Tencent / Sina 快照回退 (CN/HK/US)
@@ -23,6 +23,11 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     quote_sanity_issue(primary / verifier)           [core]
     fresher_quote(primary, verifier)                 [core: 日期优先；同日质量优先]
     quote_sanity_issue(chosen)                       [core]
+    SheetsClient.upsert_latest("最新行情")
+    SheetsClient.append_rows("校验记录")
+    SheetsClient.append_rows("运行日志")
+
+    # --mode full only:
     select_history_series(...)                      [main]
     fetch_with_retry(历史数据源, "qfq")             [providers]
         → 仅 yfinance / BaoStock；不使用快照源
@@ -31,14 +36,14 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
             → detect_platform_breakout_with_diagnostics() [trading.setup]
             → 仅最新bar首次CONFIRMED且未发布时
                decide_platform_breakout()            [trading.decision]
-        ↓
-    SheetsClient.upsert_latest("最新行情")
-    SheetsClient.upsert_history("历史行情_未复权")
-    SheetsClient.upsert_history("历史行情_前复权")
-    SheetsClient.upsert_decisions("交易决策")
-    SheetsClient.append_rows("校验记录")
-    SheetsClient.append_rows("运行日志")
+        → upsert_history(未复权/前复权) + upsert_decisions
 ```
+
+### Execution modes
+
+`--mode latest` 是亚洲/欧美 scheduled workflow 的生产路径：只读取自选清单，使用短窗口 latest quote provider，执行 source-date freshness、双源校验和最新行情写入，并追加校验记录/运行日志。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且 `history_rows_written=0`。
+
+`--mode full` 保留需要历史数据的手动路径，继续执行未复权历史、qfq、SETUP_03 和 Decision。它不由 daily schedule 调用；workflow_dispatch 可显式选择该模式。
 
 ## 目录结构（扁平，未使用 src/ 包布局）
 
@@ -99,8 +104,9 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `Quote` / `ValidationResult` 数据类
 - `validate_quotes()`：双源校验（日期、收盘价、成交量容差）
 - `relative_diff()`、`latest_quote()`
-- `fresher_quote()`：先比较交易日期；同日主源字段异常而校验源正常时采用校验源，两源均正常或均异常时保持主源
-- `market_close_confirmed()`、`expected_latest_trade_date()`：收盘时间与时区判断
+- `fresher_quote()`：先比较有效交易日期；同日主源字段异常而校验源正常时采用校验源，两源均正常或均异常时保持主源
+- `market_close_confirmed()`、`expected_latest_trade_date()`：收盘时间与时区判断；生产 freshness 使用 evidence-based `latest_completed_market_session()`，不依赖延迟运行时的 weekday
+- `latest_completed_market_session()`：只从有效 source quote date 推导已完成市场 session，收盘前排除当日、周末保留最近有效日期、未来日期 fail closed，不猜节假日
 - `quote_sanity_issue()`：OHLCV 字段一致性检查
 - 依赖：仅标准库
 
@@ -108,6 +114,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 - `PROVIDERS` 注册表：`BaoStock`、`Tencent`、`Sina`、`yfinance`
 - `fetch_with_retry()`：按回退链抓取并重试，支持 `target_trade_date` 过期判断
+- `fetch_latest_with_retry()`：独立的短窗口 latest quote 路径；scheduled latest 不调用 full-history fetch
 - `_configured_source_candidates()`：数据源回退链 + AKShare 遗留别名路由
 - `fetch_yfinance()`：yfinance，失败回退 `_fetch_yahoo_chart()`（无 cookie 的 chart 端点）
 - `fetch_tencent()` / `fetch_sina()`：实时快照解析（含美股常规交易时段字段处理）
@@ -124,8 +131,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 ### main.py
 
-- CLI：`--group`（asia/us/all）、`--fixture`
-- `run(group)`：编排整个流水线
+- CLI：`--group`（asia/us/all）、`--mode`（latest/full）、`--fixture`
+- `run(group, mode)`：按 execution mode 编排；latest 不读取/写入历史和 Decision 表
 - `wanted_markets_for_group()`：任务组 → 市场集合
 - `as_ratio()` / `as_bool()`：解析 Google Sheets 配置
 - `quote_row()` / `decision_row()`：纯展示映射，不重算 Trading Core 逻辑
@@ -271,6 +278,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 | `运行日志` | 任务时间、状态、错误 | 追加 |
 | `参数设置` | 容差、历史长度、Setup/Decision 显式参数 | 读 |
 
+`latest` 模式只写 `最新行情`、`校验记录`、`运行日志`；`历史行情_*` 与 `交易决策` 只属于 `full` 模式。每次运行 stdout 和 GitHub Step Summary 都输出 `symbols_requested`、freshness/validation 分布、拒绝的 stale sources、失败标的及 `history_rows_written`；数据不完整时状态为 `PARTIAL_DATA_QUALITY`，不把 workflow 程序成功解释成全部行情已验证。
+
 `参数设置` 必须显式提供以下 Trading Core 参数；值保持当前规则基线，不在 Phase 4 调参：
 
 `setup_swing_lookback=5`、`setup_platform_window=40`、`setup_platform_tolerance_pct=0`、`setup_arm_proximity_pct=0`、`decision_swing_lookback=5`、`decision_atr_period=14`、`decision_atr_buffer=0.5`、`decision_max_chase_atr=0.5`、`decision_risk_capital=<显式风险资本>`。
@@ -299,8 +308,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 ## GitHub Actions
 
-- `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30，运行 `python main.py --group asia`
-- `us-close.yml`：`cron "30 22 * * 1-5"`（UTC），运行 `python main.py --group us`
+- `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30；schedule 强制运行 `python main.py --group asia --mode latest`，workflow_dispatch 可选 full
+- `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；schedule 强制运行 `python main.py --group us --mode latest`，workflow_dispatch 可选 full
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
 - 固定 run `32826696259` 还启用 Phase 5F~5I 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化；Phase 5I 只消费 Phase 5G／5H 现有 artifact 合同并冻结证据边界，不读取 OOS、不新增搜索，也不选择 production 参数。
 - `ci.yml`：PR / main push / 手动触发跑 unittest

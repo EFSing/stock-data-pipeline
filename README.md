@@ -16,7 +16,19 @@ A股、港股或美股的历史来源重试失败，或者虽然成功返回但�
 
 AKShare已从生产依赖和数据源注册表中移除。为保证旧版Google Sheet配置平稳迁移，程序仍识别配置文本`AKShare`，但只会将其改路由至yfinance、腾讯或新浪，不会导入或调用AKShare。
 
-只有交易日期一致、收盘价差异及成交量差异均在容差内的数据，才会在“最新行情”中标记为“已验证”和“正式收盘”。单一来源可用时只标记为“单源可用”，不会升级为已验证数据。
+只有两个独立来源在同一最新已完成交易日、且收盘价差异及成交量差异均在容差内，才会在“最新行情”中标记为“已验证”和“正式收盘”。如果来源交易日不同，程序按有效交易日期优先采用更新来源，但保持“待复核”，并明确记录“最新交易日仅单源可用”；不会把它升级为已验证数据。收盘前、周末延迟运行和未来日期均按 source-date evidence fail closed，不猜节假日。
+
+## 执行模式
+
+定时亚洲/欧美 workflow 使用 `latest` 模式：只抓取短窗口最新行情、执行 freshness/双源校验、更新 `最新行情`，并写入必要的 `校验记录` 与 `运行日志`。它不会抓取多年历史或 qfq，不运行 SETUP_03/Decision，不写历史行情表；运行摘要必须显示 `history_rows_written=0`。
+
+需要历史行情、qfq 或策略展示时，手动使用 `full` 模式：
+
+```bash
+python main.py --group all --mode full
+```
+
+`workflow_dispatch` 默认是 `latest`，仅手动选择 `full`；daily schedule 始终强制 `latest`。
 
 ## Google Sheet结构
 
@@ -51,7 +63,7 @@ AKShare已从生产依赖和数据源注册表中移除。为保证旧版Google 
 python -m pip install -r requirements.txt
 export GOOGLE_SHEET_ID="你的表格ID"
 export GOOGLE_SERVICE_ACCOUNT_JSON='服务账号JSON内容'
-python main.py --group all
+python main.py --group all --mode latest
 ```
 
 只测试校验逻辑而不访问网络或Google Sheet：

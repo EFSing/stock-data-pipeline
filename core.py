@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
-from typing import Optional
+from typing import Iterable, Optional
 from zoneinfo import ZoneInfo
 
 
@@ -68,9 +68,16 @@ def validate_quotes(
     if date_match and close_pass and volume_pass:
         return ValidationResult("已验证", True, True, True, close_diff, volume_diff, "日期、收盘价和成交量均通过校验")
 
-    reasons = []
     if not date_match:
-        reasons.append("交易日期不一致")
+        if primary.trade_date < verifier.trade_date:
+            note = "主源日期滞后，已采用更新来源；最新交易日仅单源可用"
+        else:
+            note = "校验源日期滞后，已采用更新来源；最新交易日仅单源可用"
+        return ValidationResult(
+            "待复核", False, False, False, close_diff, volume_diff, note
+        )
+
+    reasons = []
     if date_match and not close_pass:
         reasons.append("收盘价差异超限")
     if date_match and not volume_pass:
@@ -97,13 +104,24 @@ def expected_latest_trade_date(
     close_time_text: str,
     fetched_at: datetime,
     buffer_minutes: int = 20,
+    observed_quotes: Iterable[Quote] | None = None,
 ) -> Optional[date]:
-    """Return today's expected trade date once a weekday market has closed.
+    """Return a legacy wall-clock expectation or an evidence-based session.
 
-    This is intentionally conservative: on weekends there is no same-day
-    expectation, while weekday exchange holidays may remain pending review
-    instead of being incorrectly published as a formal close.
+    Callers that have source observations should pass them and use the
+    evidence-based result.  The no-observation form is retained for research
+    and compatibility callers; production latest-data orchestration must not
+    use it as a freshness guard because a delayed run can cross a weekend.
     """
+    if observed_quotes is not None:
+        return latest_completed_market_session(
+            timezone_name,
+            close_time_text,
+            fetched_at,
+            observed_quotes,
+            buffer_minutes,
+        )
+
     zone = ZoneInfo(timezone_name)
     local_now = fetched_at.astimezone(zone)
     if local_now.weekday() >= 5:
@@ -113,25 +131,66 @@ def expected_latest_trade_date(
     return local_now.date() if local_now >= close_at else None
 
 
-def latest_quote(quotes: list[Quote]) -> Optional[Quote]:
+def latest_completed_market_session(
+    timezone_name: str,
+    close_time_text: str,
+    fetched_at: datetime,
+    observed_quotes: Iterable[Quote],
+    buffer_minutes: int = 20,
+) -> Optional[date]:
+    """Return the latest completed session supported by valid source evidence.
+
+    This deliberately does not manufacture exchange holidays or infer a
+    weekday's session from wall-clock time.  A quote dated today is accepted
+    only after that market's close buffer; on weekends and delayed runs the
+    newest valid observed source date remains the freshness target.
+    """
+    zone = ZoneInfo(timezone_name)
+    local_now = fetched_at.astimezone(zone)
+    hour, minute = (int(part) for part in close_time_text.split(":", 1))
+    close_at = datetime.combine(
+        local_now.date(), time(hour, minute), zone
+    ) + timedelta(minutes=buffer_minutes)
+    completed_dates = {
+        quote.trade_date
+        for quote in observed_quotes
+        if quote.trade_date <= local_now.date()
+        and (quote.trade_date < local_now.date() or local_now >= close_at)
+        and quote_sanity_issue(quote) is None
+    }
+    return max(completed_dates, default=None)
+
+
+def latest_quote(
+    quotes: list[Quote], max_trade_date: date | None = None
+) -> Optional[Quote]:
     if not quotes:
         return None
-    return max(quotes, key=lambda item: item.trade_date)
+    candidates = [
+        quote for quote in quotes
+        if max_trade_date is None or quote.trade_date <= max_trade_date
+    ]
+    return max(candidates, key=lambda item: item.trade_date) if candidates else None
 
 
 def fresher_quote(primary: Optional[Quote], verifier: Optional[Quote]) -> Optional[Quote]:
-    """Prefer freshness first, then a sane verifier over an invalid primary."""
+    """Prefer a valid newer date before provider priority or same-day quality."""
     if primary is None:
         return verifier
     if verifier is None:
+        return primary
+
+    primary_issue = quote_sanity_issue(primary)
+    verifier_issue = quote_sanity_issue(verifier)
+    if primary_issue and not verifier_issue:
+        return verifier
+    if verifier_issue and not primary_issue:
         return primary
     if primary.trade_date > verifier.trade_date:
         return primary
     if verifier.trade_date > primary.trade_date:
         return verifier
 
-    primary_issue = quote_sanity_issue(primary)
-    verifier_issue = quote_sanity_issue(verifier)
     if primary_issue and not verifier_issue:
         return verifier
     return primary

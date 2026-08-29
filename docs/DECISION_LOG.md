@@ -2,6 +2,22 @@
 
 只记录重要架构／交易规则决策，不记录普通 Bug 修复。
 
+## 2026-08-29
+
+**Decision:** `HOLDINGS_MARKET_DATA_PRODUCTION_STABILITY_HOTFIX` 将生产 latest 行情与 full history/strategy 执行拆为显式 `--mode latest|full`。亚洲/欧美 scheduled workflow 固定 `latest`；qfq、历史行情 bulk upsert、SETUP_03 与 Decision 仅保留在手动 `full` 路径。latest 路径的历史写入合同为 `history_rows_written=0`。
+
+**Reason:** 每日生产任务不应因更新最新行情而重写多年历史或触发策略计算。隔离执行边界可独立恢复持仓行情中台，并保留现有 full/history/strategy semantics。
+
+**Decision:** latest freshness 只使用有效 source quote 的已完成交易日期：先比较 `trade_date`，再应用 provider priority；不同日期时采用更新来源但状态保持 `待复核`，并记录“最新交易日仅单源可用”。同日才执行既有价格/成交量容差校验；不降低任何 validation threshold，不修改用户 Sheet 中的主源/校验源配置。
+
+**Reason:** provider priority 是 preference，不是 freshness validity。周末延迟运行不能由 wall-clock weekday 将 freshness guard 变成 `None`；缺少可靠交易所日历时，不能猜节假日或把单源最新行情伪装为双源已验证。
+
+**Decision:** `latest_completed_market_session()` 在收盘前排除当日、在周末/延迟运行保留最近有效 source date，并拒绝未来日期；`expected_latest_trade_date()` 的无 source-observation 兼容语义保留给现有 research caller，生产 latest 编排不再将其作为 freshness guard。
+
+**Reason:** 这是不引入交易所假日猜测的 deterministic fail-closed 方案，同时覆盖 Friday 正常收盘、延迟到 Saturday、Monday 收盘前、weekday 收盘后、weekend、stale source、same-date source 与 future-dated source。
+
+**Dependency audit:** scheduled run `33211501615` 的已记录安装结果为 `yfinance 1.7.0`，而 `requirements.txt` 仍是 `yfinance>=0.2.65`。本 hotfix regression/smoke 未证明 exact pin 的兼容安全性，因此本 PR 不盲目 pin；将版本 pinning 作为 follow-up risk。
+
 ## 2026-08-21
 
 **Decision:** 确立 GitHub 仓库为项目唯一可信事实来源，`AGENTS.md` + `docs/` 作为跨 AI 工具共享上下文。

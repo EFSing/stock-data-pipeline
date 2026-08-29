@@ -1,6 +1,6 @@
 import unittest
 from dataclasses import replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 from core import Quote
@@ -485,6 +485,147 @@ class DecisionPipelineTests(unittest.TestCase):
         self.assertEqual(log_call.args[0], "运行日志")
         self.assertEqual(len(log_call.args[2]), 2)
         self.assertIn("SETUP_03 Decision失败：broken core input", log_call.args[2][0]["消息"])
+
+
+class LatestOnlyPipelineTests(unittest.TestCase):
+    def test_latest_only_chooses_newer_source_without_fake_verification(self):
+        config = {
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+        }
+        watches = [
+            {
+                "启用": True,
+                "市场": "US",
+                "主数据源": "yfinance",
+                "校验数据源": "Tencent",
+                "时区": "America/New_York",
+                "收盘时间": "16:00",
+                "统一代码": "PRIMARY_STALE",
+            },
+            {
+                "启用": True,
+                "市场": "US",
+                "主数据源": "yfinance",
+                "校验数据源": "Tencent",
+                "时区": "America/New_York",
+                "收盘时间": "16:00",
+                "统一代码": "VERIFIER_STALE",
+            },
+        ]
+        fetched_at = datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("providers.fetch_with_retry") as full_fetch,
+            patch("main.evaluate_set03_decision") as evaluate,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = config
+            client.records.return_value = watches
+            client.upsert_latest.return_value = 2
+
+            def fetch_result(source, current_watch, *_args):
+                symbol = current_watch["统一代码"]
+                if symbol == "PRIMARY_STALE":
+                    day = date(2026, 8, 27) if source == "yfinance" else date(2026, 8, 28)
+                    close = 109.0 if source == "yfinance" else 110.0
+                else:
+                    day = date(2026, 8, 28) if source == "yfinance" else date(2026, 8, 27)
+                    close = 110.0 if source == "yfinance" else 109.0
+                return [
+                    replace(
+                        quote(source=source, day=day),
+                        close=close,
+                        symbol=symbol,
+                    )
+                ]
+
+            latest_fetch.side_effect = fetch_result
+
+            summary = run("us", mode="latest")
+
+        self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
+        self.assertEqual(summary["freshest_rows_written"], 2)
+        self.assertEqual(summary["verified"], 0)
+        self.assertEqual(summary["single_source_current"], 2)
+        self.assertEqual(summary["pending_review"], 2)
+        self.assertEqual(summary["stale_sources_rejected"], 2)
+        rows = client.upsert_latest.call_args.args[0]
+        self.assertEqual(
+            {row["统一代码"]: (row["收盘"], row["校验状态"]) for row in rows},
+            {
+                "PRIMARY_STALE": (110.0, "待复核"),
+                "VERIFIER_STALE": (110.0, "待复核"),
+            },
+        )
+        for row in rows:
+            self.assertIn("最新交易日仅单源可用", row["备注"])
+        full_fetch.assert_not_called()
+        evaluate.assert_not_called()
+        client.upsert_history.assert_not_called()
+        client.upsert_decisions.assert_not_called()
+
+    def test_latest_only_never_enters_history_qfq_or_decision_paths(self):
+        config = {
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+        }
+        watch = {
+            "启用": True,
+            "市场": "US",
+            "主数据源": "yfinance",
+            "校验数据源": "Tencent",
+            "时区": "America/New_York",
+            "收盘时间": "16:00",
+            "统一代码": "TEST",
+        }
+        fetched_at = datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("providers.fetch_with_retry") as full_fetch,
+            patch("main.evaluate_set03_decision") as evaluate,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = config
+            client.records.return_value = [watch]
+            client.upsert_latest.return_value = 1
+
+            def fetch_result(source, current_watch, *_args):
+                return [
+                    replace(
+                        quote(source=source, day=date(2026, 8, 28)),
+                        symbol=current_watch["统一代码"],
+                    )
+                ]
+
+            latest_fetch.side_effect = fetch_result
+
+            summary = run("us", mode="latest")
+
+        self.assertEqual(summary["status"], "SUCCESS")
+        self.assertEqual(summary["symbols_requested"], 1)
+        self.assertEqual(summary["freshest_rows_written"], 1)
+        self.assertEqual(summary["verified"], 1)
+        self.assertEqual(summary["history_rows_written"], 0)
+        self.assertEqual(summary["decision_rows_written"], 0)
+        latest_fetch.assert_called()
+        full_fetch.assert_not_called()
+        evaluate.assert_not_called()
+        client.records.assert_called_once_with("自选清单")
+        client.upsert_history.assert_not_called()
+        client.upsert_decisions.assert_not_called()
+        self.assertEqual(
+            [call.args[0] for call in client.append_rows.call_args_list],
+            ["校验记录", "运行日志"],
+        )
 
 
 if __name__ == "__main__":
