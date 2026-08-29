@@ -1,6 +1,14 @@
 name: Wave Scenario Engine read-only shadow
 
 on:
+  pull_request:
+    paths:
+      - "trading/models.py"
+      - "trading/fibonacci.py"
+      - "trading/wave.py"
+      - "scripts/run_wave_shadow.py"
+      - "tests/test_wave.py"
+      - "docs/WAVE_SCENARIO_ENGINE_V1.md"
   workflow_dispatch:
     inputs:
       group:
