@@ -10,7 +10,9 @@ from core import (
     expected_latest_trade_date,
     fresher_quote,
     latest_quote,
+    latest_completed_market_session,
     market_close_confirmed,
+    ordinary_calendar_freshness_guard,
     quote_sanity_issue,
     validate_quotes,
 )
@@ -209,16 +211,20 @@ def select_history_series(
     verifier_source: str,
     verifier_quotes: list[Quote],
     chosen: Quote,
+    max_trade_date: date | None = None,
 ) -> tuple[str, list[Quote]]:
     """Prefer a real historical series over a one-row snapshot response."""
-    options = [
-        (source, quotes)
-        for source, quotes in (
-            (primary_source, primary_quotes),
-            (verifier_source, verifier_quotes),
-        )
-        if source and quotes
-    ]
+    options = []
+    for source, quotes in (
+        (primary_source, primary_quotes),
+        (verifier_source, verifier_quotes),
+    ):
+        bounded = [
+            quote for quote in quotes
+            if max_trade_date is None or quote.trade_date <= max_trade_date
+        ]
+        if source and bounded:
+            options.append((source, bounded))
     if not options:
         return "yfinance", [chosen]
     history_source, history_quotes = max(options, key=lambda item: len(item[1]))
@@ -238,41 +244,59 @@ def fixture() -> None:
     print(json.dumps(validate_quotes(first, second, 0.0005, 0.02).__dict__, ensure_ascii=False, indent=2))
 
 
-def run(group: str) -> None:
-    from providers import QFQ_HISTORY_SOURCES, fetch_with_retry
+def run(group: str, mode: str = "full") -> dict:
+    if mode not in {"latest", "full"}:
+        raise ValueError(f"未知执行模式：{mode}，仅支持 latest 或 full")
+
+    from providers import (
+        QFQ_HISTORY_SOURCES,
+        fetch_latest_with_retry,
+        fetch_with_retry,
+    )
     from sheets_client import HISTORY_HEADERS, LOG_HEADERS, VALIDATION_HEADERS, SheetsClient
 
     client = SheetsClient()
     config = client.config()
-    history_days = int(float(config.get("history_days", 1000)))
     retry_count = int(float(config.get("retry_count", 3)))
     retry_wait = float(config.get("retry_wait_seconds", 5))
     close_tolerance = as_ratio(config.get("close_tolerance_pct"), 0.0005)
     volume_tolerance = as_ratio(config.get("volume_tolerance_pct"), 0.02)
-    write_adjusted = as_bool(config.get("write_adjusted", True))
-    setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
+    if mode == "full":
+        history_days = int(float(config.get("history_days", 1000)))
+        write_adjusted = as_bool(config.get("write_adjusted", True))
+        setup_parameters, decision_parameters, risk_capital = trading_parameters(config)
     fetched_at = beijing_now()
-    end = fetched_at.date()
-    start = end - timedelta(days=max(history_days * 2, 365))
+    end = fetched_at.astimezone(BEIJING_TIMEZONE).date()
+    start = (
+        end - timedelta(days=max(history_days * 2, 365))
+        if mode == "full"
+        else None
+    )
     wanted_markets = wanted_markets_for_group(group)
 
     watchlist = client.records("自选清单")
-    published_decision_keys = published_setup03_decision_keys(
-        client.records("交易决策")
+    requested_symbols = [
+        watch for watch in watchlist
+        if as_bool(watch.get("启用")) and str(watch.get("市场")) in wanted_markets
+    ]
+    published_decision_keys = (
+        published_setup03_decision_keys(client.records("交易决策"))
+        if mode == "full"
+        else set()
     )
     latest_rows, raw_rows, adjusted_rows = [], [], []
     validation_rows, decision_rows, log_rows = [], [], []
+    verified_count = 0
+    single_source_current_count = 0
+    pending_review_count = 0
+    stale_sources_rejected = 0
+    failed_symbols: list[str] = []
     for watch in watchlist:
         if not as_bool(watch.get("启用")) or str(watch.get("市场")) not in wanted_markets:
             continue
         primary_source = str(watch.get("主数据源") or "").strip()
         verifier_source = str(watch.get("校验数据源") or "").strip()
-        historical_source = str(watch.get("历史数据源") or "").strip()
-        expected_date = expected_latest_trade_date(
-            str(watch["时区"]), str(watch["收盘时间"]), fetched_at
-        )
-        market = str(watch.get("市场"))
-        raw_target_date = expected_date if market in {"CN", "HK", "US"} else None
+        historical_source = str(watch.get("历史数据源") or "").strip() if mode == "full" else ""
         primary_quotes = []
         verifier_quotes = []
         errors = []
@@ -280,15 +304,69 @@ def run(group: str) -> None:
             if not source:
                 continue
             try:
-                target.extend(fetch_with_retry(
-                    source, watch, "raw", start, end, retry_count, retry_wait,
-                    target_trade_date=raw_target_date,
-                ))
+                if mode == "latest":
+                    target.extend(
+                        fetch_latest_with_retry(
+                            source, watch, end, retry_count, retry_wait
+                        )
+                    )
+                else:
+                    target.extend(
+                        fetch_with_retry(
+                            source, watch, "raw", start, end, retry_count, retry_wait,
+                        )
+                    )
             except Exception as exc:
                 errors.append(str(exc))
 
-        primary = latest_quote(primary_quotes)
-        verifier = latest_quote(verifier_quotes)
+        local_today = fetched_at.astimezone(ZoneInfo(str(watch["时区"]))).date()
+        future_quotes = [
+            quote for quote in (*primary_quotes, *verifier_quotes)
+            if quote.trade_date > local_today
+        ]
+        future_note = ""
+        if future_quotes:
+            future_dates = ",".join(
+                sorted({quote.trade_date.isoformat() for quote in future_quotes})
+            )
+            future_note = f"未来交易日行情已拒绝：{future_dates}"
+            errors.append(future_note)
+            stale_sources_rejected += len({quote.source for quote in future_quotes})
+
+        completed_date = latest_completed_market_session(
+            str(watch["时区"]),
+            str(watch["收盘时间"]),
+            fetched_at,
+            (*primary_quotes, *verifier_quotes),
+        )
+        if completed_date is None:
+            failed_symbols.append(str(watch.get("统一代码") or ""))
+            errors.append("无法根据有效来源确定最新已完成市场交易日，已拒绝发布")
+            log_rows.append({
+                "运行时间": fetched_at, "任务组": group, "市场": watch["市场"],
+                "统一代码": watch["统一代码"], "执行状态": "失败",
+                "新增／更新行数": 0, "消息": "；".join(errors),
+            })
+            continue
+
+        calendar_stale_note = ""
+        if mode == "latest":
+            calendar_guard = ordinary_calendar_freshness_guard(
+                str(watch["时区"]),
+                str(watch["收盘时间"]),
+                fetched_at,
+            )
+            if completed_date < calendar_guard:
+                calendar_stale_note = (
+                    f"有效来源最新日期{completed_date.isoformat()}"
+                    f"早于普通日历freshness guard{calendar_guard.isoformat()}；"
+                    "不推断交易所节假日，行情仅保留显示并待复核"
+                )
+
+        primary = latest_quote(primary_quotes, max_trade_date=completed_date)
+        verifier = latest_quote(verifier_quotes, max_trade_date=completed_date)
+        if primary is not None and verifier is not None and primary.trade_date != verifier.trade_date:
+            stale_sources_rejected += 1
         primary_sanity_issue = quote_sanity_issue(primary) if primary is not None else None
         verifier_sanity_issue = quote_sanity_issue(verifier) if verifier is not None else None
         result = validate_quotes(primary, verifier, close_tolerance, volume_tolerance)
@@ -308,17 +386,33 @@ def run(group: str) -> None:
                 f"最终行情采用{verifier.source}"
             )
         if chosen is None:
+            failed_symbols.append(str(watch.get("统一代码") or ""))
             log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": "失败", "新增／更新行数": 0, "消息": "；".join(errors)})
             continue
 
         stale_note = ""
         sanity_note = quote_sanity_issue(chosen) or ""
         displayed_status = result.status
-        if expected_date is not None and chosen.trade_date < expected_date:
+        if chosen.trade_date != completed_date:
             displayed_status = "待复核"
-            stale_note = f"收盘后数据仍停留在{chosen.trade_date.isoformat()}，期望日期为{expected_date.isoformat()}"
+            stale_note = (
+                f"选中行情日期{chosen.trade_date.isoformat()}"
+                f"早于最新已完成市场交易日{completed_date.isoformat()}"
+            )
         if sanity_note:
             displayed_status = "待复核"
+        if future_note:
+            displayed_status = "待复核"
+        if calendar_stale_note:
+            displayed_status = "待复核"
+
+        freshness_single_source = "最新交易日仅单源可用" in result.note
+        if displayed_status == "已验证":
+            verified_count += 1
+        if result.status == "单源可用" or freshness_single_source:
+            single_source_current_count += 1
+        if displayed_status != "已验证":
+            pending_review_count += 1
 
         confirmed = displayed_status == "已验证" and market_close_confirmed(
             chosen.trade_date, str(watch["时区"]), str(watch["收盘时间"]), fetched_at
@@ -335,7 +429,9 @@ def run(group: str) -> None:
             (
                 result.note,
                 stale_note,
+                calendar_stale_note,
                 sanity_note,
+                future_note,
                 source_selection_note,
                 "；".join(fallback_notes),
             )
@@ -365,98 +461,120 @@ def run(group: str) -> None:
                 for item in (
                     result.note,
                     stale_note,
+                    calendar_stale_note,
                     sanity_note,
+                    future_note,
                     source_selection_note,
                 )
                 if item
             ),
         })
-        _, history_quotes = select_history_series(
-            primary_source, primary_quotes, verifier_source, verifier_quotes, chosen
-        )
-        raw_for_symbol = [quote_row(item, fetched_at, "未复权") for item in history_quotes[-history_days:]]
+        raw_for_symbol = []
         adjusted_for_symbol = []
         adjusted = []
-        raw_rows.extend(raw_for_symbol)
-        if write_adjusted or confirmed:
-            if not historical_source:
-                errors.append("前复权失败：自选清单缺少历史数据源")
-            elif historical_source not in QFQ_HISTORY_SOURCES:
-                errors.append(f"前复权失败：历史数据源{historical_source}不支持qfq")
-            else:
-                try:
-                    adjusted = fetch_with_retry(
-                        historical_source,
-                        watch,
-                        "qfq",
-                        start,
-                        end,
-                        retry_count,
-                        retry_wait,
-                        target_trade_date=chosen.trade_date,
-                    )
-                except Exception as exc:
-                    errors.append(f"前复权失败：{exc}")
-        if write_adjusted and adjusted:
-            adjusted_for_symbol = [
-                quote_row(item, fetched_at, "前复权")
-                for item in adjusted[-history_days:]
-            ]
-            adjusted_rows.extend(adjusted_for_symbol)
-
-        try:
-            decision_result, decision_note = evaluate_set03_decision(
-                adjusted,
-                chosen.trade_date,
-                confirmed,
-                risk_capital,
-                setup_parameters,
-                decision_parameters,
-                published_decision_keys,
+        if mode == "full":
+            _, history_quotes = select_history_series(
+                primary_source, primary_quotes, verifier_source, verifier_quotes,
+                chosen, max_trade_date=completed_date,
             )
-        except Exception as exc:
-            errors.append(f"SETUP_03 Decision失败：{exc}")
-        else:
-            if decision_result is None:
-                errors.append(decision_note)
+            raw_for_symbol = [
+                quote_row(item, fetched_at, "未复权")
+                for item in history_quotes[-history_days:]
+            ]
+            raw_rows.extend(raw_for_symbol)
+            if write_adjusted or confirmed:
+                if not historical_source:
+                    errors.append("前复权失败：自选清单缺少历史数据源")
+                elif historical_source not in QFQ_HISTORY_SOURCES:
+                    errors.append(f"前复权失败：历史数据源{historical_source}不支持qfq")
+                else:
+                    try:
+                        adjusted = fetch_with_retry(
+                            historical_source,
+                            watch,
+                            "qfq",
+                            start,
+                            end,
+                            retry_count,
+                            retry_wait,
+                            target_trade_date=chosen.trade_date,
+                        )
+                    except Exception as exc:
+                        errors.append(f"前复权失败：{exc}")
+            if write_adjusted and adjusted:
+                adjusted_for_symbol = [
+                    quote_row(item, fetched_at, "前复权")
+                    for item in adjusted[-history_days:]
+                ]
+                adjusted_rows.extend(adjusted_for_symbol)
+
+            try:
+                decision_result, decision_note = evaluate_set03_decision(
+                    adjusted,
+                    chosen.trade_date,
+                    confirmed,
+                    risk_capital,
+                    setup_parameters,
+                    decision_parameters,
+                    published_decision_keys,
+                )
+            except Exception as exc:
+                errors.append(f"SETUP_03 Decision失败：{exc}")
             else:
-                setup, decision, confirmed_date = decision_result
-                decision_rows.append(
-                    decision_row(
-                        adjusted[-1],
-                        setup,
-                        decision,
-                        fetched_at,
-                        confirmed_date,
-                        risk_capital,
-                        adjusted[-1].source,
+                if decision_result is None:
+                    errors.append(decision_note)
+                else:
+                    setup, decision, confirmed_date = decision_result
+                    decision_rows.append(
+                        decision_row(
+                            adjusted[-1],
+                            setup,
+                            decision,
+                            fetched_at,
+                            confirmed_date,
+                            risk_capital,
+                            adjusted[-1].source,
+                        )
                     )
-                )
-                published_decision_keys.add(
-                    setup03_decision_key(
-                        adjusted[-1].symbol,
-                        adjusted[-1].trade_date,
-                        setup.setup_type,
+                    published_decision_keys.add(
+                        setup03_decision_key(
+                            adjusted[-1].symbol,
+                            adjusted[-1].trade_date,
+                            setup.setup_type,
+                        )
                     )
-                )
         log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": displayed_status, "新增／更新行数": len(raw_for_symbol) + len(adjusted_for_symbol), "消息": "；".join(item for item in (*notes, *errors) if item)})
 
     changed = client.upsert_latest(latest_rows)
-    changed += client.upsert_history("历史行情_未复权", raw_rows)
-    if write_adjusted:
-        changed += client.upsert_history("历史行情_前复权", adjusted_rows)
-    changed += client.upsert_decisions(decision_rows)
+    if mode == "full":
+        changed += client.upsert_history("历史行情_未复权", raw_rows)
+        if write_adjusted:
+            changed += client.upsert_history("历史行情_前复权", adjusted_rows)
+        changed += client.upsert_decisions(decision_rows)
     client.append_rows("校验记录", VALIDATION_HEADERS, validation_rows)
     client.append_rows("运行日志", LOG_HEADERS, log_rows)
-    print(
-        f"完成：最新行情{len(latest_rows)}个，交易决策{len(decision_rows)}个，"
-        f"写入／更新{changed}行。"
-    )
+    summary = {
+        "mode": mode,
+        "symbols_requested": len(requested_symbols),
+        "freshest_rows_written": len(latest_rows),
+        "verified": verified_count,
+        "single_source_current": single_source_current_count,
+        "pending_review": pending_review_count,
+        "stale_sources_rejected": stale_sources_rejected,
+        "failed_symbols": len(failed_symbols),
+        "failed_symbol_list": failed_symbols,
+        "history_rows_written": len(raw_rows) + len(adjusted_rows),
+        "decision_rows_written": len(decision_rows),
+        "status": "SUCCESS" if pending_review_count == 0 and not failed_symbols else "PARTIAL_DATA_QUALITY",
+    }
+    print("RUN_SUMMARY " + json.dumps(summary, ensure_ascii=False))
+    return summary
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--group", choices=["asia", "us", "all"], default="all")
+    parser.add_argument("--mode", choices=["latest", "full"], default="full")
     parser.add_argument("--fixture", action="store_true")
     args = parser.parse_args()
-    fixture() if args.fixture else run(args.group)
+    fixture() if args.fixture else run(args.group, args.mode)

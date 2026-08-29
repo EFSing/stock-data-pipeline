@@ -1,7 +1,7 @@
 import inspect
 import unittest
 from dataclasses import replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 from core import Quote
@@ -530,6 +530,157 @@ class DecisionPipelineTests(unittest.TestCase):
         self.assertEqual(log_call.args[0], "运行日志")
         self.assertEqual(len(log_call.args[2]), 2)
         self.assertIn("SETUP_03 Decision失败：broken core input", log_call.args[2][0]["消息"])
+
+
+class LatestOnlyPipelineTests(unittest.TestCase):
+    @staticmethod
+    def config():
+        return {
+            "retry_count": "1",
+            "retry_wait_seconds": "0",
+            "close_tolerance_pct": "0.05%",
+            "volume_tolerance_pct": "2%",
+        }
+
+    @staticmethod
+    def watch(symbol="TEST"):
+        return {
+            "启用": True,
+            "市场": "US",
+            "主数据源": "yfinance",
+            "校验数据源": "Tencent",
+            "时区": "America/New_York",
+            "收盘时间": "16:00",
+            "统一代码": symbol,
+        }
+
+    def test_latest_row_uses_quote_trade_date_not_beijing_run_date(self):
+        watch = self.watch()
+        fetched_at = datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("providers.fetch_with_retry") as full_fetch,
+            patch("main.evaluate_set03_decision") as evaluate,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = self.config()
+            client.records.return_value = [watch]
+            client.upsert_latest.return_value = 1
+            latest_fetch.side_effect = lambda source, current_watch, *_args: [
+                replace(
+                    quote(day=date(2026, 8, 28), source=source),
+                    symbol=current_watch["统一代码"],
+                )
+            ]
+
+            summary = run("us", mode="latest")
+
+        row = client.upsert_latest.call_args.args[0][0]
+        self.assertEqual(row["交易日期"], date(2026, 8, 28))
+        self.assertEqual(row["抓取时间"], fetched_at)
+        self.assertNotEqual(row["交易日期"], fetched_at.date())
+        self.assertEqual(row["校验状态"], "已验证")
+        self.assertEqual(summary["status"], "SUCCESS")
+        self.assertEqual(summary["history_rows_written"], 0)
+        self.assertEqual(summary["decision_rows_written"], 0)
+        full_fetch.assert_not_called()
+        evaluate.assert_not_called()
+        client.upsert_history.assert_not_called()
+        client.upsert_decisions.assert_not_called()
+
+    def test_latest_source_date_mismatch_selects_newer_source_but_stays_pending(self):
+        watches = [self.watch("PRIMARY_FRIDAY"), self.watch("VERIFIER_FRIDAY")]
+        fetched_at = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = self.config()
+            client.records.return_value = watches
+
+            def fetch_result(source, current_watch, *_args):
+                symbol = current_watch["统一代码"]
+                if symbol == "PRIMARY_FRIDAY":
+                    day = date(2026, 8, 28) if source == "yfinance" else date(2026, 8, 27)
+                else:
+                    day = date(2026, 8, 27) if source == "yfinance" else date(2026, 8, 28)
+                return [replace(quote(day=day, source=source), symbol=symbol)]
+
+            latest_fetch.side_effect = fetch_result
+            summary = run("us", mode="latest")
+
+        rows = {row["统一代码"]: row for row in client.upsert_latest.call_args.args[0]}
+        self.assertEqual(rows["PRIMARY_FRIDAY"]["交易日期"], date(2026, 8, 28))
+        self.assertEqual(rows["PRIMARY_FRIDAY"]["主数据源"], "yfinance")
+        self.assertEqual(rows["VERIFIER_FRIDAY"]["交易日期"], date(2026, 8, 28))
+        self.assertEqual(rows["PRIMARY_FRIDAY"]["校验状态"], "待复核")
+        self.assertEqual(rows["VERIFIER_FRIDAY"]["校验状态"], "待复核")
+        self.assertEqual(summary["single_source_current"], 2)
+        self.assertEqual(summary["pending_review"], 2)
+
+    def test_latest_future_quote_is_rejected_and_old_quote_is_written(self):
+        watch = self.watch("FUTURE")
+        fetched_at = datetime(2026, 9, 1, 0, 30, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = self.config()
+            client.records.return_value = [watch]
+
+            def fetch_result(source, current_watch, *_args):
+                day = date(2026, 9, 1) if source == "yfinance" else date(2026, 8, 28)
+                return [replace(quote(day=day, source=source), symbol=current_watch["统一代码"])]
+
+            latest_fetch.side_effect = fetch_result
+            summary = run("us", mode="latest")
+
+        row = client.upsert_latest.call_args.args[0][0]
+        self.assertEqual(row["交易日期"], date(2026, 8, 28))
+        self.assertEqual(row["校验状态"], "待复核")
+        self.assertIn("未来交易日行情已拒绝", row["备注"])
+        self.assertEqual(summary["stale_sources_rejected"], 1)
+        self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
+
+    def test_latest_mode_never_reads_or_writes_history_or_decision(self):
+        watch = self.watch()
+        fetched_at = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry") as latest_fetch,
+            patch("providers.fetch_with_retry") as full_fetch,
+            patch("main.evaluate_set03_decision") as evaluate,
+            patch("main.trading_parameters") as parameters,
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+            client.config.return_value = self.config()
+            client.records.return_value = [watch]
+            client.upsert_latest.return_value = 1
+            latest_fetch.side_effect = lambda source, current_watch, *_args: [
+                replace(quote(day=date(2026, 8, 28), source=source), symbol=current_watch["统一代码"])
+            ]
+
+            summary = run("us", mode="latest")
+
+        self.assertEqual(summary["history_rows_written"], 0)
+        self.assertEqual(summary["decision_rows_written"], 0)
+        full_fetch.assert_not_called()
+        evaluate.assert_not_called()
+        parameters.assert_not_called()
+        client.records.assert_called_once_with("自选清单")
+        client.upsert_history.assert_not_called()
+        client.upsert_decisions.assert_not_called()
+        self.assertEqual(
+            [call.args[0] for call in client.append_rows.call_args_list],
+            ["校验记录", "运行日志"],
+        )
 
 
 if __name__ == "__main__":

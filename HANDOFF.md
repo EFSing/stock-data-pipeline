@@ -12,25 +12,24 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `Phase 5J-v5 — ATR_NORMALIZED_PLATFORM_BOUNDARY_LAST_INDEPENDENT_DEVELOPMENT_HOLDOUT`。
-- **具体目标:** 在 PR #32 已合并且 Sol 已授权 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` 后，按唯一预注册的 ATR-normalized boundary family，在最后一套独立 development holdout 上完成结构-only qualification；该 qualification 已完成且没有 candidate 存活，不把结果解释为 production decision。
-- **当前冻结点:** protocol `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`，SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；metadata-only clean universe manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`；dataset 已冻结为 40 symbols / 88,075 bars，manifest SHA-256 `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`。
-- **Scope:** 仅保留现有 causal swing、strict as-of、lifecycle、breakout、confirmed/failed、Decision、Entry Zone、stop/target/RR、execution、terminal/rearm；本任务只改变 boundary semantics。已使用既有 CN BaoStock / US yfinance development contract 生成 hash-pinned clean-holdout dataset/replay artifacts，并运行结构性资格矩阵与一次 deterministic repeat。
-- **明确禁止事项:** 不做固定百分比搜索、市场/高低边界分别调参或 terminal/rearm 改造；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不访问 Final OOS、正式 Phase 5K-B1、IBKR formal universe OHLCV；不修改 production 或 Trading Core；不以结果换股或重写旧 artifact。
-- **完成条件:** 数据身份、结构-only qualification matrix、parity/repro、治理修正、ATR production-isolation regression、本次 closeout commit/push 与 exact-head CI 均已完成，最终停在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
-- **停止条件:** qualification 已明确无 candidate 存活；创建 PR 并核对 exact-head CI 后停止，不进入新的 ATR family、terminal/rearm redesign、formal validation 或 Final OOS。普通代码、测试、diagnostic、artifact/hash 问题自行修复。
+- **当前 Phase / task:** `P0 PRODUCTION_HOLDINGS_DATE_BUG_FIX`。
+- **具体目标:** 在 PR #33 merge 后的最新 main 上，独立修复生产持仓股 latest 行情的市场 session date/fetched_at 混淆，并完成真实 latest-only workflow 与 Google Sheet 回读验证。
+- **PR #33 closeout:** 已 squash merge；真实 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，main exact-head CI `33264260330` success。研究结果保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，下一核心路线为 Wave Scenario Engine → `SETUP_01` → `SETUP_02`，本任务不启动 Wave Engine。
+- **明确禁止事项:** 不直接 merge/rebase 旧 PR #31；不读取 Final OOS、不启动新研究或 Wave Engine；不改变 percentage production default、既有交易行为、SETUP_03 或 Trading Core 语义；不把北京时间运行日期写入交易日期。
+- **完成条件:** 从新 main 独立建立 hotfix，完成 PR #31 全量审计与最小移植，latest/full 隔离和日期边界 regression 通过，真实 latest-only workflow 只写最新/校验/日志并回读生产 Sheet，创建新 PR 并核对 exact-head CI success，最终状态为 `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`。
+- **停止条件:** 新 hotfix PR exact-head CI success、PR CLEAN/MERGEABLE、真实 Sheet 日期/来源/校验/运行时间核验完成且 `HANDOFF_CURRENT_AND_CONSISTENT` 后停止；不自动 merge 新 hotfix PR。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub remote `main@21c73977195682df576750648765b1b74d8824e2`；该 SHA 是 PR #32 的 squash merge commit，父提交为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
-- **working branch:** `research/setup03-atr-boundary-redesign`（当前研究分支）。
-- **current HEAD:** `4a842fb94ded591604c7ac2081e8f71a69bb2e35`（PR #33 当前已核实的真实 final source HEAD；后续仅允许治理快照同步）。
-- **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` 已关闭并 squash merge，merge commit `21c73977195682df576750648765b1b74d8824e2`。当前 v5 PR #33 `stop ATR boundary structural development` 为 OPEN、base `main`；独立 PR #31 `hotfix/production-market-data-stability` 仍保持分离。
-- **latest remote main CI:** run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，completed `success`；PR #33 final source HEAD `4a842fb94ded591604c7ac2081e8f71a69bb2e35` 的 exact-head CI run `33263763956` completed `success`。
-- **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head CI run `33248943280` success；它不属于当前 checkout。
-- **working tree expected state:** tracked files 包含本任务的 governance/research changes 与最终 CI 回归断言；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
+- **main/base SHA:** GitHub remote `main@b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；该 SHA 是 PR #33 的 squash merge commit，父提交为 `21c73977195682df576750648765b1b74d8824e2`。
+- **working branch:** `hotfix/production-holdings-session-date`（从上述最新 main 独立建立）。
+- **current HEAD:** hotfix 的最后生产实现 commit 为 `a9a7a06d546412d4de390029baaa5ff4d44ee263`；其后仅有最终治理同步文档更新，当前远端 tip 不再包含生产代码变化。
+- **PR:** #33 `Phase 5J-v5: stop ATR boundary structural development` 已关闭并 squash merge，merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；旧 PR #31 `hotfix/production-market-data-stability` 仍 `OPEN / DIRTY / CONFLICTING`、base `142b7345a5640b1e87932e41f3dc9311172bf54c`，未直接移植或 merge；当前 PR #34 为 `OPEN / CLEAN / MERGEABLE`。
+- **latest remote main CI:** run `33264260330`，head `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，completed `success`。
+- **独立旧 PR:** #31 `hotfix/production-market-data-stability` head `79ad70cc71171a10f232e02e752f795849bf706d`，旧 base `142b7345a5640b1e87932e41f3dc9311172bf54c`，其 exact-head CI `33248943280` success 但不适用于新 main；不得直接 merge/rebase。
+- **working tree expected state:** 当前 hotfix 含生产日期修复、focused regression 与治理文档修改；最终治理同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；PR #31 的 worktree/branch 不纳入本次提交。
 - **current project/phase status:** PR #32 的 v4 状态为 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`，已按用户授权完成 squash merge；当前 v5 qualification 已完成并为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。formal validation、Final OOS、Phase 5K-B1 仍未执行。
 
 ## 3. Completed Work
@@ -45,28 +44,37 @@
 - v5 clean holdout acquisition：冻结 universe 的 40/40 symbols 均 `VALID_ACCEPTED`，CN 42,355 + US 45,720 = 88,075 bars；dataset manifest `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`，normalized aggregate `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`，replay aggregate `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`；provider/QC exceptions=0，未使用 formal B1/IBKR。
 - v5 ATR structure-only qualification：4 candidates 的 124-row matrix 中 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；parity 为 280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches，deterministic repeat `PASS`。capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`，最终状态 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
 - `trading/setup.py` 的 `ATR_NORMALIZED_BOUNDARY_MODE` 保留用于研究复现，并明确标记为 `RESEARCH_ONLY` / `NOT_PRODUCTION_AUTHORIZED` / `FAILED_STRUCTURAL_CANDIDATE_FAMILY`；`main.py`、Sheets 参数解析、workflow 与 Decision 入口均不选择该 mode，percentage production default 与既有交易行为不变。
+- PR #33 已完成远端 squash merge，merge commit 为 `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，main exact-head CI `33264260330` success；未启动 Wave Engine。
+- PR #31 全部 diff 已审计：旧治理文件基于 `main@142b7345a5640b1e87932e41f3dc9311172bf54c`，不直接移植；本分支只重新实现 latest/full 隔离、source-date freshness、ordinary-calendar guard、future-date rejection 和时区归一化。
+- 已完成生产根因链审计：`main.run()` 构造 latest row 时的 `交易日期` 只允许来自 `chosen.trade_date`，`抓取时间` 只来自北京时间 `fetched_at`；真实 Sheet 元数据与 `自选清单`/`最新行情` 已只读核对，目标表为「持仓股股票行情数据中台」。
+- 已完成最终验证：全量 unittest `343/343`、focused validation/latest `64/64`、compile、`git diff --check` 与 PR #34 exact-head CI `33265845873` 均成功；实现 head 为 `a9a7a06d546412d4de390029baaa5ff4d44ee263`。
+- 最终 production smoke：Asia `33265877563` 与 US `33265875055` 均为 workflow_dispatch/latest、成功，summary 分别为 `3/3 verified` 与 `6 verified + 1 single-source current/pending`，两者 `history_rows_written=0`、`decision_rows_written=0`。真实 Sheet 中 10/10 启用持仓交易日期均为 `2026-08-28`，SIVE 的 Friday 行来自 bounded Yahoo Chart；日期列为 DATE、运行时间列为北京时间 DATE_TIME。
+- 最终状态：`PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；SIVE 保留单源待复核，未伪造双源验证。`HANDOFF_CURRENT_AND_CONSISTENT`。
 
 ## 4. Pending Work
 
 ### Required Next
 
-1. [x] 更新并核对 HANDOFF/CURRENT_STATUS/DECISION_LOG，记录 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 及所有 frozen identities。
-2. [x] 审计并锁定 ATR-normalized research implementation 的 production 隔离与失败候选族状态。
-3. [x] 运行完整 `python -m unittest discover -s tests -v`、compile/hash checks、`git diff --check`。
-4. [x] 提交并 push 本次 closeout，核对 `headSha == final source HEAD` 的 exact-head CI。
-5. [x] CI 成功后停止；不 merge、不启动 Wave Engine、不启动任何新研究、formal validation、Phase 5K-B1、Final OOS 或 terminal/rearm redesign。
+1. [x] 核对并 squash merge PR #33，确认 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11` 与 main CI `33264260330` success。
+2. [x] 从最新 main 建立 `hotfix/production-holdings-session-date`，完整审计 PR #31 并重新实现必要生产修复。
+3. [x] 补齐 CN/US delayed Friday、source-date mismatch、future-date、close boundary、weekend/weekday 和 UTC/BJT session-date regression。
+4. [x] 运行 full unittest、focused validation/latest tests、compile、hash/diff checks，commit + push hotfix。
+5. [x] 手动运行 Asia/US latest-only production workflow，真实回读最新行情 Sheet 每个启用持仓标的的日期、来源、校验状态与北京时间运行时间。
+6. [x] 创建 PR #34，确认最终 exact-head CI `33265845873` success、PR CLEAN/MERGEABLE，并完成最终治理同步；不自动 merge。
+7. [x] 达成 `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；停止，不启动 Wave Engine。
 
 ### Deferred
 
+- Wave Scenario Engine → `SETUP_01` → `SETUP_02`；本任务明确不启动。
 - 如需继续 SETUP_03，等待新的明确研究决策并注册新 protocol/version；当前结果不授权任何 threshold 或 production 选择。
-- Formal Phase 5K-B1、Final OOS、IBKR readiness 和任何 production parameter/strategy change。
+- Final OOS、formal Phase 5K-B1、IBKR readiness 和任何 production parameter/strategy change。
 
 ### Prohibited For Now
 
-- 新的 provider/data fetch、数据源扩张、symbol replacement、dataset identity rewrite 或第二个 ATR/volatility family。
-- SETUP_03 / Trading Core / Decision / execution / production Sheets semantic changes；本任务只允许 ATR boundary research implementation。
-- Final OOS、formal validation、returns/MFE/MAE/P&L/outcome access。
-- 根据收益或信号结果选择/替换标的、参数或 backup 内容。
+- 启动 Wave Engine、新研究、Final OOS、formal validation、Phase 5K-B1 或任何 ATR/SETUP_03 继续开发。
+- 直接 merge/rebase PR #31，或自动 merge本次新 hotfix PR。
+- 改变 percentage production default、SETUP_03/Trading Core/Decision 既有交易行为或 Google Sheets schema。
+- 将 fetched_at、北京时间日期或 workflow run date 当作交易日期；交易日期必须来自 chosen quote 的市场真实 session `trade_date`。
 
 ## 5. Key Decisions And Rationale
 
@@ -115,6 +123,9 @@
 | `research/atr_boundary_dataset.py` / `research/atr_boundary_clean_holdout/*` | new clean-holdout acquisition and tracked manifests | BaoStock/yfinance development data identity |
 | `research/atr_boundary_qualification.py` / `research/atr_boundary_qualification/*` | structure-only candidate/adjacent/lifecycle matrix, parity and repeat | no Decision/outcome/OOS path |
 | `scripts/acquire_atr_boundary_holdout.py` / `scripts/run_atr_boundary_qualification.py` | bounded acquisition and qualification runners | explicit stop-state output |
+| `core.py` / `providers.py` / `main.py` | production latest quote date, source freshness and execution-mode isolation | P0 hotfix; trade behavior unchanged |
+| `.github/workflows/asia-close.yml` / `.github/workflows/us-close.yml` | scheduled latest-only and manual full mode routing | production workflow boundary |
+| `tests/test_validation.py` / `tests/test_decision_sheet.py` / `tests/test_governance.py` | market-local date, source mismatch, future-date and latest-only regression | regression coverage |
 
 ## 7. Frozen Identities And Invariants
 
@@ -130,17 +141,18 @@
 - v5 ATR protocol: `SETUP_03-ATR-BOUNDARY-STRUCTURAL-QUALIFICATION-2026-08-29-v1`, SHA-256 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe `SETUP_03-ATR-BOUNDARY-CLEAN-HOLDOUT-CN-US-2026-08-29-v1`, manifest SHA-256 `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b`。
 - v5 dataset: 40 symbols / 88,075 bars；manifest SHA-256 `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`，normalized aggregate `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`，replay aggregate `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`。
 - v5 qualification: candidates `1.0/1.5/2.0/2.5` all candidate-level PASS；adjacent/lifecycle gates leave `qualified_candidates=[]`，selected candidate `null`，parity/repro PASS；final status `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。Capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`。
+- Production date invariants: `交易日期 = chosen quote 的市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`。US 交易日期保持 US local session date，不因北京时间跨日加一天；A股交易日期保持 A股市场日期；两者不得互相替代。
 
 ## 8. Known Issues / Blockers
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #32 main push run `33259644890` 已覆盖 squash merge SHA `21c7397719…` 并成功；PR #33 final source HEAD `4a842fb94ded591604c7ac2081e8f71a69bb2e35` 的 exact-head run `33263763956` 已成功 | 只接受 `headSha == final source HEAD` 的 CI；最终 run 以 GitHub PR/Actions 事实为准 | No |
+| environment / verification | PR #33 已 squash merge 为 `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`；main exact-head CI `33264260330` success | hotfix 仍需独立 exact-head CI；最终 run 以 GitHub PR/Actions 事实为准 | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | 当前已到 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；没有 candidate 可带入 formal validation | PR #33 exact-head CI `33263763956` 已成功；本 closeout 不启动 Wave Engine 或任何新研究、formal validation、B1 或 Final OOS | Yes for any further SETUP_03 work |
-| project coordination | PR #31 is an independent OPEN hotfix；当前研究 PR 为 #33 | do not mix worktrees or infer PR #33 status from PR #31 | No, if kept separate |
+| Sol / user decision node | 当前已到 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；没有 candidate 可带入 formal validation | PR #33 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11` 的 main exact-head CI `33264260330` 已成功；本 hotfix 不启动 Wave Engine 或任何新研究、formal validation、B1 或 Final OOS | Yes for any further SETUP_03 work |
+| project coordination | 旧 PR #31 is independent `OPEN / DIRTY / CONFLICTING` on old base；当前 hotfix branch is separate from it | do not merge/rebase #31 or mix its governance files into the new hotfix | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
 ## 9. Lessons / Pitfalls — DO NOT REPEAT
@@ -197,14 +209,16 @@
 
 ## 10. Next Action
 
-1. [x] 运行完整 unittest、compile/hash checks、`git diff --check`，确认所有 tracked qualification artifacts 与 manifests 可重算。
-2. [x] 提交并 push v5 closeout，创建 PR，检查 `headSha == final HEAD` 的 exact-head CI。
-3. [x] CI 成功后报告 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，并停止；不 merge、不运行 formal validation、Final OOS 或 Phase 5K-B1，不进入 terminal/rearm redesign。
+1. [x] 完成 PR #33 squash merge，并确认 merge commit `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11` 的 main exact-head CI `33264260330` success。
+2. [x] 完整审计旧 PR #31；从新 main 建立 `hotfix/production-holdings-session-date`，完成生产日期/latest-only 修复与 focused regression。
+3. [x] 运行 full unittest、compile、hash/diff checks，commit + push hotfix 并创建 PR #34。
+4. [x] 手动运行 Asia/US latest-only production workflow，回读真实 Sheet 中每个启用持仓的市场交易日期、chosen/verifier source、校验状态和北京时间运行时间。
+5. [x] PR #34 exact-head CI `33265845873` success、CLEAN/MERGEABLE，最终状态为 `PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；不自动 merge、不启动 Wave Engine。
 
 ## 11. Handoff Checklist
 
 - [x] Current Objective 已更新
-- [x] main / branch / HEAD / PR / CI 已更新
+- [x] main / branch / PR / CI 已更新
 - [x] Completed Work 已更新
 - [x] Pending Work 已更新
 - [x] 新的重要 decision + rationale 已记录
@@ -218,11 +232,12 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T00:45:35+08:00`
-- `verified_main_sha`: `21c73977195682df576750648765b1b74d8824e2`
-- `verified_branch_head`: `4a842fb94ded591604c7ac2081e8f71a69bb2e35`（branch=`research/setup03-atr-boundary-redesign`；final source head）
-- `latest_test_result`: full unittest `329/329` passed；qualification parity `280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches`；deterministic repeat `PASS`；ATR bindings/hash/compile/diff checks passed
-- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；PR #33 final source HEAD `4a842fb94ded591604c7ac2081e8f71a69bb2e35` exact-head run `33263763956`，success
-- `updated_by_task`: `research: finalize SETUP_03 ATR boundary stop-state and CI closeout`
+- `last_updated_at`: `2026-08-30T01:38:53+08:00`
+- `verified_main_sha`: `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`
+- `verified_branch_head`: `a9a7a06d546412d4de390029baaa5ff4d44ee263`（branch=`hotfix/production-holdings-session-date`；最后生产实现 commit；之后仅治理同步）
+- `latest_test_result`: full unittest `343/343`、focused validation/latest `64/64`、compile 与 `git diff --check` 均通过
+- `latest_ci_run`: PR #34 production implementation exact-head run `33265845873`，head `a9a7a06d546412d4de390029baaa5ff4d44ee263`，success；其后治理同步 tip 仅含文档，最终 tip 的 exact-head CI 在 closeout 核验中确认 success；PR `OPEN / CLEAN / MERGEABLE`
+- `production_smoke`: Asia run `33265877563` success（3/3 verified）；US run `33265875055` success（6 verified + 1 single-source pending）；10/10 enabled rows trade_date=`2026-08-28`，history/Decision writes=`0`
+- `updated_by_task`: `production: close holdings market session date hotfix from PR33 merged main`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

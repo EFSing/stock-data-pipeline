@@ -2,6 +2,15 @@ name: 欧美市场收盘更新
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Execution mode (full is manual-only)"
+        required: true
+        default: latest
+        type: choice
+        options:
+          - latest
+          - full
   schedule:
     - cron: "30 22 * * 1-5"
 
@@ -15,7 +24,23 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python main.py --group us
+      - name: Run production market data pipeline
         env:
+          DISPATCH_MODE: ${{ inputs.mode }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -o pipefail
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            RUN_MODE=latest
+          else
+            RUN_MODE="${DISPATCH_MODE:-latest}"
+          fi
+          python main.py --group us --mode "$RUN_MODE" | tee run-summary.txt
+      - name: Publish run summary
+        if: always()
+        run: |
+          {
+            echo "## Production market data summary"
+            if [ -f run-summary.txt ]; then cat run-summary.txt; fi
+          } >> "$GITHUB_STEP_SUMMARY"

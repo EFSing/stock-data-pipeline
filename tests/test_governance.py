@@ -80,6 +80,26 @@ class GovernanceTests(unittest.TestCase):
             self.assertNotIn("ATR_NORMALIZED", source, relative_path)
             self.assertNotIn("platform_boundary_mode", source, relative_path)
 
+    def test_scheduled_workflows_force_latest_and_full_is_manual_only(self):
+        for relative_path, group in (
+            (".github/workflows/asia-close.yml", "asia"),
+            (".github/workflows/us-close.yml", "us"),
+        ):
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("workflow_dispatch:", source)
+            self.assertIn("default: latest", source)
+            self.assertIn("- latest", source)
+            self.assertIn("- full", source)
+            self.assertIn('if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then', source)
+            self.assertIn("RUN_MODE=latest", source)
+            self.assertIn(f'python main.py --group {group} --mode "$RUN_MODE"', source)
+            self.assertIn("tee run-summary.txt", source)
+
+        main_source = (ROOT / "main.py").read_text(encoding="utf-8")
+        self.assertIn("latest_completed_market_session", main_source)
+        self.assertIn('"交易日期": chosen.trade_date', main_source)
+        self.assertIn('"抓取时间": fetched_at', main_source)
+
     def test_registry_records_verified_recovery_gates(self):
         self.assertEqual(self.registry["schema_version"], "repository-frozen-artifact-registry-v1")
         self.assertEqual(self.entry["status"], "FULLY_RECOVERABLE")
