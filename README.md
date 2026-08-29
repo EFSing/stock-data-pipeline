@@ -31,7 +31,7 @@ python main.py --group all --mode full
 需要查看启用持仓的波浪结构上下文时，手动运行只读 shadow workflow：
 
 ```bash
-python scripts/run_wave_shadow.py --group all
+python -m scripts.run_wave_shadow --group all
 ```
 
 Wave shadow 使用 `WAVE-SCENARIO-ENGINE-2026-08-30-v1`，输出 weekly/daily

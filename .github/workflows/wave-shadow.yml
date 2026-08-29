@@ -39,8 +39,8 @@ jobs:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
-          python scripts/run_wave_shadow.py \
-            --group "${{ inputs.group }}" \
+          python -m scripts.run_wave_shadow \
+            --group "${{ inputs.group || 'all' }}" \
             --output-dir artifacts/wave_shadow | tee wave-shadow-summary.txt
       - name: Publish shadow summary
         if: always()
