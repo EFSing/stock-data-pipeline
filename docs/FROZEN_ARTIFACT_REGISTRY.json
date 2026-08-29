@@ -1,0 +1,206 @@
+{
+  "schema_version": "repository-frozen-artifact-registry-v1",
+  "repository": "EFSing/stock-data-pipeline",
+  "registry_status": "ACTIVE_HOLDOUT_FULLY_RECOVERABLE",
+  "last_verified_at": "2026-08-29T20:54:56+08:00",
+  "verified_against": {
+    "remote_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c",
+    "working_branch": "research/phase5j-v4-lifecycle-attribution",
+    "working_head_before_governance_commit": "5891a2df62e2d3e4623b93b1c4f368e53b4d47ba",
+    "governance_commit": "92a33940133485d9cd04228b2488cd3c40bb75b1"
+  },
+  "status_definitions": {
+    "LOCAL_PRESENT": "Target bytes exist in the current checkout.",
+    "HASH_VERIFIED": "Registered exact bytes and canonical identities were recomputed and matched.",
+    "PERSISTENT_BACKUP_PRESENT": "An approved persistent immutable object exists and is locatable by recorded identity.",
+    "RECOVERY_VERIFIED": "The persistent object was restored into a clean directory and passed artifact-specific checks.",
+    "FULLY_RECOVERABLE": "All four boolean gates are true; this is never inferred from a local copy alone."
+  },
+  "artifacts": [
+    {
+      "artifact_id": "phase5j-v3-development-holdout-frozen-bundle",
+      "artifact_type": "frozen_replay_input_and_provenance_bundle",
+      "purpose": "Exact cross-device recovery of the Phase 5J-v3 development-only holdout input and its manifests.",
+      "lifecycle": "DEVELOPMENT_ONLY",
+      "status": "FULLY_RECOVERABLE",
+      "labels": [
+        "DEVELOPMENT_ONLY",
+        "NOT_FORMAL_VALIDATION",
+        "NOT_FINAL_OOS",
+        "PERSISTENT_BACKUP_VERIFIED",
+        "RECOVERY_VERIFIED",
+        "FULLY_RECOVERABLE"
+      ],
+      "tracked_provenance_paths": [
+        "research/development_holdout/dataset_manifest.json",
+        "research/development_holdout/replay_manifest.json",
+        "research/development_holdout/universe_manifest.json",
+        "research/development/development_holdout_decision_capsule_v1.json",
+        "research/development/development_holdout_decision_capsule_v1.md"
+      ],
+      "ignored_payload_paths": [
+        "artifacts/phase5j_v3_development_holdout/development_holdout_replay_input.jsonl.gz",
+        "artifacts/phase5j_v3_development_holdout/raw_baostock/CN/",
+        "artifacts/phase5j_v3_development_holdout/raw_yfinance/US/",
+        "artifacts/phase5j_v3_development_holdout/normalized_bars/"
+      ],
+      "local_backup_container": {
+        "path": "artifacts/frozen_backups/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip",
+        "bytes": 3086881,
+        "sha256": "sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599",
+        "member_count": 5,
+        "member_hashes_source": "artifacts/frozen_backups/SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1/recovery_manifest.json"
+      },
+      "canonical_identities": {
+        "protocol_version": "SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1",
+        "protocol_sha256": "sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816",
+        "universe_version": "SETUP_03-DEVELOPMENT-HOLDOUT-CN-US-2026-08-29-v2",
+        "universe_manifest_sha256": "sha256:aca071eea6e93b8beecf7c2925a86f006e242a031fe32b5f2e33423037d00a65",
+        "symbol_list_sha256": "sha256:dc81b5b8c96408b0d18a161f946aeaf5ad616060d82cd6b6f8497a5b26bef036",
+        "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+        "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+        "normalized_aggregate_sha256": "sha256:b08832bdad7c2a857d7b60fc7b56a75d09594ee648008ab852bde4a8a56405b1",
+        "replay_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+        "symbol_count": 40,
+        "bar_count": 86305,
+        "market_bar_counts": {
+          "CN": 41274,
+          "US": 45031
+        },
+        "provider_split": {
+          "CN": "BAOSTOCK_DEVELOPMENT_QFQ",
+          "US": "YFINANCE_DEVELOPMENT_HISTORICAL"
+        }
+      },
+      "exact_file_hashes": {
+        "tracked_dataset_manifest_file_sha256": "sha256:cfc82dce3eac9d18caa011be90f9bd6f7e2327206ac1d6e60eabdb93cdce3ee5",
+        "tracked_replay_manifest_file_sha256": "sha256:98372fde86ec206e411eadda4ac6126266ee2530b7456b95857800b959e512f0",
+        "tracked_universe_manifest_file_sha256": "sha256:895554d31523deae103fc1ae8195b094ad51489f5a9e5e34a552fccfd9353ff9",
+        "tracked_capsule_file_sha256": "sha256:110a95ba826a41aa7593636a1ad4e33f6cf45b9d0a43d9e31407bd92772180c0",
+        "recovery_manifest_file_sha256": "sha256:c5a6043de7b331fb51a70853c8d3e0a7995ae8ab63a1e80250ebf6a0f0963024"
+      },
+      "provenance": {
+        "source_main_commit_recorded_by_recovery_manifest": "3a2c6699559074161b56281dd16084264f7dc717",
+        "source_main_commit_resolution": "Local git ref only; historical artifact provenance, not current remote main.",
+        "tracked_file_hash_semantics": "SHA-256 of Git-normalized LF bytes so tracked provenance identities are stable across Windows and Linux checkouts.",
+        "frozen_at": "2026-08-29",
+        "setup03_run": false,
+        "phase5j_v4_run_during_backup_staging": false,
+        "final_oos_accessed": false,
+        "provider_accessed_during_backup_staging": false,
+        "formal_validation": false,
+        "ibkr_used": false
+      },
+      "recovery_gates": {
+        "LOCAL_PRESENT": true,
+        "HASH_VERIFIED": true,
+        "PERSISTENT_BACKUP_PRESENT": true,
+        "RECOVERY_VERIFIED": true,
+        "FULLY_RECOVERABLE": true
+      },
+      "persistent_backup": {
+        "status": "VERIFIED_IMMUTABLE_CLOUD_OBJECT",
+        "provider": "Google Drive",
+        "logical_path": "交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/",
+        "location": "交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip",
+        "immutable_object_id": "119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS",
+        "file_name": "SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip",
+        "bytes": 3086881,
+        "detached_sha256": "sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599",
+        "upload_timestamp": "NOT_PROVIDED_BY_EXTERNAL_AUDIT",
+        "retention": "NOT_PROVIDED_BY_EXTERNAL_AUDIT"
+      },
+      "recovery_verification": {
+        "status": "INDEPENDENT_CLOUD_RESTORE_VERIFIED_EXTERNAL_AUDIT",
+        "clean_directory_restore_at": "2026-08-29; exact time and local restore path not provided by external audit",
+        "method": [
+          "Existing loader validated the staged frozen dataset, replay manifest, universe manifest, cross-bindings, 40 symbols, and 86305 bars before archive staging.",
+          "Bundle payload files were hashed before archive creation; the ZIP was hashed as an opaque transport container.",
+          "ChatGPT uploaded the exact ZIP bytes to the recorded Google Drive object.",
+          "ChatGPT independently re-read the uploaded cloud ZIP; the recovered ZIP SHA-256 exactly matched the pre-upload SHA-256."
+        ],
+        "evidence_source": "External ChatGPT audit fact supplied by the user in the current task; this session did not repeat Google Drive network verification.",
+        "recovered_zip_sha256": "sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599",
+        "recovered_zip_bytes": 3086881
+      },
+      "invariants": [
+        "Do not modify frozen protocol, universe, dataset, replay identities, roster, or opaque replay bytes.",
+        "Do not replace missing bytes with a re-fetched or approximately regenerated artifact.",
+        "Do not access provider, SETUP_03, formal validation, Final OOS, or outcome metrics while completing backup recovery."
+      ],
+      "notes": "Historical Phase 5E-5I artifact directories are not included in this initial active registry entry; register them before future correctness-critical reuse. The earlier development universe v1 and its associated artifact payload remain UNRECOVERABLE and are not covered by this verified second-holdout backup."
+    },
+    {
+      "artifact_id": "phase5j-v4-lifecycle-attribution-evidence",
+      "artifact_type": "derived_deterministic_research_evidence",
+      "purpose": "Audit the causal root and downstream lifecycle propagation of SETUP_03 tolerance divergence on the exact second frozen holdout.",
+      "lifecycle": "DEVELOPMENT_ONLY",
+      "status": "TRACKED_EVIDENCE_WITH_LOCAL_REGENERABLE_TRACE",
+      "labels": [
+        "DEVELOPMENT_ONLY",
+        "NOT_FORMAL_VALIDATION",
+        "NOT_FINAL_OOS",
+        "RESEARCH_CAUSAL_DIAGNOSTIC_ONLY",
+        "NOT_A_CANDIDATE_RULE"
+      ],
+      "tracked_provenance_paths": [
+        "research/development/phase5j_v4_lifecycle_attribution_capsule_v1.json",
+        "research/development/phase5j_v4_lifecycle_attribution_report_v1.md",
+        "research/development/phase5j_v4_artifact_hashes.json",
+        "research/development/phase5j_v4_per_symbol_lifecycle_attribution.csv",
+        "research/development/phase5j_v4_root_cause_summary.csv",
+        "research/development/phase5j_v4_cascade_table.csv",
+        "research/development/phase5j_v4_cascade_graph.json",
+        "research/development/phase5j_v4_anchor_divergence_summary.csv",
+        "research/development/phase5j_v4_counterfactual_summary.csv",
+        "research/development/phase5j_v4_historical_symptom_concordance.csv"
+      ],
+      "ignored_payload_paths": [
+        "artifacts/phase5j_v4_lifecycle_attribution/phase5j_v4_lifecycle_trace.jsonl.gz"
+      ],
+      "canonical_identities": {
+        "protocol_version": "SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1",
+        "protocol_sha256": "sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe",
+        "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+        "replay_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+        "symbol_count": 40,
+        "bar_count": 86305,
+        "trace_row_count": 258915,
+        "base_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c"
+      },
+      "exact_file_hashes": {
+        "capsule_file_sha256": "sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f",
+        "capsule_canonical_payload_sha256": "sha256:a2e9a48cac483bca6aae9aeec4d5405634118632e7c34170aef863f24991e797",
+        "trace_gzip_sha256": "sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4",
+        "report_sha256": "sha256:8a4709f7c69f4842e5ff3251c27946545c45aa4f6193a657eb61929be2e68cd5"
+      },
+      "recovery_gates": {
+        "LOCAL_PRESENT": true,
+        "HASH_VERIFIED": true,
+        "PERSISTENT_BACKUP_PRESENT": false,
+        "RECOVERY_VERIFIED": false,
+        "FULLY_RECOVERABLE": false
+      },
+      "regeneration": {
+        "status": "DETERMINISTIC_REGENERATION_VERIFIED",
+        "source_input_artifact_id": "phase5j-v3-development-holdout-frozen-bundle",
+        "source_input_status": "FULLY_RECOVERABLE",
+        "command": "python scripts/run_phase5j_v4_lifecycle_attribution.py",
+        "independent_repeat_hash_match": true,
+        "trace_is_not_a_new_dataset": true
+      },
+      "boundaries": {
+        "production_setup_output_mismatches": 0,
+        "confirmed_failed_event_output_mismatches": 0,
+        "phase5j_v3_matching_modified": false,
+        "phase5j_v3_qualification_modified": false,
+        "final_oos_accessed": false,
+        "outcome_metrics_accessed": false
+      }
+    }
+  ],
+  "external_audit_notes": [
+    "The Google Drive upload and independent cloud reread were completed before this governance correction and are recorded as external provenance evidence.",
+    "No frozen dataset bytes, tracked manifests, replay aggregate, or existing canonical hashes were changed by this correction."
+  ]
+}

@@ -73,6 +73,9 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── phase5k_b0_dataset_contract.py # Phase 5K-B0 获取契约/标准化/QC/覆盖纯校验
 │   ├── phase5k_b0_dataset_acquisition_contract.json # B0 v1 historical audit evidence (immutable)
 │   ├── phase5k_b0_dataset_acquisition_contract_v2.json # B0 active acquisition contract
+│   ├── phase5j_v4_protocol.py # Phase 5J-v4 protocol version/hash gate
+│   ├── phase5j_v4_lifecycle_attribution.py # read-only lifecycle trace/root/lineage/counterfactual classifier
+│   ├── phase5j_v4_evidence.py # mechanical parity, aggregation, hashes and report
 │   └── backtest/
 │       └── setup03.py       # T+1 执行回测与参数敏感性（只读）
 ├── trading/                  # Trading Core 与只读诊断
@@ -143,6 +146,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - CONFIRMED Decision 使用同一次 production calculation 取得不改变 `Decision` 的 `DecisionDiagnostics`，并随事件 contract 传给 Replay/Research
 - 不复制 Swing / Setup / Decision 公式
 - 同一次 production Setup 计算携带只读 `SetupDiagnostics`；兼容入口仍只暴露原 `Setup`，不改变发布与交易行为
+- Phase 5J-v4 instrumentation 在同一状态机循环中额外记录 as-of confirmed swing identity、new-swing eligibility、gate pass 与 `last_terminal_index`；这些字段只进入 research trace，逐 bar 对 `origin/main` 的 `Setup` 与 CONFIRMED/FAILED 输出 parity 必须为 0 mismatch
 
 ### trading/replay.py
 
@@ -201,6 +205,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ### research/structural_validation_protocol.py / setup03_structural_validation_protocol.json
 
 - Phase 5J 只注册未来 SETUP_03 structural validation protocol，最终状态固定为 `VALIDATION_PROTOCOL_REGISTERED_NOT_EXECUTED`；模块只读取 JSON、验证完整性并对现有 `trading/setup.py` / `trading/events.py` 做 AST 静态依赖审计，不调用 Replay、Trading Core、行情源或 Sheets
+- Phase 5J-v4 只在 hash-pinned second development holdout 上调用 production SETUP_03 history，逐 bar定位真实 `FIRST_DIVERGENCE_BAR`；research 层只分类 root、propagation、lineage 与 frozen-seam counterfactual，不复制 swing/structure/platform 公式，不访问 outcome 或 Final OOS，不修改 v3 matching/qualification
 - protocol 记录父级 Phase 5I 的实际 `research/setup03_frozen_spec.json` identity：`freeze_version=SETUP_03-FREEZE-2026-08-26-v1`、`freeze_decision=NOT_READY_FOR_FORMAL_PARAMETER_FREEZE` 及 `critical_values_sha256=sha256:447b20182f54b8c994042227bbfbaf94c50b2a9b4ade7332058a014915390a15`；canonical SHA-256 先验证 JSON 内容与 stored hash 一致，再由不可变的 `protocol_version -> expected hash` contract 验证唯一版本绑定，因此即使同步重算 hash，同一 version 的内容漂移也会失败；真正修改协议必须显式升级 version 并更新 version/hash contract
 - 正式 production tolerance 仅允许 `3.0%、4.0%、5.0%`；`2.5%、5.5%、7.5%、10.0%` 仅为诊断/压力边界，`3.5%、4.5%` 等任何未列入正式集合的值不得成为 production candidate。`setup_swing_lookback=5` 与 `platform_window=40` 保留为 v1 incumbent design constants，不声明最优；market-specific、regime-specific、volatility-normalized production rule 均在 v1 禁用
 - 未来 development-validation dataset 预注册 CN/HK/US/JP/SE，每市场至少 8 个标的、合计至少 40 个标的、每市场目标至少约 6000 个有效日 K bars；标的必须在看到 SETUP_03 输出前按非信号元数据确定，symbol manifest 必须在 Phase 5K 获取行情前冻结并哈希，任何依据信号替换/增删标的均禁止，覆盖不足返回 `INSUFFICIENT_COVERAGE`。该集不是最终 OOS

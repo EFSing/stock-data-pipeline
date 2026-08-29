@@ -67,6 +67,10 @@ class SetupDiagnostics:
     auxiliary_failed_conditions: tuple[SetupGateReason, ...] = ()
     platform_search_evaluated: bool = False
     platform_detected_this_bar: bool = False
+    confirmed_swing_identities_available_as_of_t: tuple[tuple[str, int, int, str], ...] = ()
+    new_confirmed_swing_eligibility: bool = False
+    platform_gate_pass: bool | None = None
+    last_terminal_index: int = -1
 
 
 @dataclass(frozen=True)
@@ -151,6 +155,22 @@ def _platform_gate_diagnostics(
     }
 
 
+def _swing_trace_identities(
+    window_swings: list[SwingPoint],
+) -> tuple[tuple[str, int, int, str], ...]:
+    """Return deterministic research identities for causally available swings."""
+    return tuple(
+        (
+            swing.kind.value,
+            swing.pivot_index,
+            int(swing.confirmed_index),
+            float(swing.price).hex(),
+        )
+        for swing in window_swings
+        if swing.confirmed_index is not None
+    )
+
+
 def detect_platform_breakout(
     quotes: list[Quote],
     swing_lookback: int = 5,
@@ -217,12 +237,27 @@ def detect_platform_breakout_with_diagnostics(
 
     for t in range(n):
         close_t = float(quotes[t].close)
+        searching = state in (SetupState.NONE, SetupState.CONFIRMED, SetupState.FAILED)
+        trace_window = _confirmed_swings_in_window(swings, t, platform_window)
+        trace_gate_reason, trace_gate_values = _platform_gate_diagnostics(
+            trace_window, last_terminal_index, platform_tolerance_pct
+        )
+        trace_fields = {
+            "high_count": trace_gate_values["high_count"],
+            "low_count": trace_gate_values["low_count"],
+            "trend": trace_gate_values["trend"],
+            "high_span": trace_gate_values["high_span"],
+            "low_span": trace_gate_values["low_span"],
+            "confirmed_swing_identities_available_as_of_t": _swing_trace_identities(trace_window),
+            "new_confirmed_swing_eligibility": _has_new_confirmed_swing(
+                trace_window, last_terminal_index
+            ),
+            "last_terminal_index": last_terminal_index,
+        }
 
-        if state in (SetupState.NONE, SetupState.CONFIRMED, SetupState.FAILED):
-            window = _confirmed_swings_in_window(swings, t, platform_window)
-            gate_reason, gate_values = _platform_gate_diagnostics(
-                window, last_terminal_index, platform_tolerance_pct
-            )
+        if searching:
+            window = trace_window
+            gate_reason, gate_values = trace_gate_reason, trace_gate_values
             if gate_reason is None:
                 highs = [s.price for s in window if s.kind is SwingKind.HIGH]
                 lows = [s.price for s in window if s.kind is SwingKind.LOW]
@@ -246,6 +281,10 @@ def detect_platform_breakout_with_diagnostics(
                         platform_tolerance_pct=platform_tolerance_pct,
                         platform_search_evaluated=True,
                         platform_detected_this_bar=True,
+                        platform_gate_pass=True,
+                        confirmed_swing_identities_available_as_of_t=trace_fields["confirmed_swing_identities_available_as_of_t"],
+                        new_confirmed_swing_eligibility=trace_fields["new_confirmed_swing_eligibility"],
+                        last_terminal_index=last_terminal_index,
                         **gate_values,
                     )
                 else:
@@ -262,6 +301,10 @@ def detect_platform_breakout_with_diagnostics(
                         platform_tolerance_pct=platform_tolerance_pct,
                         platform_search_evaluated=True,
                         platform_detected_this_bar=True,
+                        platform_gate_pass=True,
+                        confirmed_swing_identities_available_as_of_t=trace_fields["confirmed_swing_identities_available_as_of_t"],
+                        new_confirmed_swing_eligibility=trace_fields["new_confirmed_swing_eligibility"],
+                        last_terminal_index=last_terminal_index,
                         **gate_values,
                     )
             else:
@@ -274,6 +317,10 @@ def detect_platform_breakout_with_diagnostics(
                     structural_invalidation=structural_invalidation,
                     platform_tolerance_pct=platform_tolerance_pct,
                     platform_search_evaluated=True,
+                    platform_gate_pass=False,
+                    confirmed_swing_identities_available_as_of_t=trace_fields["confirmed_swing_identities_available_as_of_t"],
+                    new_confirmed_swing_eligibility=trace_fields["new_confirmed_swing_eligibility"],
+                    last_terminal_index=last_terminal_index,
                     **gate_values,
                 )
         elif state is SetupState.WATCH:
@@ -304,6 +351,7 @@ def detect_platform_breakout_with_diagnostics(
                 structural_invalidation=structural_invalidation,
                 arm_threshold=breakout_price * (1 - arm_proximity_pct),
                 platform_tolerance_pct=platform_tolerance_pct,
+                **trace_fields,
             )
 
         elif state is SetupState.ARMED:
@@ -335,6 +383,7 @@ def detect_platform_breakout_with_diagnostics(
                 structural_invalidation=structural_invalidation,
                 arm_threshold=breakout_price * (1 - arm_proximity_pct),
                 platform_tolerance_pct=platform_tolerance_pct,
+                **trace_fields,
             )
 
         if history is not None:

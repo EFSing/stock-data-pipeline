@@ -489,3 +489,87 @@
 **Boundary / Integrity:** 冻结 dataset/replay manifests 与 capsule/report 已提升到 tracked `research/development_holdout/`、`research/development/`；raw/normalized bars、frozen JSONL 与 CSV 仍位于 ignored `artifacts/phase5j_v3_development_holdout/`。capsule 记录 protocol SHA-256 `sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816`、holdout universe SHA-256 `sha256:aca071eea6e93b8beecf7c2925a86f006e242a031fe32b5f2e33423037d00a65` 及上述 dataset/replay hashes。未读取 returns/MFE/MAE/P&L/winrate/profit factor/expectancy，未访问 Final OOS，未启动 formal Phase 5K-B1，未使用 IBKR，未修改 SETUP_03、production、Sheets 或 historical PR #29 v3 evidence。下一步停在 Sol 决策，等待新授权。
 
 **Audit correction:** 2026-08-29 发现原 `acquire_and_freeze_holdout()` 先用 provisional dataset manifest 写入 replay wrapper、再生成包含 replay-input aggregate 的 final dataset manifest，导致 tracked wrapper 错误绑定 provisional dataset SHA。修复冻结链为 normalized data → replay input/aggregate → final dataset manifest → replay wrapper，并让 `load_frozen_holdout()` 实际验证 wrapper 自身 integrity、dataset↔wrapper binding、embedded replay aggregate↔dataset binding、frozen replay input equality 及 40 symbols/86,305 bars 计数。使用现有 frozen replay input 重生成 tracked wrapper；dataset SHA `sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f`、normalized aggregate `sha256:b08832bdad7c2a857d7b60fc7b56a75d09594ee648008ab852bde4a8a56405b1`、replay aggregate `sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2`、protocol/universe identity、capsule/report 与 qualification 均不变；wrapper integrity 更新为 `sha256:6746fa0914ef20916ec9006492f2043ed9d35fc65b74995e1cab903837890148`。新增 cross-binding mutation fail-closed regression；未 refetch provider、未替换 symbol、未修改 frozen OHLCV、SETUP_03、production 或研究设计。
+
+## 2026-08-29
+
+### Decision: establish repository handoff governance and frozen-artifact recovery registry
+
+**Context:** 本项目同时存在 production pipeline、多个研究/协议阶段、squash-merged PR、未合并 PR、ignored replay/raw/normalized artifacts 与多设备开发场景。仅依赖旧的 `CURRENT_STATUS.md` 或聊天上下文，无法可靠区分当前 checkout、远端 main、PR head、CI exact-head、已冻结输入和未完成 backup。
+
+**Decision:** 新增根目录 `HANDOFF.md` 作为当前可执行交接快照；`docs/CURRENT_STATUS.md` 作为正式状态；`docs/DECISION_LOG.md` 作为长期决策历史；`docs/FROZEN_ARTIFACT_POLICY.md` 与 `docs/FROZEN_ARTIFACT_REGISTRY.json` 作为重要 artifact 的恢复治理与机器可读登记。新会话必须先读取 HANDOFF，再读取 CURRENT_STATUS、DECISION_LOG、相关治理/协议/架构文件，并核对真实 Git/PR/CI/artifact/hash。文档与客观证据冲突时统一标记 `PROJECT_GOVERNANCE_STATE_CONFLICT` 并停止猜测。
+
+**Rationale:** 将“当前要做什么”和“为什么这样决定”分离，能够让新设备直接执行下一步，同时保留长期历史；对不进入 Git 的 correctness-critical bytes 强制记录本地存在、hash 验证、persistent backup 和 recovery verification，避免用重新生成的近似文件冒充 frozen artifact。
+
+**Alternatives considered:** 继续依赖聊天记录或把完整 Git history 复制进 README；拒绝，因为二者都不能提供当前 exact-head/PR/CI 对账，也会把快照、正式状态、决策理由和 artifact 恢复责任混在一起。把大型 artifacts 全部提交 Git；拒绝，因为当前项目已有 ignored payload，且体积/生命周期不适合用 Git 替代持久 artifact storage。
+
+**Consequences:** 本次治理初始化不改变 Trading Core、provider、SETUP_03、production Sheet 或研究结果；当前 Phase 5J-v3 holdout backup 仍明确为 `FROZEN_ARTIFACT_BACKUP_STAGED_CLOUD_UPLOAD_REQUIRED`，在 persistent backup 与独立恢复验证完成前不能标记 `FULLY_RECOVERABLE`，也不能启动尚未核实的 Phase 5J-v4。
+
+**Revisit condition:** 只有远端 main/PR/CI/artifact 状态、存储策略或项目阶段发生客观变化，或研究设计者明确授权扩大 scope 时，才更新本治理约定；任何 artifact identity 变化必须新建版本并保留旧 identity。
+
+**Relevant commit / PR:** this governance initialization commit on `research/phase5j-v4-lifecycle-attribution`; PR at initialization: `NONE`. Exact commit SHA is recorded by Git and reported after commit creation; `HANDOFF.md` uses `THIS_COMMIT` for its self-referential verification field.
+
+---
+
+## 2026-08-29
+
+### Decision: record externally verified persistent recovery of the second Phase 5J-v3 holdout
+
+**Context:** The local governance snapshot still described the second development holdout as local/hash verified only. The user supplied an external ChatGPT audit record showing that the exact ZIP bytes were uploaded to Google Drive and independently re-read from that cloud object with an identical SHA-256.
+
+**Decision:** Record the second holdout as `LOCAL_PRESENT=PASS`, `HASH_VERIFIED=PASS`, `PERSISTENT_BACKUP_PRESENT=PASS`, `RECOVERY_VERIFIED=PASS`, and `FULLY_RECOVERABLE`. Register Google Drive as the persistent provider, logical path `交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/`, file ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`, ZIP size `3,086,881` bytes, and SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`.
+
+**Rationale:** The cloud object identity and independent reread close the persistence and transport-integrity gap without changing any frozen dataset bytes, manifest, replay aggregate, universe, protocol, or capsule. The evidence is recorded as an external audit fact; this session intentionally does not repeat Google Drive network verification.
+
+**Boundary:** The earlier development universe v1 and its associated payload remain `UNRECOVERABLE`; the verified second-holdout backup does not cover or replace them. Phase 5J-v3 remains development-only and structure-only, with `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`; the user has now authorized continuation of the already-frozen Phase 5J-v4 task `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` under all existing causal, frozen-input, descriptive-only, and no-Final-OOS constraints.
+
+**Revisit condition:** Reopen only if the external object becomes unavailable, the recovered bytes/hash no longer match, a governance/Git/PR/CI/artifact conflict appears, or the frozen research contract is explicitly changed with a new version and preserved prior identity.
+
+**Relevant commit / PR:** this correction is intended for commit `docs: record verified frozen artifact cloud recovery` on `research/phase5j-v4-lifecycle-attribution`; PR remains `NONE` until the Phase 5J-v4 work is complete and reviewed.
+
+---
+
+## 2026-08-29
+
+### Audit note: Phase 5J-v4 execution is blocked by missing repository-verifiable contract
+
+**Evidence checked:** After the cloud-recovery governance correction, the current checkout, all local and remote refs, reflog/unreachable commits, existing local artifacts, and the supplied original task attachment were searched for `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` and its protocol/source/tests. Only the phase name supplied by the user was found; no v4 contract or implementation was located.
+
+**Decision:** Mark the current execution blocker as `PHASE5J_V4_PROTOCOL_NOT_PRESENT`. Do not invent causal attribution rules, historical symptom concordance definitions, windows, thresholds, inputs, outputs, or evidence semantics from the phase name alone. No Phase 5J-v4 run, new research artifact, or v4 PR is claimed.
+
+**Boundary:** The second Phase 5J-v3 holdout remains exact and `FULLY_RECOVERABLE` according to the externally supplied cloud audit. Its dataset/replay/universe/protocol identities remain unchanged. Phase 5J-v3 remains development-only and structure-only with `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`; Final OOS, provider access, production changes, and Phase 5K-B1 remain out of scope.
+
+**Resolution condition:** Resume only when the exact frozen v4 protocol, source, and tests are restored or supplied in a repository-verifiable commit/path. Then re-read them, validate the holdout bindings, and continue under the existing as-of, causal, frozen-input, descriptive-only, and outcome-access boundaries.
+
+---
+
+## 2026-08-29
+
+### Decision: freeze the Phase 5J-v4 lifecycle attribution protocol before results
+
+**Correction:** The earlier `PHASE5J_V4_PROTOCOL_NOT_PRESENT` observation was factually correct about repository contents but incorrectly framed as a recovery blocker. Phase 5J-v4 had only completed Sol research design and had never been persisted, hashed, committed, implemented, or tested. The correct prior state is `PHASE5J_V4_PROTOCOL_NOT_YET_PERSISTED`; this is `NOT_AN_ARTIFACT_LOSS_EVENT`.
+
+**Decision:** Persist the supplied exact Sol specification as `research/protocols/setup03_phase5j_v4_lifecycle_attribution_protocol.json`, version `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`, canonical SHA-256 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`, with a concise Chinese companion and version/hash-pinned loader/tests. Freeze the exact second holdout identity, adjacent 3%→4% and 4%→5% pairs, FIRST_DIVERGENCE_BAR semantics, deterministic mutually exclusive root taxonomy, separate propagation taxonomy, research-only lineage, single-mechanism counterfactuals, historical symptom concordance scope, parity requirements, outputs, recommendations and stop state before any real holdout attribution is run.
+
+**Boundary:** This freeze task does not read real holdout attribution results, refetch early development v1, create a third dataset, access A1 formal OHLCV or Final OOS, read outcomes, change production SETUP_03, or modify Phase 5J-v3 matching/qualification. Real attribution may begin only after the independent commit `research: freeze Phase 5J-v4 lifecycle attribution protocol` exists.
+
+---
+
+## 2026-08-29
+
+### Decision: Phase 5J-v4 causal attribution is ready for Sol structural decision
+
+**Evidence:** After protocol freeze commit `4be4545bc2ddf54c3e970a162160c9fe3e464d4d`, the exact second holdout produced 258,915 every-bar trace rows, 1,031 deterministic lifecycles and 177 real first-divergence episodes. Pooled root ranking is low-span 88, high-span 69, both-span 20. The 3%→4% pair is low/high/both 53/28/9 and both CN/US are low-span dominant; 4%→5% is 35/41/11, with CN high-span dominant and US low-span dominant. This is `MIXED_CAUSAL_STRUCTURE`, not a single-mechanism result and not a tolerance selection.
+
+**Propagation / counterfactual:** 3%→4% has 90 roots and 76 downstream divergent lifecycles; 4%→5% has 87/69. Downstream propagation is terminal-index cascade or no cascade, with max depth 4. Holding the lower-tolerance terminal-index seam fixed / suppressing terminal-index propagation removes or restores 76 and 69 downstream lifecycles respectively; fixing detection/anchors produces no additional same-root recovery in this evidence. All interventions are `RESEARCH_CAUSAL_DIAGNOSTIC_ONLY` and `NOT_A_CANDIDATE_RULE`.
+
+**Parity / boundaries:** Against `origin/main@142b7345a5640b1e87932e41f3dc9311172bf54c`, 120 cells, 258,915 Setup bar outputs and 1,028 CONFIRMED/FAILED events have zero mismatches. The second holdout, Phase 5J-v3 qualification and prior frozen tracked content are unchanged; no provider/refetch/third dataset/A1 formal OHLCV/outcome/Final OOS/Phase 5K-B1 path was used. Historical PR #29 evidence is symptom-only: CN 3→4 partial, US 3→4 concordant, CN/US 4→5 partial, all `NOT_CAUSAL_REPLICATION`.
+
+**Decision:** Set `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION`. Recommend `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` then `REDESIGN_TERMINAL_REARM_ORCHESTRATION`; do not implement either in this phase. Capsule file SHA-256 is `sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f`; deterministic trace SHA-256 is `sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4`.
+
+### Decision: tracked provenance file hashes use Git-normalized LF bytes
+
+**Context:** PR #32's first CI run exposed that Windows CRLF working-tree bytes and Linux/Git LF bytes produced different raw SHA-256 values for unchanged tracked provenance files. The existing content comparison already normalized EOLs, but the recorded per-file hashes did not.
+
+**Decision:** Define tracked text provenance file identity as SHA-256 over LF-normalized bytes, enforce the same rule in governance tests and Phase 5J-v4 prior-frozen parity, and regenerate the v4 capsule/report/hash manifest. Canonical dataset, replay, protocol, and payload identities are unchanged; this decision only removes checkout-platform ambiguity.
+
+**Why:** A tracked provenance identity must be stable across supported Windows development and Linux CI checkouts. Raw worktree EOL bytes are not a portable Git content identity.

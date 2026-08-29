@@ -1,0 +1,47 @@
+{
+  "artifacts": {
+    "anchor_divergence_summary": {
+      "path": "research/development/phase5j_v4_anchor_divergence_summary.csv",
+      "sha256": "sha256:40ca3461718401ded1e6c76eeb14f1f77dd8748ea7a8e0ed995e447517b16f95"
+    },
+    "cascade_graph": {
+      "path": "research/development/phase5j_v4_cascade_graph.json",
+      "sha256": "sha256:f89b8a96bc0db31f0ca794b4546eb9463aa34fc834f9ec4ecee80e25d78718d8"
+    },
+    "cascade_table": {
+      "path": "research/development/phase5j_v4_cascade_table.csv",
+      "sha256": "sha256:dea2f47a68182ebdaca6ee4a47d4cbb4d8ee8e5cd11ae8b5147030be1ca81a88"
+    },
+    "counterfactual_summary": {
+      "path": "research/development/phase5j_v4_counterfactual_summary.csv",
+      "sha256": "sha256:b0a7dcd4176eea734c921ad437b47f62b89c73530547595ec4c7f6b8ca168a54"
+    },
+    "historical_symptom_concordance": {
+      "path": "research/development/phase5j_v4_historical_symptom_concordance.csv",
+      "sha256": "sha256:aaaaebe7a7b516b45af08bbae514f36994ce29f99b64ae49889e0a791438ab62"
+    },
+    "lifecycle_trace_gzip": {
+      "path": "artifacts/phase5j_v4_lifecycle_attribution/phase5j_v4_lifecycle_trace.jsonl.gz",
+      "sha256": "sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4"
+    },
+    "per_symbol_lifecycle_attribution": {
+      "path": "research/development/phase5j_v4_per_symbol_lifecycle_attribution.csv",
+      "sha256": "sha256:77f7601e1944e1b62204dfa27ff60c830fe83168192c3cebcd3a894352e81f2d"
+    },
+    "root_cause_summary": {
+      "path": "research/development/phase5j_v4_root_cause_summary.csv",
+      "sha256": "sha256:8252bdf87ac9a088eeb6099c06dee6d133bb8ad8110c05c76972dd0a2831f985"
+    }
+  },
+  "capsule": {
+    "canonical_payload_sha256": "sha256:a2e9a48cac483bca6aae9aeec4d5405634118632e7c34170aef863f24991e797",
+    "file_sha256": "sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f",
+    "path": "research/development/phase5j_v4_lifecycle_attribution_capsule_v1.json"
+  },
+  "protocol_sha256": "sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe",
+  "report": {
+    "path": "research/development/phase5j_v4_lifecycle_attribution_report_v1.md",
+    "sha256": "sha256:8a4709f7c69f4842e5ff3251c27946545c45aa4f6193a657eb61929be2e68cd5"
+  },
+  "schema_version": "setup03-phase5j-v4-artifact-hashes-v1"
+}
