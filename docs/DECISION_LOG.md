@@ -507,3 +507,21 @@
 **Revisit condition:** 只有远端 main/PR/CI/artifact 状态、存储策略或项目阶段发生客观变化，或研究设计者明确授权扩大 scope 时，才更新本治理约定；任何 artifact identity 变化必须新建版本并保留旧 identity。
 
 **Relevant commit / PR:** this governance initialization commit on `research/phase5j-v4-lifecycle-attribution`; PR at initialization: `NONE`. Exact commit SHA is recorded by Git and reported after commit creation; `HANDOFF.md` uses `THIS_COMMIT` for its self-referential verification field.
+
+---
+
+## 2026-08-29
+
+### Decision: record externally verified persistent recovery of the second Phase 5J-v3 holdout
+
+**Context:** The local governance snapshot still described the second development holdout as local/hash verified only. The user supplied an external ChatGPT audit record showing that the exact ZIP bytes were uploaded to Google Drive and independently re-read from that cloud object with an identical SHA-256.
+
+**Decision:** Record the second holdout as `LOCAL_PRESENT=PASS`, `HASH_VERIFIED=PASS`, `PERSISTENT_BACKUP_PRESENT=PASS`, `RECOVERY_VERIFIED=PASS`, and `FULLY_RECOVERABLE`. Register Google Drive as the persistent provider, logical path `交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/`, file ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`, ZIP size `3,086,881` bytes, and SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`.
+
+**Rationale:** The cloud object identity and independent reread close the persistence and transport-integrity gap without changing any frozen dataset bytes, manifest, replay aggregate, universe, protocol, or capsule. The evidence is recorded as an external audit fact; this session intentionally does not repeat Google Drive network verification.
+
+**Boundary:** The earlier development universe v1 and its associated payload remain `UNRECOVERABLE`; the verified second-holdout backup does not cover or replace them. Phase 5J-v3 remains development-only and structure-only, with `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION`; the user has now authorized continuation of the already-frozen Phase 5J-v4 task `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE` under all existing causal, frozen-input, descriptive-only, and no-Final-OOS constraints.
+
+**Revisit condition:** Reopen only if the external object becomes unavailable, the recovered bytes/hash no longer match, a governance/Git/PR/CI/artifact conflict appears, or the frozen research contract is explicitly changed with a new version and preserved prior identity.
+
+**Relevant commit / PR:** this correction is intended for commit `docs: record verified frozen artifact cloud recovery` on `research/phase5j-v4-lifecycle-attribution`; PR remains `NONE` until the Phase 5J-v4 work is complete and reviewed.

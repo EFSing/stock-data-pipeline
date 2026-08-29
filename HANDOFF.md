@@ -4,13 +4,13 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `FROZEN_ARTIFACT_BACKUP_STAGING`，针对 Phase 5J-v3 第二套 development holdout 的 persistent backup 与 recovery verification。当前 checkout 分支名称为 `research/phase5j-v4-lifecycle-attribution`，但 Phase 5J-v4 尚未运行，正式 objective / protocol 为 `UNKNOWN / NEEDS_VERIFICATION`。
-- **具体目标:** 把已完成本地 hash 验证的 frozen holdout backup 上传到已批准的 persistent storage；记录不可变 URI / object ID、bytes 与 SHA-256；在全新目录恢复并重新运行现有 loader/cross-binding 校验。
-- **为什么现在做:** correctness-critical raw/normalized/replay payload 位于被 Git 忽略的 `artifacts/`，tracked manifests 只能证明身份，不能单独恢复 exact replay input。当前 ZIP 只有本地 staging，跨设备仍不可恢复。
-- **Scope:** 仅处理现有 frozen holdout bundle 的持久化、完整性和恢复证据；更新 registry、CURRENT_STATUS、HANDOFF 与必要的决策记录。
-- **明确禁止事项:** 不访问 provider；不重新获取或重生成 bars；不修改 frozen manifests、protocol、symbol roster 或既有 capsule；不运行 SETUP_03、Phase 5J-v4、Final OOS 或 Phase 5K-B1；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不修改 production、Trading Core、Decision、execution 或 Google Sheets；不把近似重生成文件当作原 frozen artifact。
-- **完成条件:** approved persistent storage 中存在该 ZIP；下载/恢复后的 bytes、成员 hashes、loader cross-bindings、symbol count `40` 和 bar count `86,305` 全部匹配；registry 状态更新为 `LOCAL_PRESENT + HASH_VERIFIED + PERSISTENT_BACKUP_PRESENT + RECOVERY_VERIFIED`，再决定是否可标记 `FULLY_RECOVERABLE`。
-- **停止条件:** 没有明确的 approved storage destination / credential；任何 hash、member、binding、count 或 recovery 校验失败；发现治理文档与客观 Git/PR/CI/artifact 证据冲突；或需要开始 Phase 5J-v4、SETUP_03、OOS、provider/data access 时，停止并报告，不自行扩大授权。
+- **当前 Phase / task:** `Phase 5J-v4 — SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，继续使用已冻结的第二套 development holdout。其 persistent backup/recovery prerequisite 已由外部审计完成并登记。
+- **具体目标:** 读取并核对 Phase 5J-v4 的冻结 protocol、现有实现与测试，在 exact hash-pinned second holdout 上完成既定 descriptive/causal attribution 与 historical symptom concordance evidence；不把 development evidence 解释为 production decision。
+- **为什么现在做:** correctness-critical raw/normalized/replay payload 虽位于被 Git 忽略的 `artifacts/`，但 exact ZIP 已上传 Google Drive，并由外部审计独立重新读取且 SHA-256 一致，跨设备恢复 gate 已满足。
+- **Scope:** 仅使用现有 frozen protocol、second-holdout bundle、tracked provenance 与既有 research contracts；更新 v4 research evidence、registry/status/handoff/decision records，并为最终 review 准备 PR。
+- **明确禁止事项:** 不访问 provider；不重新获取或重生成 bars；不修改 frozen manifests、protocol、symbol roster、既有 capsule 或既有 canonical hashes；不访问 Final OOS；不读取 returns/MFE/MAE/P&L/winrate/expectancy；不修改 production、Trading Core、Decision、execution 或 Google Sheets；不把近似重生成文件当作原 frozen artifact。
+- **完成条件:** Phase 5J-v4 frozen workflow 产生可审计的 machine-readable/report evidence，保留 causal/as-of/identity/invariant checks，测试与静态检查通过，治理记录与实际 Git/PR/CI/artifact 状态一致，并创建 PR（不 merge）。
+- **停止条件:** 发现 v4 protocol/implementation/evidence 缺失或冲突；任何 hash、binding、count、chronology 或 causal check 失败；遇到需要改变 frozen input、provider/data access、production rule、Final OOS 或重大研究解释的决策；或真实 Git/PR/CI 状态无法核对。
 
 ## 2. Current Repository State
 
@@ -24,23 +24,25 @@
 - **latest remote main CI:** run `33195350848`, head `142b7345a5640b1e87932e41f3dc9311172bf54c`, `success`。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `bb006ae5ca61e76192c751e9bd818584fc42f051`, exact-head CI run `33248386042` success；它不属于当前 checkout。
 - **working tree expected state:** tracked files 应只包含本任务的 governance changes；ignored `artifacts/` 保持 ignored；初始检查时观察到的未追踪 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit；若并行 worktree 重新出现，必须保持隔离。
-- **current project/phase status:** V0.2 production pipeline 已运行；Phase 5J-v3 holdout 已合并但结构资格结果需要 Sol 决策；当前 backup staged 但未持久化；Phase 5J-v4、formal validation、Final OOS、Phase 5K-B1 均未执行。
+- **current project/phase status:** V0.2 production pipeline 已运行；Phase 5J-v3 holdout 已合并但结构资格结果需要 Sol 决策；second-holdout backup 已由外部审计验证为 `FULLY_RECOVERABLE`；本轮治理修正后继续 Phase 5J-v4，formal validation、Final OOS、Phase 5K-B1 仍未执行。
 
 ## 3. Completed Work
 
 - Phase 5J-v3 protocol、independent universe、holdout dataset、structure-only replay/parity 与 qualification 已完成并由 PR #30 合并；exact identities 见第 7 节和 `docs/CURRENT_STATUS.md`。
 - loader 已修复 dataset → replay wrapper 的 provisional-hash cross-binding 顺序问题；现有 frozen identities 与研究结果不变，tracked wrapper integrity 为 `sha256:6746fa0914ef20916ec9006492f2043ed9d35fc65b74995e1cab903837890148`。
 - 本地 recovery bundle 已生成：`artifacts/frozen_backups/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip`，3,086,881 bytes，ZIP SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；bundle 含 5 个文件，成员 hash 见 registry/recovery manifest。
-- 本次治理初始化：新增 `HANDOFF.md`、artifact policy/registry，更新 `AGENTS.md`、`README.md`、`docs/CURRENT_STATUS.md` 与 `docs/DECISION_LOG.md`；不改变业务逻辑和 frozen artifact bytes。治理 commit 为本文件所在的 `THIS_COMMIT`，实际 SHA 以 Git 为准。
+- 外部 ChatGPT 审计已将 exact ZIP bytes 上传 Google Drive `交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/`，file ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`；独立重新读取后的 recovered ZIP SHA-256 与上传前完全一致。该 session 不重复访问 Google Drive。
+- 本次治理初始化与本轮 cloud recovery correction：新增/更新治理文件与 governance test；不改变业务逻辑和 frozen artifact bytes。治理修正 commit 使用 `THIS_COMMIT`，实际 SHA 以 Git 为准。
 
 ## 4. Pending Work
 
 ### Required Next
 
-1. 先确认 approved persistent storage destination、object identity 和访问方式；没有明确目标时保持 blocker。
-2. 上传 ZIP，并保存 detached SHA-256 / size / upload timestamp / immutable object identity。
-3. 在全新目录恢复 ZIP，独立计算 archive/member hashes，运行既有 holdout loader 验证 cross-binding、40 symbols、86,305 bars，并记录 recovery evidence。
-4. 更新 `docs/FROZEN_ARTIFACT_REGISTRY.json`、`docs/CURRENT_STATUS.md`、`HANDOFF.md`，再重新核对 Git/PR/CI。
+1. 读取并核对 Phase 5J-v4 protocol、现有 research implementation 与 tests，确认 scope、输入、输出与禁止的 outcome access。
+2. 使用 registry 中已验证的 exact second-holdout identity，运行既定 Phase 5J-v4 causal attribution / historical symptom concordance workflow；不得重新抓取或重生成输入。
+3. 保存 machine-readable evidence/report、运行 loader/cross-binding/chronology/causal checks 与完整测试，检查是否触发 Sol/研究决策 blocker。
+4. 更新 `docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md`、`HANDOFF.md` 与必要 registry provenance，再核对真实 Git/PR/CI/artifact。
+5. 完成 PR-ready 检查后创建 PR；不 merge，不扩大到 Final OOS、provider、production 或 Phase 5K-B1。
 
 ### Deferred
 
@@ -95,7 +97,7 @@
 - Holdout universe: `SETUP_03-DEVELOPMENT-HOLDOUT-CN-US-2026-08-29-v2`, manifest SHA-256 `sha256:aca071eea6e93b8beecf7c2925a86f006e242a031fe32b5f2e33423037d00a65`；symbol-list SHA-256 `sha256:dc81b5b8c96408b0d18a161f946aeaf5ad616060d82cd6b6f8497a5b26bef036`。
 - Dataset: `SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1`，canonical manifest SHA-256 `sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f`，normalized aggregate `sha256:b08832bdad7c2a857d7b60fc7b56a75d09594ee648008ab852bde4a8a56405b1`，replay aggregate `sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2`。
 - Dataset coverage: CN 20 / 41,274 bars；US 20 / 45,031 bars；total 40 symbols / 86,305 bars；provider split is `BAOSTOCK_DEVELOPMENT_QFQ` / `YFINANCE_DEVELOPMENT_HISTORICAL`。
-- Backup container: 3,086,881 bytes, SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；current status is staged local only, not persistent/recovery verified。
+- Backup container: 3,086,881 bytes, SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；Google Drive persistent backup and independent cloud reread are externally verified, current status `FULLY_RECOVERABLE`。
 - Recovery manifest records source artifact commit `3a2c6699559074161b56281dd16084264f7dc717` as a historical local-ref-only provenance pin；this is not the current remote `main` SHA and must not be silently rewritten.
 - Invariants: no provider fallback/history splice/date fill/synthetic bar/OHLC mutation/result-driven symbol replacement；no future data; `signal(t)` only uses `data <= t`；frozen protocol, manifests, roster, hashes and exact replay bytes cannot be silently changed。
 
@@ -103,9 +105,9 @@
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
-| artifact/data availability | `FROZEN_ARTIFACT_BACKUP_STAGED_CLOUD_UPLOAD_REQUIRED`; raw/normalized/replay payload is ignored local data | upload to approved persistent storage, then independently restore and verify | Yes, blocks Phase 5J-v4 continuation |
+| artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | local `origin/main` is stale at `3a2c669…`; GitHub remote main is `142b734…` | `git fetch origin main`, then re-check exact ref and merge-base | Blocks trustworthy base/PR comparison, not documentation-only work |
-| research/design blocker | `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` | wait for explicit Sol decision; preserve current evidence | Yes for parameter/strategy changes |
+| research/design blocker | `SETUP_03_STRUCTURAL_STABILITY_FAILURE_REQUIRES_SOL_DECISION` | wait for explicit Sol decision; preserve current evidence | Yes for parameter/strategy changes; descriptive v4 attribution remains bounded by the frozen contract |
 | project coordination | PR #31 is an independent OPEN hotfix; current branch has PR `NONE` | do not mix worktrees or infer current branch status from PR #31 | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
@@ -153,21 +155,21 @@
 
 ### Pitfall 5
 
-**What happened:** branch 名称暗示 Phase 5J-v4，但当前 evidence 只证明 v3 holdout 与 backup staging，v4 尚未运行。
+**What happened:** branch 名称暗示 Phase 5J-v4，而治理快照曾只证明 v3 holdout 与 backup staging；本轮用户已明确确认 v4 frozen task 可继续。
 
-**Root cause:** branch naming 被误当作正式 objective/protocol。
+**Root cause:** branch naming 曾被误当作正式 objective/protocol；本轮必须以用户确认和仓库可核对的 protocol/evidence 共同落地。
 
-**Consequence:** 可能在 prerequisite backup 或 Sol decision 前启动未授权研究。
+**Consequence:** 可能在 backup prerequisite 未完成或 scope 未核实前启动未授权研究。
 
-**Permanent prevention rule:** branch name 只能作为线索；正式任务必须由 HANDOFF/CURRENT_STATUS、protocol、PR/commit 和客观 artifact evidence 共同确认。
+**Permanent prevention rule:** branch name 只能作为线索；正式任务必须由 HANDOFF/CURRENT_STATUS、用户本轮授权、protocol、PR/commit 和客观 artifact evidence 共同确认。
 
 ## 10. Next Action
 
 1. `git status --short --branch`，若并行 `.hotfix-worktree/` 重新出现则保持隔离，确认没有未授权删除/覆盖。
 2. `git fetch origin main`，确认 GitHub `main@142b7345…` 与本地 ref，并重算 current branch/base 关系。
-3. 确认 approved persistent storage；若没有明确目的地或凭证，停止并保持 `FROZEN_ARTIFACT_BACKUP_STAGED_CLOUD_UPLOAD_REQUIRED`。
-4. 上传 ZIP，记录不可变对象身份、bytes、SHA-256；在 clean directory 恢复并运行既有 loader/cross-binding/count checks。
-5. 更新 registry、CURRENT_STATUS、HANDOFF 并重新核对 PR/CI；只有完成上述 prerequisite 且取得明确授权后，才讨论 Phase 5J-v4，否则停在 blocker/Sol decision。
+3. 读取并验证 Phase 5J-v4 的 frozen protocol、source、tests 和现有 artifact identities；不重复访问 Google Drive。
+4. 执行 `SINGLE_FROZEN_DATASET_CAUSAL_ATTRIBUTION_WITH_HISTORICAL_SYMPTOM_CONCORDANCE`，保持 as-of、causal、frozen-input、descriptive-only 与 outcome-access 边界。
+5. 更新治理与研究 evidence、核对 PR/CI/artifact，完成 PR 后停止，不 merge。
 
 ## 11. Handoff Checklist
 
@@ -186,11 +188,11 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-29T19:08:59+08:00`
+- `last_updated_at`: `2026-08-29T19:18:33+08:00`
 - `verified_main_sha`: `142b7345a5640b1e87932e41f3dc9311172bf54c`
 - `verified_branch_head`: `THIS_COMMIT`（以 `git rev-parse HEAD` 解析最终 reconciliation commit；治理前 working HEAD 为 `5891a2df62e2d3e4623b93b1c4f368e53b4d47ba`）
-- `latest_test_result`: governance test `4/4` passed；full `python -m unittest discover -s tests -v` `288/288` passed；registry JSON valid；`git diff --check` passed
+- `latest_test_result`: 本轮治理修正待验证；更新后运行 governance、full unittest、compileall、registry JSON、hash 与 `git diff --check`
 - `latest_ci_run`: `33195350848` on remote main success；current checkout exact-head `33193832124` success
-- `updated_by_task`: `chore: establish project handoff governance`
+- `updated_by_task`: `docs: record verified frozen artifact cloud recovery`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

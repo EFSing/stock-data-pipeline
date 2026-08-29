@@ -36,16 +36,24 @@ class GovernanceTests(unittest.TestCase):
         self.assertIn("PROJECT_GOVERNANCE_STATE_CONFLICT", self.handoff)
         self.assertIn("HANDOFF_CURRENT_AND_CONSISTENT", self.handoff)
 
-    def test_registry_has_fail_closed_recovery_gates(self):
+    def test_registry_records_verified_recovery_gates(self):
         self.assertEqual(self.registry["schema_version"], "repository-frozen-artifact-registry-v1")
-        self.assertEqual(self.entry["status"], "FROZEN_ARTIFACT_BACKUP_STAGED_CLOUD_UPLOAD_REQUIRED")
+        self.assertEqual(self.entry["status"], "FULLY_RECOVERABLE")
         gates = self.entry["recovery_gates"]
         self.assertTrue(gates["LOCAL_PRESENT"])
         self.assertTrue(gates["HASH_VERIFIED"])
-        self.assertFalse(gates["PERSISTENT_BACKUP_PRESENT"])
-        self.assertFalse(gates["RECOVERY_VERIFIED"])
-        self.assertFalse(gates["FULLY_RECOVERABLE"])
-        self.assertIsNone(self.entry["persistent_backup"]["location"])
+        self.assertTrue(gates["PERSISTENT_BACKUP_PRESENT"])
+        self.assertTrue(gates["RECOVERY_VERIFIED"])
+        self.assertTrue(gates["FULLY_RECOVERABLE"])
+        self.assertEqual(
+            self.entry["persistent_backup"]["immutable_object_id"],
+            "119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS",
+        )
+        self.assertEqual(
+            self.entry["recovery_verification"]["recovered_zip_sha256"],
+            "sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599",
+        )
+        self.assertIn("UNRECOVERABLE", self.entry["notes"])
 
     def test_tracked_provenance_file_hashes_match_registry(self):
         hashes = self.entry["exact_file_hashes"]
