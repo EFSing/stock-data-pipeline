@@ -26,7 +26,7 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@21c73977195682df576750648765b1b74d8824e2`；该 SHA 是 PR #32 的 squash merge commit，父提交为 `142b7345a5640b1e87932e41f3dc9311172bf54c`。
 - **working branch:** `research/setup03-atr-boundary-redesign`（当前研究分支）。
-- **current HEAD:** 当前协议/选择器/ATR boundary implementation 仍在本地未完成 freeze commit 上；以 `git rev-parse HEAD` 和后续 exact-head CI 为准，不使用 `THIS_COMMIT` 占位替代真实 SHA。
+- **current HEAD:** `f003dc4` (`research: close out ATR boundary structural qualification`)；最终完整治理 reconciliation tip 仍以 `git rev-parse HEAD` 为准。
 - **PR:** #32 `Phase 5J-v4: lifecycle causal attribution` 已关闭并 squash merge，merge commit `21c73977195682df576750648765b1b74d8824e2`。当前 v5 分支尚未创建 PR；独立 PR #31 `hotfix/production-market-data-stability` 仍保持分离。
 - **latest remote main CI:** run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，completed `success`。
 - **另一个并行项目 PR:** #31 `hotfix/production-market-data-stability` is `OPEN`, head `79ad70cc71171a10f232e02e752f795849bf706d`，exact-head CI run `33248943280` success；它不属于当前 checkout。
@@ -216,11 +216,11 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-29T00:00:00+08:00`（本快照将在 freeze/data/qualification/PR checkpoints 继续更新）
+- `last_updated_at`: `2026-08-30T00:08:40+08:00`
 - `verified_main_sha`: `21c73977195682df576750648765b1b74d8824e2`
-- `verified_branch_head`: 当前以 `git rev-parse HEAD` 为准；branch=`research/setup03-atr-boundary-redesign`
-- `latest_test_result`: v5 focused protocol/universe/setup tests `18/18` passed；full unittest 与 final qualification 仍待执行
-- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；v5 final head CI 尚未产生
-- `updated_by_task`: `research: freeze SETUP_03 ATR boundary structural qualification`
+- `verified_branch_head`: `f003dc4`；branch=`research/setup03-atr-boundary-redesign`
+- `latest_test_result`: full unittest `326/326` passed；qualification parity `280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches`；deterministic repeat `PASS`；compile/hash/diff checks passed
+- `latest_ci_run`: main push run `33259644890`，head `21c73977195682df576750648765b1b74d8824e2`，success；v5 final head exact-head CI pending push
+- `updated_by_task`: `research: close out SETUP_03 ATR boundary structural qualification`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
