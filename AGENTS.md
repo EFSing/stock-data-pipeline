@@ -31,6 +31,15 @@
 如果治理文件与客观 Git / PR / CI / artifact 证据冲突，状态必须标记为
 `PROJECT_GOVERNANCE_STATE_CONFLICT`，停止继续实现，先用客观证据完成核对；不得自行猜测哪个状态正确。
 
+治理文件记录 latest substantive implementation/source head，以及与之对应
+的业务状态、protocol、决策和 next action；不得要求它们保存“包含它自身的
+最终 commit SHA”，因为这是不可满足的自引用条件。当前 PR final tip、
+exact-head CI、mergeability 与 merge commit 必须在需要时从 GitHub 实时核验。
+docs-only governance commit 不要求文件记录其自身 SHA。`HANDOFF_CURRENT_AND_CONSISTENT`
+表示业务状态、protocol、source head、决策和 next action 与真实 repo 一致；
+PR final tip/CI 由实时 GitHub verification 提供。不得为了更新文件自己的
+SHA 制造无限 docs-only commit。
+
 每完成一个具有独立意义的逻辑任务，或准备报告 `TASK_COMPLETE`、`PHASE_COMPLETE`、`PR_FULLY_READY`、`READY_FOR_REVIEW`、`READY_FOR_DECISION` 前，必须更新 `HANDOFF.md`，并确认其状态为 `HANDOFF_CURRENT_AND_CONSISTENT`。
 
 ## 每次修改代码之前（必须按顺序）

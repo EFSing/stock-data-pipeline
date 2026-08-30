@@ -438,8 +438,27 @@ class WaveShadowReportTests(unittest.TestCase):
             report = json.loads(Path(directory, "wave_shadow_report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["rows"][0]["primary_scenario"]["family"], "WAVE_2_TO_3_CANDIDATE")
             self.assertEqual(report["rows"][0]["primary"], "WAVE_2_TO_3_CANDIDATE")
+            self.assertEqual(report["rows"][0]["primary_wave"], "WAVE_2_TO_3_CANDIDATE")
+            self.assertEqual(report["rows"][0]["alternate_wave"], report["rows"][0]["alternate_scenario"]["family"])
             self.assertEqual(report["rows"][0]["alternate"], report["rows"][0]["alternate_scenario"]["family"])
             self.assertTrue(report["rows"][0]["SETUP_01_context"])
+            self.assertEqual(report["rows"][0]["SETUP_01"]["setup_type"], "SETUP_01")
+            self.assertIn(report["rows"][0]["SETUP_01"]["state"], {"WATCH", "ARMED", "CONFIRMED"})
+            setup01 = report["rows"][0]["SETUP_01"]
+            self.assertIn("terminal_event_type", setup01)
+            self.assertIn("terminal_event_date", setup01)
+            self.assertIn("is_new_confirmed_event_as_of", setup01)
+            self.assertIn("is_new_failed_event_as_of", setup01)
+            self.assertIn("is_live_preconfirmation_candidate", setup01)
+            self.assertEqual(
+                report["rows"][0]["new_confirmed_today"],
+                setup01["is_new_confirmed_event_as_of"],
+            )
+            self.assertEqual(
+                report["rows"][0]["live_candidate"],
+                setup01["is_live_preconfirmation_candidate"],
+            )
+            self.assertNotIn("ENTRY_ALLOWED", json.dumps(report["rows"][0]["SETUP_01"]))
             self.assertEqual(report["rows"][0]["freshness_status"], "FRESH")
             self.assertEqual(
                 report["rows"][0]["latest_completed_session"],

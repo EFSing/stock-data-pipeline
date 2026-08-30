@@ -506,7 +506,7 @@
 
 **Revisit condition:** 只有远端 main/PR/CI/artifact 状态、存储策略或项目阶段发生客观变化，或研究设计者明确授权扩大 scope 时，才更新本治理约定；任何 artifact identity 变化必须新建版本并保留旧 identity。
 
-**Relevant commit / PR:** this governance initialization commit on `research/phase5j-v4-lifecycle-attribution`; PR at initialization: `NONE`. Exact commit SHA is recorded by Git and reported after commit creation; `HANDOFF.md` uses `THIS_COMMIT` for its self-referential verification field.
+**Relevant commit / PR:** this governance initialization commit on `research/phase5j-v4-lifecycle-attribution`; PR at initialization: `NONE`. The governance snapshot records the latest substantive source head; it does not record a SHA for a commit that contains the snapshot itself. Exact PR tip, CI and merge state are verified live from GitHub.
 
 ---
 
@@ -706,3 +706,56 @@ were not changed.
 `WAVE_SCENARIO_ENGINE_V1_CORRECTNESS_CLOSEOUT_READY_FOR_SOL`. Keep PR #35
 `OPEN / CLEAN / MERGEABLE`; do not merge it and do not start independent
 `SETUP_01`/`SETUP_02` implementation before Sol review.
+
+### Decision: implement SETUP_01 Wave 2 → Wave 3 v1 as a separate structural lifecycle
+
+**Context:** PR #35 has been squash-merged into the latest `main` and the
+registered Wave Scenario Engine v1 is now the only Wave context source for
+this work. The next authorized implementation is SETUP_01; SETUP_02 remains
+out of scope and SETUP_03 remains closed.
+
+**Decision:** Register
+`SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`. Implement a separate immutable
+SETUP_01 evaluation and strict as-of replay layer with the lifecycle
+`NONE`, `WATCH`, `ARMED`, `CONFIRMED`, `FAILED`. The evaluator accepts only
+the Wave Engine primary `WAVE_2_TO_3_CANDIDATE` with
+`setup01_context_eligible=true`, a non-`DOWNTREND` weekly parent, and three
+confirmed causal Swings in `LOW → HIGH → LOW` order. It requires
+`Wave1 peak > Wave1 origin`, `Wave2 low > Wave1 origin`, and
+`Wave2 low < Wave1 peak`; otherwise no valid SETUP_01 lifecycle is created.
+Explicit ABC correction context and weekly downtrend block confirmation.
+
+**Lifecycle boundary:** `ARMED` uses the protocol-fixed causal recovery
+threshold `close >= Wave2 low + 0.5 × (Wave1 peak − Wave2 low)` while
+`close <= Wave1 peak`. `CONFIRMED` requires a daily close strictly greater
+than Wave 1 peak. Before confirmation, `close <= Wave 1 origin` is the Wave
+Scenario invalidation and `close <= confirmed Wave 2 low` is the separate
+SETUP_01 trade-structure invalidation. Fib ratios `0.382`, `0.5`, `0.618`,
+and `0.786` are reused from `trading/fibonacci.py` for descriptive region
+diagnostics only; no Fib, RSI, EMA, return, or outcome metric is a gate.
+
+**Replay and shadow boundary:** Every replay snapshot evaluates only the
+visible historical prefix and emits deterministic first-entry `CONFIRMED`
+or `FAILED` event identities. The real holdings shadow is read-only and
+produces JSON/CSV diagnostics only; it does not call SETUP_03 Decision, emit
+`ENTRY_ALLOWED`, write Sheets, or access returns, forward returns, MFE, MAE,
+P&L, Final OOS, or formal validation. This is a structural review node, not
+authorization for SETUP_01 Decision/Risk or a production signal.
+
+**Reason:** A dedicated setup type preserves the meaning and compatibility
+of SETUP_03 while making the Wave 2 → Wave 3 assumptions, counter-scenario,
+causality, invalidations, and review evidence explicit. The fixed recovery
+rule is intentionally simple and non-optimized; no parameter grid or
+market-specific Fib rule is introduced.
+
+## 2026-08-30
+
+### Decision: close the SETUP_01 terminal-event projection self-reference and event-semantics gap
+
+**Governance:** Tracked governance files record the latest substantive implementation/source head and the corresponding business/protocol/decision/next-action snapshot. They do not record the final commit SHA that contains their own docs-only update. PR final tip, exact-head CI, mergeability and merge commit are live GitHub evidence. `HANDOFF_CURRENT_AND_CONSISTENT` means the repository state and governance snapshot agree; it does not require a self-referential SHA. This supersedes any historical `THIS_COMMIT` wording and prevents an infinite docs-only update loop.
+
+**Implementation:** The latest substantive source head for PR #36 is `eed768bec92365615b05b0a8314cf555e44b22ac`, following the previous review head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`. `Setup01Evaluation` and its JSON projection now expose `terminal_event_type`, `terminal_event_date`, `is_new_confirmed_event_as_of`, `is_new_failed_event_as_of`, and `is_live_preconfirmation_candidate`. The first two preserve the current lifecycle's historical terminal fact; the new-event flags are true only when the matching terminal date equals the as-of date; live candidate is true only for `WATCH`/`ARMED`.
+
+**Replay/shadow boundary:** Replay consumes the explicit new-event flags, so a persisted historical `CONFIRMED` state is not re-emitted or re-decided on later dates. The read-only real-holdings shadow exposes both nested projection fields and top-level `new_confirmed_today`, `new_failed_today`, `live_candidate`, and `historical_terminal` fields. Lifecycle transitions, structural event identity and event counts are unchanged. Regression coverage proves a later as-of snapshot can remain `CONFIRMED` while `is_new_confirmed_event_as_of=false` and the replay event count remains one.
+
+**Boundary:** This closeout does not start `SETUP_02`, reopen `SETUP_03`, or access returns, MFE, MAE, P&L or Final OOS. The previous CI/shadow runs `33300273163`/`33300273180` do not cover the new source head; exact-head CI, re-run real holdings shadow and PR state must be re-verified before PR #36 merge.

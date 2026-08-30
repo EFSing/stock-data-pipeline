@@ -16,6 +16,11 @@ from typing import Any
 
 from core import latest_completed_market_session, ordinary_calendar_freshness_guard
 from trading.models import WaveScenarioFamily
+from trading.setup01 import (
+    SETUP01_PROTOCOL_VERSION,
+    evaluate_setup01,
+    setup01_evaluation_to_dict,
+)
 from trading.wave import (
     WAVE_ENGINE_PROTOCOL_VERSION,
     evaluate_wave_scenario,
@@ -40,6 +45,7 @@ def _json(value: Any) -> str:
 def _csv_row(row: dict[str, Any]) -> dict[str, Any]:
     primary = row.get("primary_scenario", {})
     alternate = row.get("alternate_scenario", {})
+    setup01 = row.get("SETUP_01", {})
     return {
         "统一代码": row.get("symbol", ""),
         "名称": row.get("name", ""),
@@ -52,6 +58,8 @@ def _csv_row(row: dict[str, Any]) -> dict[str, Any]:
         "daily_state": row.get("daily_state", ""),
         "primary": row.get("primary", primary.get("family", "")),
         "alternate": row.get("alternate", alternate.get("family", "")),
+        "primary_wave": row.get("primary_wave", primary.get("family", "")),
+        "alternate_wave": row.get("alternate_wave", alternate.get("family", "")),
         "primary_scenario": primary.get("family", ""),
         "alternate_scenario": alternate.get("family", ""),
         "primary_evidence_score": primary.get("evidence_score", ""),
@@ -70,6 +78,26 @@ def _csv_row(row: dict[str, Any]) -> dict[str, Any]:
         "SETUP_02_context": row.get(
             "SETUP_02_context", primary.get("setup02_context_eligible", False)
         ),
+        "SETUP_01_state": setup01.get("state", ""),
+        "SETUP_01_as_of_date": setup01.get("as_of_date", ""),
+        "SETUP_01_wave1_origin_price": setup01.get("wave1_origin_price", ""),
+        "SETUP_01_wave1_origin_date": setup01.get("wave1_origin_date", ""),
+        "SETUP_01_wave1_peak_price": setup01.get("wave1_peak_price", ""),
+        "SETUP_01_wave1_peak_date": setup01.get("wave1_peak_date", ""),
+        "SETUP_01_wave2_low_price": setup01.get("wave2_low_price", ""),
+        "SETUP_01_wave2_low_date": setup01.get("wave2_low_date", ""),
+        "SETUP_01_fib_retracement_ratio": setup01.get("fib_retracement_ratio", ""),
+        "SETUP_01_fib_retracement_region": setup01.get("fib_retracement_region", ""),
+        "SETUP_01_confirmation_level": setup01.get("confirmation_level", ""),
+        "SETUP_01_structural_invalidation": setup01.get("structural_invalidation", ""),
+        "SETUP_01_wave_scenario_invalidation": setup01.get("wave_scenario_invalidation", ""),
+        "SETUP_01_reason": setup01.get("reason", ""),
+        "terminal_event_type": row.get("terminal_event_type", ""),
+        "terminal_event_date": row.get("terminal_event_date", ""),
+        "new_confirmed_today": row.get("new_confirmed_today", False),
+        "new_failed_today": row.get("new_failed_today", False),
+        "live_candidate": row.get("live_candidate", False),
+        "historical_terminal": row.get("historical_terminal", False),
         "error": row.get("error", ""),
     }
 
@@ -125,6 +153,7 @@ def run_wave_shadow(
     rows: list[dict[str, Any]] = []
     errors = 0
     family_counts: dict[str, int] = {}
+    setup01_state_counts: dict[str, int] = {}
     unknown_count = 0
     for watch in watches:
         symbol = str(watch.get("统一代码") or "").strip()
@@ -188,6 +217,13 @@ def run_wave_shadow(
                 daily_swing_lookback=daily_swing_lookback,
                 weekly_swing_lookback=weekly_swing_lookback,
             )
+            setup01_evaluation = evaluate_setup01(
+                quotes,
+                as_of_date=latest_completed_session,
+                daily_swing_lookback=daily_swing_lookback,
+                weekly_swing_lookback=weekly_swing_lookback,
+            )
+            setup01_row = setup01_evaluation_to_dict(setup01_evaluation)
             row = {
                 **row_base,
                 **evaluation_to_dict(evaluation),
@@ -196,14 +232,31 @@ def run_wave_shadow(
                 "freshness_status": freshness_status,
                 "primary": evaluation.primary_scenario.family.value,
                 "alternate": evaluation.alternate_scenario.family.value,
+                "primary_wave": evaluation.primary_scenario.family.value,
+                "alternate_wave": evaluation.alternate_scenario.family.value,
                 "SETUP_01_context": evaluation.primary_scenario.setup01_context_eligible,
                 "SETUP_02_context": evaluation.primary_scenario.setup02_context_eligible,
+                "SETUP_01": setup01_row,
+                "terminal_event_type": setup01_row["terminal_event_type"],
+                "terminal_event_date": setup01_row["terminal_event_date"],
+                "new_confirmed_today": setup01_row["is_new_confirmed_event_as_of"],
+                "new_failed_today": setup01_row["is_new_failed_event_as_of"],
+                "live_candidate": setup01_row["is_live_preconfirmation_candidate"],
+                "historical_terminal": (
+                    setup01_row["terminal_event_type"] in {"CONFIRMED", "FAILED"}
+                    and not setup01_row["is_new_confirmed_event_as_of"]
+                    and not setup01_row["is_new_failed_event_as_of"]
+                ),
                 "data_source": source,
                 "error": "",
             }
             family = evaluation.primary_scenario.family.value
             family_counts[family] = family_counts.get(family, 0) + 1
             unknown_count += family in UNKNOWN_FAMILIES
+            setup01_state = setup01_evaluation.state.value
+            setup01_state_counts[setup01_state] = (
+                setup01_state_counts.get(setup01_state, 0) + 1
+            )
         except Exception as exc:
             errors += 1
             row = {
@@ -219,8 +272,49 @@ def run_wave_shadow(
                 "daily_state": "UNKNOWN",
                 "primary": WaveScenarioFamily.NO_VALID_SCENARIO.value,
                 "alternate": WaveScenarioFamily.NO_VALID_SCENARIO.value,
+                "primary_wave": WaveScenarioFamily.NO_VALID_SCENARIO.value,
+                "alternate_wave": WaveScenarioFamily.NO_VALID_SCENARIO.value,
                 "SETUP_01_context": False,
                 "SETUP_02_context": False,
+                "SETUP_01": {
+                    "setup_type": "SETUP_01",
+                    "protocol_version": SETUP01_PROTOCOL_VERSION,
+                    "state": "NONE",
+                    "as_of_date": None,
+                    "wave1_origin_price": None,
+                    "wave1_origin_date": None,
+                    "wave1_origin_confirmed_date": None,
+                    "wave1_peak_price": None,
+                    "wave1_peak_date": None,
+                    "wave1_peak_confirmed_date": None,
+                    "wave2_low_price": None,
+                    "wave2_low_date": None,
+                    "wave2_low_confirmed_date": None,
+                    "fib_retracement_ratio": None,
+                    "fib_retracement_region": None,
+                    "confirmation_level": None,
+                    "structural_invalidation": None,
+                    "wave_scenario_invalidation": None,
+                    "state_entered_index": None,
+                    "state_entered_date": None,
+                    "confirmed_index": None,
+                    "confirmed_date": None,
+                    "failed_index": None,
+                    "failed_date": None,
+                    "primary_wave_scenario": WaveScenarioFamily.NO_VALID_SCENARIO.value,
+                    "alternate_wave_scenario": WaveScenarioFamily.NO_VALID_SCENARIO.value,
+                    "reason": "shadow history could not be evaluated",
+                    "diagnostics": [],
+                    "lifecycle_index": None,
+                    "terminal_event_type": None,
+                    "terminal_event_date": None,
+                    "is_new_confirmed_event_as_of": False,
+                    "is_new_failed_event_as_of": False,
+                    "is_live_preconfirmation_candidate": False,
+                    "wave1_origin": None,
+                    "wave1_peak": None,
+                    "wave2_low": None,
+                },
                 "primary_scenario": {
                     "family": WaveScenarioFamily.NO_VALID_SCENARIO.value,
                     "evidence": [],
@@ -255,6 +349,12 @@ def run_wave_shadow(
                     history_last_date.isoformat()
                     if history_last_date is not None else None
                 ),
+                "terminal_event_type": None,
+                "terminal_event_date": None,
+                "new_confirmed_today": False,
+                "new_failed_today": False,
+                "live_candidate": False,
+                "historical_terminal": False,
                 "data_source": source,
                 "error": str(exc),
             }
@@ -275,6 +375,7 @@ def run_wave_shadow(
         "unknown_primary": unknown_count,
         "unknown_primary_ratio": (unknown_count / len(rows)) if rows else None,
         "primary_family_counts": family_counts,
+        "setup01_state_counts": setup01_state_counts,
         "returns_accessed": False,
         "oos_accessed": False,
         "sheets_written": False,

@@ -6,9 +6,13 @@ on:
       - "trading/models.py"
       - "trading/fibonacci.py"
       - "trading/wave.py"
+      - "trading/setup01.py"
+      - "trading/setup01_replay.py"
       - "scripts/run_wave_shadow.py"
       - "tests/test_wave.py"
+      - "tests/test_setup01.py"
       - "docs/WAVE_SCENARIO_ENGINE_V1.md"
+      - "docs/SETUP_01_WAVE2_TO_WAVE3_V1.md"
   workflow_dispatch:
     inputs:
       group:
