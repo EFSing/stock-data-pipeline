@@ -209,6 +209,12 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - 所有 Wave1/Wave2 Swing 必须已经 confirmed，weekly DOWNTREND 或 primary
   `ABC_CORRECTION_CANDIDATE` 阻断 SETUP_01。Fibonacci 只复用 canonical
   retracement levels/regions 作为 diagnostics，不是 hard gate。
+- SETUP_01 projection 明确区分持续存在的历史 terminal lifecycle 与当前日期
+  的新事件：`terminal_event_type`、`terminal_event_date`、
+  `is_new_confirmed_event_as_of`、`is_new_failed_event_as_of` 及
+  `is_live_preconfirmation_candidate`。其中前两者保留 terminal 事实，两个
+  `is_new_*` 仅在 terminal date 等于 as-of date 时为真，live candidate 只对
+  `WATCH`/`ARMED` 为真；这些字段不改变 lifecycle/event identity/count。
 - `replay_setup01_history()` 对每个历史日严格使用可见前缀，只产生
   `CONFIRMED`/`FAILED` first-entry event identity；不访问 returns/outcomes/OOS，
   不产生 `ENTRY_ALLOWED`。

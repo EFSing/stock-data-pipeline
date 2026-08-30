@@ -506,7 +506,7 @@
 
 **Revisit condition:** 只有远端 main/PR/CI/artifact 状态、存储策略或项目阶段发生客观变化，或研究设计者明确授权扩大 scope 时，才更新本治理约定；任何 artifact identity 变化必须新建版本并保留旧 identity。
 
-**Relevant commit / PR:** this governance initialization commit on `research/phase5j-v4-lifecycle-attribution`; PR at initialization: `NONE`. Exact commit SHA is recorded by Git and reported after commit creation; `HANDOFF.md` uses `THIS_COMMIT` for its self-referential verification field.
+**Relevant commit / PR:** this governance initialization commit on `research/phase5j-v4-lifecycle-attribution`; PR at initialization: `NONE`. The governance snapshot records the latest substantive source head; it does not record a SHA for a commit that contains the snapshot itself. Exact PR tip, CI and merge state are verified live from GitHub.
 
 ---
 

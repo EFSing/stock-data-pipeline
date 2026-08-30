@@ -204,6 +204,52 @@ class Setup01LifecycleTests(unittest.TestCase):
         )
         self.assertEqual(len(report.events), 1)
 
+        failed_quotes = [
+            _quote(start + timedelta(days=index), "NEUTRAL", close)
+            for index, close in enumerate((100.0, 120.0, 114.0, 113.0))
+        ]
+        with patch(
+            "trading.setup01.evaluate_wave_scenario",
+            side_effect=lambda visible, **kwargs: replace(
+                template,
+                as_of_date=visible[-1].trade_date,
+                as_of_close=float(visible[-1].close),
+            ),
+        ):
+            failed_history = evaluate_setup01_history(
+                failed_quotes, daily_swing_lookback=1, weekly_swing_lookback=1
+            )
+        failed = failed_history[2]
+        later_failed = failed_history[3]
+        self.assertEqual(failed.state, SetupState.FAILED)
+        self.assertEqual(failed.terminal_event_type, SetupState.FAILED)
+        self.assertEqual(failed.terminal_event_date, failed.as_of_date)
+        self.assertFalse(failed.is_new_confirmed_event_as_of)
+        self.assertTrue(failed.is_new_failed_event_as_of)
+        self.assertFalse(failed.is_live_preconfirmation_candidate)
+        self.assertEqual(later_failed.state, SetupState.FAILED)
+        self.assertEqual(later_failed.terminal_event_type, SetupState.FAILED)
+        self.assertEqual(later_failed.terminal_event_date, failed.as_of_date)
+        self.assertFalse(later_failed.is_new_confirmed_event_as_of)
+        self.assertFalse(later_failed.is_new_failed_event_as_of)
+        self.assertFalse(later_failed.is_live_preconfirmation_candidate)
+
+        with patch(
+            "trading.setup01.evaluate_wave_scenario",
+            side_effect=lambda visible, **kwargs: replace(
+                template,
+                as_of_date=visible[-1].trade_date,
+                as_of_close=float(visible[-1].close),
+            ),
+        ):
+            failed_report = replay_setup01_history(
+                failed_quotes, daily_swing_lookback=1, weekly_swing_lookback=1
+            )
+        self.assertEqual(
+            [event.event_type for event in failed_report.events], [SetupState.FAILED]
+        )
+        self.assertEqual(len(failed_report.events), 1)
+
     def test_armed_recovery_is_fixed_and_close_equal_peak_is_not_confirmed(self):
         quotes = _wave_candidate_points(140.0)
         evaluation = evaluate_setup01(

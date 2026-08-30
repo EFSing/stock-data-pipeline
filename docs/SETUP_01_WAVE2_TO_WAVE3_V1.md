@@ -91,6 +91,22 @@ identity is:
 The event type is part of the identity, so confirmation and failure cannot be
 silently conflated or duplicated.
 
+The structural projection explicitly separates a persisted terminal lifecycle
+from a new event on the current as-of date:
+
+- `terminal_event_type` and `terminal_event_date` retain the historical
+  `CONFIRMED`/`FAILED` event for the current lifecycle;
+- `is_new_confirmed_event_as_of` is true only when
+  `state == CONFIRMED` and `confirmed_date == as_of_date`;
+- `is_new_failed_event_as_of` is true only when
+  `state == FAILED` and `failed_date == as_of_date`;
+- `is_live_preconfirmation_candidate` is true only for `WATCH` or `ARMED`.
+
+Consequently, a historical terminal `CONFIRMED` snapshot remains visible on a
+later date but is not a new signal and cannot be re-decided. These are
+read-only projection fields; they do not change lifecycle transitions, event
+identity, or event counts.
+
 ## Development-only output boundary
 
 The structural replay uses the frozen `DEVELOPMENT_ONLY` holdout input already
