@@ -28,6 +28,17 @@ AKShare已从生产依赖和数据源注册表中移除。为保证旧版Google 
 python main.py --group all --mode full
 ```
 
+需要查看启用持仓的波浪结构上下文时，手动运行只读 shadow workflow：
+
+```bash
+python -m scripts.run_wave_shadow --group all
+```
+
+Wave shadow 使用 `WAVE-SCENARIO-ENGINE-2026-08-30-v1`，输出 weekly/daily
+state、主/备选情景、confirmed Swing、Fib 候选区间、结构失效位以及
+`SETUP_01`/`SETUP_02` context。它只读 Google Sheets 和 qfq 历史，生成
+JSON/CSV artifact，不写 Sheet、交易决策、ENTRY 或生产配置。
+
 `workflow_dispatch` 默认是 `latest`，仅手动选择 `full`；daily schedule 始终强制 `latest`。
 
 ## Google Sheet结构

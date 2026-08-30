@@ -39,6 +39,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
                decide_platform_breakout()            [trading.decision]
         ↓
         → upsert_history(未复权/前复权) + upsert_decisions
+
+    # manual read-only Wave shadow:
+    scripts/run_wave_shadow.py
+        → read enabled 自选清单 + explicit qfq history source
+        → trading.wave.evaluate_wave_scenario()
+        → JSON/CSV artifact + GitHub Step Summary
+        (no Sheet write, no Decision, no production entry)
 ```
 
 ### Execution modes
@@ -95,7 +102,10 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── setup.py              # SETUP_03 Platform Breakout
 │   ├── decision.py           # SETUP_03 Decision Engine + 同源只读 gate diagnostics
 │   ├── events.py             # 生产/回放共享的终态事件语义与幂等键
-│   └── replay.py             # SETUP_03 Historical Replay & Diagnostics（只读）
+│   ├── replay.py             # SETUP_03 Historical Replay & Diagnostics（只读）
+│   └── wave.py               # Wave Scenario Engine v1（只读、严格 as-of）
+├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
+├── scripts/run_wave_shadow.py # enabled holdings read-only shadow runner
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -165,6 +175,23 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `ReplayEvent` / `replay_event_rows()`：只读终态事件流水及关键 Setup/Decision 字段
 - `validate_replay_history()`：空序列、重复/乱序日期、样本不足、最新日期和异常日历缺口门控
 - 只读诊断层；不写入 `交易决策` 表，不复制 Swing / Setup / Decision 交易逻辑，不修改生产参数
+
+### trading/wave.py / scripts/run_wave_shadow.py
+
+- `trading.wave.evaluate_wave_scenario()` 先按 `as_of_date` 截断输入，复用
+  causal confirmed Swing、Weekly→Daily Market Structure 与现有 Fibonacci
+  levels，输出有限 primary/alternate scenario、证据、反证、结构失效和
+  `SETUP_01`/`SETUP_02` context eligibility；不输出 Entry/Decision。
+- Weekly 当前 ISO 周不进入母级别状态；未来 bar append 在固定 as-of 下不
+  改写历史结果。`evidence_score` 是规则计数，不是收益/概率评分。
+- `WAVE_2_TO_3_CANDIDATE` 明确要求 `peak.price > origin.price`；as-of close
+  触及或跌破 impulse origin 时输出失效/UNKNOWN，`SETUP_01` context 为 false。
+  ABC candidate 同样要求真实向上 impulse，且 current close 不得跌破其 origin。
+- `run_wave_shadow.py` 只读启用持仓与 qfq 历史，输出 JSON/CSV artifact 和
+  summary，不写 Google Sheets、历史行情或交易决策；报告记录
+  `history_last_date`、`latest_completed_session`、`freshness_status`。qfq
+  history 未达到最新完成 session 或 ordinary-calendar freshness 下限时
+  `DATA_STALE` 并 fail closed，不评估 stale scenario。
 
 ### research/backtest/setup03.py
 
@@ -319,6 +346,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30；schedule 强制运行 `python main.py --group asia --mode latest`，workflow_dispatch 可选 full
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；schedule 强制运行 `python main.py --group us --mode latest`，workflow_dispatch 可选 full
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
+- `wave-shadow.yml`：仅 `workflow_dispatch`；读取真实启用持仓和显式 qfq 历史，生成 Wave Engine v1 JSON/CSV 只读 artifact，不写任何 Sheet、Decision 或生产参数
 - 固定 run `32826696259` 还启用 Phase 5F~5I 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化；Phase 5I 只消费 Phase 5G／5H 现有 artifact 合同并冻结证据边界，不读取 OOS、不新增搜索，也不选择 production 参数。
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11

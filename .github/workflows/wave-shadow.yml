@@ -1,0 +1,56 @@
+name: Wave Scenario Engine read-only shadow
+
+on:
+  pull_request:
+    paths:
+      - "trading/models.py"
+      - "trading/fibonacci.py"
+      - "trading/wave.py"
+      - "scripts/run_wave_shadow.py"
+      - "tests/test_wave.py"
+      - "docs/WAVE_SCENARIO_ENGINE_V1.md"
+  workflow_dispatch:
+    inputs:
+      group:
+        description: "Holdings group to evaluate"
+        required: true
+        default: all
+        type: choice
+        options:
+          - asia
+          - us
+          - all
+
+permissions:
+  contents: read
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run Wave Scenario Engine shadow evaluation
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python -m scripts.run_wave_shadow \
+            --group "${{ inputs.group || 'all' }}" \
+            --output-dir artifacts/wave_shadow | tee wave-shadow-summary.txt
+      - name: Publish shadow summary
+        if: always()
+        run: |
+          {
+            echo "## Wave Scenario Engine read-only shadow"
+            if [ -f wave-shadow-summary.txt ]; then cat wave-shadow-summary.txt; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wave-shadow
+          path: artifacts/wave_shadow/
