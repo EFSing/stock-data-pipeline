@@ -31,7 +31,7 @@
 - **implementation source head:** PR #37 latest substantive head `db8b64c`，基于 main `3a6d417...`；governance docs 不保存包含自身的最终 docs-only SHA，PR final tip/exact-head CI/mergeability 以 GitHub 实时证据为准。
 - **previous reviewed head:** `b3da9e87a25b3a56c341a6096c021666150a19d5`，exact-head CI `33268711570` success，shadow `33268711569` success。
 - **PR:** #36 已关闭并 squash merge，merge commit `3a6d417...`；旧 PR #31 已关闭并注明 `superseded by #34`；PR #37 base=`main@3a6d417...`，当前 source head=`db8b64c`，保持 OPEN，未自动 merge。
-- **latest live verification before this governance-only snapshot update:** PR #37 tip `2acdeb19aef69f1c3dd2ef029c2eec95d7d2c9db`；CI Test Gate `33319441644` success；synthetic-only generic shadow `33319441600` success；PR `OPEN / CLEAN / MERGEABLE`。当前没有任何 GitHub Actions workflow 读取或输出真实持仓派生信息；后续 final tip/CI 仍以 GitHub 实时核验为准。
+- **latest live verification before this governance-only snapshot update:** PR #37 tip `2acdeb19aef69f1c3dd2ef029c2eec95d7d2c9db`；CI Test Gate `33319441644` success；synthetic-only generic shadow `33319441600` success；PR `OPEN / CLEAN / MERGEABLE`。SETUP_01/Wave real-holdings shadow workflows 已移除；本任务未向 GitHub Actions 输出 holdings-derived data，后续 final tip/CI 仍以 GitHub 实时核验为准。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
 - **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `SETUP01_GENERIC_OPERATIONAL_SHADOW_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 

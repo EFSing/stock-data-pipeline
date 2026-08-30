@@ -418,7 +418,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30；schedule 强制运行 `python main.py --group asia --mode latest`，workflow_dispatch 可选 full
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；schedule 强制运行 `python main.py --group us --mode latest`，workflow_dispatch 可选 full
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
-- `wave-shadow.yml`：已从当前 PR 移除；本项目当前不通过 GitHub Actions 读取或输出真实持仓派生信息
+- `wave-shadow.yml`：已从当前 PR 移除；本轮不通过 GitHub Actions 读取或输出真实持仓派生信息
 - `setup01-decision-shadow.yml`：已移除；真实持仓 Decision shadow 仅保留 private/local capability，不通过 GitHub Actions 运行
 - `run_setup01_generic_operational_shadow.py`：synthetic-only generic operational shadow；不需要 Secrets，可作为当前产品/工程 gate 运行
 - `setup01-generic-operational-shadow.yml`：仅运行 synthetic-only generic shadow，可由 PR 或手动触发，不读取账户 secrets
