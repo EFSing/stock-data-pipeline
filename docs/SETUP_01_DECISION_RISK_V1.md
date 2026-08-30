@@ -89,11 +89,45 @@ price, and the first three become T1/T2/T3. If none is valid, the gate is
 
 Each T1 candidate also carries a compact descriptive provenance audit: source,
 confirmed-swing pivot/confirmation dates and session ages when applicable,
-Fib extension ratio when applicable, planned entry, actual entry, planned and
-actual-open first-target R/R, quality, >5R flags, and the existing target
-provenance/geometry check. This audit adds no target lookback, age threshold,
-or new target filter. A >5R or stale historical swing observation is evidence
-for Sol review only; it does not create a new gate.
+Fib extension ratio when applicable, planned entry, observed T+1 OPEN, actual
+entry, planned and actual-open first-target R/R, quality, >5R flags, and the
+existing target provenance/geometry check. This audit adds no target lookback,
+age threshold, or new target filter. A >5R or stale historical swing
+observation is evidence for Sol review only; it does not create a new gate.
+
+## Execution ledger and development session identity
+
+The execution ledger has a strict field invariant:
+
+```text
+actual_entry != None  if and only if  outcome == EXECUTED
+```
+
+`t1_open` is the observed price at the exact T+1 OPEN and is retained for
+diagnostics. `actual_entry` represents only a real executed fill. Therefore an
+in-zone OPEN that fails the actual-open R/R gate is recorded as
+`SKIP_RR_BELOW_MINIMUM_AT_OPEN` with `t1_open` and `actual_rr` populated but
+`actual_entry=None`. All other skip outcomes also keep `actual_entry=None`.
+
+Development T+1 session identity is formally:
+
+```text
+DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET
+```
+
+The existing `research.market_sessions` helper builds the sorted union of
+local `Quote.trade_date` values across all symbols in the frozen dataset for
+each market. Development T+1 means the next session in that observed set.
+This prevents a missing symbol bar from falling forward to T+2, but cannot
+prove that a real session is present when the entire frozen market universe is
+missing that date. Production execution therefore requires:
+
+```text
+PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION
+```
+
+This prerequisite is not a PR #37 blocker, is not implemented here, does not
+add a third-party calendar, and does not change the development funnel.
 
 The existing `trading.risk.risk_reward()` and `position_size()` are reused:
 
@@ -127,7 +161,8 @@ Decision reasons are `ATR_UNAVAILABLE`, `ABOVE_ENTRY_ZONE`,
 `NO_VALID_TARGET`, `RR_BELOW_MINIMUM`, `INVALID_STRUCTURE`, and
 `ENTRY_ALLOWED`. Execution reasons include
 `SKIP_GAP_BELOW_CONFIRMATION`, `SKIP_GAP_ABOVE_ENTRY_ZONE`,
-`SKIP_BELOW_INVALIDATION`, `SKIP_NO_T1_BAR`, and `EXECUTED`.
+`SKIP_BELOW_INVALIDATION`, `SKIP_NO_T1_BAR`,
+`SKIP_RR_BELOW_MINIMUM_AT_OPEN`, and `EXECUTED`.
 
 The default operational gate is
 `scripts/run_setup01_generic_operational_shadow.py`, which uses only the

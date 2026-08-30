@@ -39,6 +39,33 @@ V0.2
 - generic operational shadow 已通过：7 supplied synthetic events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 executed / 1 gap-below-confirmation skip；exact-once、T→T+1、terminal semantics、fail-closed、reporting pipeline 全通过。
 - Real holdings shadow 不属于当前 research/development progression gate；其 classification 为 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，状态 `NOT_RUN_USER_PRIVACY`。本轮没有生成 production Sheet signal，没有启动 SETUP_02，也没有重新打开 SETUP_03。
 
+### Overnight closeout correction (2026-08-31)
+
+- `SKIP_RR_BELOW_MINIMUM_AT_OPEN` now retains the observed `t1_open` and
+  `actual_rr` but sets `actual_entry=None`; a model-level invariant enforces
+  `actual_entry != None` if and only if `outcome == EXECUTED`. Target, stop,
+  Entry Zone, 2R threshold, and Decision semantics are unchanged. Latest
+  substantive implementation head is `4ca19cf` (full SHA is verified by Git).
+- `DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`: the
+  development T+1 is the next session in the frozen dataset's per-market union
+  of local `Quote.trade_date` values. This prevents symbol-level fall-forward
+  to T+2 but cannot prove an all-universe missing real session.
+- `PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`
+  is registered as a future prerequisite only. It is not implemented in PR
+  #37, not a current blocker, does not add a third-party calendar, and does not
+  change the development funnel.
+- Corrected DEVELOPMENT_EXPOSED replay remains 745 CONFIRMED / 745 Decision
+  rows / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4 EXECUTED / 1
+  `SKIP_GAP_BELOW_CONFIRMATION` / 0 `SKIP_RR_BELOW_MINIMUM_AT_OPEN`; funnel
+  delta is zero. Decision gates are `ABOVE_ENTRY_ZONE=464`,
+  `RR_BELOW_MINIMUM=276`, `ENTRY_ALLOWED=5`, all other registered reasons 0.
+  Target provenance remains 5/5 existing `WAVE3_FIB_EXTENSION / 1.272`,
+  historical swing-high T1=0, >5R=0, geometry all pass.
+- Local verification at the implementation head: full unittest `389/389`,
+  focused SETUP_01/Wave/market-session/generic `50/50`, compileall passed,
+  generic synthetic shadow passed with execution-ledger invariant, and
+  `git diff --check` passed.
+
 ## Completed
 
 - 多市场行情抓取（A股/港股/美股/日股/瑞典股）

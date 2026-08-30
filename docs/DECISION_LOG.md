@@ -917,3 +917,57 @@ Latest substantive source head is
 PR final tip and exact-head CI are live GitHub facts and are not replaced by a
 self-referential docs SHA. The resulting state is
 `SETUP_01_DECISION_RISK_V1_CLOSEOUT_READY_FOR_SOL_REVIEW`.
+
+## 2026-08-31
+
+### Decision: close the final SETUP_01 execution-ledger correctness gap and bound development T+1 identity
+
+**Context:** The bounded PR #37 closeout found that an in-zone T+1 OPEN which
+failed the actual-open minimum-R/R gate retained the observed OPEN in
+`actual_entry`. That conflated an observation with an executed fill even
+though the trade was skipped.
+
+**Decision:** Keep the execution ledger invariant
+`actual_entry != None` if and only if `outcome == EXECUTED`. `t1_open` is the
+observed exact T+1 OPEN and remains populated whenever that bar is observed;
+`actual_entry` is populated only for `EXECUTED`. The
+`SKIP_RR_BELOW_MINIMUM_AT_OPEN` outcome retains `t1_open` and `actual_rr` but
+sets `actual_entry=None`. All other skip outcomes also set
+`actual_entry=None`. A model-level invariant check and regressions cover every
+execution/skip reason. Target, stop, Entry Zone, 2R threshold, and Decision
+funnel semantics are unchanged.
+
+Target provenance uses `t1_open` when displaying the price used for
+actual-open R/R; it never infers an observed OPEN from a skipped trade's
+`actual_entry`.
+
+**Decision:** Formally register
+`DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`. In
+development, the exact T+1 session is the next date in the sorted union of
+local `Quote.trade_date` values across all symbols in the frozen dataset for
+that market. This prevents a missing symbol bar from falling forward to T+2,
+but cannot prove that a real session exists when the entire frozen market
+universe is missing that date.
+
+Register the future prerequisite
+`PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`.
+It is not a PR #37 blocker, is not implemented in this closeout, does not add
+a third-party calendar, and does not change the development funnel. It must be
+completed before production execution semantics can rely on an exchange
+calendar rather than the frozen-data session set.
+
+**Evidence / Boundary:** The corrected DEVELOPMENT_EXPOSED replay remains
+745 CONFIRMED / 745 Decision rows / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4
+EXECUTED, with one `SKIP_GAP_BELOW_CONFIRMATION` and zero
+`SKIP_RR_BELOW_MINIMUM_AT_OPEN`; every Decision gate count is unchanged
+(`ABOVE_ENTRY_ZONE=464`, `RR_BELOW_MINIMUM=276`, `ENTRY_ALLOWED=5`, all other
+registered reasons zero), so the funnel delta is zero. The five T1 provenance
+rows remain existing `WAVE3_FIB_EXTENSION / 1.272`, with historical
+swing-high T1=0, >5R=0, and all geometry checks passing. Full and focused
+regressions, compileall, generic synthetic shadow, and `git diff --check` are
+required before the PR can be marked fully ready.
+
+This closeout does not access returns/MFE/MAE/P&L/OOS, start SETUP_02, reopen
+SETUP_03, read real holdings or Secrets, write production Sheets, change
+strategy semantics, or merge PR #37. The next action after exact-head CI is
+Sol review followed by a merge decision.
