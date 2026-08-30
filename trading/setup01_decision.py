@@ -197,11 +197,17 @@ def _validated_event(event: Setup01ReplayEvent) -> None:
 
 
 def _prefix_at_event(event: Setup01ReplayEvent, quotes: Sequence[Quote]) -> list[Quote]:
-    validate_quote_series(list(quotes))
+    if not quotes:
+        raise ValueError("quotes 为空，不能形成严格 as-of 前缀")
     if quotes[0].symbol != event.symbol:
         raise ValueError("event symbol 与 quote symbol 不一致")
     prefix = [quote for quote in quotes if quote.trade_date <= event.trade_date]
-    if not prefix or prefix[-1].trade_date != event.trade_date:
+    if not prefix:
+        raise ValueError("quotes 缺少 event T 日，不能形成严格 as-of 前缀")
+    # Validate only the causal prefix.  In particular, T+1 and later OHLC are
+    # not even inspected while forming a T-day Decision.
+    validate_quote_series(prefix)
+    if prefix[-1].trade_date != event.trade_date:
         raise ValueError("quotes 缺少 event T 日，不能形成严格 as-of 前缀")
     return prefix
 
@@ -484,7 +490,6 @@ def execute_setup01_t1_open(
     quotes: Sequence[Quote],
 ) -> Setup01Execution:
     """Classify only the first observed bar after T using its OPEN."""
-    validate_quote_series(list(quotes))
     if decision.action is not DecisionAction.ENTRY_ALLOWED:
         return Setup01Execution(
             event_identity=decision.event_identity,
@@ -497,8 +502,15 @@ def execute_setup01_t1_open(
             outcome=SKIP_DECISION_NOT_ENTRY_ALLOWED,
             actual_entry=None,
         )
-    next_bars = [quote for quote in quotes if quote.trade_date > decision.trade_date]
-    if not next_bars:
+    # Search by date and read only the first later bar's OPEN.  Do not call a
+    # full-series OHLC validator here: T+1 high/low/close are outside the
+    # execution-feasibility contract.
+    t1 = min(
+        (quote for quote in quotes if quote.trade_date > decision.trade_date),
+        key=lambda quote: quote.trade_date,
+        default=None,
+    )
+    if t1 is None:
         return Setup01Execution(
             event_identity=decision.event_identity,
             symbol=decision.symbol,
@@ -511,7 +523,6 @@ def execute_setup01_t1_open(
             actual_entry=None,
         )
 
-    t1 = next_bars[0]
     opening = float(t1.open)
     assert decision.entry_zone_low is not None
     assert decision.entry_zone_high is not None
