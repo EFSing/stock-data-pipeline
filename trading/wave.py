@@ -287,32 +287,69 @@ def evaluate_wave_scenario(
         origin, peak, retracement_low = upward_three
         impulse = _leg(origin, peak)
         retracement = _leg(peak, retracement_low)
-        base_evidence = [
-            "confirmed LOW→HIGH→LOW sequence exists",
-            "candidate impulse high is above its origin",
-        ]
-        if retracement_low.price > origin.price:
-            base_evidence.append("retracement remains above impulse origin")
-            if weekly_structure.trend is not Trend.DOWNTREND:
-                base_evidence.append("weekly parent context does not explicitly conflict with long structure")
-            if bounded[-1].close > peak.price:
-                base_evidence.append("as-of close is above the impulse peak; Wave 3 is only a candidate")
-            else:
-                base_evidence.append("as-of close has not exceeded the impulse peak; Wave 2 remains WATCH-like")
+        if peak.price <= origin.price:
             w2_candidate = _scenario(
-                WaveScenarioFamily.WAVE_2_TO_3_CANDIDATE,
-                evidence=base_evidence,
+                WaveScenarioFamily.UPTREND_UNKNOWN_WAVE,
+                evidence=("confirmed LOW→HIGH→LOW sequence exists",),
                 counter_evidence=(
-                    "Fibonacci regions are context only and do not decide the scenario",
-                    "Wave 3 is not declared started solely by a Fib or indicator hit",
+                    "candidate impulse high does not exceed its origin",
+                    "LOW→HIGH→LOW kind order alone cannot establish Wave 2→3",
                 ),
                 confirmed_swings=upward_three,
                 impulse=impulse,
                 retracement=retracement,
                 structural_invalidation=origin.price,
-                invalidation_reason="a close at or below the impulse origin invalidates the Wave 2→3 candidate",
-                setup01=True,
+                invalidation_reason=(
+                    "the candidate impulse high did not exceed its origin; "
+                    "Wave 2→3 is invalid for long context"
+                ),
             )
+        elif retracement_low.price > origin.price:
+            base_evidence = [
+                "confirmed LOW→HIGH→LOW sequence exists",
+                "candidate impulse high is above its origin",
+            ]
+            if bounded[-1].close <= origin.price:
+                w2_candidate = _scenario(
+                    WaveScenarioFamily.UPTREND_UNKNOWN_WAVE,
+                    evidence=(
+                        *base_evidence,
+                        "as-of close is at or below the impulse origin",
+                    ),
+                    counter_evidence=(
+                        "Wave 2→3 candidate is structurally invalid for long context",
+                        "the newer lower low is not confirmed as of this date",
+                    ),
+                    confirmed_swings=upward_three,
+                    impulse=impulse,
+                    retracement=retracement,
+                    structural_invalidation=origin.price,
+                    invalidation_reason=(
+                        "as-of close at or below the impulse origin invalidates "
+                        "the Wave 2→3 candidate"
+                    ),
+                )
+            else:
+                if weekly_structure.trend is not Trend.DOWNTREND:
+                    base_evidence.append("weekly parent context does not explicitly conflict with long structure")
+                if bounded[-1].close > peak.price:
+                    base_evidence.append("as-of close is above the impulse peak; Wave 3 is only a candidate")
+                else:
+                    base_evidence.append("as-of close has not exceeded the impulse peak; Wave 2 remains WATCH-like")
+                w2_candidate = _scenario(
+                    WaveScenarioFamily.WAVE_2_TO_3_CANDIDATE,
+                    evidence=base_evidence,
+                    counter_evidence=(
+                        "Fibonacci regions are context only and do not decide the scenario",
+                        "Wave 3 is not declared started solely by a Fib or indicator hit",
+                    ),
+                    confirmed_swings=upward_three,
+                    impulse=impulse,
+                    retracement=retracement,
+                    structural_invalidation=origin.price,
+                    invalidation_reason="a close at or below the impulse origin invalidates the Wave 2→3 candidate",
+                    setup01=True,
+                )
         else:
             w2_candidate = _scenario(
                 WaveScenarioFamily.UPTREND_UNKNOWN_WAVE,
@@ -363,26 +400,50 @@ def evaluate_wave_scenario(
     if abc is not None:
         origin, peak, a_low, b_high, c_low = abc
         if (
-            b_high.price < peak.price
+            peak.price > origin.price
+            and b_high.price < peak.price
             and c_low.price < a_low.price
             and c_low.price > origin.price
         ):
-            abc_candidate = _scenario(
-                WaveScenarioFamily.ABC_CORRECTION_CANDIDATE,
-                evidence=(
-                    "confirmed impulse origin/peak followed by A low, lower B high, and lower C low",
-                    "C remains above the impulse origin",
-                    "lower B high is counter-evidence to an unconditional Wave 3 interpretation",
-                ),
-                counter_evidence=(
-                    "a later confirmed break above the corrective B high would require re-evaluation",
-                ),
-                confirmed_swings=abc,
-                impulse=_leg(origin, peak),
-                retracement=_leg(peak, c_low),
-                structural_invalidation=origin.price,
-                invalidation_reason="a C low at or below the impulse origin invalidates this bounded ABC candidate",
-            )
+            abc_impulse = _leg(origin, peak)
+            abc_retracement = _leg(peak, c_low)
+            if bounded[-1].close <= origin.price:
+                abc_candidate = _scenario(
+                    WaveScenarioFamily.UPTREND_UNKNOWN_WAVE,
+                    evidence=(
+                        "confirmed ABC-shaped structure exists",
+                        "as-of close is at or below the structural origin",
+                    ),
+                    counter_evidence=(
+                        "ABC candidate is structurally invalid for long context",
+                        "the origin break invalidates the bounded correction",
+                    ),
+                    confirmed_swings=abc,
+                    impulse=abc_impulse,
+                    retracement=abc_retracement,
+                    structural_invalidation=origin.price,
+                    invalidation_reason=(
+                        "as-of close at or below the structural origin invalidates "
+                        "the ABC candidate"
+                    ),
+                )
+            else:
+                abc_candidate = _scenario(
+                    WaveScenarioFamily.ABC_CORRECTION_CANDIDATE,
+                    evidence=(
+                        "confirmed impulse origin/peak followed by A low, lower B high, and lower C low",
+                        "C remains above the impulse origin",
+                        "lower B high is counter-evidence to an unconditional Wave 3 interpretation",
+                    ),
+                    counter_evidence=(
+                        "a later confirmed break above the corrective B high would require re-evaluation",
+                    ),
+                    confirmed_swings=abc,
+                    impulse=abc_impulse,
+                    retracement=abc_retracement,
+                    structural_invalidation=origin.price,
+                    invalidation_reason="a C low at or below the impulse origin invalidates this bounded ABC candidate",
+                )
 
     down_context = (
         weekly_structure.trend is Trend.DOWNTREND

@@ -40,10 +40,13 @@ is represented explicitly; it is never forced into a wave count.
 ## Minimal structural rules
 
 `WAVE_2_TO_3_CANDIDATE` requires a confirmed `LOW -> HIGH -> LOW` sequence,
-the upward leg's high to exceed its origin, the retracement low to remain
-above the origin, and no explicit weekly downtrend conflict. A close that has
-not exceeded the impulse peak is reported as WATCH-like context; the engine
-does not claim that Wave 3 has started.
+the upward leg's high to exceed its origin (`peak.price > origin.price`), the
+retracement low to remain above the origin, and no explicit weekly downtrend
+conflict. A close that has not exceeded the impulse peak is reported as
+WATCH-like context; the engine does not claim that Wave 3 has started. If the
+as-of close is at or below the impulse origin, the candidate is structurally
+invalid even when a newer lower low is not yet confirmed; the engine emits an
+explicit UNKNOWN/invalid-for-long context with `SETUP_01` eligibility false.
 
 `WAVE_3_CONTINUATION_CANDIDATE` requires a confirmed higher-high /
 higher-low expansion sequence, current daily `UPTREND`, weekly `UPTREND`, and
@@ -52,8 +55,11 @@ alone cannot produce this family.
 
 `ABC_CORRECTION_CANDIDATE` recognizes only the bounded five-point form
 `LOW(origin) -> HIGH(peak) -> LOW(A) -> HIGH(B) -> LOW(C)`, with a lower B
-high, lower C low, and C still above the impulse origin. This is deliberately
-used as a counter-scenario to avoid calling every rebound Wave 3.
+high, lower C low, a true upward impulse (`peak.price > origin.price`), and C
+still above the impulse origin. This is deliberately used as a counter-scenario
+to avoid calling every rebound Wave 3. If the current as-of close is at or below
+the structural origin, the ABC candidate is likewise invalidated and is not
+reported as a valid current structure.
 
 The remaining families are conservative fallbacks for downtrend, incomplete,
 ambiguous, or invalid structure. Each scenario carries the relevant confirmed
@@ -81,5 +87,9 @@ observed bar. It writes only `wave_shadow_report.json` and
 a summary. It reads Google Sheets but writes no Sheet, history, Decision, or
 production configuration. The report includes weekly/daily state, primary and
 alternate scenarios, confirmed Swing identities, Fibonacci regions,
-invalidation, context eligibility, as-of date, and explicit `returns_accessed`
-/ `oos_accessed` / `sheets_written` false markers.
+invalidation, context eligibility, as-of date, `history_last_date`,
+`latest_completed_session`, `freshness_status`, and explicit
+`returns_accessed` / `oos_accessed` / `sheets_written` false markers. The qfq
+history tail must reach the latest completed source-supported session and the
+ordinary-calendar freshness lower bound; otherwise the row is `DATA_STALE`,
+the scenario is not evaluated, and the shadow fails closed.

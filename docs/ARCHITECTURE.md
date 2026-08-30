@@ -184,8 +184,14 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
   `SETUP_01`/`SETUP_02` context eligibility；不输出 Entry/Decision。
 - Weekly 当前 ISO 周不进入母级别状态；未来 bar append 在固定 as-of 下不
   改写历史结果。`evidence_score` 是规则计数，不是收益/概率评分。
+- `WAVE_2_TO_3_CANDIDATE` 明确要求 `peak.price > origin.price`；as-of close
+  触及或跌破 impulse origin 时输出失效/UNKNOWN，`SETUP_01` context 为 false。
+  ABC candidate 同样要求真实向上 impulse，且 current close 不得跌破其 origin。
 - `run_wave_shadow.py` 只读启用持仓与 qfq 历史，输出 JSON/CSV artifact 和
-  summary，不写 Google Sheets、历史行情或交易决策。
+  summary，不写 Google Sheets、历史行情或交易决策；报告记录
+  `history_last_date`、`latest_completed_session`、`freshness_status`。qfq
+  history 未达到最新完成 session 或 ordinary-calendar freshness 下限时
+  `DATA_STALE` 并 fail closed，不评估 stale scenario。
 
 ### research/backtest/setup03.py
 

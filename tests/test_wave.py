@@ -1,11 +1,12 @@
 import json
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from core import Quote
-from trading.models import Trend, WaveScenarioFamily
+from trading.models import SwingKind, SwingPoint, Trend, WaveScenarioFamily
 from trading.wave import (
     WAVE_ENGINE_PROTOCOL_VERSION,
     aggregate_completed_weekly_quotes,
@@ -70,6 +71,39 @@ def timed_pivot_quotes(points: list[tuple[date, str, float]], tail_close: float 
 
 
 class WaveScenarioEngineTests(unittest.TestCase):
+    def test_non_upward_low_high_low_is_not_wave2_candidate(self):
+        quotes = pivot_quotes([
+            ("LOW", 100.0), ("HIGH", 95.0), ("LOW", 90.0)
+        ])
+        malformed = tuple(
+            SwingPoint(
+                kind=kind,
+                price=price,
+                pivot_index=index + 1,
+                pivot_date=quotes[index + 1].trade_date,
+                confirmed_index=index + 1,
+                confirmed_date=quotes[index + 1].trade_date,
+            )
+            for index, (kind, price) in enumerate(
+                ((SwingKind.LOW, 100.0), (SwingKind.HIGH, 95.0), (SwingKind.LOW, 90.0))
+            )
+        )
+        with patch("trading.wave.find_swings", side_effect=[list(malformed), []]):
+            evaluation = evaluate_wave_scenario(
+                quotes, daily_swing_lookback=1, weekly_swing_lookback=1
+            )
+        self.assertNotEqual(
+            evaluation.primary_scenario.family,
+            WaveScenarioFamily.WAVE_2_TO_3_CANDIDATE,
+        )
+        self.assertFalse(evaluation.primary_scenario.setup01_context_eligible)
+        all_text = " ".join(
+            evaluation.primary_scenario.evidence
+            + evaluation.primary_scenario.counter_evidence
+            + (evaluation.primary_scenario.scenario_invalidation_reason,)
+        )
+        self.assertIn("does not exceed", all_text)
+
     def test_clean_impulse_retracement_is_watch_like_wave2_candidate(self):
         quotes = pivot_quotes([
             ("LOW", 100.0), ("HIGH", 140.0), ("LOW", 115.0), ("HIGH", 150.0)
@@ -102,6 +136,47 @@ class WaveScenarioEngineTests(unittest.TestCase):
         )
         self.assertIn("broke the impulse origin", all_text)
         self.assertFalse(evaluation.primary_scenario.setup01_context_eligible)
+
+    def test_as_of_close_at_impulse_origin_invalidates_wave2_before_new_low_confirmation(self):
+        points = [
+            (date(2026, 1, 2), "LOW", 100.0),
+            (date(2026, 1, 3), "HIGH", 140.0),
+            (date(2026, 1, 4), "LOW", 115.0),
+        ]
+        quotes = timed_pivot_quotes(points, tail_close=100.0)
+        confirmed = tuple(
+            SwingPoint(
+                kind=kind,
+                price=price,
+                pivot_index=index + 1,
+                pivot_date=quotes[index + 1].trade_date,
+                confirmed_index=index + 1,
+                confirmed_date=quotes[index + 1].trade_date,
+            )
+            for index, (kind, price) in enumerate(
+                ((SwingKind.LOW, 100.0), (SwingKind.HIGH, 140.0), (SwingKind.LOW, 115.0))
+            )
+        )
+        with patch("trading.wave.find_swings", side_effect=[list(confirmed), []]):
+            evaluation = evaluate_wave_scenario(
+                quotes,
+                as_of_date=quotes[-1].trade_date,
+                daily_swing_lookback=1,
+                weekly_swing_lookback=1,
+            )
+        self.assertNotEqual(
+            evaluation.primary_scenario.family,
+            WaveScenarioFamily.WAVE_2_TO_3_CANDIDATE,
+        )
+        self.assertFalse(evaluation.primary_scenario.setup01_context_eligible)
+        self.assertIn(
+            "at or below the impulse origin",
+            evaluation.primary_scenario.scenario_invalidation_reason,
+        )
+        self.assertIn(
+            "not confirmed",
+            " ".join(evaluation.primary_scenario.counter_evidence),
+        )
 
     def test_strong_continuation_requires_weekly_and_daily_structure(self):
         start = date(2026, 1, 2)  # Friday; each following pivot is the next week.
@@ -142,6 +217,46 @@ class WaveScenarioEngineTests(unittest.TestCase):
             evaluation.alternate_scenario.family,
         )
         self.assertFalse(evaluation.primary_scenario.setup01_context_eligible)
+
+    def test_abc_candidate_is_invalidated_when_current_close_breaks_origin(self):
+        start = date(2026, 1, 2)
+        points = [
+            (start + timedelta(days=index), kind, price)
+            for index, (kind, price) in enumerate([
+                ("LOW", 100.0), ("HIGH", 140.0), ("LOW", 120.0),
+                ("HIGH", 130.0), ("LOW", 108.0), ("HIGH", 125.0),
+            ])
+        ]
+        quotes = timed_pivot_quotes(points, tail_close=100.0)
+        confirmed = tuple(
+            SwingPoint(
+                kind=kind,
+                price=price,
+                pivot_index=index + 1,
+                pivot_date=quotes[index + 1].trade_date,
+                confirmed_index=index + 1,
+                confirmed_date=quotes[index + 1].trade_date,
+            )
+            for index, (kind, price) in enumerate(
+                ((SwingKind.LOW, 100.0), (SwingKind.HIGH, 140.0), (SwingKind.LOW, 120.0),
+                 (SwingKind.HIGH, 130.0), (SwingKind.LOW, 108.0), (SwingKind.HIGH, 125.0))
+            )
+        )
+        with patch("trading.wave.find_swings", side_effect=[list(confirmed), []]):
+            evaluation = evaluate_wave_scenario(
+                quotes,
+                daily_swing_lookback=1,
+                weekly_swing_lookback=1,
+            )
+        self.assertNotEqual(
+            evaluation.primary_scenario.family,
+            WaveScenarioFamily.ABC_CORRECTION_CANDIDATE,
+        )
+        self.assertFalse(evaluation.primary_scenario.setup01_context_eligible)
+        self.assertIn(
+            "invalidates the ABC candidate",
+            evaluation.primary_scenario.scenario_invalidation_reason,
+        )
 
     def test_ambiguous_structure_is_unknown_not_forced_into_wave_count(self):
         quotes = pivot_quotes([("LOW", 100.0), ("HIGH", 105.0)])
@@ -298,6 +413,7 @@ class WaveShadowReportTests(unittest.TestCase):
                     return [{
                         "启用": "TRUE", "市场": "US", "统一代码": "WAVE.TEST",
                         "名称": "Wave synthetic", "历史数据源": "yfinance",
+                        "时区": "America/New_York", "收盘时间": "16:00",
                     }]
                 raise AssertionError(f"unexpected sheet read: {sheet_name}")
 
@@ -310,7 +426,7 @@ class WaveShadowReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             summary = run_wave_shadow(
                 client=Client(),
-                fetched_at=None,
+                fetched_at=datetime(2026, 1, 6, 22, 0, tzinfo=timezone.utc),
                 fetch_history=fetch_history,
                 output_dir=directory,
                 daily_swing_lookback=1,
@@ -321,6 +437,51 @@ class WaveShadowReportTests(unittest.TestCase):
             self.assertFalse(summary["returns_accessed"])
             report = json.loads(Path(directory, "wave_shadow_report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["rows"][0]["primary_scenario"]["family"], "WAVE_2_TO_3_CANDIDATE")
+            self.assertEqual(report["rows"][0]["freshness_status"], "FRESH")
+            self.assertEqual(
+                report["rows"][0]["latest_completed_session"],
+                report["rows"][0]["history_last_date"],
+            )
+
+    def test_shadow_fails_closed_when_qfq_history_is_stale(self):
+        from scripts.run_wave_shadow import run_wave_shadow
+
+        class Client:
+            def config(self):
+                return {"history_days": "100", "retry_count": "1", "retry_wait_seconds": "0"}
+
+            def records(self, sheet_name):
+                if sheet_name == "自选清单":
+                    return [{
+                        "启用": "TRUE", "市场": "US", "统一代码": "WAVE.STALE",
+                        "名称": "Wave stale", "历史数据源": "yfinance",
+                        "时区": "America/New_York", "收盘时间": "16:00",
+                    }]
+                raise AssertionError(f"unexpected sheet read: {sheet_name}")
+
+        def fetch_history(source, watch, adjust, start, end, retries, wait):
+            return pivot_quotes([
+                ("LOW", 100.0), ("HIGH", 140.0), ("LOW", 115.0), ("HIGH", 150.0)
+            ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            summary = run_wave_shadow(
+                client=Client(),
+                fetched_at=datetime(2026, 1, 10, 18, 0, tzinfo=timezone.utc),
+                fetch_history=fetch_history,
+                output_dir=directory,
+                daily_swing_lookback=1,
+                weekly_swing_lookback=1,
+            )
+            row = summary["rows"][0]
+            self.assertEqual(summary["errors"], 1)
+            self.assertEqual(row["freshness_status"], "DATA_STALE")
+            self.assertIsNone(row["as_of_date"])
+            self.assertEqual(
+                row["primary_scenario"]["family"],
+                WaveScenarioFamily.NO_VALID_SCENARIO.value,
+            )
+            self.assertIn("DATA_STALE", row["error"])
 
 
 if __name__ == "__main__":

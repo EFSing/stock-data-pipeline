@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from core import latest_completed_market_session, ordinary_calendar_freshness_guard
 from trading.models import WaveScenarioFamily
 from trading.wave import (
     WAVE_ENGINE_PROTOCOL_VERSION,
@@ -44,6 +45,9 @@ def _csv_row(row: dict[str, Any]) -> dict[str, Any]:
         "名称": row.get("name", ""),
         "市场": row.get("market", ""),
         "as_of_date": row.get("as_of_date", ""),
+        "latest_completed_session": row.get("latest_completed_session", ""),
+        "history_last_date": row.get("history_last_date", ""),
+        "freshness_status": row.get("freshness_status", ""),
         "weekly_state": row.get("weekly_state", ""),
         "daily_state": row.get("daily_state", ""),
         "primary_scenario": primary.get("family", ""),
@@ -124,6 +128,9 @@ def run_wave_shadow(
             "market": str(watch.get("市场") or ""),
         }
         source = str(watch.get("历史数据源") or "").strip()
+        history_last_date: date | None = None
+        latest_completed_session: date | None = None
+        freshness_status = "DATA_STALE"
         try:
             if source not in QFQ_HISTORY_SOURCES:
                 raise ValueError(f"历史数据源{source or '<empty>'}不支持qfq shadow")
@@ -138,16 +145,49 @@ def run_wave_shadow(
             )
             if not quotes:
                 raise ValueError("qfq历史为空")
+            history_last_date = max(quote.trade_date for quote in quotes)
+            timezone_name = str(watch.get("时区") or "UTC")
+            close_time = str(watch.get("收盘时间") or "23:59")
+            latest_completed_session = latest_completed_market_session(
+                timezone_name,
+                close_time,
+                now,
+                quotes,
+            )
+            freshness_floor = ordinary_calendar_freshness_guard(
+                timezone_name,
+                close_time,
+                now,
+            )
+            if latest_completed_session is None:
+                raise ValueError(
+                    "DATA_STALE: qfq历史没有有效的最新已完成市场交易日"
+                )
+            if history_last_date != latest_completed_session:
+                raise ValueError(
+                    "DATA_STALE: qfq history_last_date "
+                    f"{history_last_date.isoformat()}未对齐最新已完成来源交易日"
+                    f"{latest_completed_session.isoformat()}"
+                )
+            if latest_completed_session < freshness_floor:
+                raise ValueError(
+                    "DATA_STALE: qfq历史最新日期"
+                    f"{history_last_date.isoformat()}早于普通日历freshness下限"
+                    f"{freshness_floor.isoformat()}"
+                )
+            freshness_status = "FRESH"
             evaluation = evaluate_wave_scenario(
                 quotes,
-                as_of_date=max(quote.trade_date for quote in quotes),
+                as_of_date=latest_completed_session,
                 daily_swing_lookback=daily_swing_lookback,
                 weekly_swing_lookback=weekly_swing_lookback,
             )
             row = {
                 **row_base,
                 **evaluation_to_dict(evaluation),
-                "history_last_date": max(quote.trade_date for quote in quotes).isoformat(),
+                "latest_completed_session": latest_completed_session.isoformat(),
+                "history_last_date": history_last_date.isoformat(),
+                "freshness_status": freshness_status,
                 "data_source": source,
                 "error": "",
             }
@@ -160,6 +200,11 @@ def run_wave_shadow(
                 **row_base,
                 "protocol_version": WAVE_ENGINE_PROTOCOL_VERSION,
                 "as_of_date": None,
+                "latest_completed_session": (
+                    latest_completed_session.isoformat()
+                    if latest_completed_session is not None else None
+                ),
+                "freshness_status": freshness_status,
                 "weekly_state": "UNKNOWN",
                 "daily_state": "UNKNOWN",
                 "primary_scenario": {
@@ -192,7 +237,10 @@ def run_wave_shadow(
                     "setup01_context_eligible": False,
                     "setup02_context_eligible": False,
                 },
-                "history_last_date": None,
+                "history_last_date": (
+                    history_last_date.isoformat()
+                    if history_last_date is not None else None
+                ),
                 "data_source": source,
                 "error": str(exc),
             }

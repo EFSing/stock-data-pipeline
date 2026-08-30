@@ -44,6 +44,26 @@ def _number(value):
     return None if number != number else number
 
 
+def _row_number(row, *keys):
+    """Read one numeric field without substituting another OHLC value."""
+    for key in keys:
+        if key in row:
+            return _number(row[key])
+    return None
+
+
+def _row_ohlc_is_complete(row) -> bool:
+    return all(
+        _row_number(row, chinese, english) is not None
+        for chinese, english in (
+            ("开盘", "Open"),
+            ("最高", "High"),
+            ("最低", "Low"),
+            ("收盘", "Close"),
+        )
+    )
+
+
 def _as_date(value, timezone_name: str | None = None) -> date:
     """Normalize a provider timestamp to the market's local session date."""
     if isinstance(value, date) and not isinstance(value, datetime):
@@ -67,14 +87,17 @@ def _records_to_quotes(frame, watch: dict, source: str, volume_multiplier: float
     quotes: list[Quote] = []
     previous_close = None
     for row in frame.to_dict("records"):
-        close = _number(row.get("收盘", row.get("Close")))
-        if close is None:
+        if not _row_ohlc_is_complete(row):
             continue
-        volume = _number(row.get("成交量", row.get("Volume")))
-        preclose = _number(row.get("昨收", row.get("Preclose")))
+        opening = _row_number(row, "开盘", "Open")
+        high = _row_number(row, "最高", "High")
+        low = _row_number(row, "最低", "Low")
+        close = _row_number(row, "收盘", "Close")
+        volume = _row_number(row, "成交量", "Volume")
+        preclose = _row_number(row, "昨收", "Preclose")
         if preclose is None:
             preclose = previous_close
-        pct_change = _number(row.get("涨跌幅", row.get("PctChange")))
+        pct_change = _row_number(row, "涨跌幅", "PctChange")
         if pct_change is None and preclose not in (None, 0):
             pct_change = (close / preclose - 1) * 100
         quotes.append(
@@ -87,9 +110,9 @@ def _records_to_quotes(frame, watch: dict, source: str, volume_multiplier: float
                     str(watch.get("时区") or "UTC"),
                 ),
                 source=source,
-                open=_number(row.get("开盘", row.get("Open"))) or close,
-                high=_number(row.get("最高", row.get("High"))) or close,
-                low=_number(row.get("最低", row.get("Low"))) or close,
+                open=opening,
+                high=high,
+                low=low,
                 close=close,
                 preclose=preclose,
                 pct_change=pct_change,
@@ -334,8 +357,15 @@ def fetch_yfinance(watch: dict, adjust: str, start: date, end: date) -> list[Quo
             repair=False,
         )
         if not frame.empty:
-            frame = frame.reset_index().rename(columns={"Date": "日期"})
-            return _records_to_quotes(frame, watch, "yfinance")
+            frame = frame.sort_index().reset_index().rename(columns={"Date": "日期"})
+            records = frame.to_dict("records")
+            if records and _row_ohlc_is_complete(records[-1]):
+                quotes = _records_to_quotes(frame, watch, "yfinance")
+                if quotes:
+                    return quotes
+                yfinance_error = RuntimeError("yfinance历史行情没有完整OHLC行")
+            else:
+                yfinance_error = RuntimeError("yfinance历史行情最新观察行OHLC不完整")
     except Exception as exc:
         yfinance_error = exc
 
@@ -373,10 +403,13 @@ def fetch_yfinance_latest(watch: dict, end: date) -> list[Quote]:
         if not frame.empty:
             frame = frame.sort_index().reset_index().rename(columns={"Date": "日期"})
             records = frame.to_dict("records")
-            yfinance_rows = _records_to_quotes(frame, watch, "yfinance")
-            latest_close = _number(records[-1].get("收盘", records[-1].get("Close")))
-            if latest_close is not None:
-                return yfinance_rows
+            if records and _row_ohlc_is_complete(records[-1]):
+                yfinance_rows = _records_to_quotes(frame, watch, "yfinance")
+                if yfinance_rows:
+                    return yfinance_rows
+            else:
+                yfinance_error = RuntimeError("yfinance最新行情最新观察行OHLC不完整")
+                yfinance_rows = []
     except Exception as exc:
         yfinance_error = exc
 
@@ -464,16 +497,24 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
     rows = []
     for index, timestamp in enumerate(timestamps):
         raw_close = (price.get("close") or [None] * len(timestamps))[index]
-        if raw_close is None:
+        open_price = _indexed(price.get("open"), index, None)
+        high_price = _indexed(price.get("high"), index, None)
+        low_price = _indexed(price.get("low"), index, None)
+        adjusted_close = adjusted[index] if index < len(adjusted) else None
+        if raw_close is None or any(
+            value is None for value in (open_price, high_price, low_price)
+        ):
             continue
         factor = 1.0
-        if adjust == "qfq" and index < len(adjusted) and adjusted[index] is not None and raw_close:
-            factor = adjusted[index] / raw_close
+        if adjust == "qfq":
+            if adjusted_close is None or not raw_close:
+                continue
+            factor = adjusted_close / raw_close
         row = {
             "日期": datetime.fromtimestamp(timestamp, exchange_timezone).date(),
-            "Open": _indexed(price.get("open"), index, raw_close) * factor,
-            "High": _indexed(price.get("high"), index, raw_close) * factor,
-            "Low": _indexed(price.get("low"), index, raw_close) * factor,
+            "Open": open_price * factor,
+            "High": high_price * factor,
+            "Low": low_price * factor,
             "Close": raw_close * factor,
             "Volume": _indexed(price.get("volume"), index, None),
         }

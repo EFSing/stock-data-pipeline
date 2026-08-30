@@ -274,6 +274,41 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(result, fallback)
         chart.assert_called_once_with(watch, "raw", date(2026, 8, 1), date(2026, 8, 17))
 
+    def test_yfinance_historical_incomplete_tail_uses_chart_instead_of_stale_row(self):
+        calls = []
+
+        class IncompleteTailTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, **kwargs):
+                calls.append(kwargs)
+                return pd.DataFrame(
+                    {
+                        "Open": [99.0, 101.0],
+                        "High": [101.0, 103.0],
+                        "Low": [98.0, 100.0],
+                        "Close": [100.0, None],
+                        "Volume": [1_000_000, 2_000_000],
+                    },
+                    index=pd.to_datetime(["2026-08-27", "2026-08-28"]),
+                )
+
+        fallback = [quote("YahooChart", close=102.0, day=date(2026, 8, 28))]
+        fake_yfinance = SimpleNamespace(Ticker=IncompleteTailTicker)
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD", "时区": "America/New_York",
+        }
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
+            "providers._fetch_yahoo_chart", return_value=fallback
+        ) as chart:
+            result = fetch_yfinance(watch, "qfq", date(2026, 8, 1), date(2026, 8, 28))
+
+        self.assertEqual(result, fallback)
+        self.assertTrue(calls[0]["auto_adjust"])
+        chart.assert_called_once_with(watch, "qfq", date(2026, 8, 1), date(2026, 8, 28))
+
     def test_yfinance_latest_uses_bounded_window_when_period_tail_is_incomplete(self):
         calls = []
 
