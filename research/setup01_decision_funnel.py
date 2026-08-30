@@ -10,7 +10,10 @@ from collections import Counter
 from typing import Iterable, Mapping
 
 from core import Quote
-from research.market_sessions import build_market_session_dates
+from research.market_sessions import (
+    DEVELOPMENT_SESSION_IDENTITY,
+    build_market_session_dates,
+)
 from trading.models import DecisionAction, SetupState
 from trading.setup01_decision import (
     EXECUTED,
@@ -204,6 +207,7 @@ def build_setup01_decision_funnel(
     return {
         "protocol_version": SETUP01_DECISION_PROTOCOL_VERSION,
         "mode": "DEVELOPMENT_EXPOSED_DECISION_EXECUTION_FUNNEL",
+        "development_session_identity": DEVELOPMENT_SESSION_IDENTITY,
         "risk_capital": risk_capital,
         "swing_lookback": swing_lookback,
         "atr_period": atr_period,

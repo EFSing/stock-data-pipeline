@@ -305,9 +305,77 @@ class Setup01DecisionTests(unittest.TestCase):
             decision, quotes, market_session_dates=_market_sessions(quotes)
         )
         self.assertEqual(execution.outcome, SKIP_RR_BELOW_MINIMUM_AT_OPEN)
-        self.assertEqual(execution.actual_entry, 111.2)
+        self.assertIsNone(execution.actual_entry)
+        self.assertEqual(execution.t1_open, 111.2)
         self.assertIsNotNone(execution.actual_rr)
         self.assertLess(execution.actual_rr.rr_ratios[0], 2.0)
+        audit = setup01_target_provenance_audit(
+            decision,
+            execution,
+            market_session_dates=_market_sessions(quotes),
+        )
+        self.assertEqual(audit["actual_open"], 111.2)
+        self.assertIsNone(audit["actual_entry"])
+        self.assertEqual(
+            audit["actual_open_first_target_rr"], execution.actual_rr.rr_ratios[0]
+        )
+
+    def test_actual_entry_exists_if_and_only_if_execution_is_executed(self):
+        cases = [
+            (_fixture(t1_open=109.0), SKIP_GAP_BELOW_CONFIRMATION),
+            (_fixture(t1_open=114.0), SKIP_GAP_ABOVE_ENTRY_ZONE),
+            (_fixture(wave2_low=108.0, t1_open=107.0), SKIP_BELOW_INVALIDATION),
+            (_fixture(wave2_low=107.5, t1_open=111.2), SKIP_RR_BELOW_MINIMUM_AT_OPEN),
+            (_fixture(t1_open=110.75), EXECUTED),
+        ]
+        executions = []
+        for (event, quotes), expected_outcome in cases:
+            decision = evaluate_setup01_decision(event, quotes)
+            execution = execute_setup01_t1_open(
+                decision, quotes, market_session_dates=_market_sessions(quotes)
+            )
+            self.assertEqual(execution.outcome, expected_outcome)
+            executions.append(execution)
+
+        no_t1_event, no_t1_quotes = _fixture(t1_open=None)
+        no_t1_decision = evaluate_setup01_decision(no_t1_event, no_t1_quotes)
+        executions.append(
+            execute_setup01_t1_open(
+                no_t1_decision,
+                no_t1_quotes,
+                market_session_dates=_market_sessions(no_t1_quotes),
+            )
+        )
+
+        no_trade_event, no_trade_quotes = _fixture(t_close=112.5)
+        no_trade_decision = evaluate_setup01_decision(no_trade_event, no_trade_quotes)
+        executions.append(
+            execute_setup01_t1_open(
+                no_trade_decision,
+                no_trade_quotes,
+                market_session_dates=_market_sessions(no_trade_quotes),
+            )
+        )
+
+        self.assertEqual(
+            [execution.outcome for execution in executions],
+            [
+                SKIP_GAP_BELOW_CONFIRMATION,
+                SKIP_GAP_ABOVE_ENTRY_ZONE,
+                SKIP_BELOW_INVALIDATION,
+                SKIP_RR_BELOW_MINIMUM_AT_OPEN,
+                EXECUTED,
+                SKIP_NO_T1_BAR,
+                "SKIP_DECISION_NOT_ENTRY_ALLOWED",
+            ],
+        )
+        self.assertTrue(
+            all(
+                (execution.actual_entry is not None)
+                == (execution.outcome == EXECUTED)
+                for execution in executions
+            )
+        )
 
     def test_actual_open_rr_consumes_only_frozen_target_stop_and_t1_open(self):
         event, quotes = _fixture(t1_open=110.75)
@@ -349,6 +417,7 @@ class Setup01DecisionTests(unittest.TestCase):
         self.assertEqual(
             audit["actual_open_first_target_rr"], execution.actual_rr.rr_ratios[0]
         )
+        self.assertEqual(audit["actual_open"], execution.t1_open)
         self.assertTrue(audit["target_provenance_geometry_check"])
 
     def test_event_identity_is_exactly_once_and_historical_confirmed_is_rejected(self):

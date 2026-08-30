@@ -21,7 +21,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from research.development_holdout_dataset import load_frozen_holdout
-from research.market_sessions import build_market_session_dates
+from research.market_sessions import (
+    DEVELOPMENT_SESSION_IDENTITY,
+    build_market_session_dates,
+)
 from trading.models import (
     DecisionAction,
     Setup01Evaluation,
@@ -415,6 +418,7 @@ def run_setup01_decision_funnel(
     document: dict[str, Any] = {
         "protocol_version": "SETUP-01-DECISION-RISK-2026-08-30-v1",
         "mode": "DEVELOPMENT_EXPOSED_DECISION_EXECUTION_FUNNEL",
+        "development_session_identity": DEVELOPMENT_SESSION_IDENTITY,
         "dataset_version": manifest["dataset_version"],
         "dataset_manifest_sha256": manifest["integrity"]["manifest_sha256"],
         "replay_input_aggregate_hash": replay_manifest.aggregate_hash,

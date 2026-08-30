@@ -125,6 +125,15 @@ class Setup01Execution:
     actual_entry: float | None
     actual_rr: RiskReward | None = None
 
+    def __post_init__(self) -> None:
+        """Keep observed OPEN and an actually executed entry distinct."""
+        has_actual_entry = self.actual_entry is not None
+        was_executed = self.outcome == EXECUTED
+        if has_actual_entry != was_executed:
+            raise ValueError(
+                "actual_entry must be present if and only if outcome is EXECUTED"
+            )
+
 
 @dataclass(frozen=True)
 class Setup01DecisionStream:
@@ -612,17 +621,17 @@ def execute_setup01_t1_open(
         outcome = SKIP_GAP_ABOVE_ENTRY_ZONE
         actual_entry = None
     else:
-        actual_entry = opening
         actual_rr = risk_reward(
-            actual_entry,
+            opening,
             decision.execution_stop,
             decision.targets,
         )
-        outcome = (
-            SKIP_RR_BELOW_MINIMUM_AT_OPEN
-            if actual_rr.rr_ratios[0] < SETUP01_MINIMUM_RR
-            else EXECUTED
-        )
+        if actual_rr.rr_ratios[0] < SETUP01_MINIMUM_RR:
+            outcome = SKIP_RR_BELOW_MINIMUM_AT_OPEN
+            actual_entry = None
+        else:
+            outcome = EXECUTED
+            actual_entry = opening
     return Setup01Execution(
         event_identity=decision.event_identity,
         symbol=decision.symbol,
@@ -798,6 +807,7 @@ def setup01_target_provenance_audit(
         "target_t1_reason": t1.reason,
         "target_t1_provenance": provenance_rows,
         "planned_entry": decision.planned_entry,
+        "actual_open": execution.t1_open if execution else None,
         "actual_entry": execution.actual_entry if execution else None,
         "planned_first_target_rr": planned_rr,
         "actual_open_first_target_rr": actual_first_rr,
