@@ -12,13 +12,13 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `WAVE_SCENARIO_ENGINE_V1_SHADOW_REVIEW`。
+- **当前 Phase / task:** `WAVE_SCENARIO_ENGINE_V1_CORRECTNESS_CLOSEOUT`。
 - **具体目标:** 在 PR #34 已从最新 main 完成 closeout 后，实现第一版严格 as-of、有限、可解释的 Wave Scenario Engine，覆盖 `SETUP_01/02` 的结构上下文，并完成真实持仓只读 shadow。
 - **PR #34 closeout:** 已 squash merge；真实 merge commit `9cdadece6745166f32880e868397d8f4cf8e32bf`，main exact-head CI `33266789904` success；旧 PR #31 已关闭并注明 `superseded by #34`。
-- **当前实现:** PR #35 `feat/wave-scenario-engine` 保持 OPEN，基于 `main@9cdadece6745166f32880e868397d8f4cf8e32bf`；引擎协议为 `WAVE-SCENARIO-ENGINE-2026-08-30-v1`，仅输出结构场景/证据/反证/计分/失效与 context eligibility，不产生 `ENTRY_ALLOWED`。
-- **真实 shadow:** exact code head `713c553002c44d789b0b2fb447ecbc8994557cf3` 的 workflow run `33268067998` 成功生成只读 artifact；10 个启用持仓中 9 个完成评估，MU 因 `历史数据源` 为空 fail-closed，报告状态为 `PARTIAL_DATA_QUALITY`。该配置异常不通过猜测数据源修复。
+- **当前实现:** PR #35 `feat/wave-scenario-engine` 保持 OPEN，基于 `main@9cdadece6745166f32880e868397d8f4cf8e32bf`；correctness-closeout implementation head 为 `bbb851fb0c995aebaa2e19de1a67607e39ed3173`；引擎协议为 `WAVE-SCENARIO-ENGINE-2026-08-30-v1`，仅输出结构场景/证据/反证/计分/失效与 context eligibility，不产生 `ENTRY_ALLOWED`。
+- **真实 shadow:** exact implementation head `bbb851fb0c995aebaa2e19de1a67607e39ed3173` 的 workflow run `33296199336` 成功生成只读 artifact；10 个启用持仓中 8 个完成评估，SIVE.SE 因 qfq freshness `DATA_STALE`、MU 因 `历史数据源` 为空 fail-closed，报告状态为 `PARTIAL_DATA_QUALITY`。不通过猜测 provider 修复缺失数据源。
 - **明确禁止事项:** 不自动 merge PR #35；不启动独立 `SETUP_01`/`SETUP_02` 交易逻辑、SETUP_03、Final OOS、returns/MFE/MAE/P&L、IBKR 或任何 Sheets 写入；不把 shadow 场景解释为交易信号。
-- **停止条件:** PR #35 exact-head CI success、shadow artifact 可审计、治理文件同步且 `HANDOFF_CURRENT_AND_CONSISTENT` 后停止，状态为 `WAVE_SCENARIO_ENGINE_V1_SHADOW_READY_FOR_SOL_REVIEW`，等待 Sol review。
+- **停止条件:** correctness-closeout implementation exact-head CI success、shadow artifact 可审计、治理文件同步且 `HANDOFF_CURRENT_AND_CONSISTENT` 后停止，状态为 `WAVE_SCENARIO_ENGINE_V1_CORRECTNESS_CLOSEOUT_READY_FOR_SOL`，等待 Sol review。
 
 ## 2. Current Repository State
 
@@ -26,11 +26,12 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@9cdadece6745166f32880e868397d8f4cf8e32bf`；该 SHA 是 PR #34 的 squash merge commit，main push CI `33266789904` success。
 - **working branch:** `feat/wave-scenario-engine`（从上述最新 main 独立建立）。
-- **current HEAD:** 治理同步 tip（本次文档提交）位于 Wave Engine implementation head `713c553002c44d789b0b2fb447ecbc8994557cf3` 之后；implementation code 未再改变。
-- **PR:** #34 已关闭并 squash merge；旧 PR #31 已关闭并注明 `superseded by #34`；当前 PR #35 为 `OPEN / CLEAN / MERGEABLE`，implementation head 为 `713c553...`，base 为 `main@9cdadece...`。
-- **latest exact-head checks:** implementation head 的 PR #35 CI run `33268068010` success；只读 shadow run `33268067998` success；当前 docs-only governance tip 已在提交后由 GitHub PR #35 重新核对并通过。
-- **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；shadow artifact 位于 `artifacts/wave_shadow_remote_33268067998/`，仅作本地核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态推进至 `WAVE_SCENARIO_ENGINE_V1_SHADOW_READY_FOR_SOL_REVIEW`。Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
+- **implementation source head:** correctness-closeout implementation head `bbb851fb0c995aebaa2e19de1a67607e39ed3173`；本次治理同步提交为 docs-only，implementation code 未再改变。
+- **previous reviewed head:** `b3da9e87a25b3a56c341a6096c021666150a19d5`，exact-head CI `33268711570` success，shadow `33268711569` success。
+- **PR:** #34 已关闭并 squash merge；旧 PR #31 已关闭并注明 `superseded by #34`；当前 PR #35 为 `OPEN / CLEAN / MERGEABLE`，implementation head 为 `bbb851f...`，base 为 `main@9cdadece...`。
+- **latest exact-head checks:** implementation head `bbb851fb0c995aebaa2e19de1a67607e39ed3173` 的 PR #35 CI run `33296199323` success；只读 shadow run `33296199336` success。
+- **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；shadow artifact 位于 `artifacts/wave_shadow_remote_33296199336/`，仅作本地核验，不进入生产 Sheet。
+- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态推进至 `WAVE_SCENARIO_ENGINE_V1_CORRECTNESS_CLOSEOUT_READY_FOR_SOL`。Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
 ## 3. Completed Work
 
@@ -39,6 +40,8 @@
 - Wave Engine v1 测试覆盖 canonical/synthetic 场景、future append invariance、不完整当前周、weekly/daily state、confirmed/provisional、Fib region、primary/alternate coexistence 与 read-only shadow；focused `tests.test_wave` 为 `12/12` 通过。
 - PR #35 已创建并保持未合并；exact-head CI `33268068010` success。只读 shadow `33268067998` 对真实 10 个启用持仓生成 JSON/CSV artifact，未写 Sheets、历史、Decision 或交易字段。
 - Final shadow summary：`symbols_requested=10`、`evaluated=9`、`errors=1`、`unknown_primary=5`、`unknown_primary_ratio=0.5`；primary counts 为 `DOWNTREND_OR_INVALID_FOR_LONG=3`、`WAVE_2_TO_3_CANDIDATE=1`、`UPTREND_UNKNOWN_WAVE=4`、`ABC_CORRECTION_CANDIDATE=1`、`NO_VALID_SCENARIO=1`；状态 `PARTIAL_DATA_QUALITY`。MU 的 `历史数据源` 为空，按 fail-closed 记录错误。
+- Correctness closeout 已完成：provider 对 newest incomplete yfinance historical row 使用 Yahoo Chart fallback，qfq/raw 不填补或 forward-fill；Wave 2→3 显式要求 `peak.price > origin.price`，as-of close 触及/跌破 origin 时 `SETUP_01` context 为 false，ABC 同类失效；shadow 增加 freshness evidence 并对 stale qfq fail-closed。final implementation head `bbb851fb0c995aebaa2e19de1a67607e39ed3173` 的 CI `33296199323`、shadow `33296199336` 均 success。
+- Correctness closeout shadow summary：`symbols_requested=10`、`evaluated=8`、`errors=2`；8 个成功行的 qfq `history_last_date` 均与 `latest_completed_session` 对齐，5 个 US 标的均到 `2026-08-28`；SIVE.SE 因 `2026-08-27 < 2026-08-28` 为 `DATA_STALE`，MU 因空 `历史数据源` fail-closed；`returns_accessed=false`、`oos_accessed=false`、`sheets_written=false`。
 - Phase 5J-v3 protocol、independent universe、holdout dataset、structure-only replay/parity 与 qualification 已完成并由 PR #30 合并；exact identities 见第 7 节和 `docs/CURRENT_STATUS.md`。
 - loader 已修复 dataset → replay wrapper 的 provisional-hash cross-binding 顺序问题；现有 frozen identities 与研究结果不变，tracked wrapper integrity 为 `sha256:6746fa0914ef20916ec9006492f2043ed9d35fc65b74995e1cab903837890148`。
 - 本地 recovery bundle 已生成：`artifacts/frozen_backups/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip`，3,086,881 bytes，ZIP SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；bundle 含 5 个文件，成员 hash 见 registry/recovery manifest。
@@ -64,9 +67,10 @@
 2. [x] 关闭旧 PR #31 并记录 `superseded by #34`，不直接移植其旧-base diff。
 3. [x] 从最新 main 建立 `feat/wave-scenario-engine`，实现 Wave Scenario Engine v1 与 read-only shadow runner/workflow。
 4. [x] 增加 causal/as-of、state、Fib、scenario coexistence、未来追加不变性及 shadow read-only 测试。
-5. [x] 对真实 10 个启用持仓运行一次 shadow；9 个完成评估，MU 因历史源为空 fail-closed，artifact 状态为 `PARTIAL_DATA_QUALITY`。
-6. [x] PR #35 exact-head CI `33268068010` success，shadow `33268067998` success，PR 保持 OPEN/CLEAN/MERGEABLE。
-7. [ ] 等待 Sol review；不自动 merge PR #35，不开始独立 SETUP_01/02 implementation。
+5. [x] 对真实 10 个启用持仓重新运行 correctness-closeout shadow；8 个完成评估，SIVE.SE freshness stale、MU 历史源为空，均 fail-closed，artifact 状态为 `PARTIAL_DATA_QUALITY`。
+6. [x] PR #35 implementation exact-head CI `33296199323` success，shadow `33296199336` success，PR 保持 OPEN/CLEAN/MERGEABLE。
+7. [x] 治理已同步记录 previous reviewed head `b3da9e87...`、旧 runs `33268711570`/`33268711569`、correctness findings 与 final implementation evidence。
+8. [ ] 等待 Sol review；不自动 merge PR #35，不开始独立 SETUP_01/02 implementation。
 
 ### Deferred
 
@@ -163,8 +167,8 @@
 | environment / verification | PR #34 已 squash merge 为 `9cdadece6745166f32880e868397d8f4cf8e32bf`；main exact-head CI `33266789904` success；PR #35 CI `33268068010` success | 以 GitHub PR/Actions 事实核对最终 tip；PR #35 保持未合并 | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；Wave Engine v1 shadow 已到 `WAVE_SCENARIO_ENGINE_V1_SHADOW_READY_FOR_SOL_REVIEW` | review PR #35 的有限规则与真实 shadow；确认 MU 缺失 `历史数据源` 的配置处理；不自动 merge、不开始 SETUP_01/02 | Yes for strategy/production continuation |
-| shadow data quality | 10 个启用持仓中 9 个完成评估；MU 的 `历史数据源` 为空，报告为 `NO_VALID_SCENARIO` + error，整体 `PARTIAL_DATA_QUALITY` | 补齐明确历史源后另行运行 shadow；禁止默认猜测 provider 或写入 Sheets | Yes for claiming full 10/10 evaluation |
+| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；Wave Engine v1 correctness closeout 已 ready for Sol | review PR #35 的有限规则、freshness evidence 与真实 shadow；确认 MU 缺失 `历史数据源` 的配置处理；不自动 merge、不开始 SETUP_01/02 | Yes for strategy/production continuation |
+| shadow data quality | 10 个启用持仓中 8 个完成评估；SIVE.SE qfq `2026-08-27` 相对 freshness 下限 `2026-08-28` 为 `DATA_STALE`，MU 的 `历史数据源` 为空，均 fail-closed，整体 `PARTIAL_DATA_QUALITY` | 补齐明确历史源后另行运行 shadow；禁止默认猜测 provider 或写入 Sheets | Yes for claiming full 10/10 evaluation |
 | project coordination | 旧 PR #31 已关闭并注明 `superseded by #34`；当前 Wave Engine branch/PR 独立于 production merge | do not merge/rebase #31；PR #35 只等待 Sol review | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
@@ -224,9 +228,9 @@
 
 1. [x] PR #34 已 squash merge 为 `9cdadece6745166f32880e868397d8f4cf8e32bf`，main CI `33266789904` success；PR #31 已关闭并记录 `superseded by #34`。
 2. [x] Wave Scenario Engine v1 已在 `feat/wave-scenario-engine` 实现并通过 focused/full tests。
-3. [x] 真实 10 个启用持仓已运行只读 shadow；最终报告 `33268067998` 可审计，9/10 evaluated，MU 配置异常 fail-closed。
-4. [x] PR #35 exact-head CI `33268068010` success，PR `OPEN / CLEAN / MERGEABLE`，不自动 merge。
-5. [ ] Sol review：审阅 v1 场景规则、weekly/daily state、Fib context、unknown 率与 MU 历史源配置；未获批准前不实现 SETUP_01/02。
+3. [x] 已记录 previous reviewed head `b3da9e87a25b3a56c341a6096c021666150a19d5`、CI `33268711570`、shadow `33268711569` 及 review correctness findings。
+4. [x] correctness-closeout implementation head `bbb851fb0c995aebaa2e19de1a67607e39ed3173` 的 exact-head CI `33296199323`、shadow `33296199336` success；PR `OPEN / CLEAN / MERGEABLE`，不自动 merge。
+5. [ ] Sol review：审阅 v1 场景规则、freshness evidence、SIVE/MU fail-closed 数据质量与 shadow artifact；未获批准前不实现 SETUP_01/02。
 
 ## 11. Handoff Checklist
 
@@ -245,12 +249,12 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T02:36:00+08:00`
+- `last_updated_at`: `2026-08-30T14:09:05+08:00`
 - `verified_main_sha`: `9cdadece6745166f32880e868397d8f4cf8e32bf`
-- `verified_branch_head`: `713c553002c44d789b0b2fb447ecbc8994557cf3`（branch=`feat/wave-scenario-engine`；治理文档同步后更新最终 tip）
-- `latest_test_result`: full unittest `355/355`、focused Wave tests `12/12`、compile 与 `git diff --check` 均通过；implementation exact-head CI `33268068010` success
-- `latest_ci_run`: PR #35 implementation exact-head run `33268068010` success；当前 docs-only governance tip 已由 GitHub 重新核对为 success；PR `OPEN / CLEAN / MERGEABLE`
-- `wave_shadow`: run `33268067998` success；10 requested / 9 evaluated / 1 error；`unknown_primary_ratio=0.5`；status `PARTIAL_DATA_QUALITY`；`returns_accessed=false`、`oos_accessed=false`、`sheets_written=false`
-- `updated_by_task`: `wave: implement causal scenario engine v1 and run read-only real-holdings shadow`
+- `verified_branch_head`: `bbb851fb0c995aebaa2e19de1a67607e39ed3173`（implementation head；branch=`feat/wave-scenario-engine`；后续治理提交为 docs-only）
+- `latest_test_result`: full unittest `360/360`、focused provider/Wave tests `61/61`、targeted py_compile 与 `git diff --check` 均通过；implementation exact-head CI `33296199323` success
+- `latest_ci_run`: PR #35 implementation exact-head run `33296199323` success；PR `OPEN / CLEAN / MERGEABLE`
+- `wave_shadow`: run `33296199336` success；10 requested / 8 evaluated / 2 errors；SIVE.SE `DATA_STALE`、MU empty historical source fail-closed；5 US holdings all history/session `2026-08-28`；`returns_accessed=false`、`oos_accessed=false`、`sheets_written=false`
+- `updated_by_task`: `wave: correctness closeout for historical freshness and structural invalidation`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

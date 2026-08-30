@@ -12,14 +12,14 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` 当前真实 SHA：`9cdadece6745166f32880e868397d8f4cf8e32bf`；PR #34 已 squash merge，main push CI `33266789904` success，本地 `main` 与 `origin/main` 已刷新到同一 SHA。
 - Current checkout: `feat/wave-scenario-engine`，从 PR #34 merge 后的最新 main 建立。旧 PR #31 已关闭并记录 `superseded by #34`；当前 PR #35 为 `OPEN / CLEAN / MERGEABLE`。
-- PR #35 implementation head：`713c553002c44d789b0b2fb447ecbc8994557cf3`；exact-head CI run `33268068010` success；read-only shadow run `33268559733` success；当前 docs-only governance tip 已由 GitHub 重新核对为 success。
+- PR #35 correctness-closeout implementation head：`bbb851fb0c995aebaa2e19de1a67607e39ed3173`；exact-head CI run `33296199323` success；read-only shadow run `33296199336` success。后续治理提交为 docs-only，不改变该 implementation head。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: Wave Scenario Engine v1 Shadow Review
+## Current Task: Wave Scenario Engine v1 Correctness Closeout
 
 ### Project Strategy Identity
 
@@ -31,8 +31,8 @@ V0.2
 - 当前修复已加入 source-date evidence、ordinary-calendar freshness guard、future-date rejection、market-local timestamp normalization，以及显式 `latest/full` 隔离。长期不变量：`交易日期 = 市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`；二者不得互相替代。
 - 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`；已改为显式 bounded 日期窗口并逐日回退至 bounded Yahoo Chart，禁止填补或伪造价格。
 - 最终真实 latest-only smoke：Asia run `33265877563` 成功（3/3 verified）；US run `33265875055` 成功（6 verified、SIVE 1 single-source current/pending）。10/10 启用持仓的 `最新行情.交易日期` 均为市场真实 `2026-08-28`；SIVE 的 `2026-08-28` 来自 bounded Yahoo Chart，未再落后到 8/27。所有 `抓取时间` 为北京时间 `2026-08-30 01:28:31` 或 `01:32:25`，Sheet 格式分别为 DATE 与 DATE_TIME；两次 workflow 均 `history_rows_written=0`、`decision_rows_written=0`。
-- 当前状态：`WAVE_SCENARIO_ENGINE_V1_SHADOW_READY_FOR_SOL_REVIEW`。PR #35 implementation head `713c553002c44d789b0b2fb447ecbc8994557cf3` 的 exact-head CI `33268068010` success，PR 保持 OPEN/CLEAN/MERGEABLE；shadow `33268067998` 仅写 JSON/CSV artifact，未写真实 Sheet；治理同步为 docs-only。
-- Shadow 汇总：10 个启用持仓 requested，9 evaluated，1 error，`unknown_primary_ratio=0.5`；primary 为 3 个 down/invalid-long、1 个 Wave 2→3、4 个 uptrend unknown、1 个 ABC、1 个 no-valid；MU 因 `历史数据源` 为空 fail-closed，整体状态 `PARTIAL_DATA_QUALITY`。
+- 当前状态：`WAVE_SCENARIO_ENGINE_V1_CORRECTNESS_CLOSEOUT_READY_FOR_SOL`。PR #35 implementation head `bbb851fb0c995aebaa2e19de1a67607e39ed3173` 的 exact-head CI `33296199323` success，PR 保持 OPEN/CLEAN/MERGEABLE；shadow `33296199336` 仅写 JSON/CSV artifact，未写真实 Sheet。
+- Correctness closeout shadow：10 个启用持仓 requested，8 evaluated，2 errors，整体状态 `PARTIAL_DATA_QUALITY`。8 个成功评估标的的 qfq `history_last_date` 均与 `latest_completed_session` 对齐；5 个 US 标的均为 `2026-08-28`，不再静默停在 `2026-08-27`。SIVE.SE 的 qfq 末日为 `2026-08-27`，相对 freshness 下限 `2026-08-28` fail-closed 为 `DATA_STALE`；MU 因 `历史数据源` 为空继续 fail-closed，未猜 provider。平铺报告同时输出 `primary`/`alternate`、`SETUP_01_context`/`SETUP_02_context`。
 
 ## Completed
 

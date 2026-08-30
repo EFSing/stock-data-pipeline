@@ -669,3 +669,40 @@ The live `持仓股股票行情数据中台` readback covered all 10 enabled hol
 **Data quality boundary:** MU/美光科技 has an empty `历史数据源`. The runner did not guess a provider and returned `NO_VALID_SCENARIO` with an explicit error, making the report status `PARTIAL_DATA_QUALITY`. The remaining nine rows were evaluated without Sheets writes, history/Decision writes, `ENTRY_ALLOWED`, returns, OOS or other outcome access. The missing source must be resolved explicitly before claiming a complete 10/10 shadow.
 
 **Decision:** Set `WAVE_SCENARIO_ENGINE_V1_SHADOW_READY_FOR_SOL_REVIEW`. Keep PR #35 open and do not auto-merge it. Sol review must decide whether the finite v1 scenario semantics are acceptable and how to repair/re-run the MU configuration; no independent SETUP_01/02 trading implementation is authorized yet.
+
+### Decision: Wave Engine v1 correctness closeout before Sol review
+
+**Context / finding:** The previously reviewed PR #35 head was
+`b3da9e87a25b3a56c341a6096c021666150a19d5`, with exact-head CI
+`33268711570` and shadow `33268711569`. Review found that historical yfinance
+could return the previous valid row when its newest observed row had
+`Close=null`, without trying the existing Yahoo Chart fallback. Review also
+found that `LOW -> HIGH -> LOW` was not enforced as a true upward impulse at
+the candidate boundary, and that an as-of close at or below the impulse origin
+could leave `SETUP_01` context eligible before a newer low was confirmed.
+
+**Decision:** Keep qfq/raw historical providers fail-closed on incomplete OHLC
+tails: use the existing Yahoo Chart fallback, preserve qfq adjustment, and do
+not fill, fabricate, or forward-fill OHLC. Make `peak.price > origin.price` an
+explicit Wave 2→3 predicate. When the as-of close is at or below the impulse
+origin, emit UNKNOWN/invalid-for-long context with `SETUP_01` eligibility
+false. Apply the same structural-origin invalidation to ABC candidates without
+expanding the taxonomy. Wave shadow now records `history_last_date`,
+`latest_completed_session`, `freshness_status`, and flat primary/alternate
+fields; stale qfq history is `DATA_STALE` and is not evaluated.
+
+**Evidence:** The final implementation source head is
+`bbb851fb0c995aebaa2e19de1a67607e39ed3173`. Exact-head CI
+`33296199323` and read-only shadow `33296199336` both succeeded. The shadow
+requested 10 holdings, evaluated 8, and recorded 2 fail-closed errors: MU has
+an empty `历史数据源`, and SIVE.SE qfq history ended at `2026-08-27` versus
+the ordinary-calendar freshness lower bound `2026-08-28`. All successfully
+evaluated US holdings reached `2026-08-28`; no US holding silently remained
+at `2026-08-27`. The report has `returns_accessed=false`,
+`oos_accessed=false`, and `sheets_written=false`. Frozen research artifacts
+were not changed.
+
+**Decision:** Set
+`WAVE_SCENARIO_ENGINE_V1_CORRECTNESS_CLOSEOUT_READY_FOR_SOL`. Keep PR #35
+`OPEN / CLEAN / MERGEABLE`; do not merge it and do not start independent
+`SETUP_01`/`SETUP_02` implementation before Sol review.
