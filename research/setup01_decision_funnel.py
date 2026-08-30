@@ -10,6 +10,7 @@ from collections import Counter
 from typing import Iterable, Mapping
 
 from core import Quote
+from research.market_sessions import build_market_session_dates
 from trading.models import DecisionAction, SetupState
 from trading.setup01_decision import (
     EXECUTED,
@@ -20,6 +21,7 @@ from trading.setup01_decision import (
     evaluate_setup01_decision_stream,
     setup01_decision_to_dict,
     setup01_execution_to_dict,
+    setup01_target_provenance_audit,
 )
 from trading.setup01_replay import Setup01ReplayReport
 
@@ -71,6 +73,9 @@ def _row(
         ),
         "t1_open": execution.t1_open if execution is not None else None,
         "actual_entry": execution.actual_entry if execution is not None else None,
+        "actual_rr": (
+            execution_row["actual_rr"] if execution_row is not None else None
+        ),
     }
 
 
@@ -148,6 +153,16 @@ def build_setup01_decision_funnel(
         _row(decision, execution_by_identity.get(decision.event_identity))
         for decision in stream.decisions
     ]
+    market_session_dates = build_market_session_dates(quotes_by_symbol)
+    target_provenance_audit = [
+        setup01_target_provenance_audit(
+            decision,
+            execution_by_identity.get(decision.event_identity),
+            market_session_dates=market_session_dates,
+        )
+        for decision in stream.decisions
+        if decision.action is DecisionAction.ENTRY_ALLOWED
+    ]
     scope_rows = _scope_rows(rows)
     gate_counts = Counter(str(row["decision_gate_reason"]) for row in rows)
     no_trade_reasons = Counter(
@@ -205,6 +220,27 @@ def build_setup01_decision_funnel(
         "executed": executed,
         "skipped": skipped,
         "funnel_by_scope": scope_rows,
+        "target_provenance_audit": target_provenance_audit,
+        "target_provenance_summary": {
+            "audit_rows": len(target_provenance_audit),
+            "planned_over_5r_rows": sum(
+                row["planned_first_target_over_5r"]
+                for row in target_provenance_audit
+            ),
+            "actual_open_over_5r_rows": sum(
+                row["actual_open_first_target_over_5r"]
+                for row in target_provenance_audit
+            ),
+            "target_reasonableness_status": (
+                "TARGET_REASONABLENESS_NEEDS_SOL_DECISION"
+                if any(
+                    row["planned_first_target_over_5r"]
+                    or row["actual_open_first_target_over_5r"]
+                    for row in target_provenance_audit
+                )
+                else "TARGET_PROVENANCE_NO_NEW_BLOCKER"
+            ),
+        },
         "rows": rows,
         "ignored_non_confirmed_event_count": stream.ignored_non_confirmed_event_count,
         "duplicate_event_count": stream.duplicate_event_count,

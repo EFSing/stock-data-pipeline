@@ -21,12 +21,16 @@ from trading.setup01_decision import (
     SKIP_BELOW_INVALIDATION,
     SKIP_GAP_ABOVE_ENTRY_ZONE,
     SKIP_GAP_BELOW_CONFIRMATION,
+    SKIP_NO_T1_BAR,
+    SKIP_RR_BELOW_MINIMUM_AT_OPEN,
     Setup01DecisionGateReason,
     evaluate_setup01_decision,
     evaluate_setup01_decision_stream,
     execute_setup01_t1_open,
     setup01_decision_to_dict,
+    setup01_target_provenance_audit,
 )
+from trading.risk import risk_reward as calculate_risk_reward
 from trading.setup01_replay import (
     Setup01ReplayDay,
     Setup01ReplayEvent,
@@ -118,6 +122,10 @@ def _fixture(
     return event, quotes
 
 
+def _market_sessions(quotes: list[Quote]) -> dict[str, tuple[date, ...]]:
+    return {"US": tuple(quote.trade_date for quote in quotes)}
+
+
 class Setup01DecisionTests(unittest.TestCase):
     def test_wave3_projection_helper_is_generic_and_uses_supplied_range(self):
         self.assertEqual(project_extension(108.0, 100.0, 110.0, 1.618), 124.18)
@@ -187,37 +195,161 @@ class Setup01DecisionTests(unittest.TestCase):
     def test_t1_execution_uses_first_next_open_only_and_has_three_skip_reasons(self):
         event, quotes = _fixture(t1_open=109.0)
         decision = evaluate_setup01_decision(event, quotes)
-        execution = execute_setup01_t1_open(decision, quotes)
+        execution = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=_market_sessions(quotes)
+        )
         self.assertEqual(execution.outcome, SKIP_GAP_BELOW_CONFIRMATION)
         self.assertEqual(execution.execution_date, event.trade_date + timedelta(days=1))
 
         event, quotes = _fixture(t1_open=114.0)
         decision = evaluate_setup01_decision(event, quotes)
-        self.assertEqual(execute_setup01_t1_open(decision, quotes).outcome, SKIP_GAP_ABOVE_ENTRY_ZONE)
+        self.assertEqual(
+            execute_setup01_t1_open(
+                decision, quotes, market_session_dates=_market_sessions(quotes)
+            ).outcome,
+            SKIP_GAP_ABOVE_ENTRY_ZONE,
+        )
 
         event, quotes = _fixture(wave2_low=108.0, t1_open=107.0)
         decision = evaluate_setup01_decision(event, quotes)
-        self.assertEqual(execute_setup01_t1_open(decision, quotes).outcome, SKIP_BELOW_INVALIDATION)
+        self.assertEqual(
+            execute_setup01_t1_open(
+                decision, quotes, market_session_dates=_market_sessions(quotes)
+            ).outcome,
+            SKIP_BELOW_INVALIDATION,
+        )
 
         event, quotes = _fixture(t1_open=110.75)
         decision = evaluate_setup01_decision(event, quotes)
-        execution = execute_setup01_t1_open(decision, quotes)
+        execution = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=_market_sessions(quotes)
+        )
         self.assertEqual(execution.outcome, EXECUTED)
         self.assertEqual(execution.actual_entry, 110.75)
+        self.assertIsNotNone(execution.actual_rr)
+        self.assertGreaterEqual(execution.actual_rr.rr_ratios[0], 2.0)
 
         no_t1_event, no_t1_quotes = _fixture(t1_open=None)
         no_t1_decision = evaluate_setup01_decision(no_t1_event, no_t1_quotes)
-        self.assertEqual(execute_setup01_t1_open(no_t1_decision, no_t1_quotes).outcome, "SKIP_NO_T1_BAR")
+        self.assertEqual(
+            execute_setup01_t1_open(
+                no_t1_decision,
+                no_t1_quotes,
+                market_session_dates=_market_sessions(no_t1_quotes),
+            ).outcome,
+            SKIP_NO_T1_BAR,
+        )
 
     def test_t1_high_low_close_and_same_bar_open_do_not_change_execution(self):
         event, quotes = _fixture(t1_open=110.75)
         decision = evaluate_setup01_decision(event, quotes)
-        baseline = execute_setup01_t1_open(decision, quotes)
+        sessions = _market_sessions(quotes)
+        baseline = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=sessions
+        )
         t1 = quotes[-1]
         altered_t1 = replace(t1, high=1000.0, low=1.0, close=999.0)
-        altered = execute_setup01_t1_open(decision, [*quotes[:-1], altered_t1])
+        altered = execute_setup01_t1_open(
+            decision,
+            [*quotes[:-1], altered_t1],
+            market_session_dates=sessions,
+        )
         self.assertEqual(baseline, altered)
         self.assertEqual(baseline.execution_date, event.trade_date + timedelta(days=1))
+
+    def test_t1_uses_next_market_session_for_weekend_and_holiday_gaps(self):
+        for offset in (3, 4):
+            with self.subTest(offset=offset):
+                event, quotes = _fixture(t1_open=110.75)
+                t_day = event.trade_date
+                t1_date = t_day + timedelta(days=offset)
+                quotes[-1] = replace(quotes[-1], trade_date=t1_date)
+                sessions = {
+                    "US": tuple(
+                        quote.trade_date for quote in quotes[:-1]
+                    ) + (t1_date,)
+                }
+                decision = evaluate_setup01_decision(event, quotes)
+                execution = execute_setup01_t1_open(
+                    decision, quotes, market_session_dates=sessions
+                )
+                self.assertEqual(execution.outcome, EXECUTED)
+                self.assertEqual(execution.execution_date, t1_date)
+
+    def test_missing_next_market_session_does_not_fall_forward_to_t2(self):
+        event, quotes = _fixture(t1_open=110.75)
+        t_day = event.trade_date
+        t2_date = t_day + timedelta(days=2)
+        quotes[-1] = replace(quotes[-1], trade_date=t2_date)
+        sessions = {
+            "US": tuple(quote.trade_date for quote in quotes[:-1])
+            + (t_day + timedelta(days=1), t2_date)
+        }
+        decision = evaluate_setup01_decision(event, quotes)
+        execution = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=sessions
+        )
+        self.assertEqual(execution.outcome, SKIP_NO_T1_BAR)
+        self.assertIsNone(execution.execution_date)
+        self.assertIsNone(execution.t1_open)
+        self.assertIsNone(execution.actual_entry)
+
+    def test_actual_open_rr_below_two_skips_even_when_planned_rr_passes(self):
+        event, quotes = _fixture(wave2_low=107.5, t1_open=111.2)
+        decision = evaluate_setup01_decision(event, quotes)
+        self.assertGreaterEqual(decision.rr.rr_ratios[0], 2.0)
+        self.assertLessEqual(decision.entry_zone_low, 111.2)
+        self.assertLessEqual(111.2, decision.entry_zone_high)
+
+        execution = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=_market_sessions(quotes)
+        )
+        self.assertEqual(execution.outcome, SKIP_RR_BELOW_MINIMUM_AT_OPEN)
+        self.assertEqual(execution.actual_entry, 111.2)
+        self.assertIsNotNone(execution.actual_rr)
+        self.assertLess(execution.actual_rr.rr_ratios[0], 2.0)
+
+    def test_actual_open_rr_consumes_only_frozen_target_stop_and_t1_open(self):
+        event, quotes = _fixture(t1_open=110.75)
+        decision = evaluate_setup01_decision(event, quotes)
+        with patch(
+            "trading.setup01_decision.risk_reward",
+            wraps=calculate_risk_reward,
+        ) as calculate:
+            execution = execute_setup01_t1_open(
+                decision,
+                quotes,
+                market_session_dates=_market_sessions(quotes),
+            )
+        self.assertEqual(execution.outcome, EXECUTED)
+        self.assertEqual(calculate.call_count, 1)
+        self.assertEqual(
+            calculate.call_args.args,
+            (110.75, decision.execution_stop, decision.targets),
+        )
+
+    def test_target_provenance_audit_reports_fib_source_and_plan_vs_open_rr(self):
+        event, quotes = _fixture(t1_open=110.75)
+        decision = evaluate_setup01_decision(event, quotes)
+        execution = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=_market_sessions(quotes)
+        )
+        audit = setup01_target_provenance_audit(
+            decision,
+            execution,
+            market_session_dates=_market_sessions(quotes),
+        )
+        self.assertEqual(audit["target_t1_source"], "WAVE3_FIB_EXTENSION")
+        self.assertEqual(
+            audit["target_t1_provenance"][0]["extension_ratio"], 1.272
+        )
+        self.assertEqual(
+            audit["planned_first_target_rr"], decision.rr.rr_ratios[0]
+        )
+        self.assertEqual(
+            audit["actual_open_first_target_rr"], execution.actual_rr.rr_ratios[0]
+        )
+        self.assertTrue(audit["target_provenance_geometry_check"])
 
     def test_event_identity_is_exactly_once_and_historical_confirmed_is_rejected(self):
         event, quotes = _fixture()
