@@ -12,7 +12,7 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `SETUP_01_DECISION_RISK_V1_PR_FULLY_READY_PENDING_EXACT_HEAD_VERIFICATION`。
+- **当前 Phase / task:** `SETUP_01_DECISION_RISK_V1_PR_FULLY_READY`。
 - **具体目标:** 在 PR #37 内完成严格 T+1 session identity、actual-open R/R invariant、target provenance audit 与回归/治理核验；保持 PR OPEN，停在 Sol 审阅/merge decision 节点。
 - **PR #35 closeout:** 已按 `APPROVE_WAVE_SCENARIO_ENGINE_V1` squash merge；真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success；旧 PR #31 已关闭并注明 `superseded by #34`。
 - **当前实现:** PR #36 已按授权 squash merge，真实 merge commit 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，main exact-head CI `33316793033` success。PR #37 的 latest substantive source head 为 `4ca19cf`（完整 SHA 以 Git 为准），实现 independent Decision/Risk v1 的 final execution-ledger correctness closeout；PR final tip/CI 状态由 GitHub 实时核验。SETUP_01 structural protocol 仍为 `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`，structural lifecycle/event counts 未改写。
@@ -21,7 +21,7 @@
 - **Generic operational shadow:** `CONTROLLED_PUBLIC_SYNTHETIC_HOLDINGS_FIXTURE` 已通过：7 supplied events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 EXECUTED / 1 `SKIP_GAP_BELOW_CONFIRMATION`；exact-once、terminal semantics、T→T+1、execution-ledger invariant、fail-closed、reporting pipeline 全部通过。
 - **Real holdings shadow classification:** `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`；当前状态 `NOT_RUN_USER_PRIVACY`。本任务不读取真实持仓、不依赖账户 holdings secrets、不向 GitHub Actions 输出任何持仓派生信息；它不是当前 SETUP_01 research/development gate 的 blocker。
 - **明确禁止事项:** 不启动 SETUP_02，不重新打开 SETUP_03，不自动 merge新的 Decision/Risk PR，不读取 returns/MFE/MAE/P&L/Final OOS，不猜 NAV/position size，不写任何 production Sheet；PR #37 仅供 Sol review。
-- **停止条件:** exact-head CI 与 generic shadow success 且 PR 仍 OPEN/CLEAN/MERGEABLE 后，达到 `SETUP_01_DECISION_RISK_V1_PR_FULLY_READY`。不自动 merge；Sol review 后由用户决定 merge。Sol review 前不启动 SETUP_02、不重新打开 SETUP_03、不读取任何 outcome/OOS。
+- **停止条件:** 最终 exact-head CI 与 generic shadow success，且 PR 仍 OPEN/CLEAN/MERGEABLE；当前状态为 `SETUP_01_DECISION_RISK_V1_PR_FULLY_READY`。不自动 merge；下一动作只能是 Sol review → merge decision。Sol review 前不启动 SETUP_02、不重新打开 SETUP_03、不读取任何 outcome/OOS。
 
 ## 2. Current Repository State
 
@@ -256,7 +256,7 @@
 7. [x] PR #36 final tip exact-head CI/shadow、PR state/mergeability 已实时核验；PR #36 已 squash merge为 `3a6d417...`，main CI `33316793033` success。
 8. [x] 从新 main 实现独立 SETUP_01 Decision/Risk v1、历史 decision/execution funnel 与 synthetic-only generic operational shadow；PR #37 previous CI `33318129206` success；不自动 merge PR #37。
 9. [x] governance self-reference rule、terminal-vs-new-event projection、event identity exactly-once、T→T+1、target-first/RR、read-only shadow regression 已落地并通过测试。
-10. [x] PR #37 overnight correctness closeout：严格 market-session identity、缺失 T+1 fail-closed、actual-open RR minimum、`actual_entry` execution-only invariant、T1 provenance audit 与回归已完成；等待最终 docs tip 的 exact-head CI 与 Sol review。
+10. [x] PR #37 overnight correctness closeout：严格 market-session identity、缺失 T+1 fail-closed、actual-open RR minimum、`actual_entry` execution-only invariant、T1 provenance audit 与回归已完成；最终 docs tip 的 exact-head CI/shadow 已成功，等待 Sol review。
 
 ## 11. Handoff Checklist
 
@@ -279,7 +279,7 @@
 - `verified_main_sha`: `3a6d417ede3594c05003ea18ce65bd4562eff294`
 - `verified_branch_head`: `4ca19cf`（branch=`codex/setup01-decision-risk-v1`；latest substantive correctness source head；完整 SHA 与 final PR tip 由 Git 实时核验；docs-only updates 不要求记录自身 SHA）
 - `latest_test_result`: full unittest `389/389` passed；focused SETUP_01/Wave/market-session/generic `50/50` passed；compileall passed；synthetic shadow success；`git diff --check` passed
-- `latest_ci_run`: final docs tip push 后必须按 exact PR HEAD 重新核验；治理文件不保存自引用 final-tip SHA，不能用旧 tip CI 代替 exact-head evidence
+- `latest_ci_run`: exact-head CI/shadow success 已由 GitHub 实时核验；最终 PR tip、run IDs、mergeability 继续以 GitHub 实时状态为准，治理文件不保存自引用 final-tip SHA
 - `generic_operational_shadow`: synthetic-only `4ca19cf` source behavior success；7 supplied / 6 unique / 3 decisions / 2 T+1 attempts / 1 executed / 1 skip；execution-ledger invariant pass；no real holdings or account secrets
 - `setup01_decision_funnel`: 745 CONFIRMED / 745 Decision rows / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4 EXECUTED / 1 SKIP_GAP_BELOW_CONFIRMATION / 0 SKIP_RR_BELOW_MINIMUM_AT_OPEN；CN 299, US 446；decision gates ABOVE_ENTRY_ZONE=464, RR_BELOW_MINIMUM=276, ENTRY_ALLOWED=5；pre/post core-count delta all zero；`DEVELOPMENT_SESSION_IDENTITY=FROZEN_DATASET_MARKET_SESSION_SET`
 - `target_provenance_audit`: 5 ENTRY_ALLOWED rows；5 Fib T1 rows at existing ratio `1.272`; historical-swing-high T1 rows=0；>5R rows=0；status=`TARGET_PROVENANCE_NO_NEW_BLOCKER`
