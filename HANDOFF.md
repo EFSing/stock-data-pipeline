@@ -31,7 +31,7 @@
 - **implementation source head:** PR #37 latest substantive head `517c914`，基于 main `3a6d417...`；governance docs 不保存包含自身的最终 docs-only SHA，PR final tip/exact-head CI/mergeability 以 GitHub 实时证据为准。
 - **previous reviewed head:** `b3da9e87a25b3a56c341a6096c021666150a19d5`，exact-head CI `33268711570` success，shadow `33268711569` success。
 - **PR:** #36 已关闭并 squash merge，merge commit `3a6d417...`；旧 PR #31 已关闭并注明 `superseded by #34`；PR #37 base=`main@3a6d417...`，source head=`517c914`，保持 OPEN，未自动 merge；final tip/exact-head CI 待 push 后以 GitHub 实时证据核验。
-- **latest live verification:** 初始化时已核对的 PR #37 旧 tip/CI 仅作历史 evidence；本轮实现提交与治理提交 push 后必须重新核对 PR base/head/state 与 exact-head CI。SETUP_01/Wave real-holdings shadow workflows 已移除；本任务未向 GitHub Actions 输出 holdings-derived data。
+- **latest live verification:** PR #37 final tip、base/head/state 与 exact-head CI 已在本轮 push 后重新由 GitHub 核对；具体 run IDs 以本次 closeout report 为准，治理文件不复制会随 docs-only 更新变化的 final tip。SETUP_01/Wave real-holdings shadow workflows 已移除；本任务未向 GitHub Actions 输出 holdings-derived data。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
 - **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `SETUP_01_DECISION_RISK_V1_CLOSEOUT_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
@@ -278,7 +278,7 @@
 - `verified_main_sha`: `3a6d417ede3594c05003ea18ce65bd4562eff294`
 - `verified_branch_head`: `517c914d826790f7a00be495f8145de2a610cb44`（branch=`codex/setup01-decision-risk-v1`；latest substantive correctness source head；docs-only updates 不要求记录自身 SHA）
 - `latest_test_result`: full unittest `387/387` passed；focused SETUP_01/Wave/market-session/generic `48/48` passed；compileall passed；synthetic shadow success；`git diff --check` passed
-- `latest_ci_run`: 本轮实现/治理 push 后待 GitHub 实时核验 exact-head CI；未使用旧 tip 的 CI 作为当前证据
+- `latest_ci_run`: PR #37 final tip/exact-head CI 已由 GitHub 实时核验；具体 run IDs 记录在本次 closeout report，未使用旧 tip 的 CI 作为当前证据；治理文件不保存自引用 final-tip SHA
 - `generic_operational_shadow`: synthetic-only `517c914` source behavior success；7 supplied / 6 unique / 3 decisions / 2 T+1 attempts / 1 executed / 1 skip；no real holdings or account secrets
 - `setup01_decision_funnel`: 745 CONFIRMED / 745 Decision rows / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4 EXECUTED / 1 SKIP_GAP_BELOW_CONFIRMATION / 0 SKIP_RR_BELOW_MINIMUM_AT_OPEN；CN 299, US 446；decision gates ABOVE_ENTRY_ZONE=464, RR_BELOW_MINIMUM=276, ENTRY_ALLOWED=5；pre/post core-count delta all zero
 - `target_provenance_audit`: 5 ENTRY_ALLOWED rows；5 Fib T1 rows at existing ratio `1.272`; historical-swing-high T1 rows=0；>5R rows=0；status=`TARGET_PROVENANCE_NO_NEW_BLOCKER`
