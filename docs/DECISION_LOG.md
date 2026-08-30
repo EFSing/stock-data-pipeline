@@ -758,7 +758,7 @@ market-specific Fib rule is introduced.
 
 **Replay/shadow boundary:** Replay consumes the explicit new-event flags, so a persisted historical `CONFIRMED` state is not re-emitted or re-decided on later dates. The read-only real-holdings shadow exposes both nested projection fields and top-level `new_confirmed_today`, `new_failed_today`, `live_candidate`, and `historical_terminal` fields. Lifecycle transitions, structural event identity and event counts are unchanged. Regression coverage proves a later as-of snapshot can remain `CONFIRMED` while `is_new_confirmed_event_as_of=false` and the replay event count remains one.
 
-**Boundary:** This closeout does not start `SETUP_02`, reopen `SETUP_03`, or access returns, MFE, MAE, P&L or Final OOS. The previous CI/shadow runs `33300273163`/`33300273180` do not cover the new source head; exact-head CI, re-run real holdings shadow and PR state must be re-verified before PR #36 merge.
+**Boundary:** This closeout did not start `SETUP_02`, reopen `SETUP_03`, or access returns, MFE, MAE, P&L or Final OOS. The previous CI/shadow runs `33300273163`/`33300273180` did not cover the new source head; the later PR-final-tip evidence and main merge evidence below supersede that historical snapshot. No real-holdings rerun is required for the current generic operational gate.
 
 ### Decision: close PR #36 and implement an independent SETUP_01 Decision/Risk v1
 
@@ -798,17 +798,15 @@ Decision/Risk funnel produced 745 Decision rows: `ABOVE_ENTRY_ZONE=464`,
 rows and conservation checks are emitted. This is descriptive execution
 feasibility only; no return, MFE, MAE, P&L or OOS field is read.
 
-**Current holdings evidence:** Registered Wave structural read-only shadow on
-PR #37 source head, run `33318129223`, requested 10 holdings, evaluated 8 and
-fail-closed 2. It showed 7 historical terminal rows, including INTC and DRAM
-whose terminal CONFIRMED dates precede the current as-of date, and one live
-`WATCH` candidate (`000725.SZ`). `new_confirmed_today=0` and
-`new_failed_today=0`; therefore the Decision layer must generate zero new
-holding Decisions. SIVE.SE remains stale and MU has no configured history
-source; neither is guessed. The dedicated Decision shadow workflow is
-registered as a manual post-merge workflow because a new unmerged PR workflow
-must not be granted Google Secrets access; the local regression covers the
-same historical-terminal/live-candidate no-redecision contract.
+**Historical holdings evidence (superseded for the current gate):** A prior
+Wave structural read-only shadow on PR #37 source head, run `33318129223`,
+requested 10 holdings, evaluated 8 and fail-closed 2. It showed historical
+terminal rows and a live `WATCH` candidate; `new_confirmed_today=0` and
+`new_failed_today=0`, so the Decision layer generated zero new holding
+Decisions. This is retained only as historical audit evidence. The dedicated
+real-holdings workflow is not part of the current tree; the generic synthetic
+fixture and local regression cover the operational contract without Google
+Secrets or real holdings.
 
 **Review boundary:** PR #37 is OPEN and must not be auto-merged. This node is
 `SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`. Do not start SETUP_02,
@@ -838,7 +836,7 @@ derived data through an unmerged GitHub Actions workflow.
    validation as a scope-local blocker.
 
 **Evidence:** The synthetic-only generic shadow introduced at the latest
-substantive source head `5d242fb` passed with 7 supplied events, 6 unique event
+substantive source head `db8b64c` passed with 7 supplied events, 6 unique event
 identities, 3 Decision rows, 2 T+1 attempts, 1 `EXECUTED`, and 1
 `SKIP_GAP_BELOW_CONFIRMATION`. Its exact-once, T+1, terminal-semantics,
 fail-closed, and reporting checks all passed. This evidence is sufficient for
