@@ -49,6 +49,22 @@ DEFAULT_STRUCTURAL_EVENTS = (
     / "setup01_wave2_to_wave3_v1"
     / "setup01_structural_replay_events.csv"
 )
+DECISION_GATE_REASONS = (
+    "ATR_UNAVAILABLE",
+    "ABOVE_ENTRY_ZONE",
+    "NO_VALID_TARGET",
+    "RR_BELOW_MINIMUM",
+    "INVALID_STRUCTURE",
+    "ENTRY_ALLOWED",
+)
+EXECUTION_OUTCOMES = (
+    "EXECUTED",
+    "SKIP_GAP_BELOW_CONFIRMATION",
+    "SKIP_GAP_ABOVE_ENTRY_ZONE",
+    "SKIP_BELOW_INVALIDATION",
+    "SKIP_NO_T1_BAR",
+    "SKIP_DECISION_NOT_ENTRY_ALLOWED",
+)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -194,8 +210,18 @@ def _scope_rows(stream: Setup01DecisionStream) -> list[dict[str, Any]]:
         }
         for reason, count in sorted(no_trade_reasons.items()):
             row[f"NO_TRADE:{reason}"] = count
+        for reason in DECISION_GATE_REASONS:
+            row[f"DECISION:{reason}"] = sum(
+                int(
+                    getattr(decision.gate_reason, "value", decision.gate_reason)
+                    == reason
+                )
+                for decision in decisions
+            )
         for reason, count in sorted(execution_outcomes.items()):
             row[f"EXECUTION:{reason}"] = count
+        for reason in EXECUTION_OUTCOMES:
+            row.setdefault(f"EXECUTION:{reason}", 0)
         rows.append(row)
     return rows
 
@@ -262,13 +288,13 @@ def run_setup01_decision_funnel(
         event for event in events
         if event.event_type is SetupState.CONFIRMED
     ]
-    gate_counts = Counter(
+    gate_counts = Counter({reason: 0 for reason in DECISION_GATE_REASONS})
+    gate_counts.update(
         getattr(decision.gate_reason, "value", decision.gate_reason)
         for decision in stream.decisions
     )
-    execution_counts = Counter(
-        execution.outcome for execution in stream.executions
-    )
+    execution_counts = Counter({reason: 0 for reason in EXECUTION_OUTCOMES})
+    execution_counts.update(execution.outcome for execution in stream.executions)
     decision_calculable = sum(
         int(decision.decision_calculable) for decision in stream.decisions
     )
@@ -319,6 +345,11 @@ def run_setup01_decision_funnel(
         "no_trade": no_trade,
         "decision_gate_reason_counts": dict(sorted(gate_counts.items())),
         "execution_status_counts": dict(sorted(execution_counts.items())),
+        "no_trade_reason_counts": {
+            reason: gate_counts[reason]
+            for reason in DECISION_GATE_REASONS
+            if reason != "ENTRY_ALLOWED"
+        },
         "t1_execution_attempts": attempts,
         "executed": executed,
         "skipped": skipped,

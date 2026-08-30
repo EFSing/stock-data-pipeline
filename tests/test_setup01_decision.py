@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core import Quote
+from trading.fibonacci import project_extension
 from trading.models import (
     DecisionAction,
     Setup01Evaluation,
@@ -118,6 +119,11 @@ def _fixture(
 
 
 class Setup01DecisionTests(unittest.TestCase):
+    def test_wave3_projection_helper_is_generic_and_uses_supplied_range(self):
+        self.assertEqual(project_extension(108.0, 100.0, 110.0, 1.618), 124.18)
+        with self.assertRaises(ValueError):
+            project_extension(108.0, 110.0, 100.0, 1.618)
+
     def test_independent_module_does_not_import_platform_breakout_decision(self):
         from pathlib import Path
 
