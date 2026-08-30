@@ -747,3 +747,15 @@ of SETUP_03 while making the Wave 2 → Wave 3 assumptions, counter-scenario,
 causality, invalidations, and review evidence explicit. The fixed recovery
 rule is intentionally simple and non-optimized; no parameter grid or
 market-specific Fib rule is introduced.
+
+## 2026-08-30
+
+### Decision: close the SETUP_01 terminal-event projection self-reference and event-semantics gap
+
+**Governance:** Tracked governance files record the latest substantive implementation/source head and the corresponding business/protocol/decision/next-action snapshot. They do not record the final commit SHA that contains their own docs-only update. PR final tip, exact-head CI, mergeability and merge commit are live GitHub evidence. `HANDOFF_CURRENT_AND_CONSISTENT` means the repository state and governance snapshot agree; it does not require a self-referential SHA. This supersedes any historical `THIS_COMMIT` wording and prevents an infinite docs-only update loop.
+
+**Implementation:** The latest substantive source head for PR #36 is `eed768bec92365615b05b0a8314cf555e44b22ac`, following the previous review head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`. `Setup01Evaluation` and its JSON projection now expose `terminal_event_type`, `terminal_event_date`, `is_new_confirmed_event_as_of`, `is_new_failed_event_as_of`, and `is_live_preconfirmation_candidate`. The first two preserve the current lifecycle's historical terminal fact; the new-event flags are true only when the matching terminal date equals the as-of date; live candidate is true only for `WATCH`/`ARMED`.
+
+**Replay/shadow boundary:** Replay consumes the explicit new-event flags, so a persisted historical `CONFIRMED` state is not re-emitted or re-decided on later dates. The read-only real-holdings shadow exposes both nested projection fields and top-level `new_confirmed_today`, `new_failed_today`, `live_candidate`, and `historical_terminal` fields. Lifecycle transitions, structural event identity and event counts are unchanged. Regression coverage proves a later as-of snapshot can remain `CONFIRMED` while `is_new_confirmed_event_as_of=false` and the replay event count remains one.
+
+**Boundary:** This closeout does not start `SETUP_02`, reopen `SETUP_03`, or access returns, MFE, MAE, P&L or Final OOS. The previous CI/shadow runs `33300273163`/`33300273180` do not cover the new source head; exact-head CI, re-run real holdings shadow and PR state must be re-verified before PR #36 merge.
