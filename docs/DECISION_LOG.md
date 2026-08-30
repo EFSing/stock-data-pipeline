@@ -856,3 +856,64 @@ holdings. The real-holdings capability remains private and unrun; no workflow
 may emit holdings-derived information to GitHub Actions. Tracked governance
 files record the latest substantive source head and do not require the
 docs-only commit containing this entry to record its own SHA.
+
+### Decision: PR #37 bounded SETUP_01 Decision/Risk correctness closeout
+
+**Context:** Sol review returned `BOUNDED_CLOSEOUT_REQUIRED_BEFORE_MERGE`.
+The remaining scope is limited to the independent
+`SETUP-01-DECISION-RISK-2026-08-30-v1` Decision/Risk evaluator. Structural
+semantics, Entry Zone, ATR, existing Fib ratios, target-before-RR ordering,
+and the shared minimum RR of 2 remain frozen.
+
+**Decision:** Resolve T+1 identity through the existing
+`research.market_sessions.build_market_session_dates` session-set SSOT. The
+execution bar must match the exact next session for the event market, symbol,
+and T date. A missing expected symbol bar is `SKIP_NO_T1_BAR`; a later bar is
+never used as T+1. Weekend and holiday gaps therefore use the same observed
+market-session set and do not introduce a second calendar rule. The execution
+classifier reads only the matched bar's OPEN.
+
+When an in-zone T+1 OPEN is available, keep the T-frozen targets and execution
+stop and replace only the planned entry with the actual OPEN for a second
+shared `risk_reward()` calculation. If its first-target RR is below 2, emit
+`SKIP_RR_BELOW_MINIMUM_AT_OPEN`; do not change target, stop, zone, threshold,
+or consume T+1 high/low/close.
+
+**Target audit decision:** Add descriptive provenance only. Each new
+`ENTRY_ALLOWED` row records T1 source, confirmed-swing dates/session ages when
+applicable, Fib ratio when applicable, planned/actual entry, planned/actual
+first-target RR and quality, >5R flags, and the existing provenance/geometry
+check. No lookback, age threshold, or new target gate is introduced. A >5R or
+very old historical swing high would be reported as
+`TARGET_REASONABLENESS_NEEDS_SOL_DECISION`, not filtered locally.
+
+**Evidence on frozen DEVELOPMENT_EXPOSED input:** The post-fix funnel remains
+745 CONFIRMED / 745 Decision rows / 5 `ENTRY_ALLOWED` / 5 T+1 attempts / 4
+`EXECUTED` / 1 `SKIP_GAP_BELOW_CONFIRMATION` / 0
+`SKIP_RR_BELOW_MINIMUM_AT_OPEN`. Decision gates remain
+`ABOVE_ENTRY_ZONE=464`, `RR_BELOW_MINIMUM=276`, `ENTRY_ALLOWED=5`, with all
+other registered gate reasons at zero. The pre/post delta is zero for every
+reported scalar and gate/execution reason count. Provenance audit contains 5
+rows, all T1s are existing 1.272 Fib extensions, historical-swing-high T1
+rows=0, >5R rows=0, and all geometry checks pass; status is
+`TARGET_PROVENANCE_NO_NEW_BLOCKER`.
+
+**Verification:** Regression coverage proves normal next-session OPEN,
+weekend/holiday session resolution, missing expected T+1 with T+2 present,
+T+1 OHLC non-consumption, planned-RR-pass/actual-RR-fail skip, actual-RR-pass
+execution, and frozen target/stop/OPEN-only operands. Full unittest is
+387/387; focused SETUP_01/Wave/market-session/generic coverage is 48/48;
+compileall and `git diff --check` pass. The controlled public generic shadow
+remains 7 supplied / 6 unique / 3 Decision rows / 2 T+1 attempts / 1 executed /
+1 gap-below-confirmation skip, with all checks passing.
+
+**Boundary and status:** First-entry CONFIRMED exactly-once and historical
+terminal CONFIRMED no-redecision remain unchanged; T close is plan-only, no
+same-bar execution is allowed, and no future T+1 OHLC except OPEN is consumed.
+No production Sheets write, real-holdings read, SETUP_02 start, SETUP_03
+reopen, outcome/backtest/OOS work, or workflow using Google Secrets was added.
+Latest substantive source head is
+`517c914d826790f7a00be495f8145de2a610cb44`. PR #37 stays OPEN and unmerged;
+PR final tip and exact-head CI are live GitHub facts and are not replaced by a
+self-referential docs SHA. The resulting state is
+`SETUP_01_DECISION_RISK_V1_CLOSEOUT_READY_FOR_SOL_REVIEW`.

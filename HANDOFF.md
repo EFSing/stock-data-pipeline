@@ -12,15 +12,15 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `SETUP01_GENERIC_OPERATIONAL_SHADOW_READY_FOR_SOL_REVIEW`。
-- **具体目标:** PR #36 correctness/governance closeout 已完成并 squash merge；从新 main 独立实现的 SETUP_01 Decision/Risk v1、DEVELOPMENT_EXPOSED historical funnel 与 synthetic-only generic operational shadow 已完成，停在 Sol 审阅节点。
+- **当前 Phase / task:** `SETUP_01_DECISION_RISK_V1_CLOSEOUT_READY_FOR_SOL_REVIEW`。
+- **具体目标:** 在 PR #37 内完成严格 T+1 session identity、actual-open R/R invariant、target provenance audit 与回归/治理核验；保持 PR OPEN，停在 Sol 审阅节点。
 - **PR #35 closeout:** 已按 `APPROVE_WAVE_SCENARIO_ENGINE_V1` squash merge；真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success；旧 PR #31 已关闭并注明 `superseded by #34`。
-- **当前实现:** PR #36 已按授权 squash merge，真实 merge commit 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，main exact-head CI `33316793033` success。PR #37 `codex/setup01-decision-risk-v1` 的 latest substantive source head 为 `db8b64c`，实现独立的 `SETUP-01-DECISION-RISK-2026-08-30-v1` 与 synthetic-only generic operational shadow；PR final tip/CI 状态由 GitHub 实时核验。SETUP_01 structural protocol 仍为 `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`，structural lifecycle/event counts 未改写。
-- **Decision/Risk evidence:** DEVELOPMENT_EXPOSED funnel 使用既有 745 个首个 `CONFIRMED` event，745 条 Decision；`ABOVE_ENTRY_ZONE=464`、`RR_BELOW_MINIMUM=276`、`ENTRY_ALLOWED=5`；5 次 T+1 OPEN feasibility 中 `EXECUTED=4`、`SKIP_GAP_BELOW_CONFIRMATION=1`。risk capital 保持显式输入；本次 funnel 未猜 NAV/position size。
+- **当前实现:** PR #36 已按授权 squash merge，真实 merge commit 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，main exact-head CI `33316793033` success。PR #37 的 latest substantive source head 为 `517c914`（完整 SHA 以 Git 为准），实现独立的 `SETUP-01-DECISION-RISK-2026-08-30-v1` correctness closeout；PR final tip/CI 状态由 GitHub 实时核验。SETUP_01 structural protocol 仍为 `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`，structural lifecycle/event counts 未改写。
+- **Decision/Risk evidence:** DEVELOPMENT_EXPOSED funnel 使用既有 745 个首个 `CONFIRMED` event，745 条 Decision；`ABOVE_ENTRY_ZONE=464`、`RR_BELOW_MINIMUM=276`、`ENTRY_ALLOWED=5`；5 次 T+1 attempts 中 `EXECUTED=4`、`SKIP_GAP_BELOW_CONFIRMATION=1`、`SKIP_RR_BELOW_MINIMUM_AT_OPEN=0`。修复前后核心 counts delta 全为 0；T1 provenance audit 为 5 rows，均为既有 1.272 Fib extension，>5R rows=0，status=`TARGET_PROVENANCE_NO_NEW_BLOCKER`。
 - **Generic operational shadow:** `CONTROLLED_PUBLIC_SYNTHETIC_HOLDINGS_FIXTURE` 已通过：7 supplied events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 EXECUTED / 1 `SKIP_GAP_BELOW_CONFIRMATION`；exact-once、terminal semantics、T→T+1、fail-closed、reporting pipeline 全部通过。
 - **Real holdings shadow classification:** `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`；当前状态 `NOT_RUN_USER_PRIVACY`。本任务不读取真实持仓、不依赖账户 holdings secrets、不向 GitHub Actions 输出任何持仓派生信息；它不是当前 SETUP_01 research/development gate 的 blocker。
 - **明确禁止事项:** 不启动 SETUP_02，不重新打开 SETUP_03，不自动 merge新的 Decision/Risk PR，不读取 returns/MFE/MAE/P&L/Final OOS，不猜 NAV/position size，不写任何 production Sheet；PR #37 仅供 Sol review。
-- **停止条件:** 已达到 `SETUP01_GENERIC_OPERATIONAL_SHADOW_READY_FOR_SOL_REVIEW`。PR #37 保持 OPEN，不自动 merge；Sol review 前不启动 SETUP_02、不重新打开 SETUP_03、不读取任何 outcome/OOS。
+- **停止条件:** 已达到 `SETUP_01_DECISION_RISK_V1_CLOSEOUT_READY_FOR_SOL_REVIEW`。PR #37 保持 OPEN，不自动 merge；Sol review 前不启动 SETUP_02、不重新打开 SETUP_03、不读取任何 outcome/OOS。
 
 ## 2. Current Repository State
 
@@ -28,19 +28,19 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@3a6d417ede3594c05003ea18ce65bd4562eff294`；该 SHA 是 PR #36 的 squash merge commit，main push CI `33316793033` success。
 - **working branch:** `codex/setup01-decision-risk-v1`（PR #37，保持 OPEN 供 Sol review）。
-- **implementation source head:** PR #37 latest substantive head `db8b64c`，基于 main `3a6d417...`；governance docs 不保存包含自身的最终 docs-only SHA，PR final tip/exact-head CI/mergeability 以 GitHub 实时证据为准。
+- **implementation source head:** PR #37 latest substantive head `517c914`，基于 main `3a6d417...`；governance docs 不保存包含自身的最终 docs-only SHA，PR final tip/exact-head CI/mergeability 以 GitHub 实时证据为准。
 - **previous reviewed head:** `b3da9e87a25b3a56c341a6096c021666150a19d5`，exact-head CI `33268711570` success，shadow `33268711569` success。
-- **PR:** #36 已关闭并 squash merge，merge commit `3a6d417...`；旧 PR #31 已关闭并注明 `superseded by #34`；PR #37 base=`main@3a6d417...`，当前 source head=`db8b64c`，保持 OPEN，未自动 merge。
-- **latest live verification before this governance-only snapshot update:** PR #37 tip `2acdeb19aef69f1c3dd2ef029c2eec95d7d2c9db`；CI Test Gate `33319441644` success；synthetic-only generic shadow `33319441600` success；PR `OPEN / CLEAN / MERGEABLE`。SETUP_01/Wave real-holdings shadow workflows 已移除；本任务未向 GitHub Actions 输出 holdings-derived data，后续 final tip/CI 仍以 GitHub 实时核验为准。
+- **PR:** #36 已关闭并 squash merge，merge commit `3a6d417...`；旧 PR #31 已关闭并注明 `superseded by #34`；PR #37 base=`main@3a6d417...`，source head=`517c914`，保持 OPEN，未自动 merge；final tip/exact-head CI 待 push 后以 GitHub 实时证据核验。
+- **latest live verification:** 初始化时已核对的 PR #37 旧 tip/CI 仅作历史 evidence；本轮实现提交与治理提交 push 后必须重新核对 PR base/head/state 与 exact-head CI。SETUP_01/Wave real-holdings shadow workflows 已移除；本任务未向 GitHub Actions 输出 holdings-derived data。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `SETUP01_GENERIC_OPERATIONAL_SHADOW_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
+- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `SETUP_01_DECISION_RISK_V1_CLOSEOUT_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
 ## 3. Completed Work
 
 - PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
 - Wave Scenario Engine v1 已实现：严格 `data <= as_of_date`、完整周边界、weekly parent → daily context、confirmed Swing、现有 Fibonacci regions、primary/alternate、证据/反证/规则计分、结构失效、context eligibility 与 fail-closed UNKNOWN/NO_VALID families。
 - Wave Engine v1 测试覆盖 canonical/synthetic 场景、future append invariance、不完整当前周、weekly/daily state、confirmed/provisional、Fib region、primary/alternate coexistence 与 read-only shadow；focused `tests.test_wave` 为 `12/12` 通过。
-- PR #36 correctness/governance closeout 已完成并 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`；main exact-head CI `33316793033` success。PR #37 的 Decision/Risk v1、funnel、generic operational shadow 与 tests 已提交；本次 governance-only 更新前的 live tip `2acdeb1...` 上 CI `33319441644` 与 generic shadow `33319441600` 均 success，未向 GitHub Actions 暴露真实持仓。
+- PR #36 correctness/governance closeout 已完成并 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`；main exact-head CI `33316793033` success。PR #37 的 Decision/Risk v1 correctness closeout、funnel、generic operational shadow 与 tests 已提交于 substantive source head `517c914d826790f7a00be495f8145de2a610cb44`；本轮 push 后 final tip/exact-head CI 待实时核验，未向 GitHub Actions 暴露真实持仓。
 - Historical Wave shadow evidence remains archived for audit only; it is not a current Decision/Risk gate and is not re-run or re-read in this task.
 - SETUP_01 v1 已完成：独立 immutable model/evaluator、固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED` lifecycle、primary-only Wave Engine context、ABC/downtrend counter-scenario blocks、两类独立 invalidation、canonical Fib diagnostics、strict prefix replay 与 deterministic CONFIRMED/FAILED event identity。Wave 2 low 额外要求低于 Wave 1 peak，避免非 retracement 误判。
 - Development structural replay 已完成：40/40 symbols、86,305 days、0 errors、1,404 events（745 CONFIRMED / 659 FAILED）；CN event distribution 299/313，US 446/346；唯一未终结 development candidate 为 STX/US ARMED。
@@ -161,7 +161,7 @@
 - SETUP_01 lifecycle invariant: `NONE/WATCH/ARMED/CONFIRMED/FAILED`; ARMED uses fixed causal 0.5 recovery, CONFIRMED requires close strictly above Wave 1 peak, and origin versus confirmed Wave 2 low remain separate invalidations. No ACTIVE/COMPLETED state, no Fib hard gate, no production ENTRY/Decision.
 - Development evidence: 40 symbols / 86,305 days / 1,404 events (745 CONFIRMED / 659 FAILED) / 0 errors; Decision funnel uses 745 first-entry CONFIRMED events and yields 5 ENTRY_ALLOWED / 4 EXECUTED / 1 T+1 skip, no returns/OOS。
 - SETUP_01 Decision/Risk protocol: T close plan only; earliest T+1 OPEN; confirmation=Wave1 peak; entry zone `[peak, peak+0.5*ATR14(T)]`; execution stop=`Wave2 low-0.5*ATR14(T)`; structural invalidations remain Wave2 low and Wave1 origin; canonical existing extension ratios only; RR<2 NO_TRADE。
-- Generic operational shadow `db8b64c`: 7 supplied synthetic events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 executed / 1 gap-below-confirmation skip；all five operational checks pass. Real holdings shadow is `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION / NOT_RUN_USER_PRIVACY`; no holdings-derived output was sent to GitHub Actions.
+- Generic operational shadow at substantive source head `517c914d826790f7a00be495f8145de2a610cb44`: 7 supplied synthetic events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 executed / 1 gap-below-confirmation skip；all five operational checks pass. Real holdings shadow is `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION / NOT_RUN_USER_PRIVACY`; no holdings-derived output was sent to GitHub Actions.
 
 - Phase 5J-v3 event-matching protocol: `SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1`, canonical SHA-256 `sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816`。
 - Phase 5J-v4 lifecycle-attribution protocol: `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`, canonical SHA-256 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`；state `LIFECYCLE_ATTRIBUTION_PROTOCOL_FROZEN_NOT_EXECUTED`。
@@ -182,7 +182,7 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #36 已 squash merge为 `3a6d417...`；PR #37 latest substantive source head `db8b64c`；本次治理更新前 live tip `2acdeb1...` 的 CI `33319441644`、generic shadow `33319441600` success，PR `OPEN / CLEAN / MERGEABLE` | 新 Decision/Risk PR 不自动 merge；generic shadow 不需要 Secrets；真实持仓不通过 GitHub Actions；docs-only commit 不记录自身 SHA；final tip/CI 以 GitHub 实时核验 | No |
+| environment / verification | PR #36 已 squash merge为 `3a6d417...`；PR #37 latest substantive correctness source head `517c914d...`；本轮实现/治理 push 后 final tip 与 exact-head CI 待 GitHub 实时核验，PR 保持 OPEN | 新 Decision/Risk PR 不自动 merge；generic shadow 不需要 Secrets；真实持仓不通过 GitHub Actions；docs-only commit 不记录自身 SHA；final tip/CI 以 GitHub 实时核验 | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
 | Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；PR #37 为 OPEN review PR | review Decision/Risk v1 protocol、745-event funnel 与 generic operational shadow；不启动 SETUP_02、不重开 SETUP_03、不自动 merge新的 Decision/Risk PR | P1 for merge/production decisions; not a generic gate blocker |
@@ -255,6 +255,7 @@
 7. [x] PR #36 final tip exact-head CI/shadow、PR state/mergeability 已实时核验；PR #36 已 squash merge为 `3a6d417...`，main CI `33316793033` success。
 8. [x] 从新 main 实现独立 SETUP_01 Decision/Risk v1、历史 decision/execution funnel 与 synthetic-only generic operational shadow；PR #37 previous CI `33318129206` success；不自动 merge PR #37。
 9. [x] governance self-reference rule、terminal-vs-new-event projection、event identity exactly-once、T→T+1、target-first/RR、read-only shadow regression 已落地并通过测试。
+10. [x] PR #37 correctness closeout：严格 market-session identity、缺失 T+1 fail-closed、actual-open RR minimum、T1 provenance audit 与回归已完成；等待同一 PR 的 exact-head CI 与 Sol review。
 
 ## 11. Handoff Checklist
 
@@ -273,13 +274,14 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T23:00:00+08:00`（治理快照；PR final tip/mergeability 仍以 GitHub 实时核验）
+- `last_updated_at`: `2026-08-30`（本轮 closeout；PR final tip/mergeability 仍以 GitHub 实时核验）
 - `verified_main_sha`: `3a6d417ede3594c05003ea18ce65bd4562eff294`
-- `verified_branch_head`: `db8b64c`（branch=`codex/setup01-decision-risk-v1`；latest substantive generic-shadow source head；docs-only updates 不要求记录自身 SHA）
-- `latest_test_result`: full unittest `381/381` passed；focused SETUP_01/Wave/generic `38/38` passed；compile `3538` Python files passed；synthetic shadow success；`git diff --check` passed
-- `latest_ci_run`: 本次 governance-only snapshot 更新前，PR #37 tip `2acdeb1...` 的 exact-head CI `33319441644` 与 generic shadow `33319441600` success；该 docs-only 更新后的 final tip/CI 以 GitHub 实时核验
-- `generic_operational_shadow`: synthetic-only `db8b64c` success；7 supplied / 6 unique / 3 decisions / 2 T+1 attempts / 1 executed / 1 skip；no real holdings or account secrets
-- `setup01_decision_funnel`: 745 CONFIRMED / 745 Decision rows / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4 EXECUTED / 1 SKIP_GAP_BELOW_CONFIRMATION；CN 299, US 446；decision gates ABOVE_ENTRY_ZONE=464, RR_BELOW_MINIMUM=276, ENTRY_ALLOWED=5
+- `verified_branch_head`: `517c914d826790f7a00be495f8145de2a610cb44`（branch=`codex/setup01-decision-risk-v1`；latest substantive correctness source head；docs-only updates 不要求记录自身 SHA）
+- `latest_test_result`: full unittest `387/387` passed；focused SETUP_01/Wave/market-session/generic `48/48` passed；compileall passed；synthetic shadow success；`git diff --check` passed
+- `latest_ci_run`: 本轮实现/治理 push 后待 GitHub 实时核验 exact-head CI；未使用旧 tip 的 CI 作为当前证据
+- `generic_operational_shadow`: synthetic-only `517c914` source behavior success；7 supplied / 6 unique / 3 decisions / 2 T+1 attempts / 1 executed / 1 skip；no real holdings or account secrets
+- `setup01_decision_funnel`: 745 CONFIRMED / 745 Decision rows / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4 EXECUTED / 1 SKIP_GAP_BELOW_CONFIRMATION / 0 SKIP_RR_BELOW_MINIMUM_AT_OPEN；CN 299, US 446；decision gates ABOVE_ENTRY_ZONE=464, RR_BELOW_MINIMUM=276, ENTRY_ALLOWED=5；pre/post core-count delta all zero
+- `target_provenance_audit`: 5 ENTRY_ALLOWED rows；5 Fib T1 rows at existing ratio `1.272`; historical-swing-high T1 rows=0；>5R rows=0；status=`TARGET_PROVENANCE_NO_NEW_BLOCKER`
 - `setup01_structural_replay`: 40/40 symbols / 86,305 days / 1,404 lifecycle events / 745 CONFIRMED / 659 FAILED / 0 errors；real holdings shadow is not run in this task for privacy
 - `real_holdings_shadow`: `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION / NOT_RUN_USER_PRIVACY`; no GitHub Actions holdings-derived output
 - `updated_by_task`: `PR #36 closeout, SETUP_01 Decision/Risk v1, and generic operational shadow governance reclassification`

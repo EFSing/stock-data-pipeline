@@ -18,8 +18,13 @@ outcome metric.
 - T is the daily close that is strictly above the Wave 1 peak and creates the
   first `CONFIRMED` event.
 - T can create a Decision/plan only.
-- The earliest execution observation is the first observed session after T,
-  using only its `OPEN`.
+- The earliest execution observation is the exact next market session after T,
+  resolved from the existing `research.market_sessions` session-set SSOT,
+  using only that session's `OPEN`.
+- If that expected session's bar is missing for the symbol, execution is
+  `SKIP_NO_T1_BAR`; a later observed bar is never substituted. Weekend and
+  holiday gaps are resolved by the same market-session set, not by a second
+  calendar rule.
 - Same-bar execution is forbidden. T+1 high/low/close are not read.
 
 ## Entry and invalidation
@@ -54,9 +59,17 @@ At T+1 OPEN, an `ENTRY_ALLOWED` plan is classified as:
 - `SKIP_GAP_BELOW_CONFIRMATION` when the open is below the confirmation level
   but above invalidation;
 - `SKIP_GAP_ABOVE_ENTRY_ZONE` when the open is above the entry-zone high;
-- `EXECUTED` when the open is inside the inclusive allowed entry zone and the
-  structure remains valid;
-- `SKIP_NO_T1_BAR` when no later observed bar exists.
+- `SKIP_RR_BELOW_MINIMUM_AT_OPEN` when the open is inside the inclusive entry
+  zone but the actual-open first-target R/R is below 2;
+- `EXECUTED` when the open is inside the inclusive allowed entry zone, the
+  structure remains valid, and actual-open first-target R/R is at least 2;
+- `SKIP_NO_T1_BAR` when the exact expected next session bar is missing.
+
+The T-day `targets` and `execution_stop` are frozen before execution. When an
+in-zone T+1 OPEN is available, execution-time R/R calls the existing shared
+calculator with only `actual_entry=T+1 OPEN`, those frozen targets, and that
+frozen stop. It does not choose a new target, adjust the stop, widen the zone,
+change the 2R threshold, or consume T+1 high/low/close.
 
 ## Target, R/R and position risk
 
@@ -73,6 +86,14 @@ projection = Wave 2 low + reference_range * existing extension ratio
 Candidates retain source and reason, are sorted by price, de-duplicated by
 price, and the first three become T1/T2/T3. If none is valid, the gate is
 `NO_VALID_TARGET`.
+
+Each T1 candidate also carries a compact descriptive provenance audit: source,
+confirmed-swing pivot/confirmation dates and session ages when applicable,
+Fib extension ratio when applicable, planned entry, actual entry, planned and
+actual-open first-target R/R, quality, >5R flags, and the existing target
+provenance/geometry check. This audit adds no target lookback, age threshold,
+or new target filter. A >5R or stale historical swing observation is evidence
+for Sol review only; it does not create a new gate.
 
 The existing `trading.risk.risk_reward()` and `position_size()` are reused:
 
