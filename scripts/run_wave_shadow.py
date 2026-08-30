@@ -50,6 +50,8 @@ def _csv_row(row: dict[str, Any]) -> dict[str, Any]:
         "freshness_status": row.get("freshness_status", ""),
         "weekly_state": row.get("weekly_state", ""),
         "daily_state": row.get("daily_state", ""),
+        "primary": row.get("primary", primary.get("family", "")),
+        "alternate": row.get("alternate", alternate.get("family", "")),
         "primary_scenario": primary.get("family", ""),
         "alternate_scenario": alternate.get("family", ""),
         "primary_evidence_score": primary.get("evidence_score", ""),
@@ -62,8 +64,12 @@ def _csv_row(row: dict[str, Any]) -> dict[str, Any]:
         "fibonacci_extension_regions": _json(primary.get("fibonacci_extension_regions", [])),
         "structural_invalidation": primary.get("structural_invalidation", ""),
         "scenario_invalidation_reason": primary.get("scenario_invalidation_reason", ""),
-        "SETUP_01_context": primary.get("setup01_context_eligible", False),
-        "SETUP_02_context": primary.get("setup02_context_eligible", False),
+        "SETUP_01_context": row.get(
+            "SETUP_01_context", primary.get("setup01_context_eligible", False)
+        ),
+        "SETUP_02_context": row.get(
+            "SETUP_02_context", primary.get("setup02_context_eligible", False)
+        ),
         "error": row.get("error", ""),
     }
 
@@ -188,6 +194,10 @@ def run_wave_shadow(
                 "latest_completed_session": latest_completed_session.isoformat(),
                 "history_last_date": history_last_date.isoformat(),
                 "freshness_status": freshness_status,
+                "primary": evaluation.primary_scenario.family.value,
+                "alternate": evaluation.alternate_scenario.family.value,
+                "SETUP_01_context": evaluation.primary_scenario.setup01_context_eligible,
+                "SETUP_02_context": evaluation.primary_scenario.setup02_context_eligible,
                 "data_source": source,
                 "error": "",
             }
@@ -207,6 +217,10 @@ def run_wave_shadow(
                 "freshness_status": freshness_status,
                 "weekly_state": "UNKNOWN",
                 "daily_state": "UNKNOWN",
+                "primary": WaveScenarioFamily.NO_VALID_SCENARIO.value,
+                "alternate": WaveScenarioFamily.NO_VALID_SCENARIO.value,
+                "SETUP_01_context": False,
+                "SETUP_02_context": False,
                 "primary_scenario": {
                     "family": WaveScenarioFamily.NO_VALID_SCENARIO.value,
                     "evidence": [],

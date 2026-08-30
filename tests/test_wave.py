@@ -437,6 +437,9 @@ class WaveShadowReportTests(unittest.TestCase):
             self.assertFalse(summary["returns_accessed"])
             report = json.loads(Path(directory, "wave_shadow_report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["rows"][0]["primary_scenario"]["family"], "WAVE_2_TO_3_CANDIDATE")
+            self.assertEqual(report["rows"][0]["primary"], "WAVE_2_TO_3_CANDIDATE")
+            self.assertEqual(report["rows"][0]["alternate"], report["rows"][0]["alternate_scenario"]["family"])
+            self.assertTrue(report["rows"][0]["SETUP_01_context"])
             self.assertEqual(report["rows"][0]["freshness_status"], "FRESH")
             self.assertEqual(
                 report["rows"][0]["latest_completed_session"],
