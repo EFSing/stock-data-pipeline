@@ -28,6 +28,28 @@ EXTENSION_RATIOS: dict[str, float] = {
 }
 
 
+def project_extension(
+    base_price: float,
+    reference_start: float,
+    reference_end: float,
+    ratio: float,
+) -> float:
+    """Project an existing extension ratio from a reference price range.
+
+    The helper is intentionally generic: callers provide the base price and
+    the two endpoints of the reference range.  It does not define or copy any
+    ratio catalogue.  SETUP_01 uses it as
+    ``wave2_low + (wave1_peak - wave1_origin) * ratio``.
+    """
+    reference_range = reference_end - reference_start
+    if reference_range <= 0:
+        raise ValueError(
+            "extension reference range must be positive: "
+            f"start={reference_start}, end={reference_end}"
+        )
+    return base_price + reference_range * ratio
+
+
 def fibonacci_levels_from_prices(swing_high: float, swing_low: float) -> FibonacciLevels:
     """基于数值 high/low 直接计算 Fibonacci 水平。
 
