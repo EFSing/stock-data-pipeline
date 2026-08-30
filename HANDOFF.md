@@ -29,19 +29,19 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@3a6d417ede3594c05003ea18ce65bd4562eff294`；该 SHA 是 PR #36 的 squash merge commit，main push CI `33316793033` success。
 - **working branch:** `codex/setup01-decision-risk-v1`（PR #37，保持 OPEN 供 Sol review）。
-- **implementation source head:** PR #37 latest substantive head `517c914`，基于 main `3a6d417...`；governance docs 不保存包含自身的最终 docs-only SHA，PR final tip/exact-head CI/mergeability 以 GitHub 实时证据为准。
+- **implementation source head:** PR #37 latest substantive head `4ca19cf6511199e560c24e947bc07eddbed04f05`，基于 main `3a6d417...`；governance docs 不保存包含自身的最终 docs-only SHA，PR final tip/exact-head CI/mergeability 以 GitHub 实时证据为准。
 - **previous reviewed head:** `b3da9e87a25b3a56c341a6096c021666150a19d5`，exact-head CI `33268711570` success，shadow `33268711569` success。
-- **PR:** #36 已关闭并 squash merge，merge commit `3a6d417...`；旧 PR #31 已关闭并注明 `superseded by #34`；PR #37 base=`main@3a6d417...`，source head=`517c914`，保持 OPEN，未自动 merge；final tip/exact-head CI 待 push 后以 GitHub 实时证据核验。
-- **latest live verification:** PR #37 final tip、base/head/state 与 exact-head CI 已在本轮 push 后重新由 GitHub 核对；具体 run IDs 以本次 closeout report 为准，治理文件不复制会随 docs-only 更新变化的 final tip。SETUP_01/Wave real-holdings shadow workflows 已移除；本任务未向 GitHub Actions 输出 holdings-derived data。
+- **PR:** #36 已关闭并 squash merge，merge commit `3a6d417...`；旧 PR #31 已关闭并注明 `superseded by #34`；PR #37 base=`main@3a6d417...`，latest substantive source head=`4ca19cf6511199e560c24e947bc07eddbed04f05`，保持 OPEN，未自动 merge；final tip/exact-head CI/shadow 由 GitHub 实时核验，治理文件不保存自引用 final-tip SHA。
+- **latest live verification:** PR #37 final tip、base/head/state 与 exact-head CI/shadow 已由 GitHub 核对为 success；具体 final tip/run IDs 以 GitHub 当前 PR 为准，治理文件不复制会随 docs-only 更新变化的 final tip。SETUP_01/Wave real-holdings shadow workflows 已移除；本任务未向 GitHub Actions 输出 holdings-derived data。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `SETUP_01_DECISION_RISK_V1_CLOSEOUT_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
+- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `SETUP_01_DECISION_RISK_V1_PR_FULLY_READY`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
 ## 3. Completed Work
 
 - PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
 - Wave Scenario Engine v1 已实现：严格 `data <= as_of_date`、完整周边界、weekly parent → daily context、confirmed Swing、现有 Fibonacci regions、primary/alternate、证据/反证/规则计分、结构失效、context eligibility 与 fail-closed UNKNOWN/NO_VALID families。
 - Wave Engine v1 测试覆盖 canonical/synthetic 场景、future append invariance、不完整当前周、weekly/daily state、confirmed/provisional、Fib region、primary/alternate coexistence 与 read-only shadow；focused `tests.test_wave` 为 `12/12` 通过。
-- PR #36 correctness/governance closeout 已完成并 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`；main exact-head CI `33316793033` success。PR #37 的 Decision/Risk v1 correctness closeout、funnel、generic operational shadow 与 tests 已提交于 substantive source head `517c914d826790f7a00be495f8145de2a610cb44`；本轮 push 后 final tip/exact-head CI 待实时核验，未向 GitHub Actions 暴露真实持仓。
+- PR #36 correctness/governance closeout 已完成并 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`；main exact-head CI `33316793033` success。PR #37 的 Decision/Risk v1 correctness closeout、funnel、generic operational shadow 与 tests 已提交于 substantive source head `4ca19cf6511199e560c24e947bc07eddbed04f05`；最终 tip 的 exact-head CI 与 generic shadow 已 success，具体 tip/run IDs 由 GitHub 实时核验，未向 GitHub Actions 暴露真实持仓。
 - Historical Wave shadow evidence remains archived for audit only; it is not a current Decision/Risk gate and is not re-run or re-read in this task.
 - SETUP_01 v1 已完成：独立 immutable model/evaluator、固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED` lifecycle、primary-only Wave Engine context、ABC/downtrend counter-scenario blocks、两类独立 invalidation、canonical Fib diagnostics、strict prefix replay 与 deterministic CONFIRMED/FAILED event identity。Wave 2 low 额外要求低于 Wave 1 peak，避免非 retracement 误判。
 - Development structural replay 已完成：40/40 symbols、86,305 days、0 errors、1,404 events（745 CONFIRMED / 659 FAILED）；CN event distribution 299/313，US 446/346；唯一未终结 development candidate 为 STX/US ARMED。
@@ -183,7 +183,7 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #36 已 squash merge为 `3a6d417...`；PR #37 latest substantive correctness source head `517c914d...`；本轮实现/治理 push 后 final tip 与 exact-head CI 待 GitHub 实时核验，PR 保持 OPEN | 新 Decision/Risk PR 不自动 merge；generic shadow 不需要 Secrets；真实持仓不通过 GitHub Actions；docs-only commit 不记录自身 SHA；final tip/CI 以 GitHub 实时核验 | No |
+| environment / verification | PR #36 已 squash merge为 `3a6d417...`；PR #37 latest substantive correctness source head `4ca19cf...`；final tip 的 exact-head CI/shadow 已 success，PR 保持 OPEN | 新 Decision/Risk PR 不自动 merge；generic shadow 不需要 Secrets；真实持仓不通过 GitHub Actions；docs-only commit 不记录自身 SHA；final tip/CI 以 GitHub 实时核验 | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
 | Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；PR #37 为 OPEN review PR | review Decision/Risk v1 protocol、745-event funnel 与 generic operational shadow；不启动 SETUP_02、不重开 SETUP_03、不自动 merge新的 Decision/Risk PR | P1 for merge/production decisions; not a generic gate blocker |

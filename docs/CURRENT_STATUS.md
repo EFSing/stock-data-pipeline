@@ -12,7 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` 当前真实 SHA：`3a6d417ede3594c05003ea18ce65bd4562eff294`；PR #36 已按授权 squash merge，main exact-head CI `33316793033` success，本地 `main` 与 `origin/main` 已刷新到同一 SHA。
 - Current checkout: `codex/setup01-decision-risk-v1`，从 PR #36 squash merge 后的最新 main 建立。旧 PR #31 已关闭并记录 `superseded by #34`；PR #37 为 `OPEN` review PR，未自动合并。
-- PR #36 correctness/governance closeout 已完成：terminal-vs-new-event projection 与 governance self-reference rule 已落地；真实 merge commit 为 `3a6d417...`。PR #37 latest substantive correctness source head 为 `517c914d826790f7a00be495f8145de2a610cb44`，final tip/CI/mergeability 由 GitHub 实时核验；docs-only governance commit 不要求记录自身 SHA。
+- PR #36 correctness/governance closeout 已完成：terminal-vs-new-event projection 与 governance self-reference rule 已落地；真实 merge commit 为 `3a6d417...`。PR #37 latest substantive correctness source head 为 `4ca19cf6511199e560c24e947bc07eddbed04f05`，final tip/CI/mergeability 由 GitHub 实时核验；docs-only governance commit 不要求记录自身 SHA。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
@@ -123,12 +123,12 @@ V0.2
 
 - PR #35 已完成 squash merge：真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success。
 - SETUP_01 structural PR #36 的 previous review head `ca9ec6e...` 与 `33300273163`/`33300273180` 仅作历史 evidence；terminal projection correctness/governance closeout 已 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，main CI `33316793033` success。治理文件记录 latest substantive source head，不记录包含自身的 docs-only SHA。
-- PR #37 `codex/setup01-decision-risk-v1` 的 latest substantive correctness source head 为 `517c914d826790f7a00be495f8145de2a610cb44`；final tip/exact-head CI/mergeability 已由 GitHub 实时核验，具体 run IDs 以本次 closeout report 为准，旧 tip CI 不作为当前证据。SETUP_01/Wave real-holdings shadow workflow 已移除；本任务未向 GitHub Actions 输出 holdings-derived data。
+- PR #37 `codex/setup01-decision-risk-v1` 的 latest substantive correctness source head 为 `4ca19cf6511199e560c24e947bc07eddbed04f05`；最终 PR tip、exact-head CI 与 generic shadow 均已由 GitHub 实时核验为 success，PR 保持 OPEN/CLEAN/MERGEABLE；具体 tip/run IDs 不在治理文件中复制。SETUP_01/Wave real-holdings shadow workflow 已移除；本任务未向 GitHub Actions 输出 holdings-derived data。
 - generic operational shadow 仅使用 `GENERIC.*` controlled public synthetic fixture：7 supplied events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 executed / 1 gap-below-confirmation skip；exact-once、T→T+1、terminal semantics、fail-closed、reporting pipeline 全通过。
 - 当前下一步是 Sol 审阅 SETUP_01 Decision/Risk v1、745-event funnel、entry/stop/target provenance 与 generic operational shadow；真实持仓 shadow classification 为 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`、状态 `NOT_RUN_USER_PRIVACY`，不构成当前 progression blocker。未经批准不自动 merge PR #37、不进入 outcome/backtest、SETUP_02 或新 SETUP_03。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
-- SETUP_01 Decision/Risk v1：generic operational shadow 已通过，等待 Sol review；PR #37 不自动 merge
+- SETUP_01 Decision/Risk v1：generic operational shadow 与最终 exact-head CI 已通过，PR #37 已达到 `SETUP_01_DECISION_RISK_V1_PR_FULLY_READY`，等待 Sol review；不自动 merge
 - SETUP_02：未启动
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）
