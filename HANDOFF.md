@@ -12,33 +12,34 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `PR36_CORRECTNESS_GOVERNANCE_CLOSEOUT_THEN_SETUP01_DECISION_RISK_V1`。
-- **具体目标:** 先完成 PR #36 的 correctness/governance closeout 与 terminal-vs-new-event shadow 复核；条件满足后 squash merge PR #36，再从新 main 独立实现 SETUP_01 Decision/Risk v1，运行 historical decision/execution funnel 与 real holdings read-only shadow，停在可供 Sol 审阅的节点。
+- **当前 Phase / task:** `SETUP01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。
+- **具体目标:** PR #36 correctness/governance closeout 已完成并 squash merge；从新 main 独立实现的 SETUP_01 Decision/Risk v1、DEVELOPMENT_EXPOSED historical funnel、real holdings structural shadow 与 PR #37 exact-head CI 已完成，停在 Sol 审阅节点。
 - **PR #35 closeout:** 已按 `APPROVE_WAVE_SCENARIO_ENGINE_V1` squash merge；真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success；旧 PR #31 已关闭并注明 `superseded by #34`。
-- **当前实现:** PR #36 `codex/setup01-wave2-to-wave3-v1` 的 previous review head 为 `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；terminal-event projection correctness 修正后的 latest substantive source head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`，基于 `main@2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`。SETUP_01 structural protocol 仍为 `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`，只输出结构 lifecycle/event，不产生 `ENTRY_ALLOWED`。
-- **历史 shadow evidence:** run `33300273180` 属于 previous review head；10 个启用持仓中 8 个完成评估、2 个 fail-closed，SETUP_01 states 为 `FAILED=5`、`WATCH=1`、`CONFIRMED=2`。SIVE.SE 因 qfq freshness `DATA_STALE`、MU 因 `历史数据源` 为空 fail-closed。terminal projection 修正后的 real-holdings shadow 必须在新 source head 上重新运行并实时记录。
-- **明确禁止事项:** 不启动 SETUP_02，不重新打开 SETUP_03，不自动 merge新的 Decision/Risk PR，不读取 returns/MFE/MAE/P&L/Final OOS，不猜 NAV/position size，不写任何 production Sheet；在 PR #36 closeout 条件满足前不进入后续实现。
-- **停止条件:** PR #36 新 source head 的 exact-head CI/shadow success、PR CLEAN/MERGEABLE、squash merge 后 main exact-head CI success；随后 SETUP_01 Decision/Risk v1、historical funnel、real holdings shadow、新 PR exact-head CI success、治理同步且 `HANDOFF_CURRENT_AND_CONSISTENT`，状态为 `SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。
+- **当前实现:** PR #36 已按授权 squash merge，真实 merge commit 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，main exact-head CI `33316793033` success。PR #37 `codex/setup01-decision-risk-v1` 当前 exact source head 为 `04cf4c4148a64037a929dd7ddf4eb2f513419f89`，实现独立的 `SETUP-01-DECISION-RISK-2026-08-30-v1`；PR final tip/CI 状态由 GitHub 实时核验。SETUP_01 structural protocol 仍为 `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`，structural lifecycle/event counts 未改写。
+- **Decision/Risk evidence:** DEVELOPMENT_EXPOSED funnel 使用既有 745 个首个 `CONFIRMED` event，745 条 Decision；`ABOVE_ENTRY_ZONE=464`、`RR_BELOW_MINIMUM=276`、`ENTRY_ALLOWED=5`；5 次 T+1 OPEN feasibility 中 `EXECUTED=4`、`SKIP_GAP_BELOW_CONFIRMATION=1`。使用显式 development `risk_capital=100000.0`，real holdings shadow 不猜 NAV/position size。
+- **最新 real holdings evidence:** PR #37 的已注册 Wave read-only shadow run `33318129223` 在同一 source head 上成功完成 structural projection：10 requested / 8 evaluated / 2 fail-closed；7 个 historical terminal（含 INTC/DRAM historical CONFIRMED）、1 个 `000725.SZ` WATCH live candidate；`new_confirmed_today=0`、`new_failed_today=0`，因此不得生成新的 SETUP_01 Decision。SIVE.SE freshness stale、MU 历史源为空仍 fail-closed。独立 Decision shadow workflow 已注册为 merge 后手动运行，未把 Secrets 暴露给未合并 PR。
+- **明确禁止事项:** 不启动 SETUP_02，不重新打开 SETUP_03，不自动 merge新的 Decision/Risk PR，不读取 returns/MFE/MAE/P&L/Final OOS，不猜 NAV/position size，不写任何 production Sheet；PR #37 仅供 Sol review。
+- **停止条件:** 已达到 `SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。PR #37 保持 OPEN，不自动 merge；Sol review 前不启动 SETUP_02、不重新打开 SETUP_03、不读取任何 outcome/OOS。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub remote `main@2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`；该 SHA 是 PR #35 的 squash merge commit，main push CI `33298510168` success。
-- **working branch:** `codex/setup01-wave2-to-wave3-v1`（PR #36 closeout branch）。
-- **implementation source head:** previous review head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；latest substantive correctness source head `eed768bec92365615b05b0a8314cf555e44b22ac`。新 source head 的 exact-head CI/shadow 待 GitHub 实时核验。
+- **main/base SHA:** GitHub remote `main@3a6d417ede3594c05003ea18ce65bd4562eff294`；该 SHA 是 PR #36 的 squash merge commit，main push CI `33316793033` success。
+- **working branch:** `codex/setup01-decision-risk-v1`（PR #37，保持 OPEN 供 Sol review）。
+- **implementation source head:** PR #37 implementation head `04cf4c4148a64037a929dd7ddf4eb2f513419f89`，基于 main `3a6d417...`；governance docs 不保存包含自身的最终 docs-only SHA，PR final tip/exact-head CI/mergeability 以 GitHub 实时证据为准。
 - **previous reviewed head:** `b3da9e87a25b3a56c341a6096c021666150a19d5`，exact-head CI `33268711570` success，shadow `33268711569` success。
-- **PR:** #35 已关闭并 squash merge；旧 PR #31 已关闭并注明 `superseded by #34`；PR #36 previous review head 为 `ca9ec6e...`，current substantive head 为 `eed768b...`，base 为 `main@2d48d90...`；PR final tip/state 需实时核验。
-- **latest exact-head checks:** `33300273163`/`33300273180` 仅属于 previous review head；current source head 的 CI 与 real-holdings shadow 待重新运行。
+- **PR:** #36 已关闭并 squash merge，merge commit `3a6d417...`；旧 PR #31 已关闭并注明 `superseded by #34`；PR #37 base=`main@3a6d417...`，head=`04cf4c4...`，保持 OPEN，未自动 merge。
+- **latest exact-head checks:** PR #37 CI `33318129206` success；安全已注册 Wave structural shadow `33318129223` success；PR #37 的专用 Decision shadow workflow 为 merge 后手动运行，当前未以未合并 PR Secrets 执行。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `PR36_CORRECTNESS_GOVERNANCE_CLOSEOUT_PENDING_LIVE_VERIFICATION`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
+- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `SETUP01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
 ## 3. Completed Work
 
 - PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
 - Wave Scenario Engine v1 已实现：严格 `data <= as_of_date`、完整周边界、weekly parent → daily context、confirmed Swing、现有 Fibonacci regions、primary/alternate、证据/反证/规则计分、结构失效、context eligibility 与 fail-closed UNKNOWN/NO_VALID families。
 - Wave Engine v1 测试覆盖 canonical/synthetic 场景、future append invariance、不完整当前周、weekly/daily state、confirmed/provisional、Fib region、primary/alternate coexistence 与 read-only shadow；focused `tests.test_wave` 为 `12/12` 通过。
-- PR #36 previous review head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0` 的 exact-head CI `33300273163` 与只读 shadow `33300273180` success；当前 substantive head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`，必须重新完成相同检查。previous shadow 对真实 10 个启用持仓生成 JSON/CSV artifact，未写 Sheets、历史、Decision 或交易字段。
+- PR #36 correctness/governance closeout 已完成并 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`；main exact-head CI `33316793033` success。PR #37 的 Decision/Risk v1、funnel、shadow runner/workflow 与 tests 已提交；PR #37 CI `33318129206` success，已注册 Wave structural shadow `33318129223` success。上述 live shadow 只读 structural projection，未写 Sheets、历史、Decision 或交易字段。
 - Final shadow summary：`symbols_requested=10`、`evaluated=9`、`errors=1`、`unknown_primary=5`、`unknown_primary_ratio=0.5`；primary counts 为 `DOWNTREND_OR_INVALID_FOR_LONG=3`、`WAVE_2_TO_3_CANDIDATE=1`、`UPTREND_UNKNOWN_WAVE=4`、`ABC_CORRECTION_CANDIDATE=1`、`NO_VALID_SCENARIO=1`；状态 `PARTIAL_DATA_QUALITY`。MU 的 `历史数据源` 为空，按 fail-closed 记录错误。
 - SETUP_01 v1 已完成：独立 immutable model/evaluator、固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED` lifecycle、primary-only Wave Engine context、ABC/downtrend counter-scenario blocks、两类独立 invalidation、canonical Fib diagnostics、strict prefix replay 与 deterministic CONFIRMED/FAILED event identity。Wave 2 low 额外要求低于 Wave 1 peak，避免非 retracement 误判。
 - Development structural replay 已完成：40/40 symbols、86,305 days、0 errors、1,404 events（745 CONFIRMED / 659 FAILED）；CN event distribution 299/313，US 446/346；唯一未终结 development candidate 为 STX/US ARMED。
@@ -71,10 +72,9 @@
 4. [x] 增加 causal/as-of、state、Fib、scenario coexistence、未来追加不变性及 shadow read-only 测试。
 5. [x] 对真实 10 个启用持仓重新运行 correctness-closeout shadow；8 个完成评估，SIVE.SE freshness stale、MU 历史源为空，均 fail-closed，artifact 状态为 `PARTIAL_DATA_QUALITY`。
 6. [x] SETUP_01 v1 protocol/lifecycle/evaluator/replay、future invariance、counter-scenario tests 与 structure-only diagnostic 已完成。
-7. [x] Previous real holdings read-only shadow 已完成：run `33300273180`，10 requested / 8 evaluated / 2 fail-closed errors，SETUP_01 `FAILED=5/WATCH=1/CONFIRMED=2`；新 terminal projection 后须重跑。
-8. [ ] PR #36 substantive head `eed768bec92365615b05b0a8314cf555e44b22ac` 的 exact-head CI、shadow 与 PR mergeability 尚待实时核验。
-9. [ ] 条件满足后按用户授权 squash merge PR #36，获取真实 merge commit 并等待 main exact-head CI。
-10. [ ] 从新 main 建立独立 Decision/Risk 分支；不自动 merge新的 Decision/Risk PR。
+7. [x] Historical PR #36 shadow `33300273180` 已作为旧 head evidence 保留；新 terminal projection 在 PR #37 关联的 run `33318129223` 上重新核验。
+8. [x] PR #36 final tip exact-head CI/shadow、PR state/mergeability 已实时核验；按授权 squash merge 为 `3a6d417...`，main CI `33316793033` success。
+9. [x] 从新 main 建立 `codex/setup01-decision-risk-v1`，实现独立 Decision/Risk v1、DEVELOPMENT_EXPOSED funnel、structural holdings shadow 与 regression；PR #37 保持 OPEN，不自动 merge。
 
 ### Deferred
 
@@ -84,7 +84,7 @@
 
 ### Prohibited For Now
 
-- 自动 merge PR #36；把 Wave Engine/SETUP_01 shadow 场景当作交易信号或 `ENTRY_ALLOWED`。
+- 自动 merge新的 Decision/Risk PR；把 Wave Engine/SETUP_01 shadow 场景当作交易信号或 `ENTRY_ALLOWED`。
 - 直接 merge/rebase PR #31，或重新打开 SETUP_03 structural development。
 - 读取 returns、forward returns、MFE、MAE、P&L、winrate、expectancy、Final OOS、Phase 5K-B1 或 IBKR formal OHLCV。
 - 改变 percentage production default、SETUP_03/Trading Core/Decision 既有交易行为或 Google Sheets schema。
@@ -144,6 +144,10 @@
 | `scripts/run_wave_shadow.py` / `.github/workflows/wave-shadow.yml` | real-holdings JSON/CSV shadow and manual PR workflow | no Sheets/Decision/ENTRY/outcome writes |
 | `tests/test_wave.py` / `docs/WAVE_SCENARIO_ENGINE_V1.md` | Wave Engine regression contract and protocol documentation | v1 semantics / governance |
 | `trading/setup01.py` / `trading/setup01_replay.py` | SETUP_01 immutable lifecycle evaluator, strict prefix replay and terminal event identity | separate SETUP_01 structural layer; no SETUP_03 behavior change |
+| `trading/setup01_decision.py` / `trading/fibonacci.py` | independent SETUP_01 Decision/Risk v1, generic canonical extension projection, T+1 OPEN feasibility | Decision/Risk only; no SETUP_03 reuse or outcome path |
+| `research/setup01_decision_funnel.py` / `scripts/run_setup01_decision_funnel.py` | DEVELOPMENT_EXPOSED confirmed-event → Decision → T+1 funnel | development-only, no returns/OOS |
+| `scripts/run_setup01_decision_shadow.py` / `.github/workflows/setup01-decision-shadow.yml` | real holdings read-only Decision shadow | manual post-merge workflow; no Sheets writes, no NAV guess |
+| `tests/test_setup01_decision.py` / `docs/SETUP_01_DECISION_RISK_V1.md` | exactly-once, causal T+1, target-first/RR, shadow regression and protocol | v1 review contract |
 | `docs/SETUP_01_WAVE2_TO_WAVE3_V1.md` | SETUP_01 v1 protocol, lifecycle, invalidation, Fib and as-of contract | protocol / governance |
 | `scripts/run_setup01_structural_replay.py` / `research/development/setup01_wave2_to_wave3_v1_structural_diagnostic.*` | development-only structure replay and compact Sol evidence | no outcomes/OOS/Decision/Sheets |
 | `tests/test_setup01.py` | synthetic lifecycle, invalidation, ABC/downtrend, confirmed/provisional and future invariance regression | SETUP_01 correctness |
@@ -153,7 +157,9 @@
 - Wave Engine protocol: `WAVE-SCENARIO-ENGINE-2026-08-30-v1`；fixed as-of uses only `data <= as_of_date`，weekly aggregation excludes Monday–Thursday incomplete ISO week，and daily continuation requires current daily `UPTREND`。
 - SETUP_01 protocol: `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`；eligible primary context is confirmed LOW→HIGH→LOW with `peak > origin`, `wave2_low > origin`, `wave2_low < peak`, weekly parent not DOWNTREND, and `setup01_context_eligible=true`。
 - SETUP_01 lifecycle invariant: `NONE/WATCH/ARMED/CONFIRMED/FAILED`; ARMED uses fixed causal 0.5 recovery, CONFIRMED requires close strictly above Wave 1 peak, and origin versus confirmed Wave 2 low remain separate invalidations. No ACTIVE/COMPLETED state, no Fib hard gate, no production ENTRY/Decision.
-- Development evidence: 40 symbols / 86,305 days / 1,404 events (745 CONFIRMED / 659 FAILED) / 0 errors; real shadow run `33300273180`: 10 enabled / 8 evaluated / 2 fail-closed errors, no returns/OOS/Sheets writes。
+- Development evidence: 40 symbols / 86,305 days / 1,404 events (745 CONFIRMED / 659 FAILED) / 0 errors; Decision funnel uses 745 first-entry CONFIRMED events and yields 5 ENTRY_ALLOWED / 4 EXECUTED / 1 T+1 skip, no returns/OOS。
+- SETUP_01 Decision/Risk protocol: T close plan only; earliest T+1 OPEN; confirmation=Wave1 peak; entry zone `[peak, peak+0.5*ATR14(T)]`; execution stop=`Wave2 low-0.5*ATR14(T)`; structural invalidations remain Wave2 low and Wave1 origin; canonical existing extension ratios only; RR<2 NO_TRADE。
+- Real holdings structural shadow `33318129223`: 10 requested / 8 evaluated / 2 fail-closed; historical terminal=7, live WATCH/ARMED candidate=1 (`000725.SZ`), `new_confirmed_today=0`, `new_failed_today=0`; INTC/DRAM remain historical CONFIRMED and are not today signals. Dedicated Decision shadow is implemented and regression-tested; its Secrets-backed manual workflow is intentionally post-merge.
 
 - Phase 5J-v3 event-matching protocol: `SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1`, canonical SHA-256 `sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816`。
 - Phase 5J-v4 lifecycle-attribution protocol: `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`, canonical SHA-256 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`；state `LIFECYCLE_ATTRIBUTION_PROTOCOL_FROZEN_NOT_EXECUTED`。
@@ -174,12 +180,12 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #35 已 squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`；PR #36 previous CI `33300273163` 与 shadow `33300273180` 属于旧 head，当前 substantive head 为 `eed768bec92365615b05b0a8314cf555e44b22ac` | 以 GitHub PR/Actions 事实核对新 tip、exact-head CI/shadow 与 mergeability；docs-only commit 不记录自身 SHA | No |
+| environment / verification | PR #36 已 squash merge为 `3a6d417...`；PR #37 source head `04cf4c4...`，CI `33318129206` success，Wave structural shadow `33318129223` success；PR final tip/mergeability 以 GitHub 实时核验 | 新 Decision/Risk PR 不自动 merge；专用 holdings Decision shadow workflow 在 merge 后手动运行，避免未合并 PR Secrets trust expansion；docs-only commit 不记录自身 SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；PR #36 正在 correctness/governance closeout | 新 head 验证并满足条件后 squash merge #36；再 review SETUP_01 Decision/Risk v1 funnel/shadow；不启动 SETUP_02、不重开 SETUP_03、不自动 merge新的 Decision/Risk PR | Yes for strategy/production continuation |
-| shadow data quality | 10 个启用持仓中 8 个完成评估；SIVE.SE qfq `2026-08-27` 相对 freshness 下限 `2026-08-28` 为 `DATA_STALE`，MU 的 `历史数据源` 为空，均 fail-closed，整体 `PARTIAL_DATA_QUALITY` | 补齐明确历史源后另行运行 shadow；禁止默认猜测 provider 或写入 Sheets | Yes for claiming full 10/10 evaluation |
-| project coordination | 旧 PR #31 已关闭并注明 `superseded by #34`；PR #36 独立于 PR #35 的 production merge | do not merge/rebase #31；PR #36 只等待 Sol review | No, if kept separate |
+| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；PR #37 为 OPEN review PR | review Decision/Risk v1 protocol、745-event funnel 与 current holdings structural shadow；不启动 SETUP_02、不重开 SETUP_03、不自动 merge新的 Decision/Risk PR | Yes for strategy/production continuation |
+| shadow data quality | PR #37 Wave shadow `33318129223` 为 10 requested / 8 evaluated / 2 fail-closed；SIVE.SE qfq `2026-08-27` 相对 freshness 下限 `2026-08-28` 为 `DATA_STALE`，MU 的 `历史数据源` 为空 | 补齐明确历史源后另行运行 shadow；禁止默认猜测 provider 或写入 Sheets；专用 Decision shadow workflow 合并后手动运行 | Yes for claiming full 10/10 evaluation |
+| project coordination | 旧 PR #31 已关闭并注明 `superseded by #34`；PR #36 已独立 squash merge；PR #37 为当前 review PR | do not merge/rebase #31；PR #37 只等待 Sol review，不自动 merge | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
 ## 9. Lessons / Pitfalls — DO NOT REPEAT
@@ -241,9 +247,10 @@
 3. [x] 已记录 previous reviewed head `b3da9e87a25b3a56c341a6096c021666150a19d5`、CI `33268711570`、shadow `33268711569` 及 review correctness findings。
 4. [x] PR #36 previous head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0` 的 exact-head CI `33300273163`、real holdings shadow `33300273180` success；该 evidence 不覆盖当前 substantive head。
 5. [x] SETUP_01 development replay：40/40 symbols、86,305 days、1,404 events、0 errors；previous real shadow：10 requested / 8 evaluated / 2 fail-closed errors。
-6. [x] 当前 substantive source head `eed768bec92365615b05b0a8314cf555e44b22ac` 已增加 terminal-vs-new-event projection、shadow 字段与回归。
-7. [ ] PR #36 新 head 的 exact-head CI、real holdings shadow、PR state/mergeability 实时核验；满足条件后 squash merge #36 并等待 main CI。
-8. [ ] 从新 main 实现 SETUP_01 Decision/Risk v1、历史 decision/execution funnel 与 real holdings read-only shadow；不自动 merge新的 Decision/Risk PR。
+6. [x] PR #36 source head `eed768...` 已增加 terminal-vs-new-event projection、shadow 字段与回归，并已 squash merge为 `3a6d417...`。
+7. [x] PR #36 final tip exact-head CI/shadow、PR state/mergeability 已实时核验；PR #36 已 squash merge为 `3a6d417...`，main CI `33316793033` success。
+8. [x] 从新 main 实现独立 SETUP_01 Decision/Risk v1、历史 decision/execution funnel 与 real holdings structural shadow；PR #37 CI `33318129206` success；不自动 merge PR #37。
+9. [x] governance self-reference rule、terminal-vs-new-event projection、event identity exactly-once、T→T+1、target-first/RR、read-only shadow regression 已落地并通过测试。
 
 ## 11. Handoff Checklist
 
@@ -262,12 +269,13 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T16:00:00+08:00`（governance snapshot；PR tip/CI/shadow 需实时 GitHub 核验）
-- `verified_main_sha`: `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`
-- `verified_branch_head`: `eed768bec92365615b05b0a8314cf555e44b22ac`（branch=`codex/setup01-wave2-to-wave3-v1`；latest substantive PR #36 source head）
-- `latest_test_result`: focused SETUP_01/Wave/shadow `27/27` passed；`git diff --check` passed；compile check pending final command; current head exact-head CI/shadow pending
-- `latest_ci_run`: previous PR #36 exact-head `33300273163` success；does not cover `eed768b…`; new exact-head CI pending
-- `wave_shadow`: previous run `33300273180` success；new terminal projection shadow pending；no returns/OOS/Sheets writes
+- `last_updated_at`: `2026-08-30T23:00:00+08:00`（治理快照；PR final tip/mergeability 仍以 GitHub 实时核验）
+- `verified_main_sha`: `3a6d417ede3594c05003ea18ce65bd4562eff294`
+- `verified_branch_head`: `04cf4c4148a64037a929dd7ddf4eb2f513419f89`（branch=`codex/setup01-decision-risk-v1`；PR #37 implementation source head；docs-only updates 不要求记录自身 SHA）
+- `latest_test_result`: full unittest `380/380` passed；focused SETUP_01/Wave `37/37` passed；compileall 与 `git diff --check` passed
+- `latest_ci_run`: PR #37 exact-head CI `33318129206` success；PR #37 current final tip/mergeability 需在 governance docs commit后实时复核
+- `wave_shadow`: PR #37 exact-head structural shadow `33318129223` success；10 requested / 8 evaluated / 2 fail-closed；no returns/OOS/Sheets writes
+- `setup01_decision_funnel`: 745 CONFIRMED / 745 Decision rows / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4 EXECUTED / 1 SKIP_GAP_BELOW_CONFIRMATION；CN 299, US 446；decision gates ABOVE_ENTRY_ZONE=464, RR_BELOW_MINIMUM=276, ENTRY_ALLOWED=5
 - `setup01_structural_replay`: 40/40 symbols / 86,305 days / 1,404 lifecycle events / 745 CONFIRMED / 659 FAILED / 0 errors；current development candidate STX/US ARMED；real shadow current candidate 000725.SZ/CN WATCH
 - `updated_by_task`: `PR #36 correctness/governance closeout and SETUP_01 Decision/Risk v1 continuation`
 

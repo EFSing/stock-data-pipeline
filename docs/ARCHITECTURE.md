@@ -105,11 +105,15 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── replay.py             # SETUP_03 Historical Replay & Diagnostics（只读）
 │   ├── wave.py               # Wave Scenario Engine v1（只读、严格 as-of）
 │   ├── setup01.py            # SETUP_01 Wave 2 → Wave 3 v1 evaluator
-│   └── setup01_replay.py     # SETUP_01 strict as-of structural replay
+│   ├── setup01_replay.py     # SETUP_01 strict as-of structural replay
+│   └── setup01_decision.py   # SETUP_01 independent Decision/Risk v1
 ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
 ├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
+├── docs/SETUP_01_DECISION_RISK_V1.md # SETUP_01 Decision/Risk v1 protocol
 ├── scripts/run_wave_shadow.py # enabled holdings read-only shadow runner
 ├── scripts/run_setup01_structural_replay.py # development-only SETUP_01 replay
+├── scripts/run_setup01_decision_funnel.py # development-only Decision/T+1 funnel
+├── scripts/run_setup01_decision_shadow.py # real holdings read-only Decision shadow
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -218,6 +222,34 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `replay_setup01_history()` 对每个历史日严格使用可见前缀，只产生
   `CONFIRMED`/`FAILED` first-entry event identity；不访问 returns/outcomes/OOS，
   不产生 `ENTRY_ALLOWED`。
+
+### trading/setup01_decision.py / scripts/run_setup01_decision_funnel.py
+
+- Decision/Risk v1 是独立 SETUP_01 evaluator，只接收
+  `Setup01ReplayEvent.event_type == CONFIRMED` 且 T 日首次 CONFIRMED 的 event；
+  persistent terminal CONFIRMED 不是新 Decision 输入，同一 event identity 最多
+  计算一次。
+- Decision 只在 T close 形成计划；最早只读取 T+1 第一根 bar 的 `OPEN`，不读取
+  T+1 high/low/close，也禁止 same-bar execution。`confirmation_level` 为 Wave1
+  peak，planned entry 为 T close，entry zone 为 peak 至 peak+0.5×ATR14，
+  execution stop 为 confirmed Wave2 low−0.5×ATR14。
+- Wave Scenario Invalidation（Wave1 origin）、SETUP_01 structural invalidation
+  （Wave2 low）与 execution stop 是三个不同概念。Target 先于 R/R 形成，候选只来自
+  T-known confirmed highs 与既有 `EXTENSION_RATIOS` 的通用 projection helper；
+  `trading.risk` 继续负责 R/R 与显式 risk-capital position sizing。
+- Funnel 是 `DEVELOPMENT_EXPOSED`、只读、无 outcome/OOS 的聚合器，按 total/CN/US
+  /symbol 输出 `CONFIRMED → Decision → ENTRY_ALLOWED/NO_TRADE(reason) → T+1` 守恒。
+
+### scripts/run_setup01_decision_shadow.py / setup01-decision-shadow.yml
+
+- real holdings shadow 只读取 `自选清单` 与显式 qfq history，输出 JSON/CSV；不写
+  Sheets、不猜 NAV/position size。它显示 current structural state、terminal
+  event date、new confirmed/failed today 与 WATCH/ARMED live candidate。
+- 历史 terminal CONFIRMED 标记为 `HISTORICAL_TERMINAL`，不会重新 Decision；
+  WATCH/ARMED 只显示 context，不输出 `ENTRY_ALLOWED`。SIVE/MU 等 provider 或
+  freshness 问题继续 fail-closed。
+- GitHub workflow 只保留 `workflow_dispatch`，在合并后使用 Secrets 手动运行；
+  不把 Google credentials 暴露给未合并 PR 代码。
 
 ### scripts/run_setup01_structural_replay.py
 
@@ -379,6 +411,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；schedule 强制运行 `python main.py --group us --mode latest`，workflow_dispatch 可选 full
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
 - `wave-shadow.yml`：仅 `workflow_dispatch`；读取真实启用持仓和显式 qfq 历史，生成 Wave Engine v1 JSON/CSV 只读 artifact，不写任何 Sheet、Decision 或生产参数
+- `setup01-decision-shadow.yml`：仅 `workflow_dispatch`；合并后读取真实启用持仓和显式 qfq 历史，生成 SETUP_01 Decision/Risk read-only JSON/CSV artifact，不写 Sheet、不下单、不访问 outcome/OOS
 - 固定 run `32826696259` 还启用 Phase 5F~5I 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化；Phase 5I 只消费 Phase 5G／5H 现有 artifact 合同并冻结证据边界，不读取 OOS、不新增搜索，也不选择 production 参数。
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11

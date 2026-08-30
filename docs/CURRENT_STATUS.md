@@ -10,16 +10,16 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA：`2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`；PR #35 已按 Sol 的 `APPROVE_WAVE_SCENARIO_ENGINE_V1` 批准 squash merge，main exact-head CI `33298510168` success，本地 `main` 与 `origin/main` 已刷新到同一 SHA。
-- Current checkout: `codex/setup01-wave2-to-wave3-v1`，从 PR #35 squash merge 后的最新 main 建立。旧 PR #31 已关闭并记录 `superseded by #34`；PR #36 为 `OPEN` review PR，未自动合并。
-- PR #36 previous review head：`ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；其 CI `33300273163` 与 real-holdings shadow `33300273180` 为历史 evidence。当前 terminal-event correctness/governance closeout 的 latest substantive source head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`，该 head 的 PR tip、exact-head CI 与 shadow 必须重新从 GitHub 实时核验。
+- GitHub `main` 当前真实 SHA：`3a6d417ede3594c05003ea18ce65bd4562eff294`；PR #36 已按授权 squash merge，main exact-head CI `33316793033` success，本地 `main` 与 `origin/main` 已刷新到同一 SHA。
+- Current checkout: `codex/setup01-decision-risk-v1`，从 PR #36 squash merge 后的最新 main 建立。旧 PR #31 已关闭并记录 `superseded by #34`；PR #37 为 `OPEN` review PR，未自动合并。
+- PR #36 correctness/governance closeout 已完成：terminal-vs-new-event projection 与 governance self-reference rule 已落地；真实 merge commit 为 `3a6d417...`。PR #37 source head `04cf4c4148a64037a929dd7ddf4eb2f513419f89` 的 final tip/CI/mergeability 由 GitHub 实时核验。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: SETUP_01 Wave 2 → Wave 3 v1 structural shadow
+## Current Task: SETUP_01 Decision/Risk v1 review node
 
 ### Project Strategy Identity
 
@@ -31,10 +31,11 @@ V0.2
 - 当前修复已加入 source-date evidence、ordinary-calendar freshness guard、future-date rejection、market-local timestamp normalization，以及显式 `latest/full` 隔离。长期不变量：`交易日期 = 市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`；二者不得互相替代。
 - 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`；已改为显式 bounded 日期窗口并逐日回退至 bounded Yahoo Chart，禁止填补或伪造价格。
 - 最终真实 latest-only smoke：Asia run `33265877563` 成功（3/3 verified）；US run `33265875055` 成功（6 verified、SIVE 1 single-source current/pending）。10/10 启用持仓的 `最新行情.交易日期` 均为市场真实 `2026-08-28`；SIVE 的 `2026-08-28` 来自 bounded Yahoo Chart，未再落后到 8/27。所有 `抓取时间` 为北京时间 `2026-08-30 01:28:31` 或 `01:32:25`，Sheet 格式分别为 DATE 与 DATE_TIME；两次 workflow 均 `history_rows_written=0`、`decision_rows_written=0`。
-- 当前状态：`SETUP_01_WAVE2_TO_WAVE3_V1_CORRECTNESS_CLOSEOUT_PENDING_LIVE_VERIFICATION`。PR #36 的 latest substantive source head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`；旧 `33300273163`/`33300273180` 不能替代该 head 的 exact-head CI/shadow。PR final tip、CI、shadow 与 mergeability 由 GitHub 实时核验提供，未自动 merge。
+- 当前状态：`SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。PR #36 已 merge；PR #37 source head `04cf4c4...` 的 exact-head CI `33318129206` success，PR 保持 OPEN，未自动 merge。专用 Decision shadow workflow 仅在 merge 后手动运行，未将 Google Secrets 暴露给未合并 PR。
 - SETUP_01 development structural replay：40/40 symbols、86,305 replay days、0 errors、1,404 lifecycle events（745 `CONFIRMED` / 659 `FAILED`）；CN event distribution 299/313，US 446/346。primary Wave family counts 为 `WAVE_2_TO_3_CANDIDATE=21,439`、`UPTREND_UNKNOWN_WAVE=28,644`、`ABC_CORRECTION_CANDIDATE=3,644`、`DOWNTREND_OR_INVALID_FOR_LONG=21,137`、`NO_VALID_SCENARIO=2,128`、`WAVE_3_CONTINUATION_CANDIDATE=9,313`。
-- development 当前未终结候选只有 US `STX` (`ARMED`，as-of `2026-08-26`，Fib `0.618-0.786`)；real holdings shadow 当前候选为 CN `000725.SZ` (`WATCH`，as-of `2026-08-28`，Fib `0.5-0.618`)。Real shadow 10 requested / 8 evaluated / 2 errors，SETUP_01 states `FAILED=5`、`WATCH=1`、`CONFIRMED=2`；SIVE.SE freshness stale、MU 历史源为空，均 fail-closed。报告输出 `primary_wave`/`alternate_wave`、SETUP_01 legs/Fib/levels/reason、freshness/error。
-- 本轮没有实现 SETUP_01 Decision/Risk、`ENTRY_ALLOWED` 或 production Sheet signal；没有启动 SETUP_02，也没有重新打开 SETUP_03。development diagnostic 与 real shadow 的 controls 均为 no returns/OOS/Sheets writes。
+- development 当前未终结候选只有 US `STX` (`ARMED`，as-of `2026-08-26`，Fib `0.618-0.786`)；PR #37 Wave structural shadow `33318129223` 当前候选为 CN `000725.SZ` (`WATCH`，as-of `2026-08-28`，Fib `0.5-0.618`)。Real shadow 10 requested / 8 evaluated / 2 errors，SETUP_01 states `FAILED=5`、`WATCH=1`、`CONFIRMED=2`；7 historical terminals 的 new-event flags 全为 false，SIVE.SE freshness stale、MU 历史源为空，均 fail-closed。
+- SETUP_01 Decision/Risk v1 已实现且只消费首个 `CONFIRMED` event：745 CONFIRMED → 745 Decision rows → 5 `ENTRY_ALLOWED` → 5 T+1 attempts → 4 `EXECUTED` / 1 `SKIP_GAP_BELOW_CONFIRMATION`；gates 为 `ABOVE_ENTRY_ZONE=464`、`RR_BELOW_MINIMUM=276`、`ENTRY_ALLOWED=5`。目标先于 R/R，未猜 NAV/position size。
+- 本轮没有生成 production Sheet signal，没有启动 SETUP_02，也没有重新打开 SETUP_03。development funnel 与 real shadow controls 均为 no returns/MFE/MAE/P&L/OOS/Sheets writes。
 
 ## Completed
 
@@ -92,11 +93,13 @@ V0.2
 ## Next
 
 - PR #35 已完成 squash merge：真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success。
-- SETUP_01 v1 review PR #36 的 previous review head 为 `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；当前 latest substantive source head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`。旧 CI/shadow 仅作历史 evidence；新 head 的 exact-head CI、real-holdings shadow 与 PR 状态须实时核验。治理文件不保存包含自身的最终 docs-only commit SHA。
-- 本地 development structural diagnostic 与 real holdings read-only shadow 已完成。下一步仅为 Sol 审阅 lifecycle、counter-scenario、event counts、STX/000725.SZ candidates 及 SIVE/MU fail-closed 状态；未经批准不进入 SETUP_01 Decision/Risk。
+- SETUP_01 structural PR #36 的 previous review head `ca9ec6e...` 与 `33300273163`/`33300273180` 仅作历史 evidence；terminal projection correctness/governance closeout 已 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，main CI `33316793033` success。治理文件记录 latest substantive source head，不记录包含自身的 docs-only SHA。
+- PR #37 `codex/setup01-decision-risk-v1` 的 source head `04cf4c4148a64037a929dd7ddf4eb2f513419f89` 已通过 exact-head CI `33318129206`；现有 registered Wave structural shadow `33318129223` 重新验证 terminal-vs-new-event 状态。Decision shadow workflow 保持 merge 后手动运行，避免未合并 PR Secrets trust expansion。
+- 当前下一步是 Sol 审阅 SETUP_01 Decision/Risk v1：协议、745-event funnel、entry/stop/target provenance 与 holdings structural shadow；未经批准不自动 merge PR #37、不进入 outcome/backtest、SETUP_02 或新 SETUP_03。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
-- SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
+- SETUP_01 Decision/Risk v1：已完成，等待 Sol review；PR #37 不自动 merge
+- SETUP_02：未启动
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）
 

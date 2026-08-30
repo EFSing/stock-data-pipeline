@@ -759,3 +759,58 @@ market-specific Fib rule is introduced.
 **Replay/shadow boundary:** Replay consumes the explicit new-event flags, so a persisted historical `CONFIRMED` state is not re-emitted or re-decided on later dates. The read-only real-holdings shadow exposes both nested projection fields and top-level `new_confirmed_today`, `new_failed_today`, `live_candidate`, and `historical_terminal` fields. Lifecycle transitions, structural event identity and event counts are unchanged. Regression coverage proves a later as-of snapshot can remain `CONFIRMED` while `is_new_confirmed_event_as_of=false` and the replay event count remains one.
 
 **Boundary:** This closeout does not start `SETUP_02`, reopen `SETUP_03`, or access returns, MFE, MAE, P&L or Final OOS. The previous CI/shadow runs `33300273163`/`33300273180` do not cover the new source head; exact-head CI, re-run real holdings shadow and PR state must be re-verified before PR #36 merge.
+
+### Decision: close PR #36 and implement an independent SETUP_01 Decision/Risk v1
+
+**Governance closeout evidence:** The terminal-vs-new-event projection fix was
+verified on PR #36 final tip `84fa676955e9a8226dd332881b8058cd5d4528fb`, with
+exact-head CI `33316698003` and structural shadow `33316697983` both success.
+PR #36 was then squash-merged under the user authorization; the real merge
+commit is `3a6d417ede3594c05003ea18ce65bd4562eff294`, and main exact-head CI
+`33316793033` succeeded. Governance now explicitly avoids requiring tracked
+HANDOFF/CURRENT_STATUS files to contain their own final commit SHA; live PR
+tip/CI/mergeability remains the source for that fact.
+
+**Decision:** From that new main, register and implement
+`SETUP-01-DECISION-RISK-2026-08-30-v1` as a separate evaluator. It consumes
+only `Setup01ReplayEvent` values with `event_type=CONFIRMED` and a first
+CONFIRMED event on T. An event identity can produce at most one Decision;
+persistent historical terminal CONFIRMED state is ignored. T close forms a
+plan only, and the earliest feasibility observation is T+1 OPEN.
+
+**Protocol:** For the long side, `confirmation_level=Wave1 peak`,
+`planned_entry=T close`, entry zone is `[Wave1 peak, Wave1 peak + 0.5*ATR14(T)]`,
+and execution stop is `confirmed Wave2 low - 0.5*ATR14(T)`. Wave Scenario
+Invalidation remains Wave1 origin and SETUP_01 structural invalidation remains
+Wave2 low; neither is overwritten by the execution stop. Targets are built
+before R/R from T-known confirmed highs and the existing
+`trading.fibonacci.EXTENSION_RATIOS`; Wave3 projection uses the generic helper
+`base + (reference_end-reference_start)*ratio`. Existing shared risk rules
+remain unchanged: RR<2 is `NO_TRADE`, 2–3R is `NORMAL`, 3–5R is
+`HIGH_QUALITY`, and >5R requires target reasonableness checking. Risk capital
+is explicit; holdings shadow does not infer NAV or position size.
+
+**Development funnel evidence:** The frozen DEVELOPMENT_EXPOSED structural
+CONFIRMED stream contains 745 first-entry events (CN 299, US 446). The
+Decision/Risk funnel produced 745 Decision rows: `ABOVE_ENTRY_ZONE=464`,
+`RR_BELOW_MINIMUM=276`, `ENTRY_ALLOWED=5`. The five T+1 OPEN attempts produced
+`EXECUTED=4` and `SKIP_GAP_BELOW_CONFIRMATION=1`. Total/CN/US/symbol scope
+rows and conservation checks are emitted. This is descriptive execution
+feasibility only; no return, MFE, MAE, P&L or OOS field is read.
+
+**Current holdings evidence:** Registered Wave structural read-only shadow on
+PR #37 source head, run `33318129223`, requested 10 holdings, evaluated 8 and
+fail-closed 2. It showed 7 historical terminal rows, including INTC and DRAM
+whose terminal CONFIRMED dates precede the current as-of date, and one live
+`WATCH` candidate (`000725.SZ`). `new_confirmed_today=0` and
+`new_failed_today=0`; therefore the Decision layer must generate zero new
+holding Decisions. SIVE.SE remains stale and MU has no configured history
+source; neither is guessed. The dedicated Decision shadow workflow is
+registered as a manual post-merge workflow because a new unmerged PR workflow
+must not be granted Google Secrets access; the local regression covers the
+same historical-terminal/live-candidate no-redecision contract.
+
+**Review boundary:** PR #37 is OPEN and must not be auto-merged. This node is
+`SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`. Do not start SETUP_02,
+reopen SETUP_03, write Sheets, or enter outcome/backtest/OOS work without a
+separate Sol decision.
