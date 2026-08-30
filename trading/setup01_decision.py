@@ -29,6 +29,7 @@ from trading.models import (
     SwingPoint,
     validate_quote_series,
 )
+from research.market_sessions import build_market_session_dates
 from trading.risk import HIGH_ASYMMETRY, NO_TRADE, position_size, risk_reward
 from trading.setup01_replay import Setup01ReplayEvent
 from trading.swing import find_swings
@@ -58,8 +59,19 @@ SKIP_GAP_BELOW_CONFIRMATION = "SKIP_GAP_BELOW_CONFIRMATION"
 SKIP_GAP_ABOVE_ENTRY_ZONE = "SKIP_GAP_ABOVE_ENTRY_ZONE"
 SKIP_BELOW_INVALIDATION = "SKIP_BELOW_INVALIDATION"
 SKIP_NO_T1_BAR = "SKIP_NO_T1_BAR"
+SKIP_RR_BELOW_MINIMUM_AT_OPEN = "SKIP_RR_BELOW_MINIMUM_AT_OPEN"
 SKIP_DECISION_NOT_ENTRY_ALLOWED = "SKIP_DECISION_NOT_ENTRY_ALLOWED"
 EXECUTED = "EXECUTED"
+
+
+@dataclass(frozen=True)
+class Setup01TargetProvenance:
+    """Machine-readable provenance for one T-known target explanation."""
+
+    source: str
+    pivot_date: date | None = None
+    confirmed_date: date | None = None
+    extension_ratio: float | None = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +79,7 @@ class Setup01TargetCandidate:
     price: float
     source: str
     reason: str
+    provenance: tuple[Setup01TargetProvenance, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -110,6 +123,7 @@ class Setup01Execution:
     attempted: bool
     outcome: str
     actual_entry: float | None
+    actual_rr: RiskReward | None = None
 
 
 @dataclass(frozen=True)
@@ -240,6 +254,13 @@ def _target_candidates(
                         "T-known confirmed swing high at "
                         f"{swing.pivot_date.isoformat()}"
                     ),
+                    provenance=(
+                        Setup01TargetProvenance(
+                            source="CONFIRMED_SWING_HIGH",
+                            pivot_date=swing.pivot_date,
+                            confirmed_date=swing.confirmed_date,
+                        ),
+                    ),
                 )
             )
 
@@ -262,6 +283,12 @@ def _target_candidates(
                         "Wave2 low + (Wave1 peak - Wave1 origin) * "
                         f"existing extension {ratio_name}"
                     ),
+                    provenance=(
+                        Setup01TargetProvenance(
+                            source="WAVE3_FIB_EXTENSION",
+                            extension_ratio=float(ratio),
+                        ),
+                    ),
                 )
             )
 
@@ -272,11 +299,29 @@ def _target_candidates(
         by_price.setdefault(candidate.price, []).append(candidate)
     merged: list[Setup01TargetCandidate] = []
     for price, same_price in by_price.items():
+        provenance = tuple(
+            sorted(
+                {
+                    item
+                    for candidate in same_price
+                    for item in candidate.provenance
+                },
+                key=lambda item: (
+                    item.source,
+                    item.pivot_date or date.min,
+                    item.confirmed_date or date.min,
+                    item.extension_ratio
+                    if item.extension_ratio is not None
+                    else -math.inf,
+                ),
+            )
+        )
         merged.append(
             Setup01TargetCandidate(
                 price=price,
                 source="+".join(sorted({item.source for item in same_price})),
                 reason="; ".join(item.reason for item in same_price),
+                provenance=provenance,
             )
         )
     return tuple(sorted(merged, key=lambda item: (item.price, item.source)))
@@ -488,8 +533,15 @@ def evaluate_setup01_decision(
 def execute_setup01_t1_open(
     decision: Setup01Decision,
     quotes: Sequence[Quote],
+    *,
+    market_session_dates: Mapping[str, Sequence[date]] | None = None,
 ) -> Setup01Execution:
-    """Classify only the first observed bar after T using its OPEN."""
+    """Classify the verified next market session after T using only its OPEN.
+
+    ``market_session_dates`` must come from the existing market-session SSOT.
+    Without it, the next session identity cannot be proven and execution is
+    fail-closed; a later observed bar is never accepted as a substitute.
+    """
     if decision.action is not DecisionAction.ENTRY_ALLOWED:
         return Setup01Execution(
             event_identity=decision.event_identity,
@@ -502,14 +554,36 @@ def execute_setup01_t1_open(
             outcome=SKIP_DECISION_NOT_ENTRY_ALLOWED,
             actual_entry=None,
         )
-    # Search by date and read only the first later bar's OPEN.  Do not call a
-    # full-series OHLC validator here: T+1 high/low/close are outside the
-    # execution-feasibility contract.
-    t1 = min(
-        (quote for quote in quotes if quote.trade_date > decision.trade_date),
-        key=lambda quote: quote.trade_date,
-        default=None,
+    sessions = tuple(
+        market_session_dates.get(decision.market, ())
+        if market_session_dates is not None
+        else ()
     )
+    session_ordinals = {
+        session_date: index for index, session_date in enumerate(sessions)
+    }
+    if (
+        not sessions
+        or tuple(sorted(set(sessions))) != sessions
+        or decision.trade_date not in session_ordinals
+    ):
+        t1 = None
+    else:
+        next_index = session_ordinals[decision.trade_date] + 1
+        expected_date = (
+            sessions[next_index] if next_index < len(sessions) else None
+        )
+        # Exact date identity is required.  In particular, if this expected
+        # session has no bar but T+2 exists, do not fall forward to T+2.
+        matches = [
+            quote
+            for quote in quotes
+            if expected_date is not None
+            and quote.trade_date == expected_date
+            and quote.symbol == decision.symbol
+            and quote.market == decision.market
+        ]
+        t1 = matches[0] if len(matches) == 1 else None
     if t1 is None:
         return Setup01Execution(
             event_identity=decision.event_identity,
@@ -524,6 +598,7 @@ def execute_setup01_t1_open(
         )
 
     opening = float(t1.open)
+    actual_rr: RiskReward | None = None
     assert decision.entry_zone_low is not None
     assert decision.entry_zone_high is not None
     assert decision.structural_invalidation is not None
@@ -537,8 +612,17 @@ def execute_setup01_t1_open(
         outcome = SKIP_GAP_ABOVE_ENTRY_ZONE
         actual_entry = None
     else:
-        outcome = EXECUTED
         actual_entry = opening
+        actual_rr = risk_reward(
+            actual_entry,
+            decision.execution_stop,
+            decision.targets,
+        )
+        outcome = (
+            SKIP_RR_BELOW_MINIMUM_AT_OPEN
+            if actual_rr.rr_ratios[0] < SETUP01_MINIMUM_RR
+            else EXECUTED
+        )
     return Setup01Execution(
         event_identity=decision.event_identity,
         symbol=decision.symbol,
@@ -549,6 +633,7 @@ def execute_setup01_t1_open(
         attempted=True,
         outcome=outcome,
         actual_entry=actual_entry,
+        actual_rr=actual_rr,
     )
 
 
@@ -566,6 +651,7 @@ def evaluate_setup01_decision_stream(
     executions: list[Setup01Execution] = []
     duplicate_count = 0
     ignored_count = 0
+    market_session_dates = build_market_session_dates(quotes_by_symbol)
     for event in events:
         if event.event_identity in seen:
             duplicate_count += 1
@@ -601,7 +687,11 @@ def evaluate_setup01_decision_stream(
         decisions.append(decision)
         if decision.action is DecisionAction.ENTRY_ALLOWED:
             executions.append(
-                execute_setup01_t1_open(decision, quotes_by_symbol[event.symbol])
+                execute_setup01_t1_open(
+                    decision,
+                    quotes_by_symbol[event.symbol],
+                    market_session_dates=market_session_dates,
+                )
             )
     return Setup01DecisionStream(
         decisions=tuple(decisions),
@@ -616,6 +706,112 @@ def _target_to_dict(candidate: Setup01TargetCandidate) -> dict:
         "price": candidate.price,
         "source": candidate.source,
         "reason": candidate.reason,
+        "provenance": [
+            {
+                "source": item.source,
+                "pivot_date": (
+                    item.pivot_date.isoformat() if item.pivot_date else None
+                ),
+                "confirmed_date": (
+                    item.confirmed_date.isoformat()
+                    if item.confirmed_date else None
+                ),
+                "extension_ratio": item.extension_ratio,
+            }
+            for item in candidate.provenance
+        ],
+    }
+
+
+def _session_age(
+    source_date: date | None,
+    as_of_date: date,
+    market: str,
+    market_session_dates: Mapping[str, Sequence[date]] | None,
+) -> int | None:
+    if source_date is None or market_session_dates is None:
+        return None
+    sessions = tuple(market_session_dates.get(market, ()))
+    ordinals = {session_date: index for index, session_date in enumerate(sessions)}
+    if source_date not in ordinals or as_of_date not in ordinals:
+        return None
+    age = ordinals[as_of_date] - ordinals[source_date]
+    return age if age >= 0 else None
+
+
+def setup01_target_provenance_audit(
+    decision: Setup01Decision,
+    execution: Setup01Execution | None = None,
+    *,
+    market_session_dates: Mapping[str, Sequence[date]] | None = None,
+) -> dict:
+    """Return descriptive T1 provenance and frozen-plan/actual-open R/R."""
+    if not decision.target_candidates or not decision.targets:
+        raise ValueError("target provenance audit requires a valid T1 target")
+    t1 = decision.target_candidates[0]
+    provenance_rows = [
+        {
+            "source": item.source,
+            "pivot_date": item.pivot_date.isoformat() if item.pivot_date else None,
+            "confirmed_date": (
+                item.confirmed_date.isoformat() if item.confirmed_date else None
+            ),
+            "pivot_session_age": _session_age(
+                item.pivot_date,
+                decision.trade_date,
+                decision.market,
+                market_session_dates,
+            ),
+            "confirmed_session_age": _session_age(
+                item.confirmed_date,
+                decision.trade_date,
+                decision.market,
+                market_session_dates,
+            ),
+            "extension_ratio": item.extension_ratio,
+        }
+        for item in t1.provenance
+    ]
+    planned_rr = decision.rr.rr_ratios[0] if decision.rr else None
+    actual_rr = execution.actual_rr if execution is not None else None
+    actual_first_rr = actual_rr.rr_ratios[0] if actual_rr else None
+    geometry_check = False
+    if (
+        decision.wave1_origin is not None
+        and decision.planned_entry is not None
+        and decision.confirmation_level is not None
+        and decision.structural_invalidation is not None
+    ):
+        geometry_check = _targets_are_reasonable(
+            decision.target_candidates,
+            entry=float(decision.planned_entry),
+            origin=float(decision.wave1_origin),
+            peak=float(decision.confirmation_level),
+            wave2_low=float(decision.structural_invalidation),
+        )
+    return {
+        "symbol": decision.symbol,
+        "market": decision.market,
+        "trade_date": decision.trade_date.isoformat(),
+        "target_t1_price": t1.price,
+        "target_t1_source": t1.source,
+        "target_t1_reason": t1.reason,
+        "target_t1_provenance": provenance_rows,
+        "planned_entry": decision.planned_entry,
+        "actual_entry": execution.actual_entry if execution else None,
+        "planned_first_target_rr": planned_rr,
+        "actual_open_first_target_rr": actual_first_rr,
+        "planned_rr_quality": decision.rr.quality if decision.rr else None,
+        "actual_open_rr_quality": actual_rr.quality if actual_rr else None,
+        "planned_first_target_over_5r": (
+            planned_rr is not None and planned_rr > 5.0
+        ),
+        "actual_open_first_target_over_5r": (
+            actual_first_rr is not None and actual_first_rr > 5.0
+        ),
+        "target_reasonableness_checked": decision.target_reasonableness_checked,
+        "target_reasonableness_passed": decision.target_reasonableness_passed,
+        "target_provenance_geometry_check": geometry_check,
     }
 
 
@@ -692,6 +888,7 @@ def setup01_execution_to_dict(value: Setup01Execution) -> dict:
         "attempted": value.attempted,
         "outcome": value.outcome,
         "actual_entry": value.actual_entry,
+        "actual_rr": _rr_to_dict(value.actual_rr),
     }
 
 
@@ -706,14 +903,17 @@ __all__ = [
     "SKIP_GAP_ABOVE_ENTRY_ZONE",
     "SKIP_GAP_BELOW_CONFIRMATION",
     "SKIP_NO_T1_BAR",
+    "SKIP_RR_BELOW_MINIMUM_AT_OPEN",
     "Setup01Decision",
     "Setup01DecisionGateReason",
     "Setup01DecisionStream",
     "Setup01Execution",
     "Setup01TargetCandidate",
+    "Setup01TargetProvenance",
     "evaluate_setup01_decision",
     "evaluate_setup01_decision_stream",
     "execute_setup01_t1_open",
     "setup01_decision_to_dict",
     "setup01_execution_to_dict",
+    "setup01_target_provenance_audit",
 ]

@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from research.development_holdout_dataset import load_frozen_holdout
+from research.market_sessions import build_market_session_dates
 from trading.models import (
     DecisionAction,
     Setup01Evaluation,
@@ -35,6 +36,7 @@ from trading.setup01_decision import (
     evaluate_setup01_decision_stream,
     setup01_decision_to_dict,
     setup01_execution_to_dict,
+    setup01_target_provenance_audit,
 )
 from trading.setup01_replay import Setup01ReplayEvent, replay_setup01_history
 
@@ -63,8 +65,34 @@ EXECUTION_OUTCOMES = (
     "SKIP_GAP_ABOVE_ENTRY_ZONE",
     "SKIP_BELOW_INVALIDATION",
     "SKIP_NO_T1_BAR",
+    "SKIP_RR_BELOW_MINIMUM_AT_OPEN",
     "SKIP_DECISION_NOT_ENTRY_ALLOWED",
 )
+
+PRE_FIX_FUNNEL_COUNTS = {
+    "confirmed_events": 745,
+    "decision_rows": 745,
+    "entry_allowed": 5,
+    "t1_execution_attempts": 5,
+    "executed": 4,
+    "decision_gate_reason_counts": {
+        "ABOVE_ENTRY_ZONE": 464,
+        "ATR_UNAVAILABLE": 0,
+        "ENTRY_ALLOWED": 5,
+        "INVALID_STRUCTURE": 0,
+        "NO_VALID_TARGET": 0,
+        "RR_BELOW_MINIMUM": 276,
+    },
+    "execution_status_counts": {
+        "EXECUTED": 4,
+        "SKIP_BELOW_INVALIDATION": 0,
+        "SKIP_DECISION_NOT_ENTRY_ALLOWED": 0,
+        "SKIP_GAP_ABOVE_ENTRY_ZONE": 0,
+        "SKIP_GAP_BELOW_CONFIRMATION": 1,
+        "SKIP_NO_T1_BAR": 0,
+        "SKIP_RR_BELOW_MINIMUM_AT_OPEN": 0,
+    },
+}
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -241,6 +269,52 @@ def _decision_rows(stream: Setup01DecisionStream) -> list[dict[str, Any]]:
     return rows
 
 
+def _funnel_snapshot(document: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "confirmed_events": document["confirmed_events"],
+        "decision_rows": document["decision_rows"],
+        "entry_allowed": document["entry_allowed"],
+        "t1_execution_attempts": document["t1_execution_attempts"],
+        "executed": document["executed"],
+        "decision_gate_reason_counts": document["decision_gate_reason_counts"],
+        "execution_status_counts": document["execution_status_counts"],
+    }
+
+
+def _funnel_delta(
+    before: dict[str, Any], after: dict[str, Any]
+) -> dict[str, Any]:
+    scalar_keys = (
+        "confirmed_events",
+        "decision_rows",
+        "entry_allowed",
+        "t1_execution_attempts",
+        "executed",
+    )
+    return {
+        **{
+            key: int(after[key]) - int(before[key])
+            for key in scalar_keys
+        },
+        "decision_gate_reason_counts": {
+            reason: int(after["decision_gate_reason_counts"].get(reason, 0))
+            - int(before["decision_gate_reason_counts"].get(reason, 0))
+            for reason in sorted(
+                set(before["decision_gate_reason_counts"])
+                | set(after["decision_gate_reason_counts"])
+            )
+        },
+        "execution_status_counts": {
+            reason: int(after["execution_status_counts"].get(reason, 0))
+            - int(before["execution_status_counts"].get(reason, 0))
+            for reason in sorted(
+                set(before["execution_status_counts"])
+                | set(after["execution_status_counts"])
+            )
+        },
+    }
+
+
 def run_setup01_decision_funnel(
     *,
     manifest_path: str | Path = DEFAULT_MANIFEST,
@@ -284,6 +358,9 @@ def run_setup01_decision_funnel(
     )
     decision_rows = _decision_rows(stream)
     scope_rows = _scope_rows(stream)
+    execution_by_identity = {
+        execution.event_identity: execution for execution in stream.executions
+    }
     confirmed = [
         event for event in events
         if event.event_type is SetupState.CONFIRMED
@@ -306,6 +383,16 @@ def run_setup01_decision_funnel(
     executed = execution_counts["EXECUTED"]
     attempts = len(stream.executions)
     skipped = attempts - executed
+    market_session_dates = build_market_session_dates(symbol_quotes)
+    target_provenance_audit = [
+        setup01_target_provenance_audit(
+            decision,
+            execution_by_identity.get(decision.event_identity),
+            market_session_dates=market_session_dates,
+        )
+        for decision in stream.decisions
+        if decision.action is DecisionAction.ENTRY_ALLOWED
+    ]
     conservation = {
         "confirmed_equals_unique_confirmed_events": (
             len(confirmed) == len({event.event_identity for event in confirmed})
@@ -356,6 +443,7 @@ def run_setup01_decision_funnel(
         "duplicate_event_count": stream.duplicate_event_count,
         "ignored_non_confirmed_event_count": stream.ignored_non_confirmed_event_count,
         "funnel": scope_rows,
+        "target_provenance_audit": target_provenance_audit,
         "funnel_conservation": conservation,
         "decisions": decision_rows,
         "replay_errors_detail": replay_errors,
@@ -376,9 +464,50 @@ def run_setup01_decision_funnel(
         },
         "status": "SUCCESS" if not replay_errors else "PARTIAL_DATA_QUALITY",
     }
+    post_fix_snapshot = _funnel_snapshot(document)
+    target_reasonableness_needs_sol_decision = any(
+        row["planned_first_target_over_5r"]
+        or row["actual_open_first_target_over_5r"]
+        for row in target_provenance_audit
+    )
+    document["confirmed_event_count_unchanged"] = (
+        document["confirmed_events"] == PRE_FIX_FUNNEL_COUNTS["confirmed_events"]
+    )
+    document["pre_fix_reference"] = PRE_FIX_FUNNEL_COUNTS
+    document["post_fix_counts"] = post_fix_snapshot
+    document["pre_post_delta"] = _funnel_delta(
+        PRE_FIX_FUNNEL_COUNTS, post_fix_snapshot
+    )
+    document["target_provenance_summary"] = {
+        "audit_rows": len(target_provenance_audit),
+        "historical_swing_high_t1_rows": sum(
+            "CONFIRMED_SWING_HIGH" in row["target_t1_source"]
+            for row in target_provenance_audit
+        ),
+        "fib_t1_rows": sum(
+            "WAVE3_FIB_EXTENSION" in row["target_t1_source"]
+            for row in target_provenance_audit
+        ),
+        "planned_over_5r_rows": sum(
+            row["planned_first_target_over_5r"] for row in target_provenance_audit
+        ),
+        "actual_open_over_5r_rows": sum(
+            row["actual_open_first_target_over_5r"]
+            for row in target_provenance_audit
+        ),
+        "target_reasonableness_status": (
+            "TARGET_REASONABLENESS_NEEDS_SOL_DECISION"
+            if target_reasonableness_needs_sol_decision
+            else "TARGET_PROVENANCE_NO_NEW_BLOCKER"
+        ),
+    }
     _write_json(output_path / "setup01_decision_execution_funnel.json", document)
     _write_csv(output_path / "setup01_decision_execution_events.csv", decision_rows)
     _write_csv(output_path / "setup01_decision_execution_funnel.csv", scope_rows)
+    _write_csv(
+        output_path / "setup01_target_provenance_audit.csv",
+        target_provenance_audit,
+    )
     _write_csv(output_path / "setup01_decision_replay_errors.csv", replay_errors)
     print(
         "SETUP01_DECISION_FUNNEL_SUMMARY "
