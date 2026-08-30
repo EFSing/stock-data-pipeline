@@ -1,0 +1,47 @@
+name: SETUP_01 Decision Risk read-only shadow
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: "Holdings market group"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - asia
+          - us
+
+permissions:
+  contents: read
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run SETUP_01 Decision/Risk shadow
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python -m scripts.run_setup01_decision_shadow \
+            --group "${{ inputs.group }}" \
+            --output-dir artifacts/setup01_decision_shadow | tee setup01-decision-shadow-summary.txt
+      - name: Publish shadow summary
+        if: always()
+        run: |
+          echo "## SETUP_01 Decision/Risk read-only shadow"
+          if [ -f setup01-decision-shadow-summary.txt ]; then cat setup01-decision-shadow-summary.txt; fi
+      - name: Upload shadow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup01-decision-shadow
+          path: artifacts/setup01_decision_shadow/

@@ -45,6 +45,7 @@ class Setup01ReplayEvent:
     trade_date: date
     event_type: SetupState
     setup01: Setup01Evaluation
+    market: str = ""
 
 
 @dataclass(frozen=True)
@@ -162,6 +163,7 @@ def replay_setup01_history(
                         trade_date=quote.trade_date,
                         event_type=event_type,
                         setup01=snapshot,
+                        market=quote.market,
                     )
                 )
             if confirmed:
