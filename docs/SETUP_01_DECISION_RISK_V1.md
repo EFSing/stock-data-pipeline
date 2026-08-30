@@ -108,8 +108,21 @@ Decision reasons are `ATR_UNAVAILABLE`, `ABOVE_ENTRY_ZONE`,
 `SKIP_GAP_BELOW_CONFIRMATION`, `SKIP_GAP_ABOVE_ENTRY_ZONE`,
 `SKIP_BELOW_INVALIDATION`, `SKIP_NO_T1_BAR`, and `EXECUTED`.
 
-The real-holdings shadow is read-only. It reports current structural state,
-terminal event date, new-confirmed/new-failed-today flags, and live candidate.
-`WATCH`/`ARMED` is context only. A historical terminal `CONFIRMED` is marked
-`HISTORICAL_TERMINAL` and never creates a new Decision. Provider and freshness
-failures remain fail-closed.
+The default operational gate is
+`scripts/run_setup01_generic_operational_shadow.py`, which uses only the
+controlled public `GENERIC.*` synthetic holdings fixture. It validates
+Decision/Risk, event-identity exactly-once, T-to-T+1 OPEN timing, terminal
+semantics, fail-closed behavior, and JSON/CSV reporting without real holdings
+or account secrets.
+
+Real holdings shadow is a separate product-governance category:
+
+```text
+classification = OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION
+status         = NOT_RUN_USER_PRIVACY
+```
+
+It is not a default SETUP_01 research/development blocker. This task does not
+read real holdings or emit holdings-derived information to GitHub Actions. Only
+a future, explicitly named production milestone that requires real-holdings
+integration may make this validation a scope-local blocker.

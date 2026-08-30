@@ -12,7 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` 当前真实 SHA：`3a6d417ede3594c05003ea18ce65bd4562eff294`；PR #36 已按授权 squash merge，main exact-head CI `33316793033` success，本地 `main` 与 `origin/main` 已刷新到同一 SHA。
 - Current checkout: `codex/setup01-decision-risk-v1`，从 PR #36 squash merge 后的最新 main 建立。旧 PR #31 已关闭并记录 `superseded by #34`；PR #37 为 `OPEN` review PR，未自动合并。
-- PR #36 correctness/governance closeout 已完成：terminal-vs-new-event projection 与 governance self-reference rule 已落地；真实 merge commit 为 `3a6d417...`。PR #37 source head `04cf4c4148a64037a929dd7ddf4eb2f513419f89` 的 final tip/CI/mergeability 由 GitHub 实时核验。
+- PR #36 correctness/governance closeout 已完成：terminal-vs-new-event projection 与 governance self-reference rule 已落地；真实 merge commit 为 `3a6d417...`。PR #37 latest substantive source head 为 `5d242fb`，final tip/CI/mergeability 由 GitHub 实时核验；docs-only governance commit 不要求记录自身 SHA。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
@@ -31,11 +31,12 @@ V0.2
 - 当前修复已加入 source-date evidence、ordinary-calendar freshness guard、future-date rejection、market-local timestamp normalization，以及显式 `latest/full` 隔离。长期不变量：`交易日期 = 市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`；二者不得互相替代。
 - 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`；已改为显式 bounded 日期窗口并逐日回退至 bounded Yahoo Chart，禁止填补或伪造价格。
 - 最终真实 latest-only smoke：Asia run `33265877563` 成功（3/3 verified）；US run `33265875055` 成功（6 verified、SIVE 1 single-source current/pending）。10/10 启用持仓的 `最新行情.交易日期` 均为市场真实 `2026-08-28`；SIVE 的 `2026-08-28` 来自 bounded Yahoo Chart，未再落后到 8/27。所有 `抓取时间` 为北京时间 `2026-08-30 01:28:31` 或 `01:32:25`，Sheet 格式分别为 DATE 与 DATE_TIME；两次 workflow 均 `history_rows_written=0`、`decision_rows_written=0`。
-- 当前状态：`SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。PR #36 已 merge；PR #37 source head `04cf4c4...` 的 exact-head CI `33318129206` success，PR 保持 OPEN，未自动 merge。专用 Decision shadow workflow 仅在 merge 后手动运行，未将 Google Secrets 暴露给未合并 PR。
+- 当前状态：`SETUP01_GENERIC_OPERATIONAL_SHADOW_READY_FOR_SOL_REVIEW`。PR #36 已 merge；PR #37 的 exact-head CI `33318129206` success，PR 保持 OPEN，未自动 merge。generic shadow 只使用 controlled synthetic fixture；真实持仓 shadow 分类为 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION / NOT_RUN_USER_PRIVACY`，未读取真实持仓或向 GitHub Actions 输出持仓派生信息。
 - SETUP_01 development structural replay：40/40 symbols、86,305 replay days、0 errors、1,404 lifecycle events（745 `CONFIRMED` / 659 `FAILED`）；CN event distribution 299/313，US 446/346。primary Wave family counts 为 `WAVE_2_TO_3_CANDIDATE=21,439`、`UPTREND_UNKNOWN_WAVE=28,644`、`ABC_CORRECTION_CANDIDATE=3,644`、`DOWNTREND_OR_INVALID_FOR_LONG=21,137`、`NO_VALID_SCENARIO=2,128`、`WAVE_3_CONTINUATION_CANDIDATE=9,313`。
-- development 当前未终结候选只有 US `STX` (`ARMED`，as-of `2026-08-26`，Fib `0.618-0.786`)；PR #37 Wave structural shadow `33318129223` 当前候选为 CN `000725.SZ` (`WATCH`，as-of `2026-08-28`，Fib `0.5-0.618`)。Real shadow 10 requested / 8 evaluated / 2 errors，SETUP_01 states `FAILED=5`、`WATCH=1`、`CONFIRMED=2`；7 historical terminals 的 new-event flags 全为 false，SIVE.SE freshness stale、MU 历史源为空，均 fail-closed。
+- development 当前未终结候选只有 US `STX` (`ARMED`，as-of `2026-08-26`，Fib `0.618-0.786`)；本任务不读取真实持仓，现有 holdings shadow 资料不作为当前 gate 或 progression blocker。
 - SETUP_01 Decision/Risk v1 已实现且只消费首个 `CONFIRMED` event：745 CONFIRMED → 745 Decision rows → 5 `ENTRY_ALLOWED` → 5 T+1 attempts → 4 `EXECUTED` / 1 `SKIP_GAP_BELOW_CONFIRMATION`；gates 为 `ABOVE_ENTRY_ZONE=464`、`RR_BELOW_MINIMUM=276`、`ENTRY_ALLOWED=5`。目标先于 R/R，未猜 NAV/position size。
-- 本轮没有生成 production Sheet signal，没有启动 SETUP_02，也没有重新打开 SETUP_03。development funnel 与 real shadow controls 均为 no returns/MFE/MAE/P&L/OOS/Sheets writes。
+- generic operational shadow 已通过：7 supplied synthetic events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 executed / 1 gap-below-confirmation skip；exact-once、T→T+1、terminal semantics、fail-closed、reporting pipeline 全通过。
+- Real holdings shadow 不属于当前 research/development progression gate；其 classification 为 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，状态 `NOT_RUN_USER_PRIVACY`。本轮没有生成 production Sheet signal，没有启动 SETUP_02，也没有重新打开 SETUP_03。
 
 ## Completed
 
@@ -94,11 +95,12 @@ V0.2
 
 - PR #35 已完成 squash merge：真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success。
 - SETUP_01 structural PR #36 的 previous review head `ca9ec6e...` 与 `33300273163`/`33300273180` 仅作历史 evidence；terminal projection correctness/governance closeout 已 squash merge 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，main CI `33316793033` success。治理文件记录 latest substantive source head，不记录包含自身的 docs-only SHA。
-- PR #37 `codex/setup01-decision-risk-v1` 的 source head `04cf4c4148a64037a929dd7ddf4eb2f513419f89` 已通过 exact-head CI `33318129206`；现有 registered Wave structural shadow `33318129223` 重新验证 terminal-vs-new-event 状态。Decision shadow workflow 保持 merge 后手动运行，避免未合并 PR Secrets trust expansion。
-- 当前下一步是 Sol 审阅 SETUP_01 Decision/Risk v1：协议、745-event funnel、entry/stop/target provenance 与 holdings structural shadow；未经批准不自动 merge PR #37、不进入 outcome/backtest、SETUP_02 或新 SETUP_03。
+- PR #37 `codex/setup01-decision-risk-v1` 的 previous source head `04cf4c4148a64037a929dd7ddf4eb2f513419f89` 已通过 exact-head CI `33318129206`；latest substantive generic-shadow source head 为 `5d242fb`，其 exact-head CI/mergeability 由 GitHub 实时核验。会读取真实持仓的 workflow 已移除，不向 GitHub Actions 输出持仓派生信息。
+- generic operational shadow `5d242fb` 仅使用 `GENERIC.*` controlled public synthetic fixture：7 supplied events / 6 unique identities / 3 Decision rows / 2 T+1 attempts / 1 executed / 1 gap-below-confirmation skip；exact-once、T→T+1、terminal semantics、fail-closed、reporting pipeline 全通过。
+- 当前下一步是 Sol 审阅 SETUP_01 Decision/Risk v1、745-event funnel、entry/stop/target provenance 与 generic operational shadow；真实持仓 shadow classification 为 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`、状态 `NOT_RUN_USER_PRIVACY`，不构成当前 progression blocker。未经批准不自动 merge PR #37、不进入 outcome/backtest、SETUP_02 或新 SETUP_03。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
-- SETUP_01 Decision/Risk v1：已完成，等待 Sol review；PR #37 不自动 merge
+- SETUP_01 Decision/Risk v1：generic operational shadow 已通过，等待 Sol review；PR #37 不自动 merge
 - SETUP_02：未启动
 - SETUP_04：暂待 Extreme Fear 输入与确认规则
 - 迁移测试框架到 pytest（可选，当前明确不做）
@@ -110,7 +112,7 @@ V0.2
 - 项目为扁平模块结构，交易决策模块增多后需渐进模块化
 - **`总览` 表无读写逻辑**：需先核实真实 Google Sheets 结构再决定是否接入，不擅自补逻辑
 - **`自选清单` 现有 A:O 未消费列含义仍未核实**；Phase 4 使用新增的明确表头 `历史数据源`，不得复用或猜测旧列。列映射详见 `ARCHITECTURE.md`
-- **Wave shadow real-holdings data quality**：MU/美光科技的 `历史数据源` 为空，runner 按 fail-closed 生成 `NO_VALID_SCENARIO` 与 error；不得猜测 yfinance/其他 provider 作为默认源，补齐配置后才可声称 10/10 evaluated。
+- **Real holdings shadow**：classification=`OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，status=`NOT_RUN_USER_PRIVACY`。本轮不读取真实持仓、不猜 provider/NAV、不依赖 holdings secrets；仅当未来明确 production milestone 要求验证真实持仓集成时，才在该 milestone 内定义 scope-local blocker。
 - `交易决策` 历史上由 PR #10 写入的状态快照行不会由本整改自动删除；新版本只追加/幂等更新 CONFIRMED 事件，旧行清理需单独审阅后执行
 - latest 生产 freshness 使用 source-date evidence + ordinary-calendar guard；尚未接入各交易所节假日/停牌日历，guard 不声明目标 weekday 一定开市，真实 workflow 的 stale/pending 明细仍需复核
 - Phase 5B 真实 54 组严格逐日前缀回放约需 14 分钟；当前仅手动 research workflow 使用，后续若扩大标的池需在不改变 as-of/事件语义前提下优化编排性能

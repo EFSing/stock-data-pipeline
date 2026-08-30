@@ -110,7 +110,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
 ├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
 ├── docs/SETUP_01_DECISION_RISK_V1.md # SETUP_01 Decision/Risk v1 protocol
-├── scripts/run_wave_shadow.py # enabled holdings read-only shadow runner
+├── scripts/run_wave_shadow.py # private/local holdings structural shadow capability
 ├── scripts/run_setup01_structural_replay.py # development-only SETUP_01 replay
 ├── scripts/run_setup01_decision_funnel.py # development-only Decision/T+1 funnel
 ├── scripts/run_setup01_decision_shadow.py # real holdings read-only Decision shadow
@@ -240,16 +240,24 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - Funnel 是 `DEVELOPMENT_EXPOSED`、只读、无 outcome/OOS 的聚合器，按 total/CN/US
   /symbol 输出 `CONFIRMED → Decision → ENTRY_ALLOWED/NO_TRADE(reason) → T+1` 守恒。
 
-### scripts/run_setup01_decision_shadow.py / setup01-decision-shadow.yml
+### scripts/run_setup01_generic_operational_shadow.py
 
-- real holdings shadow 只读取 `自选清单` 与显式 qfq history，输出 JSON/CSV；不写
-  Sheets、不猜 NAV/position size。它显示 current structural state、terminal
-  event date、new confirmed/failed today 与 WATCH/ARMED live candidate。
-- 历史 terminal CONFIRMED 标记为 `HISTORICAL_TERMINAL`，不会重新 Decision；
-  WATCH/ARMED 只显示 context，不输出 `ENTRY_ALLOWED`。SIVE/MU 等 provider 或
-  freshness 问题继续 fail-closed。
-- GitHub workflow 只保留 `workflow_dispatch`，在合并后使用 Secrets 手动运行；
-  不把 Google credentials 暴露给未合并 PR 代码。
+- generic operational shadow 只读取 `GENERIC.*` controlled public synthetic
+  fixture，不读取 `自选清单`、真实 holdings、Google credentials 或任何账户
+  secrets。它覆盖 Decision/Risk、exact-once、T→T+1 OPEN、terminal semantics、
+  fail-closed 与 JSON/CSV reporting。
+- 这是当前 SETUP_01 产品/工程 gate；其成功不等同于真实持仓集成验证，也不
+  产生 production signal 或 Sheets 写入。
+
+### scripts/run_setup01_decision_shadow.py
+
+- 这是未来可选的 private operational capability，classification 为
+  `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，当前状态为
+  `NOT_RUN_USER_PRIVACY`。本轮不调用它、不读取真实 holdings、不向 GitHub
+  Actions 输出 holdings-derived data。
+- 若未来某个明确 production milestone 要求真实持仓集成，必须在该 milestone
+  中单独定义 scope-local blocker；不能把缺少真实 holdings validation 反向写成
+  SETUP_01 research/development 的默认 blocker。
 
 ### scripts/run_setup01_structural_replay.py
 
@@ -410,8 +418,10 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30；schedule 强制运行 `python main.py --group asia --mode latest`，workflow_dispatch 可选 full
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；schedule 强制运行 `python main.py --group us --mode latest`，workflow_dispatch 可选 full
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
-- `wave-shadow.yml`：仅 `workflow_dispatch`；读取真实启用持仓和显式 qfq 历史，生成 Wave Engine v1 JSON/CSV 只读 artifact，不写任何 Sheet、Decision 或生产参数
-- `setup01-decision-shadow.yml`：仅 `workflow_dispatch`；合并后读取真实启用持仓和显式 qfq 历史，生成 SETUP_01 Decision/Risk read-only JSON/CSV artifact，不写 Sheet、不下单、不访问 outcome/OOS
+- `wave-shadow.yml`：已从当前 PR 移除；本项目当前不通过 GitHub Actions 读取或输出真实持仓派生信息
+- `setup01-decision-shadow.yml`：已移除；真实持仓 Decision shadow 仅保留 private/local capability，不通过 GitHub Actions 运行
+- `run_setup01_generic_operational_shadow.py`：synthetic-only generic operational shadow；不需要 Secrets，可作为当前产品/工程 gate 运行
+- `setup01-generic-operational-shadow.yml`：仅运行 synthetic-only generic shadow，可由 PR 或手动触发，不读取账户 secrets
 - 固定 run `32826696259` 还启用 Phase 5F~5I 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化；Phase 5I 只消费 Phase 5G／5H 现有 artifact 合同并冻结证据边界，不读取 OOS、不新增搜索，也不选择 production 参数。
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11

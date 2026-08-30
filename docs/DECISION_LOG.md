@@ -814,3 +814,47 @@ same historical-terminal/live-candidate no-redecision contract.
 `SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`. Do not start SETUP_02,
 reopen SETUP_03, write Sheets, or enter outcome/backtest/OOS work without a
 separate Sol decision.
+
+### Decision: split generic operational shadow from optional private holdings validation
+
+**Context:** The prior review snapshot treated `REAL_HOLDINGS_SHADOW_REQUIRED`
+as a default completion condition. That conflated a product integration check
+requiring private account context with the generic correctness of the
+SETUP_01 Decision/Risk pipeline. It also created pressure to expose holdings-
+derived data through an unmerged GitHub Actions workflow.
+
+**Decision:** Register two separate governance categories:
+
+1. `GENERIC_OPERATIONAL_SHADOW`: the default current product/engineering gate.
+   It uses only the controlled public `GENERIC.*` synthetic holdings fixture and
+   verifies Decision/Risk, event-identity exactly-once, T-close to T+1-OPEN
+   timing, terminal-vs-new-event semantics, fail-closed behavior, and JSON/CSV
+   reporting. It does not read real holdings, account secrets, or Sheets.
+2. `REAL_HOLDINGS_SHADOW`: classify as
+   `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION` with current status
+   `NOT_RUN_USER_PRIVACY`. It is not a default SETUP_01
+   research/development blocker. Only a future explicitly named production
+   milestone whose scope includes real-holdings integration may define this
+   validation as a scope-local blocker.
+
+**Evidence:** The synthetic-only generic shadow introduced at the latest
+substantive source head `5d242fb` passed with 7 supplied events, 6 unique event
+identities, 3 Decision rows, 2 T+1 attempts, 1 `EXECUTED`, and 1
+`SKIP_GAP_BELOW_CONFIRMATION`. Its exact-once, T+1, terminal-semantics,
+fail-closed, and reporting checks all passed. This evidence is sufficient for
+the current generic operational gate. It does not claim real-holdings
+validation.
+
+**Current blockers:** There is no P0 blocker for the generic SETUP_01
+Decision/Risk gate. P1 remains Sol review and explicit governance approval
+before merging PR #37 or making any production integration change. The
+existing `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` remains a blocker only for
+further SETUP_03 research/production changes. Missing real holdings is not a
+blocker for the current research/development progression.
+
+**Boundary:** This reclassification does not start SETUP_02, reopen SETUP_03,
+read returns/MFE/MAE/P&L/Final OOS, write production Sheets, or read real
+holdings. The real-holdings capability remains private and unrun; no workflow
+may emit holdings-derived information to GitHub Actions. Tracked governance
+files record the latest substantive source head and do not require the
+docs-only commit containing this entry to record its own SHA.
