@@ -103,9 +103,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── decision.py           # SETUP_03 Decision Engine + 同源只读 gate diagnostics
 │   ├── events.py             # 生产/回放共享的终态事件语义与幂等键
 │   ├── replay.py             # SETUP_03 Historical Replay & Diagnostics（只读）
-│   └── wave.py               # Wave Scenario Engine v1（只读、严格 as-of）
+│   ├── wave.py               # Wave Scenario Engine v1（只读、严格 as-of）
+│   ├── setup01.py            # SETUP_01 Wave 2 → Wave 3 v1 evaluator
+│   └── setup01_replay.py     # SETUP_01 strict as-of structural replay
 ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
+├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
 ├── scripts/run_wave_shadow.py # enabled holdings read-only shadow runner
+├── scripts/run_setup01_structural_replay.py # development-only SETUP_01 replay
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -192,6 +196,28 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
   `history_last_date`、`latest_completed_session`、`freshness_status`。qfq
   history 未达到最新完成 session 或 ordinary-calendar freshness 下限时
   `DATA_STALE` 并 fail closed，不评估 stale scenario。
+
+### trading/setup01.py / trading/setup01_replay.py
+
+- `SETUP_01` 独立消费 `trading.wave.evaluate_wave_scenario()` 的 primary
+  `WAVE_2_TO_3_CANDIDATE`；不修改 SETUP_03 的 `Setup`、Decision 或事件路径。
+- v1 只实现 `NONE/WATCH/ARMED/CONFIRMED/FAILED`。ARMED 的固定因果恢复条件为
+  `close >= wave2_low + 0.5 * (wave1_peak - wave2_low)` 且尚未严格突破
+  `wave1_peak`；CONFIRMED 只接受 `close > wave1_peak`。
+- `wave1_origin` 是 wave-scenario invalidation，confirmed `wave2_low` 是
+  SETUP_01 trade-structure invalidation；两者分别输出，均不是 execution stop。
+- 所有 Wave1/Wave2 Swing 必须已经 confirmed，weekly DOWNTREND 或 primary
+  `ABC_CORRECTION_CANDIDATE` 阻断 SETUP_01。Fibonacci 只复用 canonical
+  retracement levels/regions 作为 diagnostics，不是 hard gate。
+- `replay_setup01_history()` 对每个历史日严格使用可见前缀，只产生
+  `CONFIRMED`/`FAILED` first-entry event identity；不访问 returns/outcomes/OOS，
+  不产生 `ENTRY_ALLOWED`。
+
+### scripts/run_setup01_structural_replay.py
+
+- 只读取已冻结的 `DEVELOPMENT_ONLY` replay input，输出 SETUP_01 lifecycle、
+  event、market、current-candidate 与 block-reason artifacts；不重新抓取、
+  不写 Sheets/Decision/生产配置，也不读取收益或 Final OOS。
 
 ### research/backtest/setup03.py
 

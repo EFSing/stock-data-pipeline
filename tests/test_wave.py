@@ -440,6 +440,9 @@ class WaveShadowReportTests(unittest.TestCase):
             self.assertEqual(report["rows"][0]["primary"], "WAVE_2_TO_3_CANDIDATE")
             self.assertEqual(report["rows"][0]["alternate"], report["rows"][0]["alternate_scenario"]["family"])
             self.assertTrue(report["rows"][0]["SETUP_01_context"])
+            self.assertEqual(report["rows"][0]["SETUP_01"]["setup_type"], "SETUP_01")
+            self.assertIn(report["rows"][0]["SETUP_01"]["state"], {"WATCH", "ARMED", "CONFIRMED"})
+            self.assertNotIn("ENTRY_ALLOWED", json.dumps(report["rows"][0]["SETUP_01"]))
             self.assertEqual(report["rows"][0]["freshness_status"], "FRESH")
             self.assertEqual(
                 report["rows"][0]["latest_completed_session"],

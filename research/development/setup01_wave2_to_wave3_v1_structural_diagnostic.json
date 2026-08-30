@@ -1,0 +1,90 @@
+{
+  "setup_type": "SETUP_01",
+  "protocol_version": "SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1",
+  "mode": "DEVELOPMENT_EXPOSED_STRUCTURAL_REPLAY",
+  "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+  "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+  "replay_input_aggregate_hash": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+  "daily_swing_lookback": 5,
+  "weekly_swing_lookback": 5,
+  "symbols_requested": 40,
+  "evaluated": 40,
+  "errors": 0,
+  "total_replay_days": 86305,
+  "lifecycle_events": 1404,
+  "confirmed_events": 745,
+  "failed_events": 659,
+  "state_day_counts": {
+    "NONE": 2298,
+    "WATCH": 2898,
+    "ARMED": 2427,
+    "CONFIRMED": 29296,
+    "FAILED": 49386
+  },
+  "primary_wave_scenario_counts": {
+    "ABC_CORRECTION_CANDIDATE": 3644,
+    "DOWNTREND_OR_INVALID_FOR_LONG": 21137,
+    "NO_VALID_SCENARIO": 2128,
+    "UPTREND_UNKNOWN_WAVE": 28644,
+    "WAVE_2_TO_3_CANDIDATE": 21439,
+    "WAVE_3_CONTINUATION_CANDIDATE": 9313
+  },
+  "alternate_wave_scenario_counts": {
+    "NO_VALID_SCENARIO": 23604,
+    "UPTREND_UNKNOWN_WAVE": 44353,
+    "WAVE_2_TO_3_CANDIDATE": 18348
+  },
+  "event_market_distribution": {
+    "CN": {"CONFIRMED": 299, "FAILED": 313},
+    "US": {"CONFIRMED": 446, "FAILED": 346}
+  },
+  "final_state_market_distribution": {
+    "CN": {"NONE": 0, "WATCH": 0, "ARMED": 0, "CONFIRMED": 8, "FAILED": 12},
+    "US": {"NONE": 0, "WATCH": 0, "ARMED": 1, "CONFIRMED": 5, "FAILED": 14}
+  },
+  "unknown_block_reasons": [
+    {"reason": "NONE: no eligible primary Wave 2→3 context", "count": 2298}
+  ],
+  "current_setup01_candidates": [
+    {
+      "symbol": "STX",
+      "market": "US",
+      "state": "ARMED",
+      "as_of_date": "2026-08-26",
+      "wave1_origin_price": 698.989990234375,
+      "wave1_origin_date": "2026-07-28",
+      "wave1_origin_confirmed_date": "2026-08-07",
+      "wave1_peak_price": 921.780029296875,
+      "wave1_peak_date": "2026-07-31",
+      "wave1_peak_confirmed_date": "2026-08-14",
+      "wave2_low_price": 761.7999877929688,
+      "wave2_low_date": "2026-08-07",
+      "wave2_low_confirmed_date": "2026-08-24",
+      "fib_retracement_ratio": 0.7180753779527214,
+      "fib_retracement_region": "0.618-0.786",
+      "confirmation_level": 921.780029296875,
+      "structural_invalidation": 761.7999877929688,
+      "wave_scenario_invalidation": 698.989990234375,
+      "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+      "alternate_wave_scenario": "UPTREND_UNKNOWN_WAVE",
+      "lifecycle_index": 42,
+      "reason": "ARMED: causal recovery threshold reached without breaking Wave 1 peak"
+    }
+  ],
+  "controls": {
+    "development_only": true,
+    "formal_validation": false,
+    "final_oos_accessed": false,
+    "returns_accessed": false,
+    "forward_returns_accessed": false,
+    "mfe_accessed": false,
+    "mae_accessed": false,
+    "pnl_accessed": false,
+    "decision_accessed": false,
+    "entry_allowed_emitted": false,
+    "sheets_written": false,
+    "setup03_reopened": false,
+    "setup02_started": false
+  },
+  "status": "SUCCESS"
+}

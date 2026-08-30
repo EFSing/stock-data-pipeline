@@ -180,9 +180,10 @@ class PositionSize:
 
 
 class SetupState(str, Enum):
-    """Setup 生命周期状态（Phase 2 只做到 FAILED 为止）。
+    """Setup 生命周期状态。
 
-    ACTIVE / COMPLETED 属于后续交易生命周期，不在本阶段实现。
+    The structural setup layer intentionally stops at FAILED.  ACTIVE and
+    COMPLETED are later trade-lifecycle concepts and are not represented here.
     """
 
     NONE = "NONE"
@@ -211,6 +212,43 @@ class Setup:
     detected_index: Optional[int] = None
     state_entered_index: Optional[int] = None
     confirmed_index: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class Setup01Evaluation:
+    """Immutable SETUP_01 Wave 2 → Wave 3 structural snapshot.
+
+    This model is deliberately separate from :class:`Setup`, whose public
+    production behavior is SETUP_03 Platform Breakout.  It contains no entry,
+    decision, target, execution-stop, or risk fields.
+    """
+
+    setup_type: str
+    protocol_version: str
+    state: SetupState
+    as_of_date: date
+    wave1_origin: Optional[SwingPoint]
+    wave1_peak: Optional[SwingPoint]
+    wave2_low: Optional[SwingPoint]
+    fib_retracement_ratio: Optional[float]
+    fib_retracement_region: Optional[str]
+    confirmation_level: Optional[float]
+    structural_invalidation: Optional[float]
+    wave_scenario_invalidation: Optional[float]
+    wave1_origin_confirmed_date: Optional[date]
+    wave1_peak_confirmed_date: Optional[date]
+    wave2_low_confirmed_date: Optional[date]
+    state_entered_index: Optional[int]
+    state_entered_date: Optional[date]
+    confirmed_index: Optional[int]
+    confirmed_date: Optional[date]
+    failed_index: Optional[int]
+    failed_date: Optional[date]
+    primary_wave_scenario: str
+    alternate_wave_scenario: str
+    reason: str
+    diagnostics: tuple[str, ...] = ()
+    lifecycle_index: Optional[int] = None
 
 
 class DecisionAction(str, Enum):

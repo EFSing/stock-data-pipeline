@@ -706,3 +706,44 @@ were not changed.
 `WAVE_SCENARIO_ENGINE_V1_CORRECTNESS_CLOSEOUT_READY_FOR_SOL`. Keep PR #35
 `OPEN / CLEAN / MERGEABLE`; do not merge it and do not start independent
 `SETUP_01`/`SETUP_02` implementation before Sol review.
+
+### Decision: implement SETUP_01 Wave 2 → Wave 3 v1 as a separate structural lifecycle
+
+**Context:** PR #35 has been squash-merged into the latest `main` and the
+registered Wave Scenario Engine v1 is now the only Wave context source for
+this work. The next authorized implementation is SETUP_01; SETUP_02 remains
+out of scope and SETUP_03 remains closed.
+
+**Decision:** Register
+`SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`. Implement a separate immutable
+SETUP_01 evaluation and strict as-of replay layer with the lifecycle
+`NONE`, `WATCH`, `ARMED`, `CONFIRMED`, `FAILED`. The evaluator accepts only
+the Wave Engine primary `WAVE_2_TO_3_CANDIDATE` with
+`setup01_context_eligible=true`, a non-`DOWNTREND` weekly parent, and three
+confirmed causal Swings in `LOW → HIGH → LOW` order. It requires
+`Wave1 peak > Wave1 origin`, `Wave2 low > Wave1 origin`, and
+`Wave2 low < Wave1 peak`; otherwise no valid SETUP_01 lifecycle is created.
+Explicit ABC correction context and weekly downtrend block confirmation.
+
+**Lifecycle boundary:** `ARMED` uses the protocol-fixed causal recovery
+threshold `close >= Wave2 low + 0.5 × (Wave1 peak − Wave2 low)` while
+`close <= Wave1 peak`. `CONFIRMED` requires a daily close strictly greater
+than Wave 1 peak. Before confirmation, `close <= Wave 1 origin` is the Wave
+Scenario invalidation and `close <= confirmed Wave 2 low` is the separate
+SETUP_01 trade-structure invalidation. Fib ratios `0.382`, `0.5`, `0.618`,
+and `0.786` are reused from `trading/fibonacci.py` for descriptive region
+diagnostics only; no Fib, RSI, EMA, return, or outcome metric is a gate.
+
+**Replay and shadow boundary:** Every replay snapshot evaluates only the
+visible historical prefix and emits deterministic first-entry `CONFIRMED`
+or `FAILED` event identities. The real holdings shadow is read-only and
+produces JSON/CSV diagnostics only; it does not call SETUP_03 Decision, emit
+`ENTRY_ALLOWED`, write Sheets, or access returns, forward returns, MFE, MAE,
+P&L, Final OOS, or formal validation. This is a structural review node, not
+authorization for SETUP_01 Decision/Risk or a production signal.
+
+**Reason:** A dedicated setup type preserves the meaning and compatibility
+of SETUP_03 while making the Wave 2 → Wave 3 assumptions, counter-scenario,
+causality, invalidations, and review evidence explicit. The fixed recovery
+rule is intentionally simple and non-optimized; no parameter grid or
+market-specific Fib rule is introduced.
