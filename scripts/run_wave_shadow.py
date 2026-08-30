@@ -92,6 +92,12 @@ def _csv_row(row: dict[str, Any]) -> dict[str, Any]:
         "SETUP_01_structural_invalidation": setup01.get("structural_invalidation", ""),
         "SETUP_01_wave_scenario_invalidation": setup01.get("wave_scenario_invalidation", ""),
         "SETUP_01_reason": setup01.get("reason", ""),
+        "terminal_event_type": row.get("terminal_event_type", ""),
+        "terminal_event_date": row.get("terminal_event_date", ""),
+        "new_confirmed_today": row.get("new_confirmed_today", False),
+        "new_failed_today": row.get("new_failed_today", False),
+        "live_candidate": row.get("live_candidate", False),
+        "historical_terminal": row.get("historical_terminal", False),
         "error": row.get("error", ""),
     }
 
@@ -231,6 +237,16 @@ def run_wave_shadow(
                 "SETUP_01_context": evaluation.primary_scenario.setup01_context_eligible,
                 "SETUP_02_context": evaluation.primary_scenario.setup02_context_eligible,
                 "SETUP_01": setup01_row,
+                "terminal_event_type": setup01_row["terminal_event_type"],
+                "terminal_event_date": setup01_row["terminal_event_date"],
+                "new_confirmed_today": setup01_row["is_new_confirmed_event_as_of"],
+                "new_failed_today": setup01_row["is_new_failed_event_as_of"],
+                "live_candidate": setup01_row["is_live_preconfirmation_candidate"],
+                "historical_terminal": (
+                    setup01_row["terminal_event_type"] in {"CONFIRMED", "FAILED"}
+                    and not setup01_row["is_new_confirmed_event_as_of"]
+                    and not setup01_row["is_new_failed_event_as_of"]
+                ),
                 "data_source": source,
                 "error": "",
             }
@@ -290,6 +306,11 @@ def run_wave_shadow(
                     "reason": "shadow history could not be evaluated",
                     "diagnostics": [],
                     "lifecycle_index": None,
+                    "terminal_event_type": None,
+                    "terminal_event_date": None,
+                    "is_new_confirmed_event_as_of": False,
+                    "is_new_failed_event_as_of": False,
+                    "is_live_preconfirmation_candidate": False,
                     "wave1_origin": None,
                     "wave1_peak": None,
                     "wave2_low": None,
@@ -328,6 +349,12 @@ def run_wave_shadow(
                     history_last_date.isoformat()
                     if history_last_date is not None else None
                 ),
+                "terminal_event_type": None,
+                "terminal_event_date": None,
+                "new_confirmed_today": False,
+                "new_failed_today": False,
+                "live_candidate": False,
+                "historical_terminal": False,
                 "data_source": source,
                 "error": str(exc),
             }

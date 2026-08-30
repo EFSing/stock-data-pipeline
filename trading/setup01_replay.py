@@ -140,13 +140,11 @@ def replay_setup01_history(
 
     for index, (quote, snapshot) in enumerate(zip(visible, snapshots)):
         state_dates[snapshot.state].append(quote.trade_date)
-        confirmed = (
-            snapshot.state is SetupState.CONFIRMED
-            and snapshot.confirmed_index == index
-        )
-        failed = (
-            snapshot.state is SetupState.FAILED and snapshot.failed_index == index
-        )
+        # The evaluator owns terminal-event semantics.  A terminal state can
+        # persist on later bars, so replay must consume the explicit as-of
+        # event flags rather than treating every terminal snapshot as new.
+        confirmed = snapshot.is_new_confirmed_event_as_of
+        failed = snapshot.is_new_failed_event_as_of
         if confirmed or failed:
             event_type = SetupState.CONFIRMED if confirmed else SetupState.FAILED
             event_id = setup01_event_identity(

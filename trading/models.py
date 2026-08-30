@@ -249,6 +249,14 @@ class Setup01Evaluation:
     reason: str
     diagnostics: tuple[str, ...] = ()
     lifecycle_index: Optional[int] = None
+    # Terminal state is a historical lifecycle fact.  The explicit event
+    # fields below keep it separate from whether a new terminal event occurred
+    # on this as-of date.
+    terminal_event_type: Optional[SetupState] = None
+    terminal_event_date: Optional[date] = None
+    is_new_confirmed_event_as_of: bool = False
+    is_new_failed_event_as_of: bool = False
+    is_live_preconfirmation_candidate: bool = False
 
 
 class DecisionAction(str, Enum):

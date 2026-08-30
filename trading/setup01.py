@@ -229,6 +229,14 @@ def _snapshot(
     diagnostics: Iterable[str],
 ) -> Setup01Evaluation:
     candidate = tracker.candidate if tracker is not None else None
+    terminal_event_type: SetupState | None = None
+    terminal_event_date: date | None = None
+    if tracker is not None and state is SetupState.CONFIRMED:
+        terminal_event_type = SetupState.CONFIRMED
+        terminal_event_date = tracker.confirmed_date
+    elif tracker is not None and state is SetupState.FAILED:
+        terminal_event_type = SetupState.FAILED
+        terminal_event_date = tracker.failed_date
     return Setup01Evaluation(
         setup_type=SETUP01_TYPE,
         protocol_version=SETUP01_PROTOCOL_VERSION,
@@ -262,6 +270,20 @@ def _snapshot(
         reason=reason,
         diagnostics=tuple(diagnostics),
         lifecycle_index=tracker.lifecycle_index if tracker else None,
+        terminal_event_type=terminal_event_type,
+        terminal_event_date=terminal_event_date,
+        is_new_confirmed_event_as_of=(
+            state is SetupState.CONFIRMED
+            and terminal_event_date == wave.as_of_date
+        ),
+        is_new_failed_event_as_of=(
+            state is SetupState.FAILED
+            and terminal_event_date == wave.as_of_date
+        ),
+        is_live_preconfirmation_candidate=state in {
+            SetupState.WATCH,
+            SetupState.ARMED,
+        },
     )
 
 
@@ -565,6 +587,19 @@ def setup01_evaluation_to_dict(evaluation: Setup01Evaluation) -> dict:
         "reason": evaluation.reason,
         "diagnostics": list(evaluation.diagnostics),
         "lifecycle_index": evaluation.lifecycle_index,
+        "terminal_event_type": (
+            evaluation.terminal_event_type.value
+            if evaluation.terminal_event_type is not None
+            else None
+        ),
+        "terminal_event_date": (
+            evaluation.terminal_event_date.isoformat()
+            if evaluation.terminal_event_date is not None
+            else None
+        ),
+        "is_new_confirmed_event_as_of": evaluation.is_new_confirmed_event_as_of,
+        "is_new_failed_event_as_of": evaluation.is_new_failed_event_as_of,
+        "is_live_preconfirmation_candidate": evaluation.is_live_preconfirmation_candidate,
         "wave1_origin": _swing_dict(evaluation.wave1_origin),
         "wave1_peak": _swing_dict(evaluation.wave1_peak),
         "wave2_low": _swing_dict(evaluation.wave2_low),

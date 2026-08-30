@@ -108,6 +108,102 @@ class Setup01LifecycleTests(unittest.TestCase):
         self.assertIn("|CONFIRMED|", report.events[0].event_identity)
         self.assertEqual(len(set(event.event_identity for event in report.events)), 1)
 
+    def test_terminal_confirmation_is_not_a_new_event_on_later_as_of_date(self):
+        start = date(2026, 2, 1)
+        quotes = [
+            _quote(start + timedelta(days=index), "NEUTRAL", close)
+            for index, close in enumerate((100.0, 120.0, 120.0, 130.0, 141.0, 139.0))
+        ]
+        origin = SwingPoint(SwingKind.LOW, 100.0, 0, start, 0, start)
+        peak = SwingPoint(
+            SwingKind.HIGH, 140.0, 1, start + timedelta(days=1), 1,
+            start + timedelta(days=1)
+        )
+        wave2_low = SwingPoint(
+            SwingKind.LOW, 115.0, 2, start + timedelta(days=2), 2,
+            start + timedelta(days=2)
+        )
+        primary = WaveScenario(
+            family=WaveScenarioFamily.WAVE_2_TO_3_CANDIDATE,
+            evidence=("synthetic candidate",),
+            counter_evidence=(),
+            evidence_score=1,
+            confirmed_swings=(origin, peak, wave2_low),
+            candidate_impulse_leg=WaveLeg(origin, peak, "UP"),
+            candidate_retracement_leg=WaveLeg(peak, wave2_low, "DOWN"),
+            fibonacci_retracement_regions=(),
+            fibonacci_extension_regions=(),
+            structural_invalidation=origin.price,
+            scenario_invalidation_reason="synthetic",
+            setup01_context_eligible=True,
+            setup02_context_eligible=False,
+        )
+        template = WaveScenarioEvaluation(
+            protocol_version="WAVE-SCENARIO-ENGINE-2026-08-30-v1",
+            as_of_date=start,
+            as_of_close=100.0,
+            weekly_state=Trend.UPTREND,
+            daily_state=Trend.UPTREND,
+            weekly_swings=(),
+            daily_swings=(origin, peak, wave2_low),
+            primary_scenario=primary,
+            alternate_scenario=replace(
+                primary,
+                family=WaveScenarioFamily.NO_VALID_SCENARIO,
+                confirmed_swings=(),
+                candidate_impulse_leg=None,
+                candidate_retracement_leg=None,
+                setup01_context_eligible=False,
+                setup02_context_eligible=False,
+            ),
+        )
+        with patch(
+            "trading.setup01.evaluate_wave_scenario",
+            side_effect=lambda visible, **kwargs: replace(
+                template,
+                as_of_date=visible[-1].trade_date,
+                as_of_close=float(visible[-1].close),
+            ),
+        ):
+            history = evaluate_setup01_history(
+                quotes, daily_swing_lookback=1, weekly_swing_lookback=1
+            )
+        confirmation_index = next(
+            index
+            for index, snapshot in enumerate(history)
+            if snapshot.is_new_confirmed_event_as_of
+        )
+        confirmed = history[confirmation_index]
+        later = history[confirmation_index + 1]
+        self.assertEqual(confirmed.state, SetupState.CONFIRMED)
+        self.assertEqual(confirmed.terminal_event_type, SetupState.CONFIRMED)
+        self.assertEqual(confirmed.terminal_event_date, confirmed.as_of_date)
+        self.assertTrue(confirmed.is_new_confirmed_event_as_of)
+        self.assertFalse(confirmed.is_new_failed_event_as_of)
+        self.assertFalse(confirmed.is_live_preconfirmation_candidate)
+        self.assertEqual(later.state, SetupState.CONFIRMED)
+        self.assertEqual(later.terminal_event_type, SetupState.CONFIRMED)
+        self.assertEqual(later.terminal_event_date, confirmed.as_of_date)
+        self.assertFalse(later.is_new_confirmed_event_as_of)
+        self.assertFalse(later.is_new_failed_event_as_of)
+        self.assertFalse(later.is_live_preconfirmation_candidate)
+
+        with patch(
+            "trading.setup01.evaluate_wave_scenario",
+            side_effect=lambda visible, **kwargs: replace(
+                template,
+                as_of_date=visible[-1].trade_date,
+                as_of_close=float(visible[-1].close),
+            ),
+        ):
+            report = replay_setup01_history(
+                quotes, daily_swing_lookback=1, weekly_swing_lookback=1
+            )
+        self.assertEqual(
+            [event.event_type for event in report.events], [SetupState.CONFIRMED]
+        )
+        self.assertEqual(len(report.events), 1)
+
     def test_armed_recovery_is_fixed_and_close_equal_peak_is_not_confirmed(self):
         quotes = _wave_candidate_points(140.0)
         evaluation = evaluate_setup01(
@@ -405,6 +501,11 @@ class Setup01LifecycleTests(unittest.TestCase):
             "state_entered_date",
             "confirmed_date",
             "failed_date",
+            "terminal_event_type",
+            "terminal_event_date",
+            "is_new_confirmed_event_as_of",
+            "is_new_failed_event_as_of",
+            "is_live_preconfirmation_candidate",
             "primary_wave_scenario",
             "alternate_wave_scenario",
             "reason",
