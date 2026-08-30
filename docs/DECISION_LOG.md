@@ -964,10 +964,11 @@ EXECUTED, with one `SKIP_GAP_BELOW_CONFIRMATION` and zero
 registered reasons zero), so the funnel delta is zero. The five T1 provenance
 rows remain existing `WAVE3_FIB_EXTENSION / 1.272`, with historical
 swing-high T1=0, >5R=0, and all geometry checks passing. Full and focused
-regressions, compileall, generic synthetic shadow, and `git diff --check` are
-required before the PR can be marked fully ready.
+regressions, compileall, generic synthetic shadow, and `git diff --check` all
+passed; final exact-head CI and generic shadow are success on the final GitHub
+tip. The PR is fully ready for Sol review.
 
 This closeout does not access returns/MFE/MAE/P&L/OOS, start SETUP_02, reopen
 SETUP_03, read real holdings or Secrets, write production Sheets, change
-strategy semantics, or merge PR #37. The next action after exact-head CI is
-Sol review followed by a merge decision.
+strategy semantics, or merge PR #37. The next action is Sol review followed by
+a merge decision.
