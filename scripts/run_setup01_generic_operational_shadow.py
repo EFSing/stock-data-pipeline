@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core import Quote
+from research.market_sessions import DEVELOPMENT_SESSION_IDENTITY
 from trading.models import Setup01Evaluation, SetupState, SwingKind, SwingPoint
 from trading.setup01_decision import (
     EXECUTED,
@@ -265,6 +266,10 @@ def run_setup01_generic_operational_shadow(
     skipped_gap = sum(
         item.outcome == SKIP_GAP_BELOW_CONFIRMATION for item in stream.executions
     )
+    execution_ledger_invariant = all(
+        (execution.actual_entry is not None) == (execution.outcome == EXECUTED)
+        for execution in stream.executions
+    )
     historical_decision = any(
         row["fixture_classification"] == "HISTORICAL_TERMINAL"
         and row["decision_generated"]
@@ -294,6 +299,7 @@ def run_setup01_generic_operational_shadow(
         "terminal_semantics": (
             not historical_decision and not live_decision and not failed_decision
         ),
+        "execution_ledger_invariant": execution_ledger_invariant,
         "fail_closed": (
             not malformed.decision_calculable
             and malformed.action.value == "NO_TRADE"
@@ -304,6 +310,7 @@ def run_setup01_generic_operational_shadow(
     document: dict[str, Any] = {
         "protocol_version": "SETUP-01-DECISION-RISK-2026-08-30-v1",
         "mode": "GENERIC_OPERATIONAL_SHADOW",
+        "development_session_identity": DEVELOPMENT_SESSION_IDENTITY,
         "fixture_version": FIXTURE_VERSION,
         "fixture_source": "CONTROLLED_PUBLIC_SYNTHETIC_HOLDINGS_FIXTURE",
         "events_supplied": len(events),

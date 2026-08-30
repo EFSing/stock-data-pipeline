@@ -13,10 +13,18 @@ from typing import Mapping, Sequence
 from core import Quote
 
 
+DEVELOPMENT_SESSION_IDENTITY = "FROZEN_DATASET_MARKET_SESSION_SET"
+
+
 def build_market_session_dates(
     symbol_quotes: Mapping[str, Sequence[Quote]],
 ) -> dict[str, tuple[date, ...]]:
-    """Return sorted union-of-symbol local trading dates for each market."""
+    """Return the sorted frozen-dataset session union for each market.
+
+    This is the development T+1 identity.  It is deliberately not an
+    exchange-calendar claim: if an entire frozen market universe is absent on
+    a real session, this observed union cannot identify that missing session.
+    """
     dates_by_market: dict[str, set[date]] = {}
     for quotes in symbol_quotes.values():
         for quote in quotes:
@@ -50,4 +58,8 @@ def trading_day_distance(
     return abs(ordinal[new_date] - ordinal[old_date])
 
 
-__all__ = ["build_market_session_dates", "trading_day_distance"]
+__all__ = [
+    "DEVELOPMENT_SESSION_IDENTITY",
+    "build_market_session_dates",
+    "trading_day_distance",
+]

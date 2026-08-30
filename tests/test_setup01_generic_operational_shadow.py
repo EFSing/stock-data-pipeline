@@ -22,6 +22,11 @@ class Setup01GenericOperationalShadowTests(unittest.TestCase):
             self.assertEqual(report["execution_attempts"], 2)
             self.assertEqual(report["executed"], 1)
             self.assertEqual(report["skipped_gap_below_confirmation"], 1)
+            self.assertTrue(report["checks"]["execution_ledger_invariant"])
+            self.assertEqual(
+                report["development_session_identity"],
+                "FROZEN_DATASET_MARKET_SESSION_SET",
+            )
             self.assertTrue(report["controls"]["synthetic_only"])
             self.assertFalse(report["controls"]["real_holdings_read"])
             self.assertFalse(report["controls"]["account_secrets_required"])
