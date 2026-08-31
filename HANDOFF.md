@@ -26,8 +26,8 @@
 - **main/base SHA:** GitHub remote `main@3a6d417ede3594c05003ea18ce65bd4562eff294`；main push CI `33316793033` success，Asia/US latest runs `33320878809` / `33320860435` success。
 - **working branch:** `codex/holdings-data-manager`，基于上述真实最新 main。
 - **implementation source head:** `2dd1ed0` (`feat: add holdings data manager skill`)；新 PR tip、exact-head CI 和 mergeability 待 push 后实时核验。
-- **PR:** 当前 `NONE_PENDING_PUSH`；此前 #35/#36 仅为历史策略上下文，本任务不修改其内容。
-- **latest exact-head checks:** base main `33316793033` 及其 scheduled latest runs已成功；本任务 source head 尚无 PR CI，push 后必须核对 exact SHA。
+- **PR:** #38 `OPEN`，当前治理同步前 live tip 为 `8f48921a15cfbd0b45c11d28c705a865c5db9d92`；此前 #35/#36 仅为历史策略上下文，本任务不修改其内容。
+- **latest exact-head checks:** PR #38 tip `8f48921…` 的 CI `33354460712` success、mergeable=true；本次 docs-only 对账 push 后必须核对新 exact SHA/CI。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
 - **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；持仓数据管理当前状态为 `HOLDINGS_DATA_MANAGER_LOCAL_VALIDATION_PENDING_PR`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
@@ -242,11 +242,11 @@
 ## 10. Next Action
 
 1. [x] 从真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294` 建立 `codex/holdings-data-manager`。
-2. [x] substantive source commit `2dd1ed0` 已实现，并通过当前 focused/full unittest。
+2. [x] substantive source commit `2dd1ed0` 已实现，并通过 focused `13/13` 与 full `384/384` unittest。
 3. [x] `HANDOFF`、`CURRENT_STATUS`、`DECISION_LOG`、`ARCHITECTURE`、README 与 Skill specification 已同步本任务边界。
-4. [ ] 完成 compileall、`git diff --check` 与 Skill validator/手工前置检查；bundled validator 目前缺少 `yaml` 模块。
-5. [ ] push 分支、创建独立 PR，实时核对 PR base/tip/state/mergeability 与 exact-head CI。
-6. [ ] CI success 且 docs/source 对账后，将状态置为 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`；不自动 merge。
+4. [x] targeted compileall、`git diff --check` 与手工 Skill frontmatter 检查通过；官方 validator 因 bundled Python 缺少 `yaml` 模块未运行。
+5. [x] push 分支、创建独立 PR #38；首轮 tip `8f48921…` 的 exact-head CI `33354460712` success，PR OPEN/mergeable=true。
+6. [ ] docs-only 对账 push 后核对 PR #38 final tip/exact-head CI；确认一致后停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，不自动 merge。
 
 ## 11. Handoff Checklist
 
@@ -265,13 +265,12 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-30T16:00:00+08:00`（governance snapshot；PR tip/CI/shadow 需实时 GitHub 核验）
-- `verified_main_sha`: `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`
-- `verified_branch_head`: `eed768bec92365615b05b0a8314cf555e44b22ac`（branch=`codex/setup01-wave2-to-wave3-v1`；latest substantive PR #36 source head）
-- `latest_test_result`: focused SETUP_01/Wave/shadow `27/27` passed；`git diff --check` passed；compile check pending final command; current head exact-head CI/shadow pending
-- `latest_ci_run`: previous PR #36 exact-head `33300273163` success；does not cover `eed768b…`; new exact-head CI pending
-- `wave_shadow`: previous run `33300273180` success；new terminal projection shadow pending；no returns/OOS/Sheets writes
-- `setup01_structural_replay`: 40/40 symbols / 86,305 days / 1,404 lifecycle events / 745 CONFIRMED / 659 FAILED / 0 errors；current development candidate STX/US ARMED；real shadow current candidate 000725.SZ/CN WATCH
-- `updated_by_task`: `PR #36 correctness/governance closeout and SETUP_01 Decision/Risk v1 continuation`
+- `last_updated_at`: `2026-08-31T11:39:28+08:00`（治理 snapshot；docs-only update 后 PR final tip/CI 需实时复核）
+- `verified_main_sha`: `3a6d417ede3594c05003ea18ce65bd4562eff294`
+- `verified_branch_head`: `2dd1ed0`（branch=`codex/holdings-data-manager`；latest substantive source head）
+- `latest_test_result`: focused holdings `13/13`、full unittest `384/384` passed；targeted compileall 与 `git diff --check` passed；manual Skill frontmatter check passed；official validator blocked by missing bundled `yaml` module
+- `latest_ci_run`: PR #38 pre-final-docs tip `8f48921…` exact-head CI `33354460712` success；docs-only update后 final tip/CI须实时复核
+- `latest_pr`: #38 `OPEN`，base=`3a6d417…`，mergeable=true；不自动 merge
+- `updated_by_task`: `repository-local holdings-data-manager Skill and deterministic holdings lifecycle operations`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
