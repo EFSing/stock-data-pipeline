@@ -193,7 +193,7 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | 真实 main `fa93455b7b16b74e0aa5c871275191deeaf04f0a` 的 exact-head CI `33372189527` success；PR #41 source head `65651b4af10df321adf444bb25fd838e0df4b085` 的本地 focused/full/compile/diff checks success；仓库级 compileall 不能遍历已有只读 `.task_deps` | 等待 PR #41 final tip exact-head CI live verification；保持不自动 merge、不执行真实 holdings/Sheets 操作；docs-only commit 不记录自身 SHA | No |
+| environment / verification | 真实 main `fa93455b7b16b74e0aa5c871275191deeaf04f0a` 的 exact-head CI `33372189527` success；PR #41 final tip exact-head CI success、mergeable=`true`/`clean`；source head `65651b4af10df321adf444bb25fd838e0df4b085` 的本地 focused/full/compile/diff checks success；仓库级 compileall 不能遍历已有只读 `.task_deps` | 保持不自动 merge、不执行真实 holdings/Sheets 操作；docs-only commit 不记录自身 SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
 | Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；Wave/SETUP01 为历史上下文；PR #39 已 merge 且真实 transport dry-run smoke 已通过；PR #41 live enablement 已实现并 open | 保持 `LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`；等待 Sol review/明确上线决定；不自动 merge、不执行真实 ADD/CLOSE/REENTER/SYNC、不访问账户/券商、不写 Sheets | No for this task |
@@ -280,7 +280,7 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-31T17:26:21+08:00`（LIVE_WRITE_ENABLEMENT_V1 final governance snapshot；docs-only sync commit 不自引用其 SHA）
+- `last_updated_at`: `2026-08-31T17:28:30+08:00`（LIVE_WRITE_ENABLEMENT_V1 final governance snapshot；docs-only sync commit 不自引用其 SHA）
 - `verified_main_sha`: `fa93455b7b16b74e0aa5c871275191deeaf04f0a`（latest real main head；exact-head CI `33372189527` success）
 - `verified_branch_source_head`: `65651b4af10df321adf444bb25fd838e0df4b085`（latest substantive live-write implementation commit；final docs-only tip SHA intentionally omitted）
 - `latest_test_result`: focused command bus `19/19`、full unittest `414/414`、changed-file compileall、`git diff --check` success；未访问 Google Sheets/账户/券商，未执行真实 holdings command
