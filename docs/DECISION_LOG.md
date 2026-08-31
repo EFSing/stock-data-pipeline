@@ -822,14 +822,14 @@ normalization is delegated to the existing `normalize_holding`, and any live
 execution is delegated only to `HoldingsDataManager.execute(...)`.
 
 **Dry-run and live gate:** The checked-in workflow fixes
-`HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`. `dry_run=true` performs event
-validation and existing identity normalization, then emits a result receipt
-without constructing `SheetsClient`, writing Sheets, reading accounts,
-accessing brokers, or entering SETUP/Wave/Decision/research. `dry_run=false`
-fails closed before manager construction. A future live enablement must be a
-separate reviewed change and may pass only the existing
-`GOOGLE_SHEET_ID`/`GOOGLE_SERVICE_ACCOUNT_JSON` names to the existing
-`SheetsClient` path.
+`HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled` and exposes no Google credentials,
+forming the invariant `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`.
+`dry_run=true` performs event validation and existing identity normalization,
+then emits a result receipt without constructing `SheetsClient`, writing
+Sheets, reading accounts, accessing brokers, or entering SETUP/Wave/Decision/
+research. `dry_run=false` fails closed before manager construction. A future
+live enablement must be a separate reviewed change with separately designed
+secret injection.
 
 **Receipt:** Every handled event produces a bounded machine-readable and
 human-readable result comment containing `request_id`, operation, normalized
@@ -859,3 +859,41 @@ exact-head CI are live-verified at handoff, and PR state is
 `OPEN`/`merged=false`/`mergeable=true`/`clean`. Stop at
 `CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`. Do not enable live writes
 or execute real commands before Sol review.
+
+## 2026-08-31 — bounded security closeout before PR #39 merge
+
+**Context:** Sol's review conclusion was
+`BOUNDED_SECURITY_CLOSEOUT_REQUIRED_BEFORE_MERGE`. The command schema, identity
+normalization, `HoldingsDataManager` delegation, business idempotence, and
+dry-run receipt were already accepted and remain unchanged.
+
+**Decision:** Keep PR #39 dry-run-only with
+`HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`. Remove all Google credential
+injection from the holdings-command workflow, including both existing secret
+mappings, and record the invariant
+`DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`. A future live enablement must use a
+separate reviewed PR to design secret injection. Add a workflow job-level
+fail-closed guard for the governed repository, non-PR issue, and exact
+`EFSing` workflow actor, event sender, and Issue user. Retain the Python
+sender/Issue-user/actor allowlist as the second authoritative validation.
+
+**Concurrency prerequisite:** Before any live ADD/CLOSE/REENTER/SYNC can be
+enabled, record and satisfy
+`LIVE_WRITE_CONCURRENCY_SERIALIZATION_REQUIRED_BEFORE_ENABLEMENT`; multiple
+live command jobs must not modify the same holdings state out of order. This PR
+does not implement live concurrency, add a transport database, change manager
+business semantics, or enable writes.
+
+**Evidence / boundary:** Security closeout source head is `ec38471` (full SHA
+from Git). Command-bus tests pass `12/12`, holdings lifecycle tests `24/24`,
+full unittest `407/407`, changed-file compileall and `git diff --check` pass.
+Regression proves the workflow has no Google credential injection, `dry_run=false`
+fails before manager construction, and dry-run constructs neither
+`SheetsClient` nor `HoldingsDataManager`. No real `ADD`/`CLOSE`/`REENTER`/`SYNC`,
+Google Sheets write, account/broker access, strategy/research execution, or
+Google Sheets live write was performed.
+
+**Next node:** Push the changes to the same PR #39 and live-verify exact-head
+CI plus `OPEN / CLEAN / MERGEABLE`. Do not create a new PR or merge. After that
+verification, stop at `CHATGPT_HOLDINGS_COMMAND_BUS_PR_FULLY_READY` with
+`HANDOFF_CURRENT_AND_CONSISTENT`.
