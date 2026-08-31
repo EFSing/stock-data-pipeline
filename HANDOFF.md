@@ -12,28 +12,30 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `PR36_CORRECTNESS_GOVERNANCE_CLOSEOUT_THEN_SETUP01_DECISION_RISK_V1`。
-- **具体目标:** 先完成 PR #36 的 correctness/governance closeout 与 terminal-vs-new-event shadow 复核；条件满足后 squash merge PR #36，再从新 main 独立实现 SETUP_01 Decision/Risk v1，运行 historical decision/execution funnel 与 real holdings read-only shadow，停在可供 Sol 审阅的节点。
-- **PR #35 closeout:** 已按 `APPROVE_WAVE_SCENARIO_ENGINE_V1` squash merge；真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success；旧 PR #31 已关闭并注明 `superseded by #34`。
-- **当前实现:** PR #36 `codex/setup01-wave2-to-wave3-v1` 的 previous review head 为 `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；terminal-event projection correctness 修正后的 latest substantive source head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`，基于 `main@2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`。SETUP_01 structural protocol 仍为 `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`，只输出结构 lifecycle/event，不产生 `ENTRY_ALLOWED`。
-- **历史 shadow evidence:** run `33300273180` 属于 previous review head；10 个启用持仓中 8 个完成评估、2 个 fail-closed，SETUP_01 states 为 `FAILED=5`、`WATCH=1`、`CONFIRMED=2`。SIVE.SE 因 qfq freshness `DATA_STALE`、MU 因 `历史数据源` 为空 fail-closed。terminal projection 修正后的 real-holdings shadow 必须在新 source head 上重新运行并实时记录。
-- **明确禁止事项:** 不启动 SETUP_02，不重新打开 SETUP_03，不自动 merge新的 Decision/Risk PR，不读取 returns/MFE/MAE/P&L/Final OOS，不猜 NAV/position size，不写任何 production Sheet；在 PR #36 closeout 条件满足前不进入后续实现。
-- **停止条件:** PR #36 新 source head 的 exact-head CI/shadow success、PR CLEAN/MERGEABLE、squash merge 后 main exact-head CI success；随后 SETUP_01 Decision/Risk v1、historical funnel、real holdings shadow、新 PR exact-head CI success、治理同步且 `HANDOFF_CURRENT_AND_CONSISTENT`，状态为 `SETUP_01_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。
+- **当前 Phase / task:** `HOLDINGS_DATA_MANAGER_SKILL`。
+- **具体目标:** 为上层 ChatGPT/Codex 提供 repository-local `holdings-data-manager` Skill；将自然语言稳定映射为 `ADD`、`REENTER`、`CLOSE`、`SYNC`，只管理持仓数据生命周期，不进入交易策略或账户动作。
+- **当前实现:** Skill contract 在 `skills/holdings-data-manager/SKILL.md`，业务实现为 `holdings_data_manager.py`；source/tests substantive commit 为 `2dd1ed0`，基于真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294`。
+- **操作边界:** 新身份完成 symbol/market/provider normalization，raw/qfq 均覆盖最近已完成市场交易日前一个自然年后才启用；REENTER 只补缺口；CLOSE 只停用 `自选清单.启用`，永久保留历史、校验、映射和身份；重复操作幂等。
+- **明确禁止事项:** 不新增第二套 registry/Sheet 事实源，不猜 ticker/market/provider，不伪造或插值行情，不把完整 `full` pipeline 作为单标的入口；不读取账户数量、成本、NAV、盈亏，不访问券商，不修改 SETUP_01/02/03/04、Wave、Fibonacci、Decision/Risk、Position Management、Exit 或研究协议。
+- **停止条件:** push 独立 PR，完成 full unittest、focused tests、compileall、`git diff --check` 和新 PR exact-head CI；治理同步并确认 `HANDOFF_CURRENT_AND_CONSISTENT` 后停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，不自动 merge。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub remote `main@2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`；该 SHA 是 PR #35 的 squash merge commit，main push CI `33298510168` success。
-- **working branch:** `codex/setup01-wave2-to-wave3-v1`（PR #36 closeout branch）。
-- **implementation source head:** previous review head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；latest substantive correctness source head `eed768bec92365615b05b0a8314cf555e44b22ac`。新 source head 的 exact-head CI/shadow 待 GitHub 实时核验。
-- **previous reviewed head:** `b3da9e87a25b3a56c341a6096c021666150a19d5`，exact-head CI `33268711570` success，shadow `33268711569` success。
-- **PR:** #35 已关闭并 squash merge；旧 PR #31 已关闭并注明 `superseded by #34`；PR #36 previous review head 为 `ca9ec6e...`，current substantive head 为 `eed768b...`，base 为 `main@2d48d90...`；PR final tip/state 需实时核验。
-- **latest exact-head checks:** `33300273163`/`33300273180` 仅属于 previous review head；current source head 的 CI 与 real-holdings shadow 待重新运行。
+- **main/base SHA:** GitHub remote `main@3a6d417ede3594c05003ea18ce65bd4562eff294`；main push CI `33316793033` success，Asia/US latest runs `33320878809` / `33320860435` success。
+- **working branch:** `codex/holdings-data-manager`，基于上述真实最新 main。
+- **implementation source head:** `2dd1ed0` (`feat: add holdings data manager skill`)；新 PR tip、exact-head CI 和 mergeability 待 push 后实时核验。
+- **PR:** 当前 `NONE_PENDING_PUSH`；此前 #35/#36 仅为历史策略上下文，本任务不修改其内容。
+- **latest exact-head checks:** base main `33316793033` 及其 scheduled latest runs已成功；本任务 source head 尚无 PR CI，push 后必须核对 exact SHA。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；当前状态为 `PR36_CORRECTNESS_GOVERNANCE_CLOSEOUT_PENDING_LIVE_VERIFICATION`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
+- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；持仓数据管理当前状态为 `HOLDINGS_DATA_MANAGER_LOCAL_VALIDATION_PENDING_PR`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
 ## 3. Completed Work
+
+- Holdings manager implementation: deterministic symbol/market/source normalization; natural-language parsing for single-symbol `ADD`/`REENTER`/`CLOSE`/`SYNC`; raw/qfq latest-completed-session one-year initialization and gap-only sync; fail-closed provider/QC/duplicate-date gates; idempotent `自选清单` update; CLOSE history preservation; Beijing-time append-only audit.
+- Repository-local Skill specification and capability documentation are tracked. `SheetsClient.upsert_watchlist()` updates only known headers and preserves unverified `自选清单` columns; no schema/registry change.
+- Holdings regression suite covers first ADD, repeated ADD, CLOSE/repeated CLOSE, REENTER gap/full coverage, SYNC state preservation, ambiguity, provider/qfq failure, duplicate dates, natural-language examples, and unknown Sheet columns. Existing scheduled latest tests remain green.
 
 - PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
 - Wave Scenario Engine v1 已实现：严格 `data <= as_of_date`、完整周边界、weekly parent → daily context、confirmed Swing、现有 Fibonacci regions、primary/alternate、证据/反证/规则计分、结构失效、context eligibility 与 fail-closed UNKNOWN/NO_VALID families。
@@ -65,16 +67,13 @@
 
 ### Required Next
 
-1. [x] 核对并 squash merge PR #35，确认 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6` 与 main CI `33298510168` success。
-2. [x] 关闭旧 PR #31 并记录 `superseded by #34`，不直接移植其旧-base diff。
-3. [x] 从最新 main 建立 `codex/setup01-wave2-to-wave3-v1`，实现 Wave Scenario Engine v1 与 read-only shadow runner/workflow。
-4. [x] 增加 causal/as-of、state、Fib、scenario coexistence、未来追加不变性及 shadow read-only 测试。
-5. [x] 对真实 10 个启用持仓重新运行 correctness-closeout shadow；8 个完成评估，SIVE.SE freshness stale、MU 历史源为空，均 fail-closed，artifact 状态为 `PARTIAL_DATA_QUALITY`。
-6. [x] SETUP_01 v1 protocol/lifecycle/evaluator/replay、future invariance、counter-scenario tests 与 structure-only diagnostic 已完成。
-7. [x] Previous real holdings read-only shadow 已完成：run `33300273180`，10 requested / 8 evaluated / 2 fail-closed errors，SETUP_01 `FAILED=5/WATCH=1/CONFIRMED=2`；新 terminal projection 后须重跑。
-8. [ ] PR #36 substantive head `eed768bec92365615b05b0a8314cf555e44b22ac` 的 exact-head CI、shadow 与 PR mergeability 尚待实时核验。
-9. [ ] 条件满足后按用户授权 squash merge PR #36，获取真实 merge commit 并等待 main exact-head CI。
-10. [ ] 从新 main 建立独立 Decision/Risk 分支；不自动 merge新的 Decision/Risk PR。
+1. [x] 从真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294` 建立 `codex/holdings-data-manager`。
+2. [x] 完成 `holdings_data_manager.py`、repository-local Skill specification、Sheet watchlist upsert、focused regression tests 及架构/README 说明。
+3. [x] 固化 substantive source commit `2dd1ed0`；`ADD`/`REENTER`/`CLOSE`/`SYNC`、raw/qfq 缺口、幂等与 fail-closed contract 已实现。
+4. [x] 完成治理同步草稿：CURRENT_STATUS、DECISION_LOG 和本 HANDOFF 指向当前 holdings task；此前 Wave/SETUP01 状态保留为不变历史上下文。
+5. [ ] 跑最终 full unittest、focused tests、compileall、`git diff --check`，并验证 Skill validator；官方 validator 当前受 bundled Python 缺少 `yaml` 模块影响。
+6. [ ] push 分支、创建独立 PR，实时核对 base/tip、PR state/mergeability 和 exact-head CI；不自动 merge。
+7. [ ] exact-head CI 成功且治理快照再次对账后，将状态置为 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`。
 
 ### Deferred
 
@@ -84,11 +83,11 @@
 
 ### Prohibited For Now
 
-- 自动 merge PR #36；把 Wave Engine/SETUP_01 shadow 场景当作交易信号或 `ENTRY_ALLOWED`。
-- 直接 merge/rebase PR #31，或重新打开 SETUP_03 structural development。
-- 读取 returns、forward returns、MFE、MAE、P&L、winrate、expectancy、Final OOS、Phase 5K-B1 或 IBKR formal OHLCV。
-- 改变 percentage production default、SETUP_03/Trading Core/Decision 既有交易行为或 Google Sheets schema。
-- shadow runner 不得写 Google Sheets、历史行情、交易决策、生产配置或任何交易字段。
+- 自动 merge 本任务 PR；此前 Wave/SETUP01 shadow 不得被当作本任务的交易动作或授权。
+- 直接 merge/rebase 旧 PR，或重新打开 SETUP_03 structural development。
+- 读取账户数量、成本、NAV、盈亏或访问真实券商账户；不进入任何 outcome/OOS/策略研究路径。
+- 修改 SETUP_01/02/03/04、Wave、Fibonacci、Decision/Risk、Position Management、Exit、Trading Core 既有交易行为或 Google Sheets schema。
+- `CLOSE` 物理删除历史行情、校验记录、数据源映射或证券身份；任何 provider/history/QC 失败时错误启用标的。
 
 ## 5. Key Decisions And Rationale
 
@@ -97,6 +96,7 @@
 - 以 `HANDOFF.md` 管当前快照、`CURRENT_STATUS.md` 管正式状态、`DECISION_LOG.md` 管长期理由；artifact 的可恢复性单独由 policy + registry 管理。
 - 重要 bytes 未进 Git 时，只有 `LOCAL_PRESENT`、`HASH_VERIFIED`、`PERSISTENT_BACKUP_PRESENT`、`RECOVERY_VERIFIED` 全部满足，才允许 `FULLY_RECOVERABLE`。
 - Phase 5J-v3 当前结果保持 development-only / structure-only；没有新的授权前，不将其解释为生产参数决定。
+- 持仓数据管理采用薄 Skill + 可测试 Python 编排；沿用 `自选清单.启用` 和现有历史/provider/QC/schema，不新增 registry；CLOSE 永久禁止删除历史，失败时 fail closed。
 
 ### Why
 
@@ -119,6 +119,11 @@
 | `HANDOFF.md` | 当前操作交接快照 | governance；下一次会话的第一入口 |
 | `AGENTS.md` | 新会话启动、冲突和更新 gate | governance；不改变交易规则 |
 | `README.md` | 公开发现入口，链接治理文件 | documentation / governance |
+| `holdings_data_manager.py` | 单标的身份规范化、ADD/REENTER/CLOSE/SYNC、历史缺口与审计编排 | 新持仓数据能力；不进入策略/账户路径 |
+| `skills/holdings-data-manager/SKILL.md` | 上层自然语言 Skill specification、contract、示例与禁止动作 | 薄编排入口；不承载业务实现 |
+| `docs/HOLDINGS_DATA_MANAGER.md` | 持仓生命周期、历史分离、schema 与 fail-closed 说明 | capability documentation |
+| `tests/test_holdings_data_manager.py` | 持仓生命周期、自然语言、provider/QC、日期幂等和 unknown column regression | 新能力回归 |
+| `sheets_client.py` | 增加保留未知列的单行 `自选清单` upsert | additive Sheet adapter；无 schema 变化 |
 | `docs/CURRENT_STATUS.md` | 正式状态、PR/CI 对账和下一步 | governance/status；修正已核实的 stale PR labels |
 | `docs/DECISION_LOG.md` | 记录本次治理设计的长期理由 | governance / decision history |
 | `docs/FROZEN_ARTIFACT_POLICY.md` | artifact 恢复与状态规则 | governance / protocol |
@@ -174,12 +179,12 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | PR #35 已 squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`；PR #36 previous CI `33300273163` 与 shadow `33300273180` 属于旧 head，当前 substantive head 为 `eed768bec92365615b05b0a8314cf555e44b22ac` | 以 GitHub PR/Actions 事实核对新 tip、exact-head CI/shadow 与 mergeability；docs-only commit 不记录自身 SHA | No |
+| environment / verification | 持仓 manager substantive source `2dd1ed0` 已在最新 main 上本地验证；当前尚未 push/创建 PR，Skill validator 因 bundled Python 缺少 `yaml` 模块未能运行 | 完成 compile/diff checks 后 push，实时核对新 PR tip、exact-head CI 与 mergeability；docs-only commit 不记录自身 SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；PR #36 正在 correctness/governance closeout | 新 head 验证并满足条件后 squash merge #36；再 review SETUP_01 Decision/Risk v1 funnel/shadow；不启动 SETUP_02、不重开 SETUP_03、不自动 merge新的 Decision/Risk PR | Yes for strategy/production continuation |
+| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；Wave/SETUP01 为历史上下文；本任务只等待 holdings manager Sol review | 新 PR exact-head CI 与治理对账成功后停止在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`；不自动 merge，不进入策略/账户动作 | No for this task |
 | shadow data quality | 10 个启用持仓中 8 个完成评估；SIVE.SE qfq `2026-08-27` 相对 freshness 下限 `2026-08-28` 为 `DATA_STALE`，MU 的 `历史数据源` 为空，均 fail-closed，整体 `PARTIAL_DATA_QUALITY` | 补齐明确历史源后另行运行 shadow；禁止默认猜测 provider 或写入 Sheets | Yes for claiming full 10/10 evaluation |
-| project coordination | 旧 PR #31 已关闭并注明 `superseded by #34`；PR #36 独立于 PR #35 的 production merge | do not merge/rebase #31；PR #36 只等待 Sol review | No, if kept separate |
+| project coordination | 旧 PR #31 已关闭并注明 `superseded by #34`；PR #35/#36 属于历史 strategy work；本任务分支独立 | 不 merge/rebase 旧 PR；仅创建本任务独立 PR，等待 Sol review | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
 ## 9. Lessons / Pitfalls — DO NOT REPEAT
@@ -236,14 +241,12 @@
 
 ## 10. Next Action
 
-1. [x] PR #35 已 squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
-2. [x] SETUP_01 Wave 2 → Wave 3 v1 已在 `codex/setup01-wave2-to-wave3-v1` 实现并通过 focused/full tests。
-3. [x] 已记录 previous reviewed head `b3da9e87a25b3a56c341a6096c021666150a19d5`、CI `33268711570`、shadow `33268711569` 及 review correctness findings。
-4. [x] PR #36 previous head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0` 的 exact-head CI `33300273163`、real holdings shadow `33300273180` success；该 evidence 不覆盖当前 substantive head。
-5. [x] SETUP_01 development replay：40/40 symbols、86,305 days、1,404 events、0 errors；previous real shadow：10 requested / 8 evaluated / 2 fail-closed errors。
-6. [x] 当前 substantive source head `eed768bec92365615b05b0a8314cf555e44b22ac` 已增加 terminal-vs-new-event projection、shadow 字段与回归。
-7. [ ] PR #36 新 head 的 exact-head CI、real holdings shadow、PR state/mergeability 实时核验；满足条件后 squash merge #36 并等待 main CI。
-8. [ ] 从新 main 实现 SETUP_01 Decision/Risk v1、历史 decision/execution funnel 与 real holdings read-only shadow；不自动 merge新的 Decision/Risk PR。
+1. [x] 从真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294` 建立 `codex/holdings-data-manager`。
+2. [x] substantive source commit `2dd1ed0` 已实现，并通过当前 focused/full unittest。
+3. [x] `HANDOFF`、`CURRENT_STATUS`、`DECISION_LOG`、`ARCHITECTURE`、README 与 Skill specification 已同步本任务边界。
+4. [ ] 完成 compileall、`git diff --check` 与 Skill validator/手工前置检查；bundled validator 目前缺少 `yaml` 模块。
+5. [ ] push 分支、创建独立 PR，实时核对 PR base/tip/state/mergeability 与 exact-head CI。
+6. [ ] CI success 且 docs/source 对账后，将状态置为 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`；不自动 merge。
 
 ## 11. Handoff Checklist
 

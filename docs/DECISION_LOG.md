@@ -759,3 +759,19 @@ market-specific Fib rule is introduced.
 **Replay/shadow boundary:** Replay consumes the explicit new-event flags, so a persisted historical `CONFIRMED` state is not re-emitted or re-decided on later dates. The read-only real-holdings shadow exposes both nested projection fields and top-level `new_confirmed_today`, `new_failed_today`, `live_candidate`, and `historical_terminal` fields. Lifecycle transitions, structural event identity and event counts are unchanged. Regression coverage proves a later as-of snapshot can remain `CONFIRMED` while `is_new_confirmed_event_as_of=false` and the replay event count remains one.
 
 **Boundary:** This closeout does not start `SETUP_02`, reopen `SETUP_03`, or access returns, MFE, MAE, P&L or Final OOS. The previous CI/shadow runs `33300273163`/`33300273180` do not cover the new source head; exact-head CI, re-run real holdings shadow and PR state must be re-verified before PR #36 merge.
+
+## 2026-08-31
+
+### Decision: implement repository-local holdings-data-manager as a thin lifecycle layer
+
+**Context:** 上层 ChatGPT/Codex 需要把“添加 MU”“我买了 512400”“重新买回 INTC”“NOK 已清仓”等自然语言稳定映射到持仓数据操作。现有 `main.py --mode latest|full` 是批量生产/手动历史与策略编排，不适合作为单标的新增入口；`自选清单.启用` 已经是当前持仓语义，历史表是独立的长期事实。
+
+**Decision:** 新增 repository-local `skills/holdings-data-manager/SKILL.md` 作为薄 contract，并将业务实现放在根目录 `holdings_data_manager.py`。核心接口固定为 `ADD`、`REENTER`、`CLOSE`、`SYNC`；自然语言只能解析为唯一操作和单一规范化身份。身份规范化复用现有 provider registry 与市场代码映射；latest 先确定最近已完成市场交易日，raw/qfq history 只请求缺口并以 `统一代码+交易日期` 幂等写入；`CLOSE` 只更新 `自选清单.启用=False`，不得物理删除任何历史、校验、数据源映射或证券身份。生命周期审计复用既有 `运行日志` 表头，以北京时间追加动作、市场、规范化统一代码、结果和写入行数。
+
+**Schema / source-of-truth:** 不新增 Sheet 列、registry 或第二套 holdings 事实源。新增的 `SheetsClient.upsert_watchlist()` 只更新已知表头字段并保留未核实列；现有 `自选清单`、历史行情表和 provider/QC 逻辑继续是唯一事实来源。
+
+**Fail-closed boundary:** 多标的/多操作/市场冲突/身份不确定、provider/history failure、重复或越界日期、异常 OHLCV、qfq 不可用或历史覆盖不足均返回 `FAILED`，不得错误启用、猜 ticker、伪造/插值 bar 或把失败标记为初始化完成。没有账户数量、成本、NAV、盈亏、券商访问、策略/研究调用；不调用完整 `full` pipeline。
+
+**Regression contract:** 回归覆盖首次一年 raw/qfq 初始化、重复 ADD、CLOSE 后完整历史保留、REENTER 缺口与完整覆盖、重复 CLOSE、歧义/provider/QC 失败、历史日期重复、SYNC 状态保持、自然语言示例、未知 Sheet 列保留及既有 scheduled latest 行为不变。
+
+**Boundary / status:** 本决策只增加持仓数据管理能力，不修改 SETUP_01/02/03/04、Wave、Fibonacci、Decision/Risk、Position Management、Exit 或研究协议；完成 PR/CI 对账后停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，不自动 merge。
