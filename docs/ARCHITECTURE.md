@@ -46,6 +46,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
         → holdings_data_manager.py               [one normalized symbol]
         → existing fetch_latest_with_retry()     [latest completed session]
         → existing fetch_with_retry()            [raw + qfq missing intervals]
+        → observed provider session-date coverage/QC
         → core date / OHLCV quality gates
         → SheetsClient.upsert_history()          [idempotent date key]
         → SheetsClient.upsert_watchlist()        [自选清单.启用 only]
@@ -70,6 +71,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 `holdings-data-manager` 是上层 ChatGPT/Codex Skill 使用的单标的路径：它只执行确定性的 `ADD`、`REENTER`、`CLOSE`、`SYNC`，不调用 `main.run()` 或把完整 `full` pipeline 当作新增股票接口。历史窗口、缺口、启用状态和审计均由 `holdings_data_manager.py` 编排，provider、日期/OHLCV 质量门控与 Sheet 写入仍复用现有模块。
 
+历史 coverage 只使用 provider/已有历史的 observed session dates；不以 weekday 推断交易所开市，不伪造休市日 bar。raw/qfq 日期集必须一致、无重复，并满足一年窗口的末日、边界、最小 180 bar 和最长 14 日 observed-session gap contract。`REENTER`/`SYNC` 只请求尾部或异常中段 gap；完整历史不会因 US/CN 节假日重复抓取。`scripts/holdings_data_manager_smoke.py` 提供不写 Sheet 的真实 provider read-only smoke。
+
 ## 目录结构（扁平，未使用 src/ 包布局）
 
 ```text
@@ -91,7 +94,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   └── holdings-data-manager/
 │       └── SKILL.md           # 上层 Skill 薄 contract，不承载业务实现
 ├── scripts/
-│   └── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
+│   ├── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
+│   └── holdings_data_manager_smoke.py # provider-only raw/qfq coverage smoke
 ├── research/
 │   ├── replay_input.py      # canonical input hash / manifest / frozen replay
 │   ├── frozen_validation.py # Phase 5E 固定数据集描述性验证
@@ -175,6 +179,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `parse_natural_language()`：只识别唯一的 `ADD` / `REENTER` / `CLOSE` / `SYNC` 意图和单一标的。
 - `HoldingsDataManager.execute()` / `execute_text()`：逐标的执行历史覆盖、启用/停用和审计；复用现有 provider、`core` 质量逻辑和 Sheets schema。
 - 新身份以最近已完成市场交易日为上限补过去一个自然年 raw/qfq；既有身份只请求缺口；CLOSE 永不删除历史。
+- coverage/QC 只依赖 observed session dates：raw/qfq 日期集一致、无重复、至少 180 bar、起点边界最多 7 天、末日到达目标、最长 observed-session gap 不超过 14 天；不把 weekday 当交易日。
+- 已启用身份 ADD 幂等；已停用身份 ADD 自动按 REENTER 补缺口并恢复启用；节假日不生成 bar；read-only smoke 不连接 Sheets。
 - `SKILL.md` 只定义上层调用 contract、允许/禁止动作和示例，不实现行情、Sheet 或生命周期业务。
 - 依赖：`core`、`main.quote_row`、`providers`、`sheets_client`；不依赖 `main.run()`，不触发任何策略/研究路径。
 

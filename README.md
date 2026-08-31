@@ -50,7 +50,11 @@ JSON/CSV artifact，不写 Sheet、交易决策、ENTRY 或生产配置。
 - “NOK 已清仓” → 仅停用 `自选清单.启用`，永久保留历史和数据源映射；
 - 歧义、provider/history 失败、重复日期或质量不满足时 fail closed，不猜 ticker/provider，不触发完整 `full` pipeline 或任何策略路径。
 
+历史 coverage 只使用 provider 观测到的 session dates：raw/qfq 日期集必须一致、无重复、覆盖目标末日、至少 180 个有效日线 bar，且不能出现超过 14 个自然日的异常中段 gap；不把 weekday 当交易所日历，也不为节假日补 bar。已停用身份收到 `ADD` 时自动按 REENTER 语义补缺口并恢复启用。
+
 该路径复用现有 provider、日期/OHLCV 质量门控、Google Sheets schema 和幂等历史写入；不读取账户数量、成本、NAV、盈亏，也不访问真实券商账户。详见 [`docs/HOLDINGS_DATA_MANAGER.md`](docs/HOLDINGS_DATA_MANAGER.md)。
+
+可用 `python scripts/holdings_data_manager_smoke.py` 对默认 `512400.SH` 做真实 provider raw/qfq 一年只读 smoke；脚本不写 Google Sheets，也不触发 SETUP/Wave/Decision/research。
 
 ## Google Sheet结构
 

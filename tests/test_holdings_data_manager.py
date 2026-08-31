@@ -7,8 +7,10 @@ from core import Quote
 from holdings_data_manager import (
     HoldingsDataManager,
     HoldingsDataManagerError,
+    MIN_ONE_YEAR_BARS,
     Operation,
     ResultStatus,
+    history_coverage_report,
     normalize_holding,
     parse_natural_language,
 )
@@ -18,6 +20,23 @@ from sheets_client import SheetsClient
 BEIJING = ZoneInfo("Asia/Shanghai")
 TARGET = date(2026, 8, 28)
 START = date(2025, 8, 28)
+
+# Test-only observed-session fixtures.  Production code must not use a hand-
+# maintained holiday table; these dates model the closed sessions that a real
+# provider would omit so the manager's session-date logic is exercised.
+US_HOLIDAYS = {
+    date(2025, 9, 1), date(2025, 11, 27), date(2025, 12, 25),
+    date(2026, 1, 1), date(2026, 1, 19), date(2026, 2, 16),
+    date(2026, 4, 3), date(2026, 5, 25), date(2026, 6, 19),
+    date(2026, 7, 3),
+}
+CN_HOLIDAYS = {
+    date(2025, 10, 1), date(2025, 10, 2), date(2025, 10, 3),
+    date(2025, 10, 6), date(2025, 10, 7),
+    date(2026, 1, 1), date(2026, 2, 16), date(2026, 2, 17),
+    date(2026, 2, 18), date(2026, 2, 19), date(2026, 2, 20),
+    date(2026, 4, 6), date(2026, 5, 1), date(2026, 6, 19),
+}
 
 
 def quote(symbol, market, day, source="yfinance", close=100.0):
@@ -104,6 +123,23 @@ def us_watch(enabled=False):
     }
 
 
+def cn_watch(enabled=False):
+    return {
+        "启用": enabled,
+        "市场": "CN",
+        "主数据源": "yfinance",
+        "校验数据源": "BaoStock",
+        "历史数据源": "yfinance",
+        "时区": "Asia/Shanghai",
+        "收盘时间": "15:00",
+        "统一代码": "512400.SH",
+        "名称": "512400.SH",
+        "币种": "CNY",
+        "yfinance代码": "512400.SS",
+        "BaoStock代码": "sh.512400",
+    }
+
+
 def history_row(symbol, market, day, adjustment):
     return {
         "统一代码": symbol,
@@ -113,14 +149,29 @@ def history_row(symbol, market, day, adjustment):
     }
 
 
-def business_history(symbol, market, first, last, adjustment):
+def fixture_session_dates(market, first, last):
+    holidays = US_HOLIDAYS if market == "US" else CN_HOLIDAYS
     rows = []
     cursor = first
     while cursor <= last:
-        if cursor.weekday() < 5:
-            rows.append(history_row(symbol, market, cursor, adjustment))
+        if cursor.weekday() < 5 and cursor not in holidays:
+            rows.append(cursor)
         cursor += timedelta(days=1)
     return rows
+
+
+def session_history(symbol, market, first, last, adjustment):
+    rows = []
+    for day in fixture_session_dates(market, first, last):
+        rows.append(history_row(symbol, market, day, adjustment))
+    return rows
+
+
+def session_quotes(symbol, market, first, last, source="yfinance"):
+    return [
+        quote(symbol, market, day, source, close=100.0 + index / 100.0)
+        for index, day in enumerate(fixture_session_dates(market, first, last))
+    ]
 
 
 class HoldingsDataManagerTests(unittest.TestCase):
@@ -140,10 +191,9 @@ class HoldingsDataManagerTests(unittest.TestCase):
 
     def fetch_history(self, source, watch, adjustment, start, end, *args, **kwargs):
         self.history_calls.append((source, adjustment, start, end, kwargs))
-        rows = [quote(watch["统一代码"], watch["市场"], start, source)]
-        if end != start:
-            rows.append(quote(watch["统一代码"], watch["市场"], end, source))
-        return rows
+        return session_quotes(
+            watch["统一代码"], watch["市场"], start, end, source
+        )
 
     def test_first_add_initializes_one_year_raw_and_qfq_before_enabling(self):
         self.history_calls = []
@@ -154,7 +204,21 @@ class HoldingsDataManagerTests(unittest.TestCase):
         self.assertEqual(result.symbol, "MU")
         self.assertEqual(result.market, "US")
         self.assertTrue(client.watchlist[0]["启用"])
-        self.assertEqual(result.history_rows_written, 4)
+        expected_bars = len(fixture_session_dates("US", START, TARGET))
+        self.assertEqual(result.history_rows_written, expected_bars * 2)
+        self.assertGreaterEqual(expected_bars, MIN_ONE_YEAR_BARS)
+        self.assertEqual(
+            len({row["交易日期"] for row in client.histories["历史行情_未复权"]}),
+            expected_bars,
+        )
+        self.assertEqual(
+            {
+                row["交易日期"] for row in client.histories["历史行情_未复权"]
+            },
+            {
+                row["交易日期"] for row in client.histories["历史行情_前复权"]
+            },
+        )
         self.assertEqual(
             [(call[1], call[2], call[3]) for call in self.history_calls],
             [("raw", START, TARGET), ("qfq", START, TARGET)],
@@ -199,8 +263,8 @@ class HoldingsDataManagerTests(unittest.TestCase):
         old = TARGET - timedelta(days=1)
         client = FakeSheetsClient(
             watchlist=[us_watch(False)],
-            raw=business_history("MU", "US", START, old, "未复权"),
-            adjusted=business_history("MU", "US", START, old, "前复权"),
+            raw=session_history("MU", "US", START, old, "未复权"),
+            adjusted=session_history("MU", "US", START, old, "前复权"),
         )
         result = self.manager(client).execute_text("重新买回 MU")
 
@@ -215,8 +279,8 @@ class HoldingsDataManagerTests(unittest.TestCase):
         self.history_calls = []
         client = FakeSheetsClient(
             watchlist=[us_watch(False)],
-            raw=business_history("MU", "US", START, TARGET, "未复权"),
-            adjusted=business_history("MU", "US", START, TARGET, "前复权"),
+            raw=session_history("MU", "US", START, TARGET, "未复权"),
+            adjusted=session_history("MU", "US", START, TARGET, "前复权"),
         )
         result = self.manager(client).execute(Operation.REENTER, "MU")
 
@@ -271,7 +335,7 @@ class HoldingsDataManagerTests(unittest.TestCase):
         client = FakeSheetsClient(
             watchlist=[us_watch(False)],
             raw=[history_row("MU", "US", START, "未复权"), history_row("MU", "US", START, "未复权")],
-            adjusted=business_history("MU", "US", START, TARGET, "前复权"),
+            adjusted=session_history("MU", "US", START, TARGET, "前复权"),
         )
 
         result = self.manager(client).execute(Operation.REENTER, "MU")
@@ -291,14 +355,172 @@ class HoldingsDataManagerTests(unittest.TestCase):
         old = TARGET - timedelta(days=1)
         client = FakeSheetsClient(
             watchlist=[us_watch(True)],
-            raw=business_history("MU", "US", START, old, "未复权"),
-            adjusted=business_history("MU", "US", START, old, "前复权"),
+            raw=session_history("MU", "US", START, old, "未复权"),
+            adjusted=session_history("MU", "US", START, old, "前复权"),
         )
         result = self.manager(client).execute(Operation.SYNC, "MU")
 
         self.assertEqual(result.status, ResultStatus.SUCCESS.value)
         self.assertTrue(client.watchlist[0]["启用"])
         self.assertEqual(result.history_rows_written, 2)
+
+    def test_two_endpoint_provider_payload_fails_coverage(self):
+        self.history_calls = []
+
+        def endpoints_only(source, watch, adjustment, start, end, *args, **kwargs):
+            self.history_calls.append((source, adjustment, start, end, kwargs))
+            return [
+                quote(watch["统一代码"], watch["市场"], start, source),
+                quote(watch["统一代码"], watch["市场"], end, source),
+            ]
+
+        client = FakeSheetsClient()
+        result = self.manager(client, fetch_history=endpoints_only).execute(
+            Operation.ADD, "INTC"
+        )
+
+        self.assertEqual(result.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertEqual(client.histories["历史行情_未复权"], [])
+        self.assertIn("稀疏", result.message)
+
+    def test_middle_large_gap_fails_closed(self):
+        self.history_calls = []
+        missing_start = date(2026, 1, 5)
+        missing_end = date(2026, 2, 20)
+
+        def middle_gap(source, watch, adjustment, start, end, *args, **kwargs):
+            self.history_calls.append((source, adjustment, start, end, kwargs))
+            return [
+                item for item in session_quotes(
+                    watch["统一代码"], watch["市场"], start, end, source
+                )
+                if not missing_start <= item.trade_date <= missing_end
+            ]
+
+        client = FakeSheetsClient()
+        result = self.manager(client, fetch_history=middle_gap).execute(
+            Operation.ADD, "INTC"
+        )
+
+        self.assertEqual(result.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertIn("中段", result.message)
+
+    def test_provider_truncating_recent_days_fails_closed(self):
+        self.history_calls = []
+        truncation_end = TARGET - timedelta(days=10)
+
+        def truncated(source, watch, adjustment, start, end, *args, **kwargs):
+            self.history_calls.append((source, adjustment, start, end, kwargs))
+            return session_quotes(
+                watch["统一代码"], watch["市场"], start,
+                min(end, truncation_end), source
+            )
+
+        client = FakeSheetsClient()
+        result = self.manager(client, fetch_history=truncated).execute(
+            Operation.ADD, "INTC"
+        )
+
+        self.assertEqual(result.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertIn("目标末日", result.message)
+
+    def test_raw_qfq_session_date_mismatch_fails_closed(self):
+        mismatch_date = date(2026, 1, 5)
+
+        def mismatched(source, watch, adjustment, start, end, *args, **kwargs):
+            rows = session_quotes(
+                watch["统一代码"], watch["市场"], start, end, source
+            )
+            if adjustment == "qfq":
+                rows = [item for item in rows if item.trade_date != mismatch_date]
+            return rows
+
+        client = FakeSheetsClient()
+        result = self.manager(client, fetch_history=mismatched).execute(
+            Operation.ADD, "INTC"
+        )
+
+        self.assertEqual(result.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertIn("session-date 集合不一致", result.message)
+
+    def test_complete_us_holiday_history_sync_does_not_refetch(self):
+        self.history_calls = []
+        raw_dates = fixture_session_dates("US", START, TARGET)
+        client = FakeSheetsClient(
+            watchlist=[us_watch(True)],
+            raw=session_history("MU", "US", START, TARGET, "未复权"),
+            adjusted=session_history("MU", "US", START, TARGET, "前复权"),
+        )
+
+        result = self.manager(client).execute(Operation.SYNC, "MU")
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(result.history_rows_written, 0)
+        self.assertEqual(self.history_calls, [])
+        self.assertNotIn(date(2025, 12, 25), raw_dates)
+        self.assertNotIn(date(2026, 1, 1), raw_dates)
+
+    def test_complete_cn_holiday_history_reenter_does_not_refetch(self):
+        self.history_calls = []
+        raw_dates = fixture_session_dates("CN", START, TARGET)
+        client = FakeSheetsClient(
+            watchlist=[cn_watch(False)],
+            raw=session_history("512400.SH", "CN", START, TARGET, "未复权"),
+            adjusted=session_history("512400.SH", "CN", START, TARGET, "前复权"),
+        )
+
+        result = self.manager(client).execute(Operation.REENTER, "512400.SH")
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(result.history_rows_written, 0)
+        self.assertEqual(self.history_calls, [])
+        self.assertNotIn(date(2025, 10, 2), raw_dates)
+        self.assertNotIn(date(2026, 2, 17), raw_dates)
+
+    def test_add_after_close_natural_language_auto_reenters_and_fills_gap(self):
+        self.history_calls = []
+        client = FakeSheetsClient()
+        manager = self.manager(client)
+        self.assertEqual(manager.execute(Operation.ADD, "MU").status, ResultStatus.SUCCESS.value)
+        manager.execute(Operation.CLOSE, "MU")
+
+        retained = fixture_session_dates("US", START, TARGET)[:-3]
+        client.histories["历史行情_未复权"] = [
+            history_row("MU", "US", day, "未复权") for day in retained
+        ]
+        client.histories["历史行情_前复权"] = [
+            history_row("MU", "US", day, "前复权") for day in retained
+        ]
+        self.history_calls.clear()
+
+        result = manager.execute_text("我买了 MU")
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS.value)
+        self.assertTrue(client.watchlist[0]["启用"])
+        self.assertIn("按REENTER语义", result.message)
+        self.assertEqual(
+            [(call[1], call[2], call[3]) for call in self.history_calls],
+            [("raw", date(2026, 8, 26), TARGET), ("qfq", date(2026, 8, 26), TARGET)],
+        )
+        self.assertEqual(
+            len(client.histories["历史行情_未复权"]),
+            len(set(fixture_session_dates("US", START, TARGET))),
+        )
+
+    def test_coverage_report_rejects_duplicate_and_accepts_observed_holidays(self):
+        dates = fixture_session_dates("US", START, TARGET)
+        report = history_coverage_report(dates, dates, START, TARGET)
+        self.assertTrue(report.ok)
+        self.assertEqual(report.raw_only_dates, ())
+        duplicate_report = history_coverage_report(
+            dates + [dates[10]], dates, START, TARGET
+        )
+        self.assertFalse(duplicate_report.ok)
+        self.assertIn("日期重复", duplicate_report.reason)
 
 
 class SheetsWatchlistTests(unittest.TestCase):

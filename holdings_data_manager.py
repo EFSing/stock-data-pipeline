@@ -28,6 +28,13 @@ from sheets_client import LOG_HEADERS
 BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
 SUPPORTED_MARKETS = frozenset({"CN", "HK", "US", "JP", "SE"})
 
+# Coverage is based on observed provider session dates, not a weekday calendar.
+# These conservative bounds reject obviously truncated/sparse annual payloads
+# while allowing normal exchange holiday clusters without inventing sessions.
+MIN_ONE_YEAR_BARS = 180
+MAX_NORMAL_SESSION_GAP_DAYS = 14
+MAX_COVERAGE_BOUNDARY_LAG_DAYS = 7
+
 
 class HoldingsDataManagerError(ValueError):
     """A fail-closed input, identity, provider or quality error."""
@@ -295,54 +302,138 @@ def _calendar_year_before(value: date) -> date:
         return value.replace(year=value.year - 1, day=28)
 
 
-def _is_weekday(value: date) -> bool:
-    return value.weekday() < 5
+@dataclass(frozen=True)
+class HistoryCoverageReport:
+    """Deterministic, provider-session-based history coverage/QC result."""
+
+    ok: bool
+    raw_bar_count: int
+    adjusted_bar_count: int
+    raw_duplicate_count: int
+    adjusted_duplicate_count: int
+    raw_first_trade_date: date | None
+    raw_last_trade_date: date | None
+    adjusted_first_trade_date: date | None
+    adjusted_last_trade_date: date | None
+    raw_only_dates: tuple[date, ...]
+    adjusted_only_dates: tuple[date, ...]
+    suspicious_gaps: tuple[tuple[date, date], ...]
+    reason: str
 
 
-def _next_weekday(value: date) -> date:
-    candidate = value + timedelta(days=1)
-    while not _is_weekday(candidate):
-        candidate += timedelta(days=1)
-    return candidate
+def _suspicious_gaps(dates: set[date]) -> list[tuple[date, date]]:
+    ordered = sorted(dates)
+    return [
+        (left, right)
+        for left, right in zip(ordered, ordered[1:])
+        if (right - left).days > MAX_NORMAL_SESSION_GAP_DAYS
+    ]
 
 
-def _missing_intervals(dates: set[date], start: date, end: date) -> list[tuple[date, date]]:
+def history_coverage_report(
+    raw_dates: Iterable[date],
+    adjusted_dates: Iterable[date],
+    start: date,
+    end: date,
+) -> HistoryCoverageReport:
+    """Check annual raw/qfq coverage using only provider-observed sessions.
+
+    Weekdays are never treated as expected sessions.  A normal holiday gap is
+    therefore accepted; a gap longer than the bounded session-date threshold
+    is treated as suspicious and must be fetched or fail closed.
+    """
+    raw_list = list(raw_dates)
+    adjusted_list = list(adjusted_dates)
+    raw_set = set(raw_list)
+    adjusted_set = set(adjusted_list)
+    raw_first = min(raw_set) if raw_set else None
+    raw_last = max(raw_set) if raw_set else None
+    adjusted_first = min(adjusted_set) if adjusted_set else None
+    adjusted_last = max(adjusted_set) if adjusted_set else None
+    raw_only = tuple(sorted(raw_set - adjusted_set))
+    adjusted_only = tuple(sorted(adjusted_set - raw_set))
+    suspicious = tuple(sorted(set(_suspicious_gaps(raw_set) + _suspicious_gaps(adjusted_set))))
+    raw_duplicates = len(raw_list) - len(raw_set)
+    adjusted_duplicates = len(adjusted_list) - len(adjusted_set)
+
+    reasons: list[str] = []
+    if start > end:
+        reasons.append("历史目标区间无效")
+    if raw_duplicates or adjusted_duplicates:
+        reasons.append("历史日期重复")
+    if raw_only or adjusted_only:
+        reasons.append("未复权与前复权 session-date 集合不一致")
+    if not raw_set or not adjusted_set:
+        reasons.append("raw/qfq 历史为空")
+    if raw_set and (min(raw_set) < start or max(raw_set) > end):
+        reasons.append("未复权日期越界")
+    if adjusted_set and (min(adjusted_set) < start or max(adjusted_set) > end):
+        reasons.append("前复权日期越界")
+    if raw_last is None or raw_last < end:
+        reasons.append("未复权历史未到达目标末日")
+    if adjusted_last is None or adjusted_last < end:
+        reasons.append("前复权历史未到达目标末日")
+    if raw_first is None or (raw_first - start).days > MAX_COVERAGE_BOUNDARY_LAG_DAYS:
+        reasons.append("未复权历史起点明显截断")
+    if adjusted_first is None or (adjusted_first - start).days > MAX_COVERAGE_BOUNDARY_LAG_DAYS:
+        reasons.append("前复权历史起点明显截断")
+    if len(raw_set) < MIN_ONE_YEAR_BARS:
+        reasons.append("未复权历史过于稀疏")
+    if len(adjusted_set) < MIN_ONE_YEAR_BARS:
+        reasons.append("前复权历史过于稀疏")
+    if suspicious:
+        reasons.append("历史中段存在异常长 session-date gap")
+
+    return HistoryCoverageReport(
+        ok=not reasons,
+        raw_bar_count=len(raw_list),
+        adjusted_bar_count=len(adjusted_list),
+        raw_duplicate_count=raw_duplicates,
+        adjusted_duplicate_count=adjusted_duplicates,
+        raw_first_trade_date=raw_first,
+        raw_last_trade_date=raw_last,
+        adjusted_first_trade_date=adjusted_first,
+        adjusted_last_trade_date=adjusted_last,
+        raw_only_dates=raw_only,
+        adjusted_only_dates=adjusted_only,
+        suspicious_gaps=suspicious,
+        reason="；".join(reasons) or "coverage/QC通过",
+    )
+
+
+def _merge_intervals(intervals: Iterable[tuple[date, date]]) -> list[tuple[date, date]]:
+    ordered = sorted((left, right) for left, right in intervals if left <= right)
+    merged: list[list[date]] = []
+    for left, right in ordered:
+        if merged and left <= merged[-1][1] + timedelta(days=1):
+            merged[-1][1] = max(merged[-1][1], right)
+        else:
+            merged.append([left, right])
+    return [(left, right) for left, right in merged]
+
+
+def _coverage_gaps(dates: set[date], start: date, end: date) -> list[tuple[date, date]]:
+    """Return bounded ranges to ask the provider about, without weekday math."""
     if start > end:
         return []
-    missing: list[date] = []
-    cursor = start
-    while cursor <= end:
-        if _is_weekday(cursor) and cursor not in dates:
-            missing.append(cursor)
-        cursor += timedelta(days=1)
+    if not dates:
+        return [(start, end)]
+    ordered = sorted(value for value in dates if start <= value <= end)
+    if not ordered:
+        return [(start, end)]
     intervals: list[tuple[date, date]] = []
-    if not missing:
-        return intervals
-    first = previous = missing[0]
-    for current in missing[1:]:
-        intervening_sessions = [
-            value
-            for offset in range(1, (current - previous).days)
-            if _is_weekday(value := previous + timedelta(days=offset))
-            and value in dates
-        ]
-        if intervening_sessions:
-            intervals.append((first, previous))
-            first = current
-        previous = current
-    intervals.append((first, previous))
-    return intervals
+    if (ordered[0] - start).days > MAX_COVERAGE_BOUNDARY_LAG_DAYS:
+        intervals.append((start, ordered[0] - timedelta(days=1)))
+    if ordered[-1] < end:
+        intervals.append((ordered[-1] + timedelta(days=1), end))
+    for left, right in _suspicious_gaps(set(ordered)):
+        intervals.append((left + timedelta(days=1), right - timedelta(days=1)))
+    return _merge_intervals(intervals)
 
 
 def _has_one_year_coverage(dates: set[date], start: date, end: date) -> bool:
-    """Require both boundaries while allowing a non-session calendar start."""
-    covered = sorted(value for value in dates if start <= value <= end)
-    if not covered or covered[-1] < end:
-        return False
-    # The one-year cutoff can be a weekend.  The first available session may
-    # therefore be the next weekday, but a provider returning only recent
-    # rows must not be accepted as a complete initialization.
-    return covered[0] <= _next_weekday(start)
+    """Compatibility helper backed by the full raw/qfq coverage contract."""
+    return history_coverage_report(dates, dates, start, end).ok
 
 
 def _history_dates(rows: Iterable[dict], identity: tuple[str, str]) -> set[date]:
@@ -450,13 +541,19 @@ class HoldingsDataManager:
             existing = matches[0] if matches else None
             if action is Operation.CLOSE:
                 return self._close(normalized, existing)
+            auto_reenter = False
             if action is Operation.ADD and existing is not None:
                 if self._enabled(existing):
                     return self._audit_result(
                         normalized, action, ResultStatus.IDEMPOTENT,
                         True, 0, "ADD幂等：标的已经是当前启用持仓",
                     )
-                raise HoldingsDataManagerError("标的历史身份已存在但已停用，请使用REENTER")
+                # Natural-language callers should not need to know the
+                # internal distinction between a first ADD and a re-entry.
+                # Keep the externally requested action in the audit trail,
+                # while applying the same gap-fill-before-enable semantics as
+                # an explicit REENTER.
+                auto_reenter = True
             if action is Operation.REENTER and existing is not None and self._enabled(existing):
                 return self._audit_result(
                     normalized, action, ResultStatus.IDEMPOTENT,
@@ -479,7 +576,11 @@ class HoldingsDataManager:
                 enabled = True
             else:
                 enabled = self._enabled(existing)
-            message = f"{action.value}成功：历史缺口补齐，写入/更新{rows_written}行"
+            action_message = (
+                f"{action.value}成功（按REENTER语义）"
+                if auto_reenter else f"{action.value}成功"
+            )
+            message = f"{action_message}：历史缺口补齐，写入/更新{rows_written}行"
             return self._audit_result(
                 normalized, action, ResultStatus.SUCCESS, enabled, rows_written, message
             )
@@ -602,24 +703,28 @@ class HoldingsDataManager:
         retry_wait = max(0.0, float(watch.get("重试等待秒") or 0.0))
         raw_quotes: list[Quote] = []
         adjusted_quotes: list[Quote] = []
-        for fetch_start, fetch_end in _missing_intervals(raw_dates, start, target):
+        for fetch_start, fetch_end in _coverage_gaps(raw_dates, start, target):
             raw_quotes.extend(self._fetch_interval(
                 watch, "raw", str(watch["主数据源"]), fetch_start, fetch_end,
                 target, retry_count, retry_wait,
             ))
-        for fetch_start, fetch_end in _missing_intervals(adjusted_dates, start, target):
+        for fetch_start, fetch_end in _coverage_gaps(adjusted_dates, start, target):
             adjusted_quotes.extend(self._fetch_interval(
                 watch, "qfq", str(watch["历史数据源"]), fetch_start, fetch_end,
                 target, retry_count, retry_wait,
             ))
         raw_quotes = _validate_fetched_quotes(raw_quotes, watch, start, target) if raw_quotes else []
         adjusted_quotes = _validate_fetched_quotes(adjusted_quotes, watch, start, target) if adjusted_quotes else []
-        raw_final_dates = raw_dates | {quote.trade_date for quote in raw_quotes}
-        adjusted_final_dates = adjusted_dates | {quote.trade_date for quote in adjusted_quotes}
-        if not _has_one_year_coverage(raw_final_dates, start, target):
-            raise HoldingsDataManagerError("未复权历史未覆盖目标一年区间")
-        if not _has_one_year_coverage(adjusted_final_dates, start, target):
-            raise HoldingsDataManagerError("前复权历史未覆盖目标一年区间")
+        coverage = history_coverage_report(
+            sorted(raw_dates) +
+            [quote.trade_date for quote in raw_quotes],
+            sorted(adjusted_dates) +
+            [quote.trade_date for quote in adjusted_quotes],
+            start,
+            target,
+        )
+        if not coverage.ok:
+            raise HoldingsDataManagerError(f"历史 coverage/QC 未通过：{coverage.reason}")
 
         raw_rows = [quote_row(quote, operation_at, "未复权") for quote in raw_quotes]
         adjusted_rows = [quote_row(quote, operation_at, "前复权") for quote in adjusted_quotes]

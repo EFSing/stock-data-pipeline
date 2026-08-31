@@ -775,3 +775,13 @@ market-specific Fib rule is introduced.
 **Regression contract:** 回归覆盖首次一年 raw/qfq 初始化、重复 ADD、CLOSE 后完整历史保留、REENTER 缺口与完整覆盖、重复 CLOSE、歧义/provider/QC 失败、历史日期重复、SYNC 状态保持、自然语言示例、未知 Sheet 列保留及既有 scheduled latest 行为不变。
 
 **Boundary / status:** 本决策只增加持仓数据管理能力，不修改 SETUP_01/02/03/04、Wave、Fibonacci、Decision/Risk、Position Management、Exit 或研究协议；完成 PR/CI 对账后停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，不自动 merge。
+
+## 2026-08-31 — holdings-data-manager correctness amendment
+
+**Context:** 首轮持仓 manager review 发现一年 coverage 仅靠首尾边界会接受只有两根 bar 的 fixture，并发现按 weekday 生成 missing dates 会把交易所节假日误报为缺口。自然语言 `ADD` 也不应要求用户记忆内部 `REENTER` 区别。
+
+**Decision:** coverage contract 固定为 observed provider/history session dates：raw/qfq 日期集必须完全一致且无重复；两套历史均须覆盖目标末日、起点距目标不超过 7 个自然日、至少 180 个有效日线 bar，且相邻 observed session 间隔超过 14 个自然日时 fail closed 或先请求中段补齐。不得按 weekday 生成 expected dates，不得伪造休市日 bar。`REENTER`/`SYNC` 仅请求 observed history 推导的尾部或异常中段区间；完整历史不因 US/CN 节假日再次抓取。停用身份收到 `ADD` 时自动执行同一 gap-fill-before-enable 语义，显式 `REENTER` 保持可用；`CLOSE` 永久只停用当前持仓视图。
+
+**Evidence:** 新增近真实 US/CN observed-session fixtures 及 22 个 holdings-focused tests，覆盖首尾两根、中段大 gap、最近 N 日截断、raw/qfq 日期集不一致、US/CN 多日节假日、ADD→CLOSE→自然语言 ADD 恢复、重复/幂等及 scheduled latest 回归。Skill creator validator 通过。真实 provider read-only smoke 未写 Sheets：`512400.SH` raw/qfq 各 242 bars，`2025-08-27..2026-08-27`，重复 0，日期集差异 0，coverage/QC 通过；provider 比 ordinary-calendar freshness guard (`2026-08-28`) 落后一天，故 `lifecycle_ready=false` 并保持 fail closed。`MU` raw/qfq 各 252 bars，`2025-08-28..2026-08-28`，重复 0，日期集差异 0，coverage/QC 及 lifecycle ready 均通过。
+
+**Schema / scope:** 不新增 Sheet 列、registry 或事实源；继续复用 `自选清单.启用`、现有历史 upsert/provider/core QC 和 `运行日志` append-only 审计。未读取账户数量、成本、NAV、盈亏、returns、MFE、MAE、P&L、Final OOS，未访问券商，未运行 SETUP/Wave/Fibonacci/Decision/Risk/Position/Exit/research。
