@@ -364,6 +364,52 @@ class HoldingsDataManagerTests(unittest.TestCase):
         self.assertTrue(client.watchlist[0]["启用"])
         self.assertEqual(result.history_rows_written, 2)
 
+    def test_reenter_rerun_is_idempotent_after_gap_fill(self):
+        self.history_calls = []
+        old = TARGET - timedelta(days=1)
+        client = FakeSheetsClient(
+            watchlist=[us_watch(False)],
+            raw=session_history("MU", "US", START, old, "未复权"),
+            adjusted=session_history("MU", "US", START, old, "前复权"),
+        )
+        manager = self.manager(client)
+
+        first = manager.execute(Operation.REENTER, "MU")
+        history_after_first = {
+            name: list(rows) for name, rows in client.histories.items()
+        }
+        self.history_calls.clear()
+        second = manager.execute(Operation.REENTER, "MU")
+
+        self.assertEqual(first.history_rows_written, 2)
+        self.assertEqual(second.status, ResultStatus.IDEMPOTENT.value)
+        self.assertEqual(second.history_rows_written, 0)
+        self.assertEqual(client.histories, history_after_first)
+        self.assertEqual(self.history_calls, [])
+
+    def test_sync_rerun_does_not_duplicate_session_rows(self):
+        self.history_calls = []
+        old = TARGET - timedelta(days=1)
+        client = FakeSheetsClient(
+            watchlist=[us_watch(True)],
+            raw=session_history("MU", "US", START, old, "未复权"),
+            adjusted=session_history("MU", "US", START, old, "前复权"),
+        )
+        manager = self.manager(client)
+
+        first = manager.execute(Operation.SYNC, "MU")
+        history_after_first = {
+            name: list(rows) for name, rows in client.histories.items()
+        }
+        self.history_calls.clear()
+        second = manager.execute(Operation.SYNC, "MU")
+
+        self.assertEqual(first.history_rows_written, 2)
+        self.assertEqual(second.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(second.history_rows_written, 0)
+        self.assertEqual(client.histories, history_after_first)
+        self.assertEqual(self.history_calls, [])
+
     def test_two_endpoint_provider_payload_fails_coverage(self):
         self.history_calls = []
 

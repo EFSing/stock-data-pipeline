@@ -9,7 +9,7 @@ description: Manage the current holdings universe and its raw/qfq daily-history 
 
 ## 调用 contract
 
-优先调用：
+本地业务实现优先调用：
 
 ```python
 from holdings_data_manager import HoldingsDataManager
@@ -20,6 +20,31 @@ result = HoldingsDataManager().execute_text(user_request)
 若上层已完成意图解析，调用 `execute(operation, symbol, market=None)`，其中 `operation` 只能是 `ADD`、`REENTER`、`CLOSE`、`SYNC`。`market` 只有在用户明确提供或由规范化代码格式唯一确定时才可传入；不能猜测市场、ticker、provider 或公司身份。
 
 返回值至少包含 `operation`、规范化 `symbol`、`market`、`status`（`SUCCESS` / `IDEMPOTENT` / `FAILED`）、`enabled`、`history_rows_written` 和 `message`。失败必须保持 `enabled` 不被错误打开，并在可确定身份时写入 `运行日志` 的 append-only 审计记录。
+
+## ChatGPT → GitHub Issue command bus
+
+当请求需要通过仓库执行时，ChatGPT/Codex 必须把已经确定的单一操作序列化为
+`EFSing/stock-data-pipeline` 的一个 GitHub Issue：标题必须精确为
+`[HOLDINGS_COMMAND]`，body 必须是严格 JSON；不要把自然语言、Markdown、shell
+片段或账户信息放入 Issue body，也不要使用 MCP 作为执行通道。当前 v1 只提交
+`dry_run: true`，等待 workflow 的 result comment 和自动关闭；不要提交真实
+`ADD`/`CLOSE` 来绕过 review gate。
+
+```json
+{
+  "version": 1,
+  "operation": "ADD",
+  "symbol": "MU",
+  "market": "US",
+  "request_id": "chatgpt-20260831-0001",
+  "dry_run": true
+}
+```
+
+`version`、`operation`、`symbol`、`request_id`、`dry_run` 为必需字段，`market`
+可选；未知字段、多标的、非法 operation、重复 JSON key、身份或市场歧义都必须
+停止并 fail closed。command bus 的完整协议和执行边界见
+[`docs/HOLDINGS_COMMAND_BUS.md`](../../docs/HOLDINGS_COMMAND_BUS.md)。
 
 ## 自然语言意图
 

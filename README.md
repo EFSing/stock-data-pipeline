@@ -56,6 +56,12 @@ JSON/CSV artifact，不写 Sheet、交易决策、ENTRY 或生产配置。
 
 可用 `python scripts/holdings_data_manager_smoke.py` 对默认 `512400.SH` 做真实 provider raw/qfq 一年只读 smoke；脚本不写 Google Sheets，也不触发 SETUP/Wave/Decision/research。
 
+ChatGPT/Codex 的仓库执行边界是 GitHub Issue command bus：当前只允许固定标题
+`[HOLDINGS_COMMAND]`、严格 v1 JSON 和 `dry_run=true`。workflow 会校验仓库、Issue
+sender/actor、schema 与身份，再写 machine-readable/human-readable 回执并关闭 Issue；
+当前 live writes 明确关闭。协议、权限与安全边界见
+[`docs/HOLDINGS_COMMAND_BUS.md`](docs/HOLDINGS_COMMAND_BUS.md)。
+
 ## Google Sheet结构
 
 - `自选清单`：标的代码及数据源映射。
