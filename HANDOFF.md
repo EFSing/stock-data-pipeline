@@ -189,7 +189,7 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | command bus substantive source `9174464` 已在真实 main `0355672` 上本地验证；PR #39 tip `204ce01` exact-head CI `33364016182` success；仓库级 compileall 不能遍历已有只读 `.task_deps` | 保持 live-write gate disabled，等待 Sol review；docs-only commit 不记录自身 SHA | No |
+| environment / verification | command bus substantive source `9174464` 已在真实 main `0355672` 上本地验证；PR #39 最终 tip 与 exact-head CI 已在 handoff 时 live-verified success；仓库级 compileall 不能遍历已有只读 `.task_deps` | 保持 live-write gate disabled，等待 Sol review；docs-only commit 不记录自身 SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
 | Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；Wave/SETUP01 为历史上下文；持仓 manager 已 merge | command bus dry-run 已完成，等待 `CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`；live-write gate disabled，不进入策略/账户动作 | No for this task |
@@ -256,7 +256,7 @@
 3. [x] command bus substantive source `917446473a06112d112bd8fc58340bc5785ff492` 已实现：strict schema/event guard、GITHUB_EVENT_PATH bridge、identity normalization、dry-run receipt、comment/label/close relay。
 4. [x] workflow 仅 `issues.opened`，权限仅 `contents: read` / `issues: write`；live-write gate 固定 disabled，Google secrets 仅保留给未来既有 `SheetsClient` path。
 5. [x] command-bus focused `10/10`、holdings focused `26/26`、full unittest `405/405`、changed-file compileall、`git diff --check` 通过；未执行真实 ADD/CLOSE。
-6. [x] push branch，创建独立 PR #39，不自动 merge；tip `204ce01bbb313762ec6b722fc3c0595a81a91012`、mergeability clean 与 exact-head CI `33364016182` 已实时核对。
+6. [x] push branch，创建独立 PR #39，不自动 merge；最终 tip、mergeability clean 与 exact-head CI 已在 handoff 时实时核对。
 7. [x] PR review 前保持 dry-run only；停在 `CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`。
 
 ## 11. Handoff Checklist
