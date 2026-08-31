@@ -1006,3 +1006,29 @@ third-party calendar, and does not change the development funnel.
 stop at `SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`. Do not
 merge automatically, start SETUP_02, reopen SETUP_03, read real holdings or
 Secrets, or access returns/MFE/MAE/P&L/Final OOS.
+
+---
+
+## 2026-08-31 — SETUP_01 Decision/Risk v1 squash merge closeout
+
+**Decision:** Sol approved `APPROVE_SETUP_01_DECISION_RISK_V1_RECONCILIATION`.
+After rechecking PR #43, its head was
+`f63617d70a2bd498f7fd2777221f162fb4264417`, base was
+`main@e5d967d3936ba7731c8bd3b0bb8212833733f2bd`, and the PR was
+`OPEN / CLEAN / MERGEABLE`. Exact-head CI `33402171900` and generic shadow
+`33402171991` both succeeded. PR #43 was then squash merged without a
+GitHub self-approval review.
+
+**Evidence:** The real squash merge commit is
+`3b300975e999a934533398a951e7ec34e80a17bd`. After refreshing `main` and
+`origin/main`, merge-after main exact-head CI `33404615092` succeeded at that
+exact SHA.
+
+**Boundary / stop:** The production prerequisite
+`PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`
+remains explicitly registered and unimplemented. This closeout did not start
+SETUP_02, reopen SETUP_03, run a real-holdings shadow, access
+returns/MFE/MAE/P&L/Final OOS, implement production execution/calendar
+integration, or create a new development PR. Stop at
+`SETUP_01_DECISION_RISK_V1_MERGED` with
+`HANDOFF_CURRENT_AND_CONSISTENT` and wait for the next Sol decision.

@@ -10,10 +10,10 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA 为 `e5d967d3936ba7731c8bd3b0bb8212833733f2bd`；该 main 已包含 holdings manager、command bus 与 live-write enablement 后续提交。PR #37 旧 base 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，未直接合并。
-- Current checkout: `codex/setup01-decision-risk-v1-reconciled`，从最新 `origin/main` 建立；最终 PR tip/CI/mergeability 以 GitHub 实时核验为准，治理 docs-only commit 不自引用自身 SHA。
+- GitHub `main` 当前真实 SHA 为 `3b300975e999a934533398a951e7ec34e80a17bd`；该提交为 PR #43 的 squash merge commit，包含 holdings manager、command bus、live-write enablement 与 SETUP_01 Decision/Risk v1 reconciliation。PR #37 旧 base 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，未直接合并。
+- Current checkout: `main`，已刷新到 `origin/main@3b300975e999a934533398a951e7ec34e80a17bd`；治理 docs-only commit 不自引用自身 SHA。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
-- 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
+- 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01 Decision/Risk v1 已按 Sol 批准完成 merge，当前停止节点为 `SETUP_01_DECISION_RISK_V1_MERGED`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
@@ -43,9 +43,9 @@ V0.2
 - command-bus focused tests 为 `19/19`，holdings lifecycle focused tests 既有 `24/24`，full unittest 为 `414/414`；changed-file compileall 与 `git diff --check` 通过。此前 closeout 未执行真实 command；Issue #42 是之后已核实的首条真实 command。
 - live regression 覆盖 live ADD delegation、dry-run no-client、unauthorized/malformed fail closed、manager FAILED receipt、rerun/idempotency propagation、conditional Secrets、concurrency 与 secret non-disclosure；FAILED receipt 的 `enabled` 被防御性归一为 `null`。
 
-## Current Task: SETUP_01 Decision/Risk v1 reconciliation
+## Previous Completed Task: SETUP_01 Decision/Risk v1 reconciliation
 
-- 当前节点：`SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`。干净 reconciliation branch 已 push 为 PR #43；原 PR #37 因旧 base `CONFLICTING/DIRTY` 已关闭且未合并，关闭说明明确指向 #43。#43 final tip/CI/shadow/mergeability 继续以 GitHub 实时核验为准。
+- 当前节点：`SETUP_01_DECISION_RISK_V1_MERGED`。Sol approval=`APPROVE_SETUP_01_DECISION_RISK_V1_RECONCILIATION`；PR #43 已 squash merged，merge commit=`3b300975e999a934533398a951e7ec34e80a17bd`；原 PR #37 因旧 base `CONFLICTING/DIRTY` 已关闭且未合并，关闭说明明确指向 #43。
 - 只移植 PR #37 尚未进入当前 main 的 Decision/Risk implementation、protocol、generic synthetic shadow 与 regression；不修改 holdings manager/command bus/Sheets 逻辑，不改变 Wave Engine、canonical Fibonacci、SETUP_03 或既有 strategy semantics。
 - 冻结语义：首个 T 日 `CONFIRMED` identity exactly-once、T close 只形成 plan、最早 T+1 exact session `OPEN`、fixed Entry Zone/entry/stop、structural invalidations、target-before-RR、历史 terminal no-redecision、WATCH/ARMED context-only、OPEN-only execution。
 - `actual_entry != None iff outcome == EXECUTED`；`t1_open` 是观察价格，RR skip 保留 `t1_open`/`actual_rr` 但 `actual_entry=None`。Development session identity 为 `DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`；production prerequisite 为 `PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`，本轮不接第三方 calendar。
@@ -64,7 +64,9 @@ V0.2
 - 上述 SETUP_01 structural closeout 是历史上下文；其协议与 lifecycle semantics 保持冻结。本轮新增的 Decision/Risk 只消费其 first-entry event，不重算 structural event。
 - SETUP_01 development structural replay：40/40 symbols、86,305 replay days、0 errors、1,404 lifecycle events（745 `CONFIRMED` / 659 `FAILED`）；CN event distribution 299/313，US 446/346。primary Wave family counts 为 `WAVE_2_TO_3_CANDIDATE=21,439`、`UPTREND_UNKNOWN_WAVE=28,644`、`ABC_CORRECTION_CANDIDATE=3,644`、`DOWNTREND_OR_INVALID_FOR_LONG=21,137`、`NO_VALID_SCENARIO=2,128`、`WAVE_3_CONTINUATION_CANDIDATE=9,313`。
 - development 当前未终结候选只有 US `STX` (`ARMED`，as-of `2026-08-26`，Fib `0.618-0.786`)；real holdings shadow 当前候选为 CN `000725.SZ` (`WATCH`，as-of `2026-08-28`，Fib `0.5-0.618`)。Real shadow 10 requested / 8 evaluated / 2 errors，SETUP_01 states `FAILED=5`、`WATCH=1`、`CONFIRMED=2`；SIVE.SE freshness stale、MU 历史源为空，均 fail-closed。报告输出 `primary_wave`/`alternate_wave`、SETUP_01 legs/Fib/levels/reason、freshness/error。
-- 本轮不启动 SETUP_02、不重新打开 SETUP_03、不访问 real holdings/private Secrets，不读取 returns/MFE/MAE/P&L/Final OOS，不写 production Sheets；generic shadow 仅为 synthetic public fixture。
+- merge 后 closeout 不启动 SETUP_02、不重新打开 SETUP_03、不访问 real holdings/private Secrets，不读取 returns/MFE/MAE/P&L/Final OOS，不写 production Sheets，不开始 production execution/calendar implementation，不创建新的开发 PR；generic shadow 仅为 synthetic public fixture。
+
+- Merge verification：PR #43 合并前 head=`f63617d70a2bd498f7fd2777221f162fb4264417`、base=`e5d967d3936ba7731c8bd3b0bb8212833733f2bd`，状态 `OPEN / CLEAN / MERGEABLE`；exact-head CI `33402171900` 与 generic shadow `33402171991` 均 success。合并后 main exact-head CI `33404615092` 以 head=`3b300975e999a934533398a951e7ec34e80a17bd` success。
 
 ## Completed
 
@@ -122,6 +124,6 @@ V0.2
 ## Next
 
 - SETUP_01 focused/full unittest、compileall、`git diff --check`、DEVELOPMENT_EXPOSED funnel invariance、target provenance 与 generic operational shadow 均已通过。
-- `codex/setup01-decision-risk-v1-reconciled` 已 push，独立 PR #43 已创建并明确 supersedes/reconciles #37；旧 #37 已关闭且未合并。
-- PR #43 exact-head CI/shadow 已 success，实时状态为 `OPEN / CLEAN / MERGEABLE`、base=`main`；本次 governance-only push 后需再次按 exact head 实时核验。
-- 仅 Sol 决定 review/merge；不自动 merge，不进入 outcome/backtest/Final OOS，不启动 SETUP_02，不重开 SETUP_03。
+- PR #43 已 squash merged，merge commit=`3b300975e999a934533398a951e7ec34e80a17bd`；本地 `main` 与 `origin/main` 均已刷新到该 SHA，worktree clean。
+- merge 后 main exact-head CI `33404615092` success；治理状态为 `HANDOFF_CURRENT_AND_CONSISTENT`。
+- 停止在 `SETUP_01_DECISION_RISK_V1_MERGED`，等待下一次 Sol 决策；不进入 outcome/backtest/Final OOS，不启动 SETUP_02，不重开 SETUP_03，不运行真实 holdings shadow，不开始 production execution/calendar implementation，不创建新的开发 PR。
