@@ -10,7 +10,12 @@ permissions:
 
 jobs:
   command:
-    if: github.event.repository.full_name == 'EFSing/stock-data-pipeline' && github.event.issue.pull_request == null
+    if: >-
+      github.event.repository.full_name == 'EFSing/stock-data-pipeline' &&
+      github.event.issue.pull_request == null &&
+      github.actor == 'EFSing' &&
+      github.event.sender.login == 'EFSing' &&
+      github.event.issue.user.login == 'EFSing'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,12 +26,10 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Validate and execute holdings command
         env:
-          # The current review node is dry-run only.  A separate reviewed
-          # change must enable live writes and pass Google secrets to the
-          # existing SheetsClient path.
+          # This review node is dry-run only and receives no Google credentials.
+          # A separate reviewed change must design secret injection before any
+          # live writes can be enabled.
           HOLDINGS_COMMAND_BUS_LIVE_WRITES: disabled
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: >-
           python -m scripts.holdings_command_bridge
           --event-path "$GITHUB_EVENT_PATH"
