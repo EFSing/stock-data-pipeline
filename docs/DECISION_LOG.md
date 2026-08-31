@@ -766,7 +766,7 @@ market-specific Fib rule is introduced.
 
 **Context:** 上层 ChatGPT/Codex 需要把“添加 MU”“我买了 512400”“重新买回 INTC”“NOK 已清仓”等自然语言稳定映射到持仓数据操作。现有 `main.py --mode latest|full` 是批量生产/手动历史与策略编排，不适合作为单标的新增入口；`自选清单.启用` 已经是当前持仓语义，历史表是独立的长期事实。
 
-**Decision:** 新增 repository-local `skills/holdings-data-manager/SKILL.md` 作为薄 contract，并将业务实现放在根目录 `holdings_data_manager.py`。核心接口固定为 `ADD`、`REENTER`、`CLOSE`、`SYNC`；自然语言只能解析为唯一操作和单一规范化身份。身份规范化复用现有 provider registry 与市场代码映射；latest 先确定最近已完成市场交易日，raw/qfq history 只请求缺口并以 `统一代码+交易日期` 幂等写入；`CLOSE` 只更新 `自选清单.启用=False`，不得物理删除任何历史、校验、数据源映射或证券身份。生命周期审计复用既有 `运行日志` 表头，以北京时间追加动作、市场、规范化统一代码、结果和写入行数。
+**Decision:** 新增 repository-local `skills/holdings-data-manager/SKILL.md` 作为薄 contract，并将业务实现放在根目录 `holdings_data_manager.py`。核心接口固定为 `ADD`、`REENTER`、`CLOSE`、`SYNC`；自然语言只能解析为唯一操作和单一规范化身份。身份规范化复用现有 provider registry 与市场代码映射；latest 先确定最近已完成市场交易日，raw/qfq history 只请求缺口并以 `市场+统一代码+交易日期` 幂等写入；`CLOSE` 只更新 `自选清单.启用=False`，不得物理删除任何历史、校验、数据源映射或证券身份。生命周期审计复用既有 `运行日志` 表头，以北京时间追加动作、市场、规范化统一代码、结果和写入行数。
 
 **Schema / source-of-truth:** 不新增 Sheet 列、registry 或第二套 holdings 事实源。新增的 `SheetsClient.upsert_watchlist()` 只更新已知表头字段并保留未核实列；现有 `自选清单`、历史行情表和 provider/QC 逻辑继续是唯一事实来源。
 

@@ -72,10 +72,13 @@ class FakeSheetsClient:
     def upsert_history(self, sheet_name, rows):
         incoming = list(rows)
         current = {
-            (row.get("统一代码"), row.get("交易日期")): row
+            (row.get("市场"), row.get("统一代码"), row.get("交易日期")): row
             for row in self.histories[sheet_name]
         }
-        current.update({(row.get("统一代码"), row.get("交易日期")): row for row in incoming})
+        current.update({
+            (row.get("市场"), row.get("统一代码"), row.get("交易日期")): row
+            for row in incoming
+        })
         self.histories[sheet_name] = list(current.values())
         return len(incoming)
 
@@ -323,6 +326,25 @@ class SheetsWatchlistTests(unittest.TestCase):
 
         self.assertEqual(worksheet.values[1][3], "keep")
         self.assertEqual(worksheet.updated[1], "A2")
+
+    def test_history_upsert_identity_includes_market(self):
+        client = object.__new__(SheetsClient)
+        client.records = lambda sheet_name: [{
+            "市场": "CN",
+            "统一代码": "000001.SZ",
+            "交易日期": "2026-08-28",
+        }]
+        client._replace = Mock()
+
+        written = client.upsert_history("历史行情_未复权", [{
+            "市场": "US",
+            "统一代码": "000001.SZ",
+            "交易日期": "2026-08-28",
+        }])
+
+        self.assertEqual(written, 1)
+        rows = client._replace.call_args.args[2]
+        self.assertEqual(len(rows), 2)
 
 
 if __name__ == "__main__":

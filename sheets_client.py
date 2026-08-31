@@ -130,7 +130,12 @@ class SheetsClient:
         return 1
 
     def upsert_history(self, sheet_name: str, rows: Iterable[dict]) -> int:
-        return self._upsert(sheet_name, HISTORY_HEADERS, rows, ("统一代码", "交易日期"))
+        return self._upsert(
+            sheet_name,
+            HISTORY_HEADERS,
+            rows,
+            ("市场", "统一代码", "交易日期"),
+        )
 
     def upsert_decisions(self, rows: Iterable[dict]) -> int:
         return self._upsert(
