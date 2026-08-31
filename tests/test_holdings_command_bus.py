@@ -12,7 +12,7 @@ from holdings_command_bus import (
     parse_issue_event,
     render_result_comment,
 )
-from scripts.holdings_command_bridge import execute_event, main
+from scripts.holdings_command_bridge import execute_event, main, route_event
 from holdings_data_manager import OperationResult
 
 
@@ -101,6 +101,17 @@ class HoldingsCommandSchemaTests(unittest.TestCase):
 
 
 class HoldingsCommandBridgeTests(unittest.TestCase):
+    def test_route_validates_without_constructing_write_clients(self):
+        with patch("sheets_client.SheetsClient") as sheets_class, \
+                patch("holdings_data_manager.HoldingsDataManager") as manager_class:
+            self.assertEqual(route_event(issue_event(command_body()), actor="EFSing"), "dry_run")
+            self.assertEqual(
+                route_event(issue_event(command_body(dry_run=False)), actor="EFSing"),
+                "live",
+            )
+        sheets_class.assert_not_called()
+        manager_class.assert_not_called()
+
     def test_dry_run_runs_event_schema_and_identity_without_sheets_or_manager(self):
         event = issue_event(command_body(market="US"))
         with patch("sheets_client.SheetsClient") as sheets_class, \
@@ -134,18 +145,107 @@ class HoldingsCommandBridgeTests(unittest.TestCase):
         sheets_class.assert_not_called()
         manager_class.assert_not_called()
 
-    def test_live_path_delegates_only_to_existing_manager_contract(self):
-        event = issue_event(command_body(operation="SYNC", market="US", dry_run=False))
+    def test_live_add_delegates_only_to_existing_manager_contract(self):
+        event = issue_event(command_body(operation="ADD", market="US", dry_run=False))
         manager = Mock()
         manager.execute.return_value = OperationResult(
-            "SYNC", "MU", "US", "SUCCESS", True, 0, "SYNC成功"
+            "ADD", "MU", "US", "SUCCESS", True, 2, "ADD成功"
         )
-        with patch("holdings_data_manager.HoldingsDataManager", return_value=manager) as manager_class:
+        with patch.dict(os.environ, {
+            "GOOGLE_SHEET_ID": "sheet-id-for-test",
+            "GOOGLE_SERVICE_ACCOUNT_JSON": "service-account-for-test",
+        }, clear=False), patch(
+            "holdings_data_manager.HoldingsDataManager", return_value=manager
+        ) as manager_class:
             result = execute_event(event, actor="EFSing", live_writes_enabled=True)
         manager_class.assert_called_once_with()
-        manager.execute.assert_called_once_with("SYNC", "MU", "US")
+        manager.execute.assert_called_once_with("ADD", "MU", "US")
         self.assertEqual(result.status, "SUCCESS")
         self.assertEqual(result.normalized_symbol, "MU")
+        self.assertTrue(result.enabled)
+        self.assertEqual(result.history_rows_written, 2)
+
+    def test_unauthorized_actor_fails_closed_before_manager_construction(self):
+        event = issue_event(command_body(dry_run=False), sender="attacker")
+        with patch("holdings_data_manager.HoldingsDataManager") as manager_class:
+            result = execute_event(event, actor="EFSing", live_writes_enabled=True)
+        self.assertEqual(result.status, "FAILED")
+        self.assertIn("command/event validation", result.message)
+        manager_class.assert_not_called()
+
+    def test_malformed_command_fails_closed_before_manager_construction(self):
+        event = issue_event("not-json")
+        with patch("holdings_data_manager.HoldingsDataManager") as manager_class:
+            result = execute_event(event, actor="EFSing", live_writes_enabled=True)
+        self.assertEqual(result.status, "FAILED")
+        self.assertIsNone(result.request_id)
+        self.assertIn("command/event validation", result.message)
+        manager_class.assert_not_called()
+
+    def test_manager_failed_result_is_returned_without_enabled_state(self):
+        event = issue_event(command_body(dry_run=False))
+        manager = Mock()
+        manager.execute.return_value = OperationResult(
+            "ADD", "MU", "US", "FAILED", True, 0, "provider/QC failed"
+        )
+        with patch.dict(os.environ, {
+            "GOOGLE_SHEET_ID": "sheet-id-for-test",
+            "GOOGLE_SERVICE_ACCOUNT_JSON": "service-account-for-test",
+        }, clear=False), patch(
+            "holdings_data_manager.HoldingsDataManager", return_value=manager
+        ):
+            result = execute_event(event, actor="EFSing", live_writes_enabled=True)
+        self.assertEqual(result.status, "FAILED")
+        self.assertIsNone(result.enabled)
+        self.assertEqual(result.history_rows_written, 0)
+        self.assertIn("provider/QC failed", render_result_comment(result))
+
+    def test_live_rerun_preserves_manager_idempotency_contract(self):
+        event = issue_event(command_body(dry_run=False))
+        first_manager = Mock()
+        first_manager.execute.return_value = OperationResult(
+            "ADD", "MU", "US", "SUCCESS", True, 2, "ADD成功"
+        )
+        rerun_manager = Mock()
+        rerun_manager.execute.return_value = OperationResult(
+            "ADD", "MU", "US", "IDEMPOTENT", True, 0, "ADD幂等"
+        )
+        with patch.dict(os.environ, {
+            "GOOGLE_SHEET_ID": "sheet-id-for-test",
+            "GOOGLE_SERVICE_ACCOUNT_JSON": "service-account-for-test",
+        }, clear=False), patch(
+            "holdings_data_manager.HoldingsDataManager",
+            side_effect=[first_manager, rerun_manager],
+        ) as manager_class:
+            first = execute_event(event, actor="EFSing", live_writes_enabled=True)
+            rerun = execute_event(event, actor="EFSing", live_writes_enabled=True)
+        self.assertEqual(first.status, "SUCCESS")
+        self.assertEqual(rerun.status, "IDEMPOTENT")
+        self.assertEqual(rerun.history_rows_written, 0)
+        self.assertEqual(manager_class.call_count, 2)
+        first_manager.execute.assert_called_once_with("ADD", "MU", "US")
+        rerun_manager.execute.assert_called_once_with("ADD", "MU", "US")
+
+    def test_runtime_secrets_never_reach_receipt_or_comment(self):
+        event = issue_event(command_body(dry_run=False))
+        sheet_id = "sheet-id-secret-for-test"
+        credential = '{"private_key":"private-secret-for-test"}'
+        manager = Mock()
+        manager.execute.return_value = OperationResult(
+            "ADD", "MU", "US", "FAILED", None, 0,
+            f"manager failure {sheet_id} {credential}",
+        )
+        with patch.dict(os.environ, {
+            "GOOGLE_SHEET_ID": sheet_id,
+            "GOOGLE_SERVICE_ACCOUNT_JSON": credential,
+        }, clear=False), patch(
+            "holdings_data_manager.HoldingsDataManager", return_value=manager
+        ):
+            result = execute_event(event, actor="EFSing", live_writes_enabled=True)
+        output = json.dumps(result.to_dict(), ensure_ascii=False) + render_result_comment(result)
+        self.assertNotIn(sheet_id, output)
+        self.assertNotIn(credential, output)
+        self.assertNotIn("private-secret-for-test", output)
 
     def test_cli_writes_only_bounded_receipt_and_comment(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -195,13 +295,26 @@ class HoldingsCommandWorkflowTests(unittest.TestCase):
         self.assertIn("createComment", source)
         self.assertIn("state: 'closed'", source)
 
-    def test_dry_run_workflow_has_no_google_secret_injection(self):
+    def test_workflow_injects_google_secrets_only_into_live_step(self):
         source = (ROOT / ".github" / "workflows" / "holdings-command.yml").read_text(encoding="utf-8")
         self.assertIn("HOLDINGS_COMMAND_BUS_LIVE_WRITES: disabled", source)
-        self.assertNotIn("${{ secrets.GOOGLE_SHEET_ID }}", source)
-        self.assertNotIn("${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}", source)
-        self.assertNotRegex(source, r"(?i)secrets\.[A-Z0-9_]*GOOGLE[A-Z0-9_]*")
-        self.assertNotRegex(source, r"(?mi)^\s*GOOGLE_(?:SHEET_ID|SERVICE_ACCOUNT_JSON)\s*:")
+        self.assertIn("HOLDINGS_COMMAND_BUS_LIVE_WRITES: enabled", source)
+        self.assertIn("GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}", source)
+        self.assertIn("GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}", source)
+        self.assertNotIn("github.event.issue.body", source)
+        dry_step = source.split("- name: Execute dry-run or fail closed", 1)[1].split(
+            "- name: Execute approved live command", 1
+        )[0]
+        self.assertNotIn("GOOGLE_SHEET_ID", dry_step)
+        self.assertNotIn("GOOGLE_SERVICE_ACCOUNT_JSON", dry_step)
+        live_step = source.split("- name: Execute approved live command", 1)[1]
+        self.assertIn("if: steps.route.outputs.command_route == 'live'", live_step)
+
+    def test_workflow_serializes_all_command_jobs(self):
+        source = (ROOT / ".github" / "workflows" / "holdings-command.yml").read_text(encoding="utf-8")
+        self.assertIn("concurrency:", source)
+        self.assertIn("group: holdings-command-live-writes", source)
+        self.assertIn("cancel-in-progress: false", source)
 
     def test_workflow_job_fails_closed_before_python_for_non_allowlisted_actor(self):
         source = (ROOT / ".github" / "workflows" / "holdings-command.yml").read_text(encoding="utf-8")
