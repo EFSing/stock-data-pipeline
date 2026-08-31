@@ -10,8 +10,8 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 head：`fa93455b7b16b74e0aa5c871275191deeaf04f0a`，其 parent 为 PR #39 squash merge commit `c40e278e307ce64c126ef899b4db9fa26c47bb61`；main exact-head CI `33372189527` success。
-- Current checkout: `codex/live-write-enablement-v1`，从真实 `main@fa93455b7b16b74e0aa5c871275191deeaf04f0a` 建立；PR #38 的 squash merge commit 仍为 `e21935d17392a37ee9795e32a562e875dd741bfb`。
+- GitHub `main` 已包含 PR #41 squash merge commit `74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；该 exact-head CI `33381760054` success。后续 docs-only governance closeout commit 不在本文件自引用其 SHA。
+- Current checkout: `main`，已与 `origin/main` 对齐；PR #41 final head 为 `919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit 为 `74dc7d2fc1ef26d27b663eba7b3321a64e801ead`。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
@@ -34,7 +34,7 @@ V0.2
 
 ## Current Task: LIVE_WRITE_ENABLEMENT_V1
 
-- 当前设计/实现节点：`LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`；PR #39 已 squash merge 为 `c40e278e307ce64c126ef899b4db9fa26c47bb61`，独立 PR #41 已建立并保持 open。实现完成严格 dry/live routing、conditional GitHub Secrets、workflow concurrency 与现有 manager delegation；不自动 merge。
+- 当前设计/实现节点：`LIVE_WRITE_ENABLEMENT_V1_MERGED_READY_FOR_FIRST_PRODUCTION_COMMAND`；PR #41 final head `919cbfc7be531d42ffdfbda508bd9c86ab1902c9` 的 exact-head CI `33377922272` success，已 squash merge 为 `74dc7d2fc1ef26d27b663eba7b3321a64e801ead`，merge 后 main exact-head CI `33381760054` success。实现完成严格 dry/live routing、conditional GitHub Secrets、workflow concurrency 与现有 manager delegation。
 - command title 必须精确为 `[HOLDINGS_COMMAND]`；body 是严格 JSON v1，仅允许 `version`、`operation`、`symbol`、`request_id`、`dry_run` 与可选 `market`，operation 仅 `ADD`/`REENTER`/`CLOSE`/`SYNC`，单 command 仅一个 symbol。
 - `.github/workflows/holdings-command.yml` 仅由 `issues.opened` 触发；job-level 先 fail closed 校验 governed repository、non-PR、`github.actor == 'EFSing'`、event sender login 和 Issue user login 均为 `EFSing`，Python 再执行 authoritative allowlist/title/schema/event guard；Issue body 只由 bridge 从 `GITHUB_EVENT_PATH` 读取，不插入 shell/Python 字符串。
 - `holdings_command_bus.py` 负责协议/回执；`scripts/holdings_command_bridge.py` 负责 event → schema → 既有 identity normalization → result receipt，并只在显式 live gate 与 credential presence gate 同时满足时调用 `HoldingsDataManager.execute(...)`；不复制 holdings 业务逻辑。
@@ -113,7 +113,7 @@ V0.2
 
 ## Next
 
-- PR #41 source head `65651b4af10df321adf444bb25fd838e0df4b085`，base=`fa93455b7b16b74e0aa5c871275191deeaf04f0a`，独立 PR 保持 open、不自动 merge。
+- PR #41 已 squash merge：final head `919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，merge commit `74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；不创建新的开发 PR。
 - workflow 已启用 conditional live route：route/identity/parser 通过后才允许 `dry_run=false` live step；live step 只引用既有 GitHub Secrets，bridge 缺 gate/缺 credentials 时 fail closed；Issue result comment、labels 和 close relay 保持。
 - 未发生任何真实 holdings ADD/CLOSE/REENTER/SYNC、Google Sheets write、账户/券商访问或策略/research execution；未改变 HoldingsDataManager business semantics 或 Google Sheets schema。
-- 本任务停止为 `LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`；等待 Sol review/明确上线决定。SETUP_02、重开 SETUP_03、Final OOS、returns、MFE、MAE、P&L 仍禁止开始或读取。
+- 本任务停止为 `LIVE_WRITE_ENABLEMENT_V1_MERGED_READY_FOR_FIRST_PRODUCTION_COMMAND`；等待 Sol 发出第一条明确 production command。closeout 未执行真实 holdings command；SETUP_02、重开 SETUP_03、Final OOS、returns、MFE、MAE、P&L 仍禁止开始或读取。
