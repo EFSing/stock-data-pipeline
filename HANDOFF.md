@@ -14,8 +14,8 @@
 
 - **当前 Phase / task:** `HOLDINGS_DATA_MANAGER_SKILL`。
 - **具体目标:** 为上层 ChatGPT/Codex 提供 repository-local `holdings-data-manager` Skill；将自然语言稳定映射为 `ADD`、`REENTER`、`CLOSE`、`SYNC`，只管理持仓数据生命周期，不进入交易策略或账户动作。
-- **当前实现:** Skill contract 在 `skills/holdings-data-manager/SKILL.md`，业务实现为 `holdings_data_manager.py`；source/tests substantive commit 为 `2dd1ed0`，基于真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294`。
-- **操作边界:** 新身份完成 symbol/market/provider normalization，raw/qfq 均覆盖最近已完成市场交易日前一个自然年后才启用；REENTER 只补缺口；CLOSE 只停用 `自选清单.启用`，永久保留历史、校验、映射和身份；重复操作幂等。
+- **当前实现:** Skill contract 在 `skills/holdings-data-manager/SKILL.md`，业务实现为 `holdings_data_manager.py`；correctness amendment source/tests commit 为 `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`，基于真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294`。
+- **操作边界:** 新身份完成 symbol/market/provider normalization，raw/qfq 均覆盖最近已完成市场交易日前一个自然年后才启用；coverage 只使用 observed session dates，不按 weekday 或节假日表补 bar；REENTER/SYNC 只补缺口；停用身份收到 ADD 自动按 REENTER 语义恢复；CLOSE 只停用 `自选清单.启用`，永久保留历史、校验、映射和身份；重复操作幂等。
 - **明确禁止事项:** 不新增第二套 registry/Sheet 事实源，不猜 ticker/market/provider，不伪造或插值行情，不把完整 `full` pipeline 作为单标的入口；不读取账户数量、成本、NAV、盈亏，不访问券商，不修改 SETUP_01/02/03/04、Wave、Fibonacci、Decision/Risk、Position Management、Exit 或研究协议。
 - **停止条件:** push 独立 PR，完成 full unittest、focused tests、compileall、`git diff --check` 和新 PR exact-head CI；治理同步并确认 `HANDOFF_CURRENT_AND_CONSISTENT` 后停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，不自动 merge。
 
@@ -25,17 +25,18 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub remote `main@3a6d417ede3594c05003ea18ce65bd4562eff294`；main push CI `33316793033` success，Asia/US latest runs `33320878809` / `33320860435` success。
 - **working branch:** `codex/holdings-data-manager`，基于上述真实最新 main。
-- **implementation source head:** `2dd1ed0` (`feat: add holdings data manager skill`)；新 PR tip、exact-head CI 和 mergeability 待 push 后实时核验。
-- **PR:** #38 `OPEN`，当前治理同步前 live tip 为 `8f48921a15cfbd0b45c11d28c705a865c5db9d92`；此前 #35/#36 仅为历史策略上下文，本任务不修改其内容。
-- **latest exact-head checks:** PR #38 tip `8f48921…` 的 CI `33354460712` success、mergeable=true；本次 docs-only 对账 push 后必须核对新 exact SHA/CI。
+- **implementation source head:** `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` (`fix: harden holdings history coverage and sessions`)；治理同步不把包含自身的 docs commit SHA 写入本快照。
+- **PR:** #38 `OPEN`，已核对 tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`、base `3a6d417ede3594c05003ea18ce65bd4562eff294`、merged=false、mergeable=true；此前 #35/#36 仅为历史策略上下文，本任务不修改其内容。
+- **latest exact-head checks:** PR #38 tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` 的 CI `33355735016` success；治理同步 commit 后的最终 tip/CI 由 GitHub live evidence 核对，不自动 merge。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；持仓数据管理当前状态为 `HOLDINGS_DATA_MANAGER_LOCAL_VALIDATION_PENDING_PR`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
+- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；持仓数据管理当前状态为 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
 ## 3. Completed Work
 
-- Holdings manager implementation: deterministic symbol/market/source normalization; natural-language parsing for single-symbol `ADD`/`REENTER`/`CLOSE`/`SYNC`; raw/qfq latest-completed-session one-year initialization and gap-only sync; fail-closed provider/QC/duplicate-date gates; idempotent `自选清单` update; CLOSE history preservation; Beijing-time append-only audit.
+- Holdings manager implementation: deterministic symbol/market/source normalization; natural-language parsing for single-symbol `ADD`/`REENTER`/`CLOSE`/`SYNC`; observed-session raw/qfq latest-completed-session one-year initialization and gap-only sync; deterministic 180-bar / 7-day boundary / 14-day observed-gap / exact date-set QC; fail-closed provider/QC/duplicate-date gates; idempotent `自选清单` update; CLOSE history preservation; Beijing-time append-only audit.
 - Repository-local Skill specification and capability documentation are tracked. `SheetsClient.upsert_watchlist()` updates only known headers and preserves unverified `自选清单` columns; no schema/registry change.
-- Holdings regression suite covers first ADD, repeated ADD, CLOSE/repeated CLOSE, REENTER gap/full coverage, SYNC state preservation, ambiguity, provider/qfq failure, duplicate dates, natural-language examples, and unknown Sheet columns. Existing scheduled latest tests remain green.
+- Holdings regression suite is `22/22`: first ADD with near-real US session fixture, repeated ADD, CLOSE/repeated CLOSE, ADD-after-CLOSE automatic re-entry, REENTER gap/full coverage, US/CN holiday sessions, sparse/truncated/mismatched raw/qfq fail-closed cases, SYNC state preservation, ambiguity, provider failure, duplicate dates, natural-language examples, and unknown Sheet columns. Existing scheduled latest tests remain green in full `393/393`.
+- Read-only live provider smoke wrote no Sheets: `512400.SH` raw/qfq `242/242` bars from `2025-08-27` to `2026-08-27`, duplicate `0`, date-set difference `0`, coverage/QC passed; yfinance was behind ordinary freshness guard `2026-08-28`, so lifecycle readiness stayed false. Optional `MU` raw/qfq `252/252` bars from `2025-08-28` to `2026-08-28`, duplicate `0`, date-set difference `0`, coverage/QC and lifecycle readiness passed.
 
 - PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
 - Wave Scenario Engine v1 已实现：严格 `data <= as_of_date`、完整周边界、weekly parent → daily context、confirmed Swing、现有 Fibonacci regions、primary/alternate、证据/反证/规则计分、结构失效、context eligibility 与 fail-closed UNKNOWN/NO_VALID families。
@@ -71,9 +72,9 @@
 2. [x] 完成 `holdings_data_manager.py`、repository-local Skill specification、Sheet watchlist upsert、focused regression tests 及架构/README 说明。
 3. [x] 固化 substantive source commit `2dd1ed0`；`ADD`/`REENTER`/`CLOSE`/`SYNC`、raw/qfq 缺口、幂等与 fail-closed contract 已实现。
 4. [x] 完成治理同步草稿：CURRENT_STATUS、DECISION_LOG 和本 HANDOFF 指向当前 holdings task；此前 Wave/SETUP01 状态保留为不变历史上下文。
-5. [ ] 跑最终 full unittest、focused tests、compileall、`git diff --check`，并验证 Skill validator；官方 validator 当前受 bundled Python 缺少 `yaml` 模块影响。
-6. [ ] push 分支、创建独立 PR，实时核对 base/tip、PR state/mergeability 和 exact-head CI；不自动 merge。
-7. [ ] exact-head CI 成功且治理快照再次对账后，将状态置为 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`。
+5. [x] focused holdings `22/22`、full unittest `393/393`、compileall、`git diff --check` 和 Skill creator quick validator 已通过。
+6. [x] 将 correctness amendment push 到既有 PR #38；实时核对 base/tip、PR OPEN/mergeable 和 exact-head CI `33355735016` success；不自动 merge。
+7. [x] 真实 provider read-only smoke 与治理对账已完成；治理同步后最终 exact tip/CI 仍以 GitHub live evidence 为准，状态停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`。
 
 ### Deferred
 
@@ -242,11 +243,11 @@
 ## 10. Next Action
 
 1. [x] 从真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294` 建立 `codex/holdings-data-manager`。
-2. [x] substantive source commit `2dd1ed0` 已实现，并通过 focused `13/13` 与 full `384/384` unittest。
+2. [x] correctness amendment source commit `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` 已实现，并通过 focused `22/22` 与 full `393/393` unittest。
 3. [x] `HANDOFF`、`CURRENT_STATUS`、`DECISION_LOG`、`ARCHITECTURE`、README 与 Skill specification 已同步本任务边界。
-4. [x] targeted compileall、`git diff --check` 与手工 Skill frontmatter 检查通过；官方 validator 因 bundled Python 缺少 `yaml` 模块未运行。
-5. [x] push 分支、创建独立 PR #38；首轮 tip `8f48921…` 的 exact-head CI `33354460712` success，PR OPEN/mergeable=true。
-6. [ ] docs-only 对账 push 后核对 PR #38 final tip/exact-head CI；确认一致后停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，不自动 merge。
+4. [x] compileall、`git diff --check`、Skill creator quick validator 与真实 provider read-only smoke 通过；512400.SH freshness stale 保持显式 fail closed。
+5. [x] correctness amendment 已 push 至既有 PR #38；tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` 的 exact-head CI `33355735016` success，PR OPEN/mergeable=true。
+6. [x] coverage/session/ADD-on-disabled 语义与测试数字已对账；治理同步 commit 不自引用 SHA，最终 tip/CI 使用 GitHub live evidence；不自动 merge。
 
 ## 11. Handoff Checklist
 
@@ -265,12 +266,12 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-31T11:39:28+08:00`（治理 snapshot；docs-only update 后 PR final tip/CI 需实时复核）
+- `last_updated_at`: `2026-08-31T12:10:00+08:00`（governance snapshot；同步 commit 不自引用其 SHA，最终 PR tip/CI 使用 GitHub live evidence）
 - `verified_main_sha`: `3a6d417ede3594c05003ea18ce65bd4562eff294`
-- `verified_branch_head`: `2dd1ed0`（branch=`codex/holdings-data-manager`；latest substantive source head）
-- `latest_test_result`: focused holdings `13/13`、full unittest `384/384` passed；targeted compileall 与 `git diff --check` passed；manual Skill frontmatter check passed；official validator blocked by missing bundled `yaml` module
-- `latest_ci_run`: PR #38 pre-final-docs tip `8f48921…` exact-head CI `33354460712` success；docs-only update后 final tip/CI须实时复核
-- `latest_pr`: #38 `OPEN`，base=`3a6d417…`，mergeable=true；不自动 merge
+- `verified_branch_head`: `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`（branch=`codex/holdings-data-manager`；latest substantive source head）
+- `latest_test_result`: focused holdings `22/22`、full unittest `393/393`、compileall、`git diff --check`、Skill creator quick validator passed；live smoke 512400.SH coverage/QC passed but freshness guard failed explicitly，MU coverage/QC/lifecycle ready passed
+- `latest_ci_run`: PR #38 source tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` exact-head CI `33355735016` success；governance sync commit's final tip/CI is live GitHub evidence and is not self-referenced here
+- `latest_pr`: #38 `OPEN`、merged=false，base=`3a6d417ede3594c05003ea18ce65bd4562eff294`，source tip mergeable=true；不自动 merge
 - `updated_by_task`: `repository-local holdings-data-manager Skill and deterministic holdings lifecycle operations`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
