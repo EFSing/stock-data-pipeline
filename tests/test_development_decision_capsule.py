@@ -11,7 +11,10 @@ from research.development_decision_capsule import (
     _build_statistics,
     write_capsule,
 )
-from research.market_sessions import build_market_session_dates
+from research.market_sessions import (
+    DEVELOPMENT_SESSION_IDENTITY,
+    build_market_session_dates,
+)
 
 
 def _compact_reports():
@@ -48,6 +51,12 @@ def _compact_reports():
 
 
 class DecisionCapsuleTests(unittest.TestCase):
+    def test_development_session_identity_is_frozen_dataset_market_set(self):
+        self.assertEqual(
+            DEVELOPMENT_SESSION_IDENTITY,
+            "FROZEN_DATASET_MARKET_SESSION_SET",
+        )
+
     def test_market_session_dates_use_union_across_symbols(self):
         def quote(symbol, trade_date):
             return Quote(

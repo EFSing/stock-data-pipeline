@@ -40,6 +40,15 @@ docs-only governance commit 不要求文件记录其自身 SHA。`HANDOFF_CURREN
 PR final tip/CI 由实时 GitHub verification 提供。不得为了更新文件自己的
 SHA 制造无限 docs-only commit。
 
+真实持仓 shadow 必须与 generic operational shadow 分离：
+`GENERIC_OPERATIONAL_SHADOW` 使用 synthetic / controlled public fixture，是
+默认产品/工程 gate；`REAL_HOLDINGS_SHADOW` 的 classification 固定为
+`OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，未运行时 status 为
+`NOT_RUN_USER_PRIVACY`。缺少真实持仓不得写成 SETUP_01
+research/development 的默认 blocker。未经明确 production milestone scope
+授权，不得读取真实持仓，也不得将任何 holdings-derived 数据输出到
+GitHub Actions；不得把账户 holdings secrets 注入 generic shadow 或普通 CI。
+
 每完成一个具有独立意义的逻辑任务，或准备报告 `TASK_COMPLETE`、`PHASE_COMPLETE`、`PR_FULLY_READY`、`READY_FOR_REVIEW`、`READY_FOR_DECISION` 前，必须更新 `HANDOFF.md`，并确认其状态为 `HANDOFF_CURRENT_AND_CONSISTENT`。
 
 ## 每次修改代码之前（必须按顺序）
