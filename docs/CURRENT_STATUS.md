@@ -10,8 +10,8 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前 substantive merge head：PR #39 squash merge commit `c40e278e307ce64c126ef899b4db9fa26c47bb61`，其 parent/base 为 `0355672516ac7215ac53ebce839fb62013502054`；该 merge-head exact-head CI `33371721311` success。post-merge docs-only sync commit 不在本文件中自引用其 SHA。
-- Current checkout: `codex/holdings-command-bus`；GitHub main 已进入 PR #39 squash merge head `c40e278e307ce64c126ef899b4db9fa26c47bb61`。PR #38 的 squash merge commit 仍为 `e21935d17392a37ee9795e32a562e875dd741bfb`；本次 docs-only sync 按既有治理惯例直接进入 main，且不自引用其 SHA。
+- GitHub `main` 当前真实 head：`fa93455b7b16b74e0aa5c871275191deeaf04f0a`，其 parent 为 PR #39 squash merge commit `c40e278e307ce64c126ef899b4db9fa26c47bb61`；main exact-head CI `33372189527` success。
+- Current checkout: `codex/live-write-enablement-v1`，从真实 `main@fa93455b7b16b74e0aa5c871275191deeaf04f0a` 建立；PR #38 的 squash merge commit 仍为 `e21935d17392a37ee9795e32a562e875dd741bfb`。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
@@ -32,16 +32,16 @@ V0.2
 - Read-only live provider smoke：`512400.SH` raw/qfq 各 `242` bars（`2025-08-27..2026-08-27`），duplicates `0`，date-set difference `0`，coverage/QC passed；provider 落后 freshness guard `2026-08-28`，故 lifecycle readiness=false。`MU` raw/qfq 各 `252` bars（`2025-08-28..2026-08-28`），同样无重复/日期差异，coverage/QC 与 lifecycle readiness passed；两者均 `sheets_written=false`。
 - 当前 holdings task 状态：`HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`；下一设计节点仅为 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`。未运行真实 holdings ADD/CLOSE，未写 Google Sheets，未访问账户或券商；治理同步不写入包含自身的最终 SHA。
 
-## Current Task: ChatGPT → GitHub Issue holdings command bus
+## Current Task: LIVE_WRITE_ENABLEMENT_V1
 
-- 当前设计/实现节点：`CHATGPT_HOLDINGS_COMMAND_BUS_V1_MERGED_AND_TRANSPORT_SMOKE_PASSED`；Sol 已批准 `APPROVE_CHATGPT_HOLDINGS_COMMAND_BUS_V1`，PR #39 已 squash merge 为 `c40e278e307ce64c126ef899b4db9fa26c47bb61`。真实 Issue #40 transport smoke 与 workflow run `33371774444` 已成功完成；本节点已达到最终停止条件。
+- 当前设计/实现节点：`LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`；PR #39 已 squash merge 为 `c40e278e307ce64c126ef899b4db9fa26c47bb61`，独立 PR #41 已建立并保持 open。实现完成严格 dry/live routing、conditional GitHub Secrets、workflow concurrency 与现有 manager delegation；不自动 merge。
 - command title 必须精确为 `[HOLDINGS_COMMAND]`；body 是严格 JSON v1，仅允许 `version`、`operation`、`symbol`、`request_id`、`dry_run` 与可选 `market`，operation 仅 `ADD`/`REENTER`/`CLOSE`/`SYNC`，单 command 仅一个 symbol。
 - `.github/workflows/holdings-command.yml` 仅由 `issues.opened` 触发；job-level 先 fail closed 校验 governed repository、non-PR、`github.actor == 'EFSing'`、event sender login 和 Issue user login 均为 `EFSing`，Python 再执行 authoritative allowlist/title/schema/event guard；Issue body 只由 bridge 从 `GITHUB_EVENT_PATH` 读取，不插入 shell/Python 字符串。
-- `holdings_command_bus.py` 负责协议/回执；`scripts/holdings_command_bridge.py` 负责 event → schema → 现有 identity normalization → result receipt，并只在未来显式 gate 开启时调用 `HoldingsDataManager.execute(...)`；不复制 holdings 业务逻辑。
-- 当前 workflow 固定 `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`，且 dry-run job 完全不注入 Google credentials，形成 invariant `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`；`dry_run=false` 在 manager construction 前 fail closed，dry-run 不实例化 `SheetsClient` 或 `HoldingsDataManager`。未来 live enablement 必须在独立 reviewed PR 中设计 secret injection；本 PR 不启用 writes。
+- `holdings_command_bus.py` 负责协议/回执；`scripts/holdings_command_bridge.py` 负责 event → schema → 既有 identity normalization → result receipt，并只在显式 live gate 与 credential presence gate 同时满足时调用 `HoldingsDataManager.execute(...)`；不复制 holdings 业务逻辑。
+- workflow 先运行无 Secret route step；`dry_run=true` 或 invalid route 进入 gate-disabled、无 Google credentials 的步骤，保持 `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`；仅严格校验通过的 `dry_run=false` route 进入 live step，并只从既有 GitHub Secrets 注入凭证。workflow-level `concurrency` 串行 command jobs，bridge 默认 gate 仍 fail closed。
 - 回执包含 `request_id`、operation、normalized symbol、market、status、enabled、`history_rows_written`、message，并由 workflow 写 comment、加结果 label、关闭 Issue；不输出账户数量、成本、NAV、P&L 或 broker 信息。
-- command-bus focused tests 为 `12/12`，holdings lifecycle focused tests 为 `24/24`，full unittest 为 `407/407`；changed-file compileall 与 `git diff --check` 通过。未执行真实 ADD/CLOSE。
-- 未来 live enablement prerequisite 已登记为 `LIVE_WRITE_CONCURRENCY_SERIALIZATION_REQUIRED_BEFORE_ENABLEMENT`：不得让多个 command jobs 无序修改同一 holdings state；本 PR 不实现 concurrency、transport DB 或 live writes。
+- command-bus focused tests 为 `19/19`，holdings lifecycle focused tests 既有 `24/24`，full unittest 为 `414/414`；changed-file compileall 与 `git diff --check` 通过。未执行真实 ADD/CLOSE/REENTER/SYNC。
+- live regression 覆盖 live ADD delegation、dry-run no-client、unauthorized/malformed fail closed、manager FAILED receipt、rerun/idempotency propagation、conditional Secrets、concurrency 与 secret non-disclosure；FAILED receipt 的 `enabled` 被防御性归一为 `null`。
 
 ### Project Strategy Identity (unchanged; historical context)
 
@@ -113,8 +113,7 @@ V0.2
 
 ## Next
 
-- PR #39 已正式 squash merge：source head `d970d554eabd2001b980822d85ca6958ba5acc34`，merge commit `c40e278e307ce64c126ef899b4db9fa26c47bb61`；main merge-head exact-head CI `33371721311` success。
-- 真实 transport smoke Issue #40 的 workflow run `33371774444` success；result 为 `DRY_RUN`，normalized symbol=`MU`，market=`US`，history_rows_written=`0`，enabled=`null`；machine-readable/human-readable comment、success/dry-run labels、Issue close 全部成功。
-- workflow 仍固定 `HOLDINGS_COMMAND_BUS_LIVE_WRITES: disabled`，无 Google credential injection，满足 `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`；job-level repository/non-PR/actor/sender/Issue-user guard 与 Python authoritative allowlist 保持。
-- 未发生任何真实 holdings ADD/CLOSE/REENTER/SYNC、Google Sheets write、`HoldingsDataManager.execute(...)`、账户/券商访问或策略/research execution；未实现 concurrency serialization、未新增 transport DB、未改变 manager business semantics。
-- 本任务停止为 `CHATGPT_HOLDINGS_COMMAND_BUS_V1_MERGED_AND_TRANSPORT_SMOKE_PASSED`，等待 Sol 决定是否设计 `LIVE_WRITE_ENABLEMENT_V1`。SETUP_02、重开 SETUP_03、Final OOS、returns、MFE、MAE、P&L 仍禁止开始或读取。
+- PR #41 source head `65651b4af10df321adf444bb25fd838e0df4b085`，base=`fa93455b7b16b74e0aa5c871275191deeaf04f0a`，独立 PR 保持 open、不自动 merge。
+- workflow 已启用 conditional live route：route/identity/parser 通过后才允许 `dry_run=false` live step；live step 只引用既有 GitHub Secrets，bridge 缺 gate/缺 credentials 时 fail closed；Issue result comment、labels 和 close relay 保持。
+- 未发生任何真实 holdings ADD/CLOSE/REENTER/SYNC、Google Sheets write、账户/券商访问或策略/research execution；未改变 HoldingsDataManager business semantics 或 Google Sheets schema。
+- 本任务停止为 `LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`；等待 Sol review/明确上线决定。SETUP_02、重开 SETUP_03、Final OOS、returns、MFE、MAE、P&L 仍禁止开始或读取。

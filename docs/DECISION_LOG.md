@@ -909,3 +909,45 @@ A real Issue #40 was created with exact title `[HOLDINGS_COMMAND]` and strict JS
 **Boundary evidence:** The run log showed only `contents: read`, `issues: write`, and `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`. The dry-run branch returned before constructing `SheetsClient` or `HoldingsDataManager`; no `HoldingsDataManager.execute(...)`, Google Sheets write, account/broker access, holdings mutation, strategy/research execution, or account/cost/NAV/P&L/broker information leakage occurred. This smoke was transport-only and did not enable live writes.
 
 **Final node:** The task stops at `CHATGPT_HOLDINGS_COMMAND_BUS_V1_MERGED_AND_TRANSPORT_SMOKE_PASSED` with `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS` and `HANDOFF_CURRENT_AND_CONSISTENT`. Do not start `LIVE_WRITE_ENABLEMENT_V1`, implement concurrency serialization, add a transport DB, change HoldingsDataManager semantics, start SETUP_02, reopen SETUP_03, or read Final OOS/returns/MFE/MAE/P&L without a separate Sol decision.
+
+## 2026-08-31 — LIVE_WRITE_ENABLEMENT_V1 ready for Sol review
+
+**Context:** The prior command bus v1 was merged and its real transport smoke
+completed with `dry_run=true`. The authorized follow-up is the bounded
+`LIVE_WRITE_ENABLEMENT_V1` implementation. The existing v1 command schema,
+allowlist, identity normalization, `HoldingsDataManager`, Sheet schema, and
+business lifecycle semantics remain authoritative.
+
+**Decision:** Keep `[HOLDINGS_COMMAND]` as an `issues.opened` workflow with the
+same minimal `contents: read` and `issues: write` permissions. Add a no-secret
+route step that reads only `GITHUB_EVENT_PATH`, re-validates the existing event
+and command schema, and performs existing identity normalization. A dry-run or
+invalid route executes with `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled` and no
+Google credential environment. Only a validated `dry_run=false` route enters
+the live step, which receives the two existing Google Actions Secrets and
+sets the explicit live gate. The bridge defaults the gate to fail closed,
+requires both credentials before manager construction, and calls only
+`HoldingsDataManager().execute(...)`.
+
+**Serialization / failure semantics:** Add a non-canceling workflow
+concurrency group so command jobs do not execute live writes concurrently.
+No transport database or request ledger is introduced. Existing manager
+idempotency remains the rerun contract. A manager `FAILED` result is relayed
+as `FAILED` with `enabled=null`; the bridge never writes `自选清单.启用` itself
+and no failure path claims an enabled state.
+
+**Regression / evidence:** PR #41 is an independent open PR based on real
+`main@fa93455b7b16b74e0aa5c871275191deeaf04f0a`; substantive source head is
+`65651b4af10df321adf444bb25fd838e0df4b085`. Focused command-bus tests pass
+`19/19`, full unittest passes `414/414`, changed-file compileall and
+`git diff --check` pass. Regression covers live ADD delegation, dry-run
+no-client construction, unauthorized/malformed fail closed, manager FAILED
+receipt, rerun/idempotency propagation, conditional Secret routing, workflow
+serialization, and runtime-secret non-disclosure.
+
+**Boundary / stop:** No real ADD, CLOSE, REENTER, or SYNC was executed; no
+Google Sheets credentials were accessed locally; no account, broker, NAV,
+P&L, strategy, research, SETUP/Wave/Fibonacci/Decision/Risk/Position/Exit
+path or Google Sheets schema was modified. Stop at
+`LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`; do not auto-merge PR #41 or
+execute a real holdings command before Sol review and explicit launch approval.

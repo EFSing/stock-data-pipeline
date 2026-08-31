@@ -12,30 +12,35 @@ ChatGPT/Codex
     -> issues.opened workflow in EFSing/stock-data-pipeline
     -> event + sender/actor + schema guards
     -> existing identity normalization
-    -> dry-run receipt, or (future reviewed enablement) HoldingsDataManager.execute
+    -> dry-run receipt, or (reviewed live route) HoldingsDataManager.execute
     -> machine-readable + human-readable comment
     -> result label and issue close
 ```
 
-The checked-in workflow has `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`.
-The dry-run job receives no Google credentials: it has no Google secret
-mappings and does not pass credentials by another channel. `dry_run=false`
-still fails closed before a `SheetsClient` or `HoldingsDataManager` can be
-constructed. Enabling live writes is a separate, reviewed change that must
-design and review secret injection before it can pass credentials to the
-existing `SheetsClient` path.
+The checked-in workflow routes through a no-secret validation step first.
+`dry_run=true` and invalid routes execute with
+`HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled` and receive no Google credentials,
+preserving the invariant below. Only a strictly validated `dry_run=false`
+route enters the live step, where the existing GitHub Actions Secrets are
+passed as environment variables to the bridge. The bridge still defaults to
+fail closed, requires both credential values before manager construction, and
+delegates the live operation only to the existing `SheetsClient` path owned by
+`HoldingsDataManager`.
 
 Invariant: `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`.
+
+The workflow uses a non-canceling concurrency group for command jobs so live
+operations do not run concurrently against the same holdings state. This is
+transport serialization only; it is not a new holdings registry or database.
 
 The workflow job also fails closed before Python starts unless the event is
 from this governed repository, is a non-PR issue, and has `EFSing` as the
 workflow actor, event sender, and Issue user. Python retains the authoritative
 second validation of the same allowlist and event envelope.
 
-Future live enablement prerequisite:
-`LIVE_WRITE_CONCURRENCY_SERIALIZATION_REQUIRED_BEFORE_ENABLEMENT`. Multiple
-live command jobs must not modify the same holdings state out of order; this
-PR does not implement live concurrency or enable writes.
+The implementation remains bounded to the existing v1 command schema and
+allowlist. No request ledger or transport database is added; reruns continue
+to rely on the existing manager's idempotent history/watchlist semantics.
 
 ## Command body
 
@@ -75,8 +80,10 @@ command argument. The result relay reads only the bridge-produced receipt.
 
 All schema, identity, provider, QC, and lifecycle failures return a
 fail-closed `FAILED` receipt. The Python bridge does not reproduce history,
-normalization, QC, or Sheets logic. A future live path calls only
-`HoldingsDataManager().execute(operation, symbol, market)`.
+normalization, QC, or Sheets logic. The live path calls only
+`HoldingsDataManager().execute(operation, normalized_symbol, market)`; a
+manager `FAILED` result is relayed as `FAILED` and never claims an enabled
+state.
 
 Transport reruns do not create a second business truth source. Existing manager
 semantics remain authoritative: history upsert identity is
@@ -95,6 +102,8 @@ python -m unittest tests.test_holdings_command_bus -v
 
 It supplies a checked-in-style `issues.opened` payload, verifies strict schema
 and sender/actor guards, runs event parsing through identity normalization,
-asserts no `SheetsClient` or manager construction in dry-run, and checks the
-exact receipt/comment shape. The full repository suite remains the required
-CI gate. No real ADD/CLOSE is run at this review node.
+asserts no `SheetsClient` or manager construction in dry-run, covers live ADD,
+fail-closed actor/schema gates, manager `FAILED`, rerun/idempotency, workflow
+Secret routing and output redaction, and checks the exact receipt/comment
+shape. The focused suite is `19/19`; the full repository suite is `414/414`.
+No real ADD/CLOSE is run at this review node.
