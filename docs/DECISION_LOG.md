@@ -897,3 +897,15 @@ Google Sheets live write was performed.
 CI plus `OPEN / CLEAN / MERGEABLE`. Do not create a new PR or merge. After that
 verification, stop at `CHATGPT_HOLDINGS_COMMAND_BUS_PR_FULLY_READY` with
 `HANDOFF_CURRENT_AND_CONSISTENT`.
+
+## 2026-08-31 — PR #39 squash merge and real dry-run transport smoke closeout
+
+**Decision:** Sol approved `APPROVE_CHATGPT_HOLDINGS_COMMAND_BUS_V1`. After re-verifying PR #39 identity — head branch `codex/holdings-command-bus`, head `d970d554eabd2001b980822d85ca6958ba5acc34`, base `main@0355672516ac7215ac53ebce839fb62013502054`, state `OPEN / CLEAN / MERGEABLE`, and exact-head CI `33367533291=success` — PR #39 was squash merged. The real squash merge commit is `c40e278e307ce64c126ef899b4db9fa26c47bb61`; ordinary merge/rebase was not used.
+
+**Main and transport evidence:** GitHub main contains `c40e278e307ce64c126ef899b4db9fa26c47bb61` and its merge-head exact-head CI `33371721311` succeeded. The checked-in workflow still fixes `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`, injects no Google credentials, preserves the job-level governed-repository/non-PR/`EFSing` actor-sender-Issue-user guard and the Python authoritative allowlist, and keeps `LIVE_WRITE_CONCURRENCY_SERIALIZATION_REQUIRED_BEFORE_ENABLEMENT` as a future prerequisite.
+
+A real Issue #40 was created with exact title `[HOLDINGS_COMMAND]` and strict JSON body for `ADD MU US`, request_id `chatgpt-20260831-transport-smoke-01`, `dry_run=true`. Holdings command bus workflow run `33371774444` completed successfully. The live chain was observed from `issues.opened` and actor `EFSing` through the job guard, `GITHUB_EVENT_PATH` bridge, strict parser, identity normalization, `DRY_RUN`, result relay, and Issue close. The result JSON core fields were `status=DRY_RUN`, `normalized_symbol=MU`, `market=US`, `history_rows_written=0`, and `enabled=null`. The Issue has the machine-readable `holdings-command-result:v1` comment plus the human-readable summary, labels `holdings-command:success` and `holdings-command:dry-run`, and state `closed`.
+
+**Boundary evidence:** The run log showed only `contents: read`, `issues: write`, and `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`. The dry-run branch returned before constructing `SheetsClient` or `HoldingsDataManager`; no `HoldingsDataManager.execute(...)`, Google Sheets write, account/broker access, holdings mutation, strategy/research execution, or account/cost/NAV/P&L/broker information leakage occurred. This smoke was transport-only and did not enable live writes.
+
+**Final node:** The task stops at `CHATGPT_HOLDINGS_COMMAND_BUS_V1_MERGED_AND_TRANSPORT_SMOKE_PASSED` with `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS` and `HANDOFF_CURRENT_AND_CONSISTENT`. Do not start `LIVE_WRITE_ENABLEMENT_V1`, implement concurrency serialization, add a transport DB, change HoldingsDataManager semantics, start SETUP_02, reopen SETUP_03, or read Final OOS/returns/MFE/MAE/P&L without a separate Sol decision.
