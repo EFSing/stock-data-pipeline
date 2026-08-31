@@ -951,3 +951,57 @@ P&L, strategy, research, SETUP/Wave/Fibonacci/Decision/Risk/Position/Exit
 path or Google Sheets schema was modified. Stop at
 `LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`; do not auto-merge PR #41 or
 execute a real holdings command before Sol review and explicit launch approval.
+
+---
+
+## 2026-08-31 — Issue #42 production command fact and SETUP_01 reconciliation
+
+**Governance correction:** The earlier live-write closeout entry above is
+historical evidence for the pre-launch state and must not be read as the
+current state. GitHub Issue #42 subsequently recorded the first real
+production command with machine-readable result:
+
+```text
+operation=ADD
+symbol=512400
+market=CN
+dry_run=false
+normalized_symbol=512400.SH
+status=SUCCESS
+enabled=true
+history_rows_written=480
+```
+
+The result was produced by the governed command workflow and the Issue was
+closed after the result comment. This is a governance fact only; it does not
+change `HoldingsDataManager`, command-bus, Sheet schema, or business semantics.
+No additional private holdings shadow is authorized by this record.
+
+**Decision:** Reconcile SETUP_01 Decision/Risk v1 from the latest
+`origin/main@e5d967d3936ba7731c8bd3b0bb8212833733f2bd` into a clean branch
+instead of directly merging old-base PR #37. Migrate only the independent
+Decision/Risk evaluator, strict first-confirmed event identity/terminal
+semantics, T→T+1 OPEN execution, target provenance, development funnel,
+synthetic generic operational shadow, session identity, and regressions. Do
+not redesign accepted strategy semantics, Wave/Fibonacci, holdings, SETUP_02,
+SETUP_03, or outcome/OOS paths.
+
+**Frozen execution contract:** `actual_entry != None` if and only if
+`outcome == EXECUTED`; `t1_open` is the observed exact T+1 OPEN and remains
+available for actual-open R/R audit. A skipped execution, including
+`SKIP_RR_BELOW_MINIMUM_AT_OPEN`, retains `t1_open`/`actual_rr` but has
+`actual_entry=None`.
+
+**Session boundary:**
+`DEVELOPMENT_SESSION_IDENTITY=FROZEN_DATASET_MARKET_SESSION_SET`. It is the
+next session in the per-market union of local dates present in the frozen
+dataset and prevents symbol-level fall-forward to T+2. It cannot prove a
+session absent from the entire frozen market universe. The future prerequisite
+`PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`
+is registered but is not a PR #37 blocker, is not implemented here, adds no
+third-party calendar, and does not change the development funnel.
+
+**Stop:** After final PR exact-head CI and generic synthetic shadow success,
+stop at `SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`. Do not
+merge automatically, start SETUP_02, reopen SETUP_03, read real holdings or
+Secrets, or access returns/MFE/MAE/P&L/Final OOS.

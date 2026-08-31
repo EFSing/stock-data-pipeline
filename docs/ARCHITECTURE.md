@@ -55,7 +55,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     The holdings manager never calls the full pipeline and never enters
     SETUP/Wave/Fibonacci/Decision/Risk/Position/Exit or research paths.
 
-    # manual read-only Wave shadow:
+    # manual/local read-only Wave shadow (not a GitHub Actions gate):
     scripts/run_wave_shadow.py
         → read enabled 自选清单 + explicit qfq history source
         → trading.wave.evaluate_wave_scenario()
@@ -128,12 +128,17 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 │   ├── events.py             # 生产/回放共享的终态事件语义与幂等键
 │   ├── replay.py             # SETUP_03 Historical Replay & Diagnostics（只读）
 │   ├── wave.py               # Wave Scenario Engine v1（只读、严格 as-of）
-│   ├── setup01.py            # SETUP_01 Wave 2 → Wave 3 v1 evaluator
-│   └── setup01_replay.py     # SETUP_01 strict as-of structural replay
-├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
-├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
-├── scripts/run_wave_shadow.py # enabled holdings read-only shadow runner
-├── scripts/run_setup01_structural_replay.py # development-only SETUP_01 replay
+  │   ├── setup01.py            # SETUP_01 Wave 2 → Wave 3 v1 evaluator
+  │   ├── setup01_replay.py     # SETUP_01 strict as-of structural replay
+  │   └── setup01_decision.py   # SETUP_01 independent Decision/Risk v1
+  ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
+  ├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
+  ├── docs/SETUP_01_DECISION_RISK_V1.md # SETUP_01 Decision/Risk v1 protocol
+  ├── scripts/run_wave_shadow.py # private/local holdings structural shadow capability
+  ├── scripts/run_setup01_structural_replay.py # development-only SETUP_01 replay
+  ├── scripts/run_setup01_decision_funnel.py # development-only Decision/T+1 funnel
+  ├── scripts/run_setup01_decision_shadow.py # optional private Decision shadow capability
+  ├── scripts/run_setup01_generic_operational_shadow.py # synthetic-only operational gate
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -254,6 +259,33 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
   `CONFIRMED`/`FAILED` first-entry event identity；不访问 returns/outcomes/OOS，
   不产生 `ENTRY_ALLOWED`。
 
+### trading/setup01_decision.py / scripts/run_setup01_decision_funnel.py
+
+- Decision/Risk v1 只接收 T 日首次 `CONFIRMED` event；persistent terminal
+  `CONFIRMED` 不会重新决策，同一 event identity 最多产生一个 Decision。
+- T close 只形成 plan，最早执行为精确 T+1 session 的 `OPEN`；不执行同 bar，
+  不读取 T+1 high/low/close。Entry、固定 Entry Zone、execution stop、
+  structural invalidation 与 Wave Scenario invalidation 语义均与 protocol 一致。
+- Target 先于 R/R 生成，只复用 T-known confirmed highs 与
+  `trading.fibonacci.EXTENSION_RATIOS`；`actual_entry` 仅表示真实成交，严格满足
+  `actual_entry != None iff outcome == EXECUTED`，观察价格使用 `t1_open`。
+- Funnel 是 `DEVELOPMENT_EXPOSED`、只读、无 outcome/OOS 的聚合器，按 total/CN/US
+  /symbol 输出 `CONFIRMED → Decision → ENTRY_ALLOWED/NO_TRADE(reason) → T+1` 守恒。
+
+### scripts/run_setup01_generic_operational_shadow.py
+
+- generic operational shadow 只读取 `GENERIC.*` controlled public synthetic
+  fixture，不读取 `自选清单`、真实 holdings、Google credentials 或任何账户
+  secrets。它覆盖 Decision/Risk、exact-once、T→T+1 OPEN、terminal semantics、
+  fail-closed 与 JSON/CSV reporting，是当前产品/工程 gate。
+
+### scripts/run_setup01_decision_shadow.py
+
+- 这是未来可选的 private operational capability，classification 为
+  `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，当前状态为
+  `NOT_RUN_USER_PRIVACY`。本轮不调用它、不读取真实 holdings、不向 GitHub
+  Actions 输出 holdings-derived data。
+
 ### scripts/run_setup01_structural_replay.py
 
 - 只读取已冻结的 `DEVELOPMENT_ONLY` replay input，输出 SETUP_01 lifecycle、
@@ -344,6 +376,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ### research/market_sessions.py / research/development_decision_capsule.py
 
 - `build_market_session_dates()` 从冻结 v2 replay input 的全部有效 local `Quote.trade_date` 按市场取 union 并排序；`trading_day_distance()` 要求 matched old/new event date 都在对应 market session set 中，再返回 ordinal index absolute difference，不读取 live calendar/provider，也不使用单一 symbol bar count
+- Development T+1 identity 正式登记为 `DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`；它防止 symbol-level missing bar fall-forward 到 T+2，但不能证明整个 frozen market universe 缺失时仍识别出真实 session。生产 execution 前必须完成 `PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`；本轮不接第三方 calendar、不改变 development funnel。
 - v3 decision capsule 保留 v2 capsule identity，输出完整 candidate × market × frozen-threshold matrix、`qualified_candidates`、唯一 frozen lexicographic result、failure breakdown、trading-day drift buckets 与 extreme Top 20；3%/4%/5% qualification 仍独立要求 CN 与 US 均通过，执行结果不写入 production config
 
 ### scripts/hithink_cn_capability_smoke_test.py / docs/HITHINK_CN_API_CAPABILITY_SMOKE_TEST.md
@@ -415,7 +448,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 - `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30；schedule 强制运行 `python main.py --group asia --mode latest`，workflow_dispatch 可选 full
 - `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；schedule 强制运行 `python main.py --group us --mode latest`，workflow_dispatch 可选 full
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
-- `wave-shadow.yml`：仅 `workflow_dispatch`；读取真实启用持仓和显式 qfq 历史，生成 Wave Engine v1 JSON/CSV 只读 artifact，不写任何 Sheet、Decision 或生产参数
+- `wave-shadow.yml`：已移除；不通过 GitHub Actions 读取或输出真实持仓派生信息。`scripts/run_wave_shadow.py` 仅保留 private/local capability，本轮不调用
+- `setup01-generic-operational-shadow.yml`：PR/手动运行 synthetic-only generic operational shadow，不需要 Secrets，不读取账户 holdings
 - 固定 run `32826696259` 还启用 Phase 5F~5I 只读诊断；Phase 5H 仅以 production Replay/Setup diagnostics 聚合市场分层、相邻 tolerance 稳定性及严格 as-of ATR/20 日实现波动率标准化；Phase 5I 只消费 Phase 5G／5H 现有 artifact 合同并冻结证据边界，不读取 OOS、不新增搜索，也不选择 production 参数。
 - `ci.yml`：PR / main push / 手动触发跑 unittest
 - 环境：ubuntu-latest，Python 3.11
