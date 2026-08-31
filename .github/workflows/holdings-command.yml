@@ -8,6 +8,10 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: holdings-command-live-writes
+  cancel-in-progress: false
+
 jobs:
   command:
     if: >-
@@ -24,12 +28,29 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Validate and execute holdings command
+      - name: Validate and route holdings command
+        id: route
         env:
-          # This review node is dry-run only and receives no Google credentials.
-          # A separate reviewed change must design secret injection before any
-          # live writes can be enabled.
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: >-
+          python -m scripts.holdings_command_bridge
+          --event-path "$GITHUB_EVENT_PATH"
+          --route-path "$GITHUB_OUTPUT"
+      - name: Execute dry-run or fail closed
+        if: steps.route.outputs.command_route != 'live'
+        env:
           HOLDINGS_COMMAND_BUS_LIVE_WRITES: disabled
+        run: >-
+          python -m scripts.holdings_command_bridge
+          --event-path "$GITHUB_EVENT_PATH"
+          --result-path holdings-command-result.json
+          --comment-path holdings-command-result.md
+      - name: Execute approved live command
+        if: steps.route.outputs.command_route == 'live'
+        env:
+          HOLDINGS_COMMAND_BUS_LIVE_WRITES: enabled
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: >-
           python -m scripts.holdings_command_bridge
           --event-path "$GITHUB_EVENT_PATH"

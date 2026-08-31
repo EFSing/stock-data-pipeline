@@ -7,6 +7,7 @@ semantics remain in :mod:`holdings_data_manager`.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -161,7 +162,12 @@ def parse_issue_event(event: Mapping[str, Any], *, actor: str | None) -> Holding
 
 def safe_message(message: Any) -> str:
     """Keep result comments/logs bounded and free of secret-shaped payloads."""
-    text = " ".join(str(message).split())
+    text = str(message)
+    for env_name in ("GOOGLE_SHEET_ID", "GOOGLE_SERVICE_ACCOUNT_JSON"):
+        secret = os.environ.get(env_name, "")
+        if secret:
+            text = text.replace(secret, "<redacted-secret>")
+    text = " ".join(text.split())
     text = re.sub(r"-----BEGIN [^-]+PRIVATE KEY-----.*?-----END [^-]+PRIVATE KEY-----", "<redacted-private-key>", text, flags=re.IGNORECASE)
     text = re.sub(r"(?i)(google_service_account_json|private_key|client_email|api[_ -]?key|access[_ -]?token)\s*[:=]\s*[^,; ]+", r"\1=<redacted>", text)
     text = text.replace("```", "''' ").replace("<!--", "< !--").replace("-->", "-- >")
@@ -183,11 +189,11 @@ class CommandResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": COMMAND_VERSION,
-            "request_id": self.request_id,
-            "operation": self.operation,
-            "normalized_symbol": self.normalized_symbol,
-            "market": self.market,
-            "status": self.status,
+            "request_id": safe_message(self.request_id) if self.request_id is not None else None,
+            "operation": safe_message(self.operation) if self.operation is not None else None,
+            "normalized_symbol": safe_message(self.normalized_symbol) if self.normalized_symbol is not None else None,
+            "market": safe_message(self.market) if self.market is not None else None,
+            "status": safe_message(self.status),
             "enabled": self.enabled,
             "history_rows_written": int(self.history_rows_written),
             "message": safe_message(self.message),
@@ -200,6 +206,8 @@ def render_result_comment(result: CommandResult) -> str:
     payload = json.dumps(
         result.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
+    request_id = result.request_id or "unavailable"
+    operation = result.operation or "unavailable"
     normalized_symbol = result.normalized_symbol or "unavailable"
     market = result.market or "unavailable"
     return (
@@ -208,11 +216,11 @@ def render_result_comment(result: CommandResult) -> str:
         f"{payload}\n"
         "```\n\n"
         "Holdings command result\n\n"
-        f"- request_id: `{result.request_id or 'unavailable'}`\n"
-        f"- operation: `{result.operation or 'unavailable'}`\n"
-        f"- normalized symbol: `{normalized_symbol}`\n"
-        f"- market: `{market}`\n"
-        f"- status: `{result.status}`\n"
+        f"- request_id: `{safe_message(request_id)}`\n"
+        f"- operation: `{safe_message(operation)}`\n"
+        f"- normalized symbol: `{safe_message(normalized_symbol)}`\n"
+        f"- market: `{safe_message(market)}`\n"
+        f"- status: `{safe_message(result.status)}`\n"
         f"- enabled: `{result.enabled}`\n"
         f"- history_rows_written: `{int(result.history_rows_written)}`\n"
         f"- message: {safe_message(result.message)}\n"
