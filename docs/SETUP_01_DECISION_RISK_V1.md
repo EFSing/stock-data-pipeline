@@ -182,3 +182,11 @@ It is not a default SETUP_01 research/development blocker. This task does not
 read real holdings or emit holdings-derived information to GitHub Actions. Only
 a future, explicitly named production milestone that requires real-holdings
 integration may make this validation a scope-local blocker.
+
+## Reconciliation verification
+
+The clean current-main reconciliation is tracked by replacement PR #43, which
+supersedes old-base PR #37. The final PR tip, base SHA, exact-head CI,
+generic-shadow result, and mergeability are live GitHub facts; this protocol
+does not create a self-referential requirement to record the SHA of a
+governance commit that contains this statement.

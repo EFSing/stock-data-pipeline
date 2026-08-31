@@ -979,7 +979,8 @@ No additional private holdings shadow is authorized by this record.
 
 **Decision:** Reconcile SETUP_01 Decision/Risk v1 from the latest
 `origin/main@e5d967d3936ba7731c8bd3b0bb8212833733f2bd` into a clean branch
-instead of directly merging old-base PR #37. Migrate only the independent
+and replacement PR #43 instead of directly merging old-base PR #37. PR #37
+was closed unmerged with an explicit superseded-by-#43 note. Migrate only the independent
 Decision/Risk evaluator, strict first-confirmed event identity/terminal
 semantics, T→T+1 OPEN execution, target provenance, development funnel,
 synthetic generic operational shadow, session identity, and regressions. Do

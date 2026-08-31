@@ -26,7 +26,7 @@
 - **main/base SHA:** 当前 GitHub `origin/main@e5d967d3936ba7731c8bd3b0bb8212833733f2bd`；它包含 PR #38/#39/#41 及 live-write closeout。PR #37 的旧 base 为 `3a6d417ede3594c05003ea18ce65bd4562eff294`，因此旧 PR 与当前 main 冲突。
 - **working checkout:** 当前 checkout 为 `codex/setup01-decision-risk-v1-reconciled`，从最新 `origin/main` 建立；工作区治理同步后必须保持 clean。
 - **implementation source head:** `291b5f771a2e00e58bbe689a6f2896f718166d8a`；此 head 只包含从 PR #37 cherry-pick 的 SETUP_01 Decision/Risk code/test/protocol changes，未移植旧 PR 的历史 holdings governance。
-- **PR handling:** 原 PR #37（`https://github.com/EFSing/stock-data-pipeline/pull/37`）保持 `OPEN` 作为历史 review reference，但不直接 merge；本 branch 将创建一个独立 reconciliation PR，明确 supersedes/reconciles #37，最终 PR number/head/CI 只以 GitHub 实时核验为准。
+- **PR handling:** 原 PR #37（`https://github.com/EFSing/stock-data-pipeline/pull/37`）已保持未合并并关闭，关闭说明明确指向 replacement PR #43；最终 reconciliation PR 为 `https://github.com/EFSing/stock-data-pipeline/pull/43`。PR #43 的 final tip/head、exact-head CI、generic shadow、base 与 mergeability 均以 GitHub 实时核验为准，不以本地旧 ref 推断。
 - **PR:** #41 `CLOSED`、`merged=true`，final head=`919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit=`74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；pre-merge exact-head CI `33377922272` success。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
 - **latest exact-head checks:** PR #41 merge commit `74dc7d2fc1ef26d27b663eba7b3321a64e801ead` 的 main exact-head CI `33381760054` success；closeout docs-only final main exact-head CI 由 GitHub live verification 提供，文件不自引用包含自身的 commit SHA。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
@@ -84,9 +84,9 @@
 - [x] 从最新 `origin/main@e5d967d3936ba7731c8bd3b0bb8212833733f2bd` 建立 clean reconciliation branch，并确认 PR #37 的 substantive Decision/Risk changes 尚未进入当前 main。
 - [x] 最小移植 PR #37 的 Decision/Risk implementation、session identity、target provenance、generic synthetic shadow、protocol 与 regression；未移植旧 holdings 状态或旧 base docs。
 - [x] 更正 production command governance：Issue #42 的真实 `ADD 512400` 成功事实已写入恢复快照；不修改 holdings manager、command bus 或 Sheets 业务逻辑。
-- [ ] 运行 SETUP_01/Wave、Decision/Risk、exact-once、T→T+1 OPEN、target-before-RR、terminal、gap、fail-closed、reporting、funnel invariance focused tests 及 full unittest；运行 compileall/diff-check。
-- [ ] 运行 DEVELOPMENT_EXPOSED funnel 与 generic operational shadow，记录 counts、delta、provenance 与 execution-ledger invariant。
-- [ ] push reconciliation branch，创建独立 PR（不 merge #37），等待 exact-head CI 与 generic shadow success，实时核对 PR state/base/head/mergeability。
+- [x] SETUP_01/Wave、Decision/Risk、exact-once、T→T+1 OPEN、target-before-RR、terminal、gap、fail-closed、reporting、funnel invariance focused tests 及 full unittest 通过；compileall/diff-check 通过。
+- [x] DEVELOPMENT_EXPOSED funnel 与 generic operational shadow 通过；counts delta=0，target provenance 与 execution-ledger invariant 已记录。
+- [x] reconciliation branch 已 push，PR #43 已创建；旧 #37 已关闭且未合并；PR #43 exact-head CI/shadow success，实时状态 `OPEN / CLEAN / MERGEABLE`。
 
 ### Deferred
 
@@ -207,12 +207,12 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
-| environment / verification | current branch is clean after governance sync; latest main was refreshed from GitHub at `e5d967d3936ba7731c8bd3b0bb8212833733f2bd`; final PR/CI/mergeability remain live verification items | run required tests, push, wait exact-head CI/shadow | No |
+| environment / verification | PR #43 code tip `24e8ab1af4a379f13210a8df16c152b4fed04725` exact-head CI `33400723552` and generic shadow `33400723551` success; final tip after governance-only sync remains a GitHub live verification item | recheck final exact head after push; docs-only commit does not self-reference its own SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`; holdings live-write production acceptance is evidenced by Issue #42; SETUP_01 reconciliation is the current task | after exact-head CI/shadow and live PR verification, stop at `SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`; only Sol decides review/merge | Yes for merge |
+| Sol / user decision node | SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`; Issue #42 production `ADD 512400` succeeded; PR #43 is the current SETUP_01 reconciliation | after final exact-head CI/shadow and live PR verification, stop at `SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`; only Sol decides review/merge | Yes for merge |
 | shadow data quality | 10 个启用持仓中 8 个完成评估；SIVE.SE qfq `2026-08-27` 相对 freshness 下限 `2026-08-28` 为 `DATA_STALE`，MU 的 `历史数据源` 为空，均 fail-closed，整体 `PARTIAL_DATA_QUALITY` | 补齐明确历史源后另行运行 shadow；禁止默认猜测 provider 或写入 Sheets | Yes for claiming full 10/10 evaluation |
-| project coordination | PR #37 is an old-base open review PR (`OPEN / CONFLICTING / DIRTY`); clean reconciliation branch is based on current main | create/update one independent reconciliation PR; do not merge #37; no unrelated PR or next Phase | No, if kept separate |
+| project coordination | PR #37 was old-base `OPEN / CONFLICTING / DIRTY`, closed without merge and superseded by PR #43; #43 is based on current main | do not merge #37; Sol reviews/decides #43; no unrelated PR or next Phase | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
 
 ## 9. Lessons / Pitfalls — DO NOT REPEAT
@@ -294,13 +294,20 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-31`（LIVE_WRITE_ENABLEMENT_V1 merge closeout；docs-only sync commit 不自引用其 SHA）
-- `verified_main_sha`: `74dc7d2fc1ef26d27b663eba7b3321a64e801ead`（PR #41 squash merge commit；exact-head CI `33381760054` success；后续 docs-only closeout head 由实时 GitHub verification 提供）
-- `verified_branch_source_head`: `65651b4af10df321adf444bb25fd838e0df4b085`（latest substantive live-write implementation commit；final docs-only tip SHA intentionally omitted）
-- `latest_test_result`: focused command bus `19/19`、full unittest `414/414`、changed-file compileall、`git diff --check` success；未访问 Google Sheets/账户/券商，未执行真实 holdings command
-- `latest_ci_run`: PR #41 final head exact-head CI `33377922272` success；merge commit main exact-head CI `33381760054` success；最终 docs-only tip SHA intentionally omitted
-- `latest_pr`: #41 `CLOSED`、merged=true，final head=`919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit=`74dc7d2fc1ef26d27b663eba7b3321a64e801ead`
-- `prior_transport_smoke`: Issue #40，workflow run `33371774444` success，status=`DRY_RUN`，normalized_symbol=`MU`，market=`US`，history_rows_written=`0`，enabled=`null`
-- `updated_by_task`: `LIVE_WRITE_ENABLEMENT_V1 merge closeout`
+- `last_updated_at`: `2026-08-31`（SETUP_01 reconciliation；最终 docs-only commit 不自引用自身 SHA）
+- `verified_origin_main_sha`: `e5d967d3936ba7731c8bd3b0bb8212833733f2bd`；PR #43 base=`main` 仍绑定该 SHA，最终 base 以 GitHub 实时核验为准
+- `latest_substantive_implementation_sha`: `291b5f771a2e00e58bbe689a6f2896f718166d8a`；包含 SETUP_01 Decision/Risk v1、session identity、provenance、generic shadow 与 invariant regressions
+- `replacement_pr`: #43 `https://github.com/EFSing/stock-data-pipeline/pull/43`；old PR #37 `CLOSED / unmerged / superseded by #43`
+- `pre_governance_exact_head`: `24e8ab1af4a379f13210a8df16c152b4fed04725`；CI `33400723552=success`、generic shadow `33400723551=success`
+- `final_pr_head_rule`: final PR #43 HEAD、base SHA、state、mergeability、exact-head CI 与 generic shadow 必须从 GitHub 实时读取；治理文件不记录包含自身的最终 docs-only SHA，避免 self-reference
+- `latest_test_result`: focused SETUP_01/Wave/market-session/generic `50/50`、full unittest `432/432`、compileall、`git diff --check` success
+- `setup01_decision_funnel`: `745 CONFIRMED / 745 Decision / 5 ENTRY_ALLOWED / 5 T+1 attempts`；Decision gates `ABOVE_ENTRY_ZONE=464`、`RR_BELOW_MINIMUM=276`、`ENTRY_ALLOWED=5`、其余 `0`；execution `EXECUTED=4`、`SKIP_GAP_BELOW_CONFIRMATION=1`、`SKIP_GAP_ABOVE_ENTRY_ZONE=0`、`SKIP_BELOW_INVALIDATION=0`、`SKIP_NO_T1_BAR=0`、`SKIP_RR_BELOW_MINIMUM_AT_OPEN=0`；pre/post delta=`0`
+- `target_provenance`: `5/5 WAVE3_FIB_EXTENSION / 1.272`；historical swing-high T1=`0`；>5R=`0`；geometry=`5/5 pass`；status=`TARGET_PROVENANCE_NO_NEW_BLOCKER`
+- `generic_operational_shadow`: `SUCCESS`；7 supplied / 6 unique / 3 decisions / 2 T+1 attempts / 1 executed / 1 gap skip；exact-once、terminal、T→T+1、execution-ledger invariant、fail-closed、reporting all pass；synthetic-only
+- `execution_ledger_invariant`: all `EXECUTED` have `actual_entry != None`; all non-`EXECUTED` have `actual_entry=None`; RR skip retains observed `t1_open` and `actual_rr`
+- `development_session_identity`: `DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`
+- `production_calendar_prerequisite`: `PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`; not a PR #37/#43 blocker, not implemented here, no third-party calendar
+- `scope_boundary`: returns/MFE/MAE/P&L/Final OOS accessed=`false`; real holdings/private Secrets accessed=`false`; production Sheets written=`false`; SETUP_02 started=`false`; SETUP_03 reopened=`false`
+- `next_action`: Sol review → merge decision only; no automatic merge and no next Phase
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

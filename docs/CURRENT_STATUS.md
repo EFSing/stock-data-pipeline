@@ -45,7 +45,7 @@ V0.2
 
 ## Current Task: SETUP_01 Decision/Risk v1 reconciliation
 
-- 当前节点：`SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`（待完成最终测试、push、exact-head CI/shadow 与 PR 实时核验）。原 PR #37 保持 OPEN 作为旧 review reference，不直接 merge；clean branch 将创建独立 reconciliation PR。
+- 当前节点：`SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`。干净 reconciliation branch 已 push 为 PR #43；原 PR #37 因旧 base `CONFLICTING/DIRTY` 已关闭且未合并，关闭说明明确指向 #43。#43 final tip/CI/shadow/mergeability 继续以 GitHub 实时核验为准。
 - 只移植 PR #37 尚未进入当前 main 的 Decision/Risk implementation、protocol、generic synthetic shadow 与 regression；不修改 holdings manager/command bus/Sheets 逻辑，不改变 Wave Engine、canonical Fibonacci、SETUP_03 或既有 strategy semantics。
 - 冻结语义：首个 T 日 `CONFIRMED` identity exactly-once、T close 只形成 plan、最早 T+1 exact session `OPEN`、fixed Entry Zone/entry/stop、structural invalidations、target-before-RR、历史 terminal no-redecision、WATCH/ARMED context-only、OPEN-only execution。
 - `actual_entry != None iff outcome == EXECUTED`；`t1_open` 是观察价格，RR skip 保留 `t1_open`/`actual_rr` 但 `actual_entry=None`。Development session identity 为 `DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`；production prerequisite 为 `PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`，本轮不接第三方 calendar。
@@ -121,7 +121,7 @@ V0.2
 
 ## Next
 
-- 完成 SETUP_01 focused/full unittest、compileall、`git diff --check`、DEVELOPMENT_EXPOSED funnel invariance、target provenance 与 generic operational shadow。
-- push `codex/setup01-decision-risk-v1-reconciled`，创建一个独立 reconciliation PR，明确 supersedes/reconciles #37；不关闭/merge #37，除非 GitHub review 后另有授权。
-- 等待 final PR exact-head CI 与 generic shadow success，实时核对 final head、base=`main`、`OPEN`、`CLEAN`、`MERGEABLE`，然后停止在 `SETUP_01_DECISION_RISK_V1_RECONCILED_READY_FOR_SOL_REVIEW`。
+- SETUP_01 focused/full unittest、compileall、`git diff --check`、DEVELOPMENT_EXPOSED funnel invariance、target provenance 与 generic operational shadow 均已通过。
+- `codex/setup01-decision-risk-v1-reconciled` 已 push，独立 PR #43 已创建并明确 supersedes/reconciles #37；旧 #37 已关闭且未合并。
+- PR #43 exact-head CI/shadow 已 success，实时状态为 `OPEN / CLEAN / MERGEABLE`、base=`main`；本次 governance-only push 后需再次按 exact head 实时核验。
 - 仅 Sol 决定 review/merge；不自动 merge，不进入 outcome/backtest/Final OOS，不启动 SETUP_02，不重开 SETUP_03。
