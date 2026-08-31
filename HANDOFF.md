@@ -26,8 +26,8 @@
 - **main/base SHA:** GitHub `main@fa93455b7b16b74e0aa5c871275191deeaf04f0a`，其 parent 为 PR #39 squash merge `c40e278e307ce64c126ef899b4db9fa26c47bb61`；main exact-head CI `33372189527` success；PR #38 merge commit 仍为 `e21935d17392a37ee9795e32a562e875dd741bfb`。
 - **working checkout:** 当前本地 checkout 为 `codex/live-write-enablement-v1`，从真实 `origin/main@fa93455b7b16b74e0aa5c871275191deeaf04f0a` 建立；本任务与已合并 PR #39 独立。
 - **implementation source head:** live-write enablement substantive source head 为 `65651b4af10df321adf444bb25fd838e0df4b085`；此前 command bus source/merge head 为 `c40e278e307ce64c126ef899b4db9fa26c47bb61`，security closeout head 为 `ec3847103e73c476d0d32b294945ad02188e9535`，holdings manager merge head 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；治理同步不把包含自身的 docs-only commit SHA 写入本快照。
-- **PR:** #41 `OPEN`、`merged=false`，head=`65651b4af10df321adf444bb25fd838e0df4b085`，base=`fa93455b7b16b74e0aa5c871275191deeaf04f0a`；不自动 merge。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
-- **latest exact-head checks:** current main `fa93455b7b16b74e0aa5c871275191deeaf04f0a` exact-head CI `33372189527` success；PR #41 final tip exact-head CI 与 mergeability 在治理同步后的 GitHub live verification 中核对；不以旧 PR #39 checks 代替。
+- **PR:** #41 `OPEN`、`merged=false`，source head=`65651b4af10df321adf444bb25fd838e0df4b085`，base=`fa93455b7b16b74e0aa5c871275191deeaf04f0a`；不自动 merge；最终 docs-only tip SHA 不在本快照自引用。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
+- **latest exact-head checks:** current main `fa93455b7b16b74e0aa5c871275191deeaf04f0a` exact-head CI `33372189527` success；PR #41 final tip 的 exact-head CI 已 success，mergeability=`true`、state=`clean`，由治理同步后的 GitHub live verification 核对；不以旧 PR #39 checks 代替。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
 - **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；持仓 manager 已为 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`，command bus enablement 当前为 `LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`。dry-run 仍无 Google credential injection；live step 只引用既有 GitHub Secrets，并由 workflow concurrency 与 bridge gate 共同保护。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
@@ -260,8 +260,8 @@
 3. [x] focused command-bus `19/19`、full unittest `414/414`、changed-file compileall、`git diff --check` 通过；Secret 不进入 result/comment，FAILED 不声称 enabled。
 4. [x] PR #41 已建立，base=`fa93455b7b16b74e0aa5c871275191deeaf04f0a`、source head=`65651b4af10df321adf444bb25fd838e0df4b085`，保持 `OPEN`、不自动 merge。
 5. [x] 已完成本轮治理同步草稿；docs-only commit 不自引用其 SHA。
-6. [ ] 在治理同步后实时核对 PR #41 final tip、mergeability 与 exact-head CI；随后停止在 `LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`，等待 Sol review。
-7. [ ] 不执行真实 `ADD`/`CLOSE`/`REENTER`/`SYNC`，不访问 Google Sheets、账户或券商，不开始 SETUP_02、重开 SETUP_03 或读取 Final OOS/returns/MFE/MAE/P&L。
+6. [x] 已在治理同步后实时核对 PR #41 final tip、mergeability=`true`/`clean` 与 exact-head CI success；停止在 `LIVE_WRITE_ENABLEMENT_V1_READY_FOR_SOL_REVIEW`，等待 Sol review。
+7. [x] 未执行且在 Sol review 前不执行真实 `ADD`/`CLOSE`/`REENTER`/`SYNC`；不访问 Google Sheets、账户或券商，不开始 SETUP_02、重开 SETUP_03 或读取 Final OOS/returns/MFE/MAE/P&L。
 
 ## 11. Handoff Checklist
 
@@ -280,12 +280,12 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-31T17:22:22+08:00`（LIVE_WRITE_ENABLEMENT_V1 governance snapshot；docs-only sync commit 不自引用其 SHA）
+- `last_updated_at`: `2026-08-31T17:26:21+08:00`（LIVE_WRITE_ENABLEMENT_V1 final governance snapshot；docs-only sync commit 不自引用其 SHA）
 - `verified_main_sha`: `fa93455b7b16b74e0aa5c871275191deeaf04f0a`（latest real main head；exact-head CI `33372189527` success）
 - `verified_branch_source_head`: `65651b4af10df321adf444bb25fd838e0df4b085`（latest substantive live-write implementation commit；final docs-only tip SHA intentionally omitted）
 - `latest_test_result`: focused command bus `19/19`、full unittest `414/414`、changed-file compileall、`git diff --check` success；未访问 Google Sheets/账户/券商，未执行真实 holdings command
-- `latest_ci_run`: PR #41 final tip exact-head CI、mergeability 与 final tip 将在本治理同步后 live-verify；main exact-head CI `33372189527` success
-- `latest_pr`: #41 `OPEN`、merged=false，base=`fa93455b7b16b74e0aa5c871275191deeaf04f0a`；PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`
+- `latest_ci_run`: PR #41 final tip exact-head CI success、mergeability=`true`/`clean` 已在治理同步后 live-verify；main exact-head CI `33372189527` success；最终 docs-only tip SHA intentionally omitted
+- `latest_pr`: #41 `OPEN`、merged=false，source head=`65651b4af10df321adf444bb25fd838e0df4b085`，base=`fa93455b7b16b74e0aa5c871275191deeaf04f0a`；PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`
 - `prior_transport_smoke`: Issue #40，workflow run `33371774444` success，status=`DRY_RUN`，normalized_symbol=`MU`，market=`US`，history_rows_written=`0`，enabled=`null`
 - `updated_by_task`: `LIVE_WRITE_ENABLEMENT_V1 implementation and governance sync`
 
