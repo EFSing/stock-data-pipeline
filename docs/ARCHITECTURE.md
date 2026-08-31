@@ -40,6 +40,20 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
         ↓
         → upsert_history(未复权/前复权) + upsert_decisions
 
+    # repository-local holdings-data-manager Skill:
+    上层自然语言请求
+        → skills/holdings-data-manager/SKILL.md  [thin contract only]
+        → holdings_data_manager.py               [one normalized symbol]
+        → existing fetch_latest_with_retry()     [latest completed session]
+        → existing fetch_with_retry()            [raw + qfq missing intervals]
+        → core date / OHLCV quality gates
+        → SheetsClient.upsert_history()          [idempotent date key]
+        → SheetsClient.upsert_watchlist()        [自选清单.启用 only]
+        → existing 运行日志 append-only audit
+
+    The holdings manager never calls the full pipeline and never enters
+    SETUP/Wave/Fibonacci/Decision/Risk/Position/Exit or research paths.
+
     # manual read-only Wave shadow:
     scripts/run_wave_shadow.py
         → read enabled 自选清单 + explicit qfq history source
@@ -53,6 +67,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 `--mode latest` 是亚洲/欧美 scheduled workflow 的生产路径：只读取自选清单，使用短窗口 latest quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、双源校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar guard 时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市且不推断节假日。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且 `history_rows_written=0`。
 
 `--mode full` 保留需要历史数据的手动路径，继续执行未复权历史、qfq、SETUP_03 和 Decision。它不由 daily schedule 调用；workflow_dispatch 可显式选择该模式。
+
+`holdings-data-manager` 是上层 ChatGPT/Codex Skill 使用的单标的路径：它只执行确定性的 `ADD`、`REENTER`、`CLOSE`、`SYNC`，不调用 `main.run()` 或把完整 `full` pipeline 当作新增股票接口。历史窗口、缺口、启用状态和审计均由 `holdings_data_manager.py` 编排，provider、日期/OHLCV 质量门控与 Sheet 写入仍复用现有模块。
 
 ## 目录结构（扁平，未使用 src/ 包布局）
 
@@ -68,8 +84,12 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── docs/                     # 项目共享上下文（本文件所在）
 ├── core.py                   # 数据模型与校验逻辑（无外部依赖）
 ├── main.py                   # CLI 入口与流水线编排
+├── holdings_data_manager.py  # 单标的持仓生命周期编排（ADD/REENTER/CLOSE/SYNC）
 ├── providers.py              # 行情数据源适配器与回退链
 ├── sheets_client.py          # Google Sheets 客户端与表头定义
+├── skills/
+│   └── holdings-data-manager/
+│       └── SKILL.md           # 上层 Skill 薄 contract，不承载业务实现
 ├── scripts/
 │   └── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
 ├── research/
@@ -144,10 +164,19 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ### sheets_client.py
 
 - `SheetsClient`：gspread 封装，凭证来自环境变量 `GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON`
-- `records()` / `config()` / `upsert_latest()` / `upsert_history()` / `upsert_decisions()` / `append_rows()`
+- `records()` / `config()` / `upsert_latest()` / `upsert_history()` / `upsert_decisions()` / `upsert_watchlist()` / `append_rows()`
 - `_clean()`：datetime → Google Sheets 数值（北京时间序列号）
 - 各表表头常量：`LATEST_HEADERS` / `HISTORY_HEADERS` / `DECISION_HEADERS` / `VALIDATION_HEADERS` / `LOG_HEADERS`
 - 依赖：标准库；gspread / google-auth 惰性导入
+
+### holdings_data_manager.py / skills/holdings-data-manager/SKILL.md
+
+- `normalize_holding()`：把 symbol、market、provider mapping 规范化；市场或身份不明确时 fail closed。
+- `parse_natural_language()`：只识别唯一的 `ADD` / `REENTER` / `CLOSE` / `SYNC` 意图和单一标的。
+- `HoldingsDataManager.execute()` / `execute_text()`：逐标的执行历史覆盖、启用/停用和审计；复用现有 provider、`core` 质量逻辑和 Sheets schema。
+- 新身份以最近已完成市场交易日为上限补过去一个自然年 raw/qfq；既有身份只请求缺口；CLOSE 永不删除历史。
+- `SKILL.md` 只定义上层调用 contract、允许/禁止动作和示例，不实现行情、Sheet 或生命周期业务。
+- 依赖：`core`、`main.quote_row`、`providers`、`sheets_client`；不依赖 `main.run()`，不触发任何策略/研究路径。
 
 ### main.py
 
@@ -346,6 +375,8 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 | `参数设置` | 容差、历史长度、Setup/Decision 显式参数 | 读 |
 
 `latest` 模式只写 `最新行情`、`校验记录`、`运行日志`；`历史行情_*` 与 `交易决策` 只属于 `full` 模式。运行 stdout 和 GitHub Step Summary 输出 `symbols_requested`、freshness/validation 分布、拒绝的 stale/future sources、失败标的及 `history_rows_written`；数据不完整时为 `PARTIAL_DATA_QUALITY`。
+
+持仓生命周期路径沿用 `自选清单.启用` 的现有语义，并可按单标的写入 `历史行情_未复权`、`历史行情_前复权` 与既有 `运行日志`。它不会新增 Sheet 列、registry 或第二套身份事实源；CLOSE 只停用当前持仓视图，不物理删除历史数据。
 
 `参数设置` 必须显式提供以下 Trading Core 参数；值保持当前规则基线，不在 Phase 4 调参：
 

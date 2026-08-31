@@ -41,6 +41,17 @@ JSON/CSV artifact，不写 Sheet、交易决策、ENTRY 或生产配置。
 
 `workflow_dispatch` 默认是 `latest`，仅手动选择 `full`；daily schedule 始终强制 `latest`。
 
+## 持仓数据生命周期 Skill
+
+上层 ChatGPT/Codex Skill 的规范位于 [`skills/holdings-data-manager/SKILL.md`](skills/holdings-data-manager/SKILL.md)，业务实现位于 [`holdings_data_manager.py`](holdings_data_manager.py)。它只处理单一标的的 `ADD`、`REENTER`、`CLOSE`、`SYNC`：
+
+- “添加 MU”“我买了 512400” → 规范化身份，首次补最近已完成交易日向前一个自然年 raw/qfq 历史，成功后启用；
+- “重新买回 INTC” → 只补现有历史缺口，完整覆盖时不重抓一年；
+- “NOK 已清仓” → 仅停用 `自选清单.启用`，永久保留历史和数据源映射；
+- 歧义、provider/history 失败、重复日期或质量不满足时 fail closed，不猜 ticker/provider，不触发完整 `full` pipeline 或任何策略路径。
+
+该路径复用现有 provider、日期/OHLCV 质量门控、Google Sheets schema 和幂等历史写入；不读取账户数量、成本、NAV、盈亏，也不访问真实券商账户。详见 [`docs/HOLDINGS_DATA_MANAGER.md`](docs/HOLDINGS_DATA_MANAGER.md)。
+
 ## Google Sheet结构
 
 - `自选清单`：标的代码及数据源映射。
