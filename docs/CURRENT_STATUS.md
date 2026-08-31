@@ -10,8 +10,8 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA：`3a6d417ede3594c05003ea18ce65bd4562eff294`；该 main push 的 CI `33316793033` success，随后 Asia/US scheduled latest runs `33320878809` / `33320860435` 也以该 SHA success。
-- Current checkout: `main`，`origin/main` 与本地 HEAD 已刷新至 PR #38 的 squash merge commit `e21935d17392a37ee9795e32a562e875dd741bfb`。
+- GitHub `main` 当前真实 SHA：`0355672516ac7215ac53ebce839fb62013502054`；这是 PR #38 merge 后的治理文档同步 commit，exact-head CI `33362412763` success。
+- Current checkout: `codex/holdings-command-bus`，从真实 `main@0355672516ac7215ac53ebce839fb62013502054` 建立；PR #38 的 squash merge commit 仍为 `e21935d17392a37ee9795e32a562e875dd741bfb`。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
@@ -19,7 +19,7 @@ V0.2
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: repository-local holdings-data-manager Skill
+## Previous Completed Task: repository-local holdings-data-manager Skill
 
 本任务为单一标的持仓数据生命周期能力，不改变总体策略身份或任何 SETUP/Wave/Decision/Risk/Position/Exit/研究协议。
 
@@ -31,6 +31,17 @@ V0.2
 - 本地 focused holdings `22/22`、full unittest `393/393`、compileall、`git diff --check` 和 Skill validator 已通过；PR #38 source tip exact-head CI `33355735016` success；不自动 merge。
 - Read-only live provider smoke：`512400.SH` raw/qfq 各 `242` bars（`2025-08-27..2026-08-27`），duplicates `0`，date-set difference `0`，coverage/QC passed；provider 落后 freshness guard `2026-08-28`，故 lifecycle readiness=false。`MU` raw/qfq 各 `252` bars（`2025-08-28..2026-08-28`），同样无重复/日期差异，coverage/QC 与 lifecycle readiness passed；两者均 `sheets_written=false`。
 - 当前 holdings task 状态：`HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`；下一设计节点仅为 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`。未运行真实 holdings ADD/CLOSE，未写 Google Sheets，未访问账户或券商；治理同步不写入包含自身的最终 SHA。
+
+## Current Task: ChatGPT → GitHub Issue holdings command bus
+
+- 当前设计/实现节点：`CHATGPT_HOLDINGS_COMMAND_BUS_PR_FULLY_READY`；本轮进入时的 Sol 结论为 `BOUNDED_SECURITY_CLOSEOUT_REQUIRED_BEFORE_MERGE`，security closeout substantive source head 为 `ec38471`（完整 SHA 由 Git 记录）；PR #39 保持 `OPEN`/`merged=false`/`mergeable=true`/`clean`，最终 tip 与 exact-head CI 以本轮 push 后 handoff 时 GitHub live verification 为准。
+- command title 必须精确为 `[HOLDINGS_COMMAND]`；body 是严格 JSON v1，仅允许 `version`、`operation`、`symbol`、`request_id`、`dry_run` 与可选 `market`，operation 仅 `ADD`/`REENTER`/`CLOSE`/`SYNC`，单 command 仅一个 symbol。
+- `.github/workflows/holdings-command.yml` 仅由 `issues.opened` 触发；job-level 先 fail closed 校验 governed repository、non-PR、`github.actor == 'EFSing'`、event sender login 和 Issue user login 均为 `EFSing`，Python 再执行 authoritative allowlist/title/schema/event guard；Issue body 只由 bridge 从 `GITHUB_EVENT_PATH` 读取，不插入 shell/Python 字符串。
+- `holdings_command_bus.py` 负责协议/回执；`scripts/holdings_command_bridge.py` 负责 event → schema → 现有 identity normalization → result receipt，并只在未来显式 gate 开启时调用 `HoldingsDataManager.execute(...)`；不复制 holdings 业务逻辑。
+- 当前 workflow 固定 `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`，且 dry-run job 完全不注入 Google credentials，形成 invariant `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`；`dry_run=false` 在 manager construction 前 fail closed，dry-run 不实例化 `SheetsClient` 或 `HoldingsDataManager`。未来 live enablement 必须在独立 reviewed PR 中设计 secret injection；本 PR 不启用 writes。
+- 回执包含 `request_id`、operation、normalized symbol、market、status、enabled、`history_rows_written`、message，并由 workflow 写 comment、加结果 label、关闭 Issue；不输出账户数量、成本、NAV、P&L 或 broker 信息。
+- command-bus focused tests 为 `12/12`，holdings lifecycle focused tests 为 `24/24`，full unittest 为 `407/407`；changed-file compileall 与 `git diff --check` 通过。未执行真实 ADD/CLOSE。
+- 未来 live enablement prerequisite 已登记为 `LIVE_WRITE_CONCURRENCY_SERIALIZATION_REQUIRED_BEFORE_ENABLEMENT`：不得让多个 command jobs 无序修改同一 holdings state；本 PR 不实现 concurrency、transport DB 或 live writes。
 
 ### Project Strategy Identity (unchanged; historical context)
 
@@ -103,9 +114,10 @@ V0.2
 ## Next
 
 - 持仓 manager correctness closeout 已完成：focused `22/22`、full `393/393`、compileall、`git diff --check`、Skill validator 均通过；PR #38 已正式 squash merge。
-- PR #38 merge commit `e21935d17392a37ee9795e32a562e875dd741bfb` 的 main exact-head CI `33362271501` success；本地/远端 main 已同步，未自动继续任何交易或研究动作。
+- command bus security closeout substantive source `ec38471` 已完成；command-bus `12/12`、holdings focused `24/24`、full unittest `407/407`、changed-file compileall、`git diff --check` 通过；dry-run workflow 无 Google credentials injection。
+- PR #38 merge commit `e21935d17392a37ee9795e32a562e875dd741bfb` 的 main exact-head CI `33362271501` success；当前真实 main governance head `0355672516ac7215ac53ebce839fb62013502054` 的 exact-head CI `33362412763` success；未自动继续任何交易或研究动作。
 - 真实 provider read-only smoke 已记录：512400.SH coverage/QC 通过但 provider 落后 ordinary freshness guard，故 lifecycle readiness 保持 false；MU coverage/QC/lifecycle readiness 通过；两者均未写 Sheets。
-- 本任务停在 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`；下一步只标记 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`，不进入任何策略/研究/账户动作。
+- 本任务当前停在 `CHATGPT_HOLDINGS_COMMAND_BUS_PR_FULLY_READY`；PR #39 最终 tip 的 exact-head CI 已在本轮 push 后 handoff 时 live-verified success，PR 状态为 `OPEN / CLEAN / MERGEABLE`，workflow live-write gate disabled 且满足 `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`，未执行真实 ADD/CLOSE。不得自行 merge；未进入任何策略/研究/账户动作；上一节点 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED` 保持已完成。
 - PR #35/#36、Wave/SETUP_01 structural shadow、frozen artifacts 与 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持历史/未改变上下文；其后续决策不属于本任务。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。

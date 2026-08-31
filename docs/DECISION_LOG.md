@@ -793,3 +793,107 @@ market-specific Fib rule is introduced.
 **Evidence / boundary:** 已刷新本地 `main` 与 `origin/main` 至该 merge commit；merge 后 main exact-head CI `33362271501` success。未运行真实 holdings ADD/CLOSE，未写 Google Sheets，未访问账户或券商；`SETUP_02`、SETUP_03、Wave、Fibonacci、Decision/Risk、Position Management、Exit、研究协议均未启动或修改。
 
 **Next design node:** `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`。仅等待后续明确设计授权，不在本节点实现 ChatGPT 外部连接层或新的 provider fallback。
+
+## 2026-08-31 — implement the ChatGPT → GitHub Issue holdings command bus v1
+
+**Context:** `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED` is the completed business
+layer and the next authorized node is the external execution bridge. ChatGPT
+must not send free-form text to a shell, write market tables directly, use MCP
+as the transport, or create a second holdings registry. The bridge must be
+reviewable before any real `ADD`/`CLOSE` is allowed.
+
+**Decision:** Add a strict machine-readable Issue command contract with exact
+title `[HOLDINGS_COMMAND]`. The body requires `version`, `operation`, `symbol`,
+`request_id`, and boolean `dry_run`; `market` is optional. The only operations
+are `ADD`, `REENTER`, `CLOSE`, and `SYNC`, and each command has exactly one
+symbol. Duplicate keys, unknown fields, malformed JSON, non-canonical
+operations, multi-symbol input, unsafe request IDs, invalid identity/market,
+non-governed repository, non-opened event, PR issue, or sender/actor mismatch
+all fail closed. The allowlist is currently the repository owner `EFSing`,
+which must match the Issue user, event sender, and workflow actor.
+
+**Implementation boundary:** `.github/workflows/holdings-command.yml` is
+triggered only by `issues.opened` and grants only `contents: read` and
+`issues: write`. The Issue body is read by
+`scripts/holdings_command_bridge.py` only from `GITHUB_EVENT_PATH`; it is not
+interpolated into shell or Python. `holdings_command_bus.py` owns only schema,
+event guard, result schema and bounded receipt rendering. Identity
+normalization is delegated to the existing `normalize_holding`, and any live
+execution is delegated only to `HoldingsDataManager.execute(...)`.
+
+**Dry-run and live gate:** The checked-in workflow fixes
+`HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled` and exposes no Google credentials,
+forming the invariant `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`.
+`dry_run=true` performs event validation and existing identity normalization,
+then emits a result receipt without constructing `SheetsClient`, writing
+Sheets, reading accounts, accessing brokers, or entering SETUP/Wave/Decision/
+research. `dry_run=false` fails closed before manager construction. A future
+live enablement must be a separate reviewed change with separately designed
+secret injection.
+
+**Receipt:** Every handled event produces a bounded machine-readable and
+human-readable result comment containing `request_id`, operation, normalized
+symbol, market, status, enabled, `history_rows_written`, and message. The
+workflow applies success/dry-run or failed labels and closes the Issue. It
+does not report account count, cost, NAV, P&L, or broker information. Comment
+and close are performed by the GitHub token with the declared issue permission;
+no service-account JSON is printed or placed in an artifact.
+
+**Idempotence evidence:** Transport reruns may rerun the job, but business
+idempotence remains owned by the existing manager and Sheet adapter. The
+existing history key remains `市场+统一代码+交易日期`; ADD rerun is covered by
+the enabled identity idempotence test, CLOSE rerun preserves history, and new
+REENTER/SYNC rerun tests prove no second history fetch or duplicate session
+rows after the gap is filled. No transport database was added.
+
+**Evidence / boundary:** Command bus fixtures pass `10/10`; holdings-focused
+tests pass `26/26`; full unittest passes `405/405`; changed-file compileall and
+`git diff --check` pass. Source head is
+`917446473a06112d112bd8fc58340bc5785ff492`, based on real main
+`0355672516ac7215ac53ebce839fb62013502054`; current main exact-head CI is
+`33362412763` success. No real `ADD`/`CLOSE`, Google Sheets write, account or
+broker access, SETUP/Wave/Decision/research execution was performed.
+
+**Next node:** PR #39 is open without auto-merge; its final tip and
+exact-head CI are live-verified at handoff, and PR state is
+`OPEN`/`merged=false`/`mergeable=true`/`clean`. Stop at
+`CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`. Do not enable live writes
+or execute real commands before Sol review.
+
+## 2026-08-31 — bounded security closeout before PR #39 merge
+
+**Context:** Sol's review conclusion was
+`BOUNDED_SECURITY_CLOSEOUT_REQUIRED_BEFORE_MERGE`. The command schema, identity
+normalization, `HoldingsDataManager` delegation, business idempotence, and
+dry-run receipt were already accepted and remain unchanged.
+
+**Decision:** Keep PR #39 dry-run-only with
+`HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`. Remove all Google credential
+injection from the holdings-command workflow, including both existing secret
+mappings, and record the invariant
+`DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`. A future live enablement must use a
+separate reviewed PR to design secret injection. Add a workflow job-level
+fail-closed guard for the governed repository, non-PR issue, and exact
+`EFSing` workflow actor, event sender, and Issue user. Retain the Python
+sender/Issue-user/actor allowlist as the second authoritative validation.
+
+**Concurrency prerequisite:** Before any live ADD/CLOSE/REENTER/SYNC can be
+enabled, record and satisfy
+`LIVE_WRITE_CONCURRENCY_SERIALIZATION_REQUIRED_BEFORE_ENABLEMENT`; multiple
+live command jobs must not modify the same holdings state out of order. This PR
+does not implement live concurrency, add a transport database, change manager
+business semantics, or enable writes.
+
+**Evidence / boundary:** Security closeout source head is `ec38471` (full SHA
+from Git). Command-bus tests pass `12/12`, holdings lifecycle tests `24/24`,
+full unittest `407/407`, changed-file compileall and `git diff --check` pass.
+Regression proves the workflow has no Google credential injection, `dry_run=false`
+fails before manager construction, and dry-run constructs neither
+`SheetsClient` nor `HoldingsDataManager`. No real `ADD`/`CLOSE`/`REENTER`/`SYNC`,
+Google Sheets write, account/broker access, strategy/research execution, or
+Google Sheets live write was performed.
+
+**Next node:** Push the changes to the same PR #39 and live-verify exact-head
+CI plus `OPEN / CLEAN / MERGEABLE`. Do not create a new PR or merge. After that
+verification, stop at `CHATGPT_HOLDINGS_COMMAND_BUS_PR_FULLY_READY` with
+`HANDOFF_CURRENT_AND_CONSISTENT`.
