@@ -34,7 +34,7 @@ V0.2
 
 ## Current Task: ChatGPT → GitHub Issue holdings command bus
 
-- 当前设计/实现节点：`CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`；substantive source head 为 `917446473a06112d112bd8fc58340bc5785ff492`，尚未创建 PR。
+- 当前设计/实现节点：`CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`；substantive source head 为 `917446473a06112d112bd8fc58340bc5785ff492`；PR #39 已创建，当前 tip 为 `204ce01bbb313762ec6b722fc3c0595a81a91012`，`OPEN`/`merged=false`/`mergeable=true`/`clean`。
 - command title 必须精确为 `[HOLDINGS_COMMAND]`；body 是严格 JSON v1，仅允许 `version`、`operation`、`symbol`、`request_id`、`dry_run` 与可选 `market`，operation 仅 `ADD`/`REENTER`/`CLOSE`/`SYNC`，单 command 仅一个 symbol。
 - `.github/workflows/holdings-command.yml` 仅由 `issues.opened` 触发，固定校验仓库、非 PR、title、Issue user/sender/actor allowlist（`EFSing`）和 JSON schema；Issue body 只由 bridge 从 `GITHUB_EVENT_PATH` 读取，不插入 shell/Python 字符串。
 - `holdings_command_bus.py` 负责协议/回执；`scripts/holdings_command_bridge.py` 负责 event → schema → 现有 identity normalization → result receipt，并只在未来显式 gate 开启时调用 `HoldingsDataManager.execute(...)`；不复制 holdings 业务逻辑。
@@ -116,7 +116,7 @@ V0.2
 - command bus substantive source `917446473a06112d112bd8fc58340bc5785ff492` 已完成；command-bus `10/10`、holdings focused `26/26`、full unittest `405/405`、changed-file compileall、`git diff --check` 通过。
 - PR #38 merge commit `e21935d17392a37ee9795e32a562e875dd741bfb` 的 main exact-head CI `33362271501` success；当前真实 main governance head `0355672516ac7215ac53ebce839fb62013502054` 的 exact-head CI `33362412763` success；未自动继续任何交易或研究动作。
 - 真实 provider read-only smoke 已记录：512400.SH coverage/QC 通过但 provider 落后 ordinary freshness guard，故 lifecycle readiness 保持 false；MU coverage/QC/lifecycle readiness 通过；两者均未写 Sheets。
-- 本任务当前停在 `CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`；workflow live-write gate disabled，PR ready 前未执行真实 ADD/CLOSE。Sol review 前不进入任何策略/研究/账户动作；上一节点 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED` 保持已完成。
+- 本任务当前停在 `CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`；PR #39 exact-head CI `33364016182` success，workflow live-write gate disabled，未执行真实 ADD/CLOSE。Sol review 前不进入任何策略/研究/账户动作；上一节点 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED` 保持已完成。
 - PR #35/#36、Wave/SETUP_01 structural shadow、frozen artifacts 与 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持历史/未改变上下文；其后续决策不属于本任务。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
