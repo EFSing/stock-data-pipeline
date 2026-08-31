@@ -17,11 +17,13 @@ ChatGPT/Codex
     -> result label and issue close
 ```
 
-The checked-in workflow has `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled` and
-does not pass Google secrets. `dry_run=false` therefore fails closed before a
-`SheetsClient` can be instantiated. Enabling live writes is a separate,
-reviewed change that must pass the existing `GOOGLE_SHEET_ID` and
-`GOOGLE_SERVICE_ACCOUNT_JSON` only to the existing `SheetsClient` path.
+The checked-in workflow has `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`.
+Although the Python step uses the two existing Google secret names for the
+future manager path, the bridge does not consume them in dry-run and
+`dry_run=false` fails closed before a `SheetsClient` can be instantiated.
+Enabling live writes is a separate, reviewed change and must keep
+`GOOGLE_SHEET_ID` and `GOOGLE_SERVICE_ACCOUNT_JSON` confined to the existing
+`SheetsClient` path.
 
 ## Command body
 
