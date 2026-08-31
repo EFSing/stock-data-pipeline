@@ -854,9 +854,8 @@ tests pass `26/26`; full unittest passes `405/405`; changed-file compileall and
 `33362412763` success. No real `ADD`/`CLOSE`, Google Sheets write, account or
 broker access, SETUP/Wave/Decision/research execution was performed.
 
-**Next node:** PR #39 is open without auto-merge; its exact-head CI
-`33364016182` is success at tip
-`204ce01bbb313762ec6b722fc3c0595a81a91012`, and PR state is
+**Next node:** PR #39 is open without auto-merge; its final tip and
+exact-head CI are live-verified at handoff, and PR state is
 `OPEN`/`merged=false`/`mergeable=true`/`clean`. Stop at
 `CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`. Do not enable live writes
 or execute real commands before Sol review.

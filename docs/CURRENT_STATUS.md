@@ -34,7 +34,7 @@ V0.2
 
 ## Current Task: ChatGPT → GitHub Issue holdings command bus
 
-- 当前设计/实现节点：`CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`；substantive source head 为 `917446473a06112d112bd8fc58340bc5785ff492`；PR #39 已创建，当前 tip 为 `204ce01bbb313762ec6b722fc3c0595a81a91012`，`OPEN`/`merged=false`/`mergeable=true`/`clean`。
+- 当前设计/实现节点：`CHATGPT_HOLDINGS_COMMAND_BUS_READY_FOR_SOL_REVIEW`；substantive source head 为 `917446473a06112d112bd8fc58340bc5785ff492`；PR #39 已创建并保持 `OPEN`/`merged=false`/`mergeable=true`/`clean`，最终 tip 与 exact-head CI 以 handoff 时 GitHub live verification 为准。
 - command title 必须精确为 `[HOLDINGS_COMMAND]`；body 是严格 JSON v1，仅允许 `version`、`operation`、`symbol`、`request_id`、`dry_run` 与可选 `market`，operation 仅 `ADD`/`REENTER`/`CLOSE`/`SYNC`，单 command 仅一个 symbol。
 - `.github/workflows/holdings-command.yml` 仅由 `issues.opened` 触发，固定校验仓库、非 PR、title、Issue user/sender/actor allowlist（`EFSing`）和 JSON schema；Issue body 只由 bridge 从 `GITHUB_EVENT_PATH` 读取，不插入 shell/Python 字符串。
 - `holdings_command_bus.py` 负责协议/回执；`scripts/holdings_command_bridge.py` 负责 event → schema → 现有 identity normalization → result receipt，并只在未来显式 gate 开启时调用 `HoldingsDataManager.execute(...)`；不复制 holdings 业务逻辑。
