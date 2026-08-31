@@ -17,19 +17,19 @@
 - **当前实现:** Skill contract 在 `skills/holdings-data-manager/SKILL.md`，业务实现为 `holdings_data_manager.py`；correctness amendment source/tests commit 为 `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`，基于真实最新 `main@3a6d417ede3594c05003ea18ce65bd4562eff294`。
 - **操作边界:** 新身份完成 symbol/market/provider normalization，raw/qfq 均覆盖最近已完成市场交易日前一个自然年后才启用；coverage 只使用 observed session dates，不按 weekday 或节假日表补 bar；REENTER/SYNC 只补缺口；停用身份收到 ADD 自动按 REENTER 语义恢复；CLOSE 只停用 `自选清单.启用`，永久保留历史、校验、映射和身份；重复操作幂等。
 - **明确禁止事项:** 不新增第二套 registry/Sheet 事实源，不猜 ticker/market/provider，不伪造或插值行情，不把完整 `full` pipeline 作为单标的入口；不读取账户数量、成本、NAV、盈亏，不访问券商，不修改 SETUP_01/02/03/04、Wave、Fibonacci、Decision/Risk、Position Management、Exit 或研究协议。
-- **停止条件:** push 独立 PR，完成 full unittest、focused tests、compileall、`git diff --check` 和新 PR exact-head CI；治理同步并确认 `HANDOFF_CURRENT_AND_CONSISTENT` 后停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，不自动 merge。
+- **停止条件:** PR #38 已按批准 squash merge；完成 merge 后 main exact-head CI 与治理同步，确认 `HANDOFF_CURRENT_AND_CONSISTENT` 后停在 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`。下一设计节点仅为 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`，不继续实现外部连接层或 provider fallback。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub remote `main@3a6d417ede3594c05003ea18ce65bd4562eff294`；main push CI `33316793033` success，Asia/US latest runs `33320878809` / `33320860435` success。
-- **working branch:** `codex/holdings-data-manager`，基于上述真实最新 main。
-- **implementation source head:** `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` (`fix: harden holdings history coverage and sessions`)；治理同步不把包含自身的 docs commit SHA 写入本快照。
-- **PR:** #38 `OPEN`，已核对 tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`、base `3a6d417ede3594c05003ea18ce65bd4562eff294`、merged=false、mergeable=true；此前 #35/#36 仅为历史策略上下文，本任务不修改其内容。
-- **latest exact-head checks:** PR #38 tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` 的 CI `33355735016` success；治理同步 commit 后的最终 tip/CI 由 GitHub live evidence 核对，不自动 merge。
+- **main/base SHA:** PR #38 squash merge commit 已进入 GitHub `main@e21935d17392a37ee9795e32a562e875dd741bfb`；merge 后 main CI `33362271501` success，main push CI `33316793033` 及此前 Asia/US runs `33320878809` / `33320860435` 保持历史 evidence。
+- **working checkout:** `main`，`origin/main` 与本地 HEAD 已同步至 `e21935d17392a37ee9795e32a562e875dd741bfb`；PR source branch `codex/holdings-data-manager` 保留为已合并分支。
+- **implementation source head:** squash merge commit `e21935d17392a37ee9795e32a562e875dd741bfb` (`feat: add holdings data manager skill (#38)`)；治理同步不把包含自身的 docs commit SHA 写入本快照。
+- **PR:** #38 `MERGED`，merged=true，merge commit=`e21935d17392a37ee9795e32a562e875dd741bfb`；此前 #35/#36 仅为历史策略上下文，本任务不修改其内容。
+- **latest exact-head checks:** PR pre-merge tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 CI `33355893831` success；merge commit `e21935d17392a37ee9795e32a562e875dd741bfb` 的 main CI `33362271501` success。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；持仓数据管理当前状态为 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`。SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
+- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；持仓数据管理当前状态为 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`。下一设计节点为 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`；SETUP_02、Final OOS、Phase 5K-B1、IBKR 与任何 outcome 研究仍未执行。
 
 ## 3. Completed Work
 
@@ -37,6 +37,7 @@
 - Repository-local Skill specification and capability documentation are tracked. `SheetsClient.upsert_watchlist()` updates only known headers and preserves unverified `自选清单` columns; no schema/registry change.
 - Holdings regression suite is `22/22`: first ADD with near-real US session fixture, repeated ADD, CLOSE/repeated CLOSE, ADD-after-CLOSE automatic re-entry, REENTER gap/full coverage, US/CN holiday sessions, sparse/truncated/mismatched raw/qfq fail-closed cases, SYNC state preservation, ambiguity, provider failure, duplicate dates, natural-language examples, and unknown Sheet columns. Existing scheduled latest tests remain green in full `393/393`.
 - Read-only live provider smoke wrote no Sheets: `512400.SH` raw/qfq `242/242` bars from `2025-08-27` to `2026-08-27`, duplicate `0`, date-set difference `0`, coverage/QC passed; yfinance was behind ordinary freshness guard `2026-08-28`, so lifecycle readiness stayed false. Optional `MU` raw/qfq `252/252` bars from `2025-08-28` to `2026-08-28`, duplicate `0`, date-set difference `0`, coverage/QC and lifecycle readiness passed.
+- PR #38 已获 `APPROVE_HOLDINGS_DATA_MANAGER_SKILL_V1` 并 squash merge 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；merge 后 main exact-head CI `33362271501` success。未运行真实 holdings ADD/CLOSE，未写 Google Sheets，未访问账户或券商。
 
 - PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
 - Wave Scenario Engine v1 已实现：严格 `data <= as_of_date`、完整周边界、weekly parent → daily context、confirmed Swing、现有 Fibonacci regions、primary/alternate、证据/反证/规则计分、结构失效、context eligibility 与 fail-closed UNKNOWN/NO_VALID families。
@@ -74,7 +75,8 @@
 4. [x] 完成治理同步草稿：CURRENT_STATUS、DECISION_LOG 和本 HANDOFF 指向当前 holdings task；此前 Wave/SETUP01 状态保留为不变历史上下文。
 5. [x] focused holdings `22/22`、full unittest `393/393`、compileall、`git diff --check` 和 Skill creator quick validator 已通过。
 6. [x] 将 correctness amendment push 到既有 PR #38；实时核对 base/tip、PR OPEN/mergeable 和 exact-head CI `33355735016` success；不自动 merge。
-7. [x] 真实 provider read-only smoke 与治理对账已完成；治理同步后最终 exact tip/CI 仍以 GitHub live evidence 为准，状态停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`。
+7. [x] 真实 provider read-only smoke 与治理对账已完成；PR #38 已 squash merge，状态为 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`。
+8. [x] 已刷新本地/远端 main 并核对 merge 后 exact-head CI；下一步仅标记 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`。
 
 ### Deferred
 
@@ -183,7 +185,7 @@
 | environment / verification | 持仓 manager substantive source `2dd1ed0` 已在最新 main 上本地验证；当前尚未 push/创建 PR，Skill validator 因 bundled Python 缺少 `yaml` 模块未能运行 | 完成 compile/diff checks 后 push，实时核对新 PR tip、exact-head CI 与 mergeability；docs-only commit 不记录自身 SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
 | protocol persistence | v5 protocol 已冻结，SHA `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`；clean universe manifest SHA `sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b` | 先提交/push freeze checkpoint，再获取 OHLCV；任何 identity 变化新建版本 | No after freeze commit |
-| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；Wave/SETUP01 为历史上下文；本任务只等待 holdings manager Sol review | 新 PR exact-head CI 与治理对账成功后停止在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`；不自动 merge，不进入策略/账户动作 | No for this task |
+| Sol / user decision node | SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；Wave/SETUP01 为历史上下文；PR #38 已获批准并正式 merge | 已停止在 `HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`；下一设计节点仅为 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`，不进入策略/账户动作 | No for this task |
 | shadow data quality | 10 个启用持仓中 8 个完成评估；SIVE.SE qfq `2026-08-27` 相对 freshness 下限 `2026-08-28` 为 `DATA_STALE`，MU 的 `历史数据源` 为空，均 fail-closed，整体 `PARTIAL_DATA_QUALITY` | 补齐明确历史源后另行运行 shadow；禁止默认猜测 provider 或写入 Sheets | Yes for claiming full 10/10 evaluation |
 | project coordination | 旧 PR #31 已关闭并注明 `superseded by #34`；PR #35/#36 属于历史 strategy work；本任务分支独立 | 不 merge/rebase 旧 PR；仅创建本任务独立 PR，等待 Sol review | No, if kept separate |
 | environment | 初始检查时存在的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在；未执行删除命令 | 若重新出现，保持隔离并排除 governance commit | No |
@@ -246,8 +248,9 @@
 2. [x] correctness amendment source commit `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` 已实现，并通过 focused `22/22` 与 full `393/393` unittest。
 3. [x] `HANDOFF`、`CURRENT_STATUS`、`DECISION_LOG`、`ARCHITECTURE`、README 与 Skill specification 已同步本任务边界。
 4. [x] compileall、`git diff --check`、Skill creator quick validator 与真实 provider read-only smoke 通过；512400.SH freshness stale 保持显式 fail closed。
-5. [x] correctness amendment 已 push 至既有 PR #38；tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` 的 exact-head CI `33355735016` success，PR OPEN/mergeable=true。
-6. [x] coverage/session/ADD-on-disabled 语义与测试数字已对账；治理同步 commit 不自引用 SHA，最终 tip/CI 使用 GitHub live evidence；不自动 merge。
+5. [x] correctness amendment 已 push 至既有 PR #38；tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success。
+6. [x] PR #38 已获批准并 squash merge 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；merge 后 main exact-head CI `33362271501` success。
+7. [x] 治理已同步；下一设计节点仅为 `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`，不继续实现外部连接层或新的 provider fallback。
 
 ## 11. Handoff Checklist
 
@@ -266,12 +269,12 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-08-31T12:10:00+08:00`（governance snapshot；同步 commit 不自引用其 SHA，最终 PR tip/CI 使用 GitHub live evidence）
+- `last_updated_at`: `2026-08-31T12:30:00+08:00`（post-merge governance snapshot；同步 commit 不自引用其 SHA）
 - `verified_main_sha`: `3a6d417ede3594c05003ea18ce65bd4562eff294`
-- `verified_branch_head`: `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`（branch=`codex/holdings-data-manager`；latest substantive source head）
+- `verified_branch_head`: `e21935d17392a37ee9795e32a562e875dd741bfb`（checkout=`main`；PR #38 squash merge commit）
 - `latest_test_result`: focused holdings `22/22`、full unittest `393/393`、compileall、`git diff --check`、Skill creator quick validator passed；live smoke 512400.SH coverage/QC passed but freshness guard failed explicitly，MU coverage/QC/lifecycle ready passed
-- `latest_ci_run`: PR #38 source tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` exact-head CI `33355735016` success；governance sync commit's final tip/CI is live GitHub evidence and is not self-referenced here
-- `latest_pr`: #38 `OPEN`、merged=false，base=`3a6d417ede3594c05003ea18ce65bd4562eff294`，source tip mergeable=true；不自动 merge
+- `latest_ci_run`: merge 后 main exact-head CI `33362271501` success，head=`e21935d17392a37ee9795e32a562e875dd741bfb`
+- `latest_pr`: #38 `MERGED`、merged=true，merge commit=`e21935d17392a37ee9795e32a562e875dd741bfb`；不再有待 merge 动作
 - `updated_by_task`: `repository-local holdings-data-manager Skill and deterministic holdings lifecycle operations`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

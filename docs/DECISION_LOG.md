@@ -785,3 +785,11 @@ market-specific Fib rule is introduced.
 **Evidence:** 新增近真实 US/CN observed-session fixtures 及 22 个 holdings-focused tests，覆盖首尾两根、中段大 gap、最近 N 日截断、raw/qfq 日期集不一致、US/CN 多日节假日、ADD→CLOSE→自然语言 ADD 恢复、重复/幂等及 scheduled latest 回归。Skill creator validator 通过。真实 provider read-only smoke 未写 Sheets：`512400.SH` raw/qfq 各 242 bars，`2025-08-27..2026-08-27`，重复 0，日期集差异 0，coverage/QC 通过；provider 比 ordinary-calendar freshness guard (`2026-08-28`) 落后一天，故 `lifecycle_ready=false` 并保持 fail closed。`MU` raw/qfq 各 252 bars，`2025-08-28..2026-08-28`，重复 0，日期集差异 0，coverage/QC 及 lifecycle ready 均通过。
 
 **Schema / scope:** 不新增 Sheet 列、registry 或事实源；继续复用 `自选清单.启用`、现有历史 upsert/provider/core QC 和 `运行日志` append-only 审计。未读取账户数量、成本、NAV、盈亏、returns、MFE、MAE、P&L、Final OOS，未访问券商，未运行 SETUP/Wave/Fibonacci/Decision/Risk/Position/Exit/research。
+
+## 2026-08-31 — holdings-data-manager v1 approval and merge
+
+**Decision:** 用户以 `APPROVE_HOLDINGS_DATA_MANAGER_SKILL_V1` 批准 PR #38；在严格核对 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48`、PR `OPEN`/`merged=false`/`mergeable=true` 与 exact-head CI `33355893831=success` 后，PR #38 已 squash merge。真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`。
+
+**Evidence / boundary:** 已刷新本地 `main` 与 `origin/main` 至该 merge commit；merge 后 main exact-head CI `33362271501` success。未运行真实 holdings ADD/CLOSE，未写 Google Sheets，未访问账户或券商；`SETUP_02`、SETUP_03、Wave、Fibonacci、Decision/Risk、Position Management、Exit、研究协议均未启动或修改。
+
+**Next design node:** `CHATGPT_SKILL_EXECUTION_INTEGRATION_DESIGN_PENDING`。仅等待后续明确设计授权，不在本节点实现 ChatGPT 外部连接层或新的 provider fallback。
