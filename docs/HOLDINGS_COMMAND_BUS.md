@@ -18,12 +18,24 @@ ChatGPT/Codex
 ```
 
 The checked-in workflow has `HOLDINGS_COMMAND_BUS_LIVE_WRITES=disabled`.
-Although the Python step uses the two existing Google secret names for the
-future manager path, the bridge does not consume them in dry-run and
-`dry_run=false` fails closed before a `SheetsClient` can be instantiated.
-Enabling live writes is a separate, reviewed change and must keep
-`GOOGLE_SHEET_ID` and `GOOGLE_SERVICE_ACCOUNT_JSON` confined to the existing
-`SheetsClient` path.
+The dry-run job receives no Google credentials: it has no Google secret
+mappings and does not pass credentials by another channel. `dry_run=false`
+still fails closed before a `SheetsClient` or `HoldingsDataManager` can be
+constructed. Enabling live writes is a separate, reviewed change that must
+design and review secret injection before it can pass credentials to the
+existing `SheetsClient` path.
+
+Invariant: `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`.
+
+The workflow job also fails closed before Python starts unless the event is
+from this governed repository, is a non-PR issue, and has `EFSing` as the
+workflow actor, event sender, and Issue user. Python retains the authoritative
+second validation of the same allowlist and event envelope.
+
+Future live enablement prerequisite:
+`LIVE_WRITE_CONCURRENCY_SERIALIZATION_REQUIRED_BEFORE_ENABLEMENT`. Multiple
+live command jobs must not modify the same holdings state out of order; this
+PR does not implement live concurrency or enable writes.
 
 ## Command body
 
