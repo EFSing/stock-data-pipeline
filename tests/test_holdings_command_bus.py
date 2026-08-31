@@ -117,7 +117,7 @@ class HoldingsCommandBridgeTests(unittest.TestCase):
         sheets_class.assert_not_called()
         manager_class.assert_not_called()
 
-    def test_invalid_identity_and_live_write_request_fail_closed_without_manager(self):
+    def test_dry_run_false_fails_before_manager_construction_when_gate_disabled(self):
         event = issue_event(command_body(symbol="512400", market="US", dry_run=False))
         with patch("holdings_data_manager.HoldingsDataManager") as manager_class:
             result = execute_event(event, actor="EFSing", live_writes_enabled=True)
@@ -126,10 +126,12 @@ class HoldingsCommandBridgeTests(unittest.TestCase):
         manager_class.assert_not_called()
 
         valid_live_event = issue_event(command_body(dry_run=False))
-        with patch("holdings_data_manager.HoldingsDataManager") as manager_class:
+        with patch("sheets_client.SheetsClient") as sheets_class, \
+                patch("holdings_data_manager.HoldingsDataManager") as manager_class:
             result = execute_event(valid_live_event, actor="EFSing", live_writes_enabled=False)
         self.assertEqual(result.status, "FAILED")
         self.assertIn("live writes are disabled", result.message)
+        sheets_class.assert_not_called()
         manager_class.assert_not_called()
 
     def test_live_path_delegates_only_to_existing_manager_contract(self):
@@ -192,6 +194,26 @@ class HoldingsCommandWorkflowTests(unittest.TestCase):
         self.assertNotIn("github.event.issue.body", source)
         self.assertIn("createComment", source)
         self.assertIn("state: 'closed'", source)
+
+    def test_dry_run_workflow_has_no_google_secret_injection(self):
+        source = (ROOT / ".github" / "workflows" / "holdings-command.yml").read_text(encoding="utf-8")
+        self.assertIn("HOLDINGS_COMMAND_BUS_LIVE_WRITES: disabled", source)
+        self.assertNotIn("${{ secrets.GOOGLE_SHEET_ID }}", source)
+        self.assertNotIn("${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}", source)
+        self.assertNotRegex(source, r"(?i)secrets\.[A-Z0-9_]*GOOGLE[A-Z0-9_]*")
+        self.assertNotRegex(source, r"(?mi)^\s*GOOGLE_(?:SHEET_ID|SERVICE_ACCOUNT_JSON)\s*:")
+
+    def test_workflow_job_fails_closed_before_python_for_non_allowlisted_actor(self):
+        source = (ROOT / ".github" / "workflows" / "holdings-command.yml").read_text(encoding="utf-8")
+        for guard in (
+            "github.event.repository.full_name == 'EFSing/stock-data-pipeline'",
+            "github.event.issue.pull_request == null",
+            "github.actor == 'EFSing'",
+            "github.event.sender.login == 'EFSing'",
+            "github.event.issue.user.login == 'EFSing'",
+        ):
+            self.assertIn(guard, source)
+        self.assertNotIn("github.event.issue.body", source)
 
 
 if __name__ == "__main__":
