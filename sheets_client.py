@@ -75,8 +75,67 @@ class SheetsClient:
     def upsert_latest(self, rows: Iterable[dict]) -> int:
         return self._upsert("最新行情", LATEST_HEADERS, rows, ("统一代码",))
 
+    def upsert_watchlist(self, row: dict) -> int:
+        """Update one ``自选清单`` identity without discarding unknown columns."""
+        worksheet = self.book.worksheet("自选清单")
+        values = worksheet.get_all_values()
+        if not values or not values[0]:
+            raise RuntimeError("自选清单缺少表头")
+        headers = [str(header).strip() for header in values[0]]
+        required = {"启用", "市场", "统一代码"}
+        missing = sorted(required.difference(headers))
+        if missing:
+            raise RuntimeError(f"自选清单缺少必需列：{'、'.join(missing)}")
+
+        target_symbol = str(row.get("统一代码") or "").strip()
+        target_market = str(row.get("市场") or "").strip()
+        if not target_symbol or not target_market:
+            raise ValueError("自选清单 upsert 缺少统一代码或市场")
+
+        matches: list[int] = []
+        for row_number, values_row in enumerate(values[1:], start=2):
+            current = {
+                header: values_row[index] if index < len(values_row) else ""
+                for index, header in enumerate(headers)
+            }
+            if (
+                str(current.get("统一代码") or "").strip() == target_symbol
+                and str(current.get("市场") or "").strip() == target_market
+            ):
+                matches.append(row_number)
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"自选清单存在重复身份：{target_market}|{target_symbol}"
+            )
+
+        if matches:
+            row_number = matches[0]
+            current_values = values[row_number - 1]
+            merged = {
+                header: current_values[index] if index < len(current_values) else ""
+                for index, header in enumerate(headers)
+            }
+            for field, value in row.items():
+                if field in merged:
+                    merged[field] = self._clean(value)
+            output = [[merged.get(header, "") for header in headers]]
+            worksheet.update(
+                output,
+                f"A{row_number}",
+                value_input_option="USER_ENTERED",
+            )
+        else:
+            output = [[self._clean(row.get(header)) for header in headers]]
+            worksheet.append_row(output[0], value_input_option="USER_ENTERED")
+        return 1
+
     def upsert_history(self, sheet_name: str, rows: Iterable[dict]) -> int:
-        return self._upsert(sheet_name, HISTORY_HEADERS, rows, ("统一代码", "交易日期"))
+        return self._upsert(
+            sheet_name,
+            HISTORY_HEADERS,
+            rows,
+            ("市场", "统一代码", "交易日期"),
+        )
 
     def upsert_decisions(self, rows: Iterable[dict]) -> int:
         return self._upsert(

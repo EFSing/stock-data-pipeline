@@ -10,18 +10,29 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA：`2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`；PR #35 已按 Sol 的 `APPROVE_WAVE_SCENARIO_ENGINE_V1` 批准 squash merge，main exact-head CI `33298510168` success，本地 `main` 与 `origin/main` 已刷新到同一 SHA。
-- Current checkout: `codex/setup01-wave2-to-wave3-v1`，从 PR #35 squash merge 后的最新 main 建立。旧 PR #31 已关闭并记录 `superseded by #34`；PR #36 为 `OPEN` review PR，未自动合并。
-- PR #36 previous review head：`ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；其 CI `33300273163` 与 real-holdings shadow `33300273180` 为历史 evidence。当前 terminal-event correctness/governance closeout 的 latest substantive source head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`，该 head 的 PR tip、exact-head CI 与 shadow 必须重新从 GitHub 实时核验。
+- GitHub `main` 当前真实 SHA：`3a6d417ede3594c05003ea18ce65bd4562eff294`；该 main push 的 CI `33316793033` success，随后 Asia/US scheduled latest runs `33320878809` / `33320860435` 也以该 SHA success。
+- Current checkout: `codex/holdings-data-manager`，从上述最新 `origin/main` 建立；本任务 correctness amendment source head 为 `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`。
+- PR #38 已创建且保持 OPEN；已核对 tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc`、base `3a6d417ede3594c05003ea18ce65bd4562eff294`、merged=false、mergeable=true，exact-head CI `33355735016` success。治理同步 commit 不自引用其 SHA；同步后最终 tip/CI 使用 GitHub live evidence；不自动 merge。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: SETUP_01 Wave 2 → Wave 3 v1 structural shadow
+## Current Task: repository-local holdings-data-manager Skill
 
-### Project Strategy Identity
+本任务为单一标的持仓数据生命周期能力，不改变总体策略身份或任何 SETUP/Wave/Decision/Risk/Position/Exit/研究协议。
+
+- Skill specification：`skills/holdings-data-manager/SKILL.md`；业务实现：`holdings_data_manager.py`。
+- 核心接口：确定性 `ADD`、`REENTER`、`CLOSE`、`SYNC`；支持 “添加 MU”“我买了 512400”“重新买回 INTC”“NOK 已清仓”等自然语言输入；停用身份收到 ADD 自动按 REENTER 语义补缺口后恢复。
+- 当前持仓事实源继续是 `自选清单.启用`；证券身份/数据源映射仍在同一行；raw/qfq 历史及审计与当前持仓视图分离。
+- 新身份先规范化并用现有 latest provider 确定最近已完成市场交易日，再用现有 history provider 只写 raw/qfq 缺口；coverage 只使用 observed session dates，raw/qfq 日期集必须一致、无重复、至少 180 bars、末日到达目标、起点最多落后 7 天且异常 observed gap 不超过 14 天；两套历史和质量门控成功后才启用。REENTER 完整覆盖时不重抓一年；CLOSE 永不删除历史；重复操作幂等。
+- provider、历史日期/OHLCV 质量、身份/市场歧义或覆盖不足均 fail closed；不创建第二套 registry，不读取账户信息，不访问真实券商，不调用完整 `full` pipeline。
+- 本地 focused holdings `22/22`、full unittest `393/393`、compileall、`git diff --check` 和 Skill validator 已通过；PR #38 source tip exact-head CI `33355735016` success；不自动 merge。
+- Read-only live provider smoke：`512400.SH` raw/qfq 各 `242` bars（`2025-08-27..2026-08-27`），duplicates `0`，date-set difference `0`，coverage/QC passed；provider 落后 freshness guard `2026-08-28`，故 lifecycle readiness=false。`MU` raw/qfq 各 `252` bars（`2025-08-28..2026-08-28`），同样无重复/日期差异，coverage/QC 与 lifecycle readiness passed；两者均 `sheets_written=false`。
+- 当前 holdings task 状态：`HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`；治理同步不写入包含自身的最终 SHA，`HANDOFF_CURRENT_AND_CONSISTENT` 以真实最终 PR tip/CI 对账为准。
+
+### Project Strategy Identity (unchanged; historical context)
 
 总体策略以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一正式事实源，主线为 `Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit`。第一版四类 Setup 为：`SETUP_01`（Wave 2 → Wave 3）、`SETUP_02`（Wave 3 Continuation）、`SETUP_03`（Platform Breakout）、`SETUP_04`（Extreme Fear Reversal）。`SETUP_03` 只是一个子策略；当前工作实现 Wave Scenario context，不改变总体策略路线。
 
@@ -91,9 +102,11 @@ V0.2
 
 ## Next
 
-- PR #35 已完成 squash merge：真实 merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main exact-head CI `33298510168` success。
-- SETUP_01 v1 review PR #36 的 previous review head 为 `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0`；当前 latest substantive source head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`。旧 CI/shadow 仅作历史 evidence；新 head 的 exact-head CI、real-holdings shadow 与 PR 状态须实时核验。治理文件不保存包含自身的最终 docs-only commit SHA。
-- 本地 development structural diagnostic 与 real holdings read-only shadow 已完成。下一步仅为 Sol 审阅 lifecycle、counter-scenario、event counts、STX/000725.SZ candidates 及 SIVE/MU fail-closed 状态；未经批准不进入 SETUP_01 Decision/Risk。
+- 持仓 manager correctness closeout 已完成：focused `22/22`、full `393/393`、compileall、`git diff --check`、Skill validator 均通过；已 push 至既有 PR #38，不自动 merge。
+- PR #38 source tip `fcfeaec1533edabf8be7eb906e8a3416be5f06cc` 的 exact-head CI `33355735016` success，PR OPEN/merged=false/mergeable=true；治理同步 commit 不自引用 SHA，最终 tip/CI 使用 GitHub live evidence。
+- 真实 provider read-only smoke 已记录：512400.SH coverage/QC 通过但 provider 落后 ordinary freshness guard，故 lifecycle readiness 保持 false；MU coverage/QC/lifecycle readiness 通过；两者均未写 Sheets。
+- 本任务停在 `HOLDINGS_DATA_MANAGER_SKILL_READY_FOR_SOL_REVIEW`，等待 Sol review；不进入任何策略/研究/账户动作。
+- PR #35/#36、Wave/SETUP_01 structural shadow、frozen artifacts 与 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持历史/未改变上下文；其后续决策不属于本任务。
 - frozen backup prerequisite 已完成并登记为 `FULLY_RECOVERABLE`；本 session 不重复访问 Google Drive。早期 development universe v1 及其关联 payload 仍为 `UNRECOVERABLE`，不得用本次 second-holdout backup 替代。
 - v5 已按冻结矩阵停止在 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；不 merge、不启动 Final OOS 或 Phase 5K-B1，且不实施 terminal/rearm redesign。后续如需继续只能先取得新的明确研究决策并注册新 protocol/version。
 - SETUP_01/02：暂待 Wave Engine（Phase 5 后续）
@@ -118,3 +131,4 @@ V0.2
 - correctness-critical Phase 5J-v3 second-holdout 的 raw/normalized/replay payload 均在 ignored `artifacts/`，但 exact ZIP 已记录 Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`，并由外部审计完成独立 cloud reread；registry 已满足 `PERSISTENT_BACKUP_PRESENT` / `RECOVERY_VERIFIED` / `FULLY_RECOVERABLE`。早期 development universe v1 仍是 `UNRECOVERABLE`。
 - Phase 5J-v4 已形成 Sol structure decision：建议 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS` then `REDESIGN_TERMINAL_REARM_ORCHESTRATION`，但本阶段只推荐，不实施。PR/CI ready 后必须停止。
 - Wave Scenario Engine v1 已形成有限结构 context 与真实 shadow evidence；当前仅允许 Sol review，未经批准不得将场景升级为交易信号、`ENTRY_ALLOWED` 或独立 SETUP_01/02 交易实现。
+- 持仓数据管理的 provider/history 覆盖依赖上游真实交易日返回；本模块不引入交易所节假日 calendar，不填补或合成缺失 bar，无法验证时保持 fail closed。
