@@ -1232,3 +1232,11 @@ MFE, MAE, P&L, expectancy, profit factor, or Final OOS. No holdings, account,
 broker, Secrets, Sheets, production calendar, Position Management, Exit, Wave
 5, SETUP_04, or automatic merge is permitted. Decision/Risk stops at
 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW` pending Sol review.
+
+**PR handoff:** Independent Decision/Risk implementation commit
+`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` was pushed as PR #50:
+`https://github.com/EFSing/stock-data-pipeline/pull/50`, targeting
+`main@f679443d52d767841c0df3ff2e0179648b536fb0`. Its exact-head `CI Test Gate`
+run `33498226860` and `SETUP_02 generic operational shadow` run
+`33498226908` both completed successfully. The PR remains open for Sol review;
+it is not to be merged automatically.

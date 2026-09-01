@@ -12,6 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33494893693` 为 completed/success。
 - Current checkout: `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；本分支正在实现 Decision/Risk v1，replay artifacts 保持 ignored。
+- Decision/Risk PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`，head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`，OPEN；exact-head `CI Test Gate`=`33498226860` success，synthetic shadow=`33498226908` success。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01 Decision/Risk v1 保持已合并；当前授权任务为 `SETUP_02_DECISION_RISK_V1`，停止节点为 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
@@ -23,7 +24,7 @@ V0.2
 ## Current Task: SETUP_02_DECISION_RISK_V1（实现完成，等待 Sol review）
 
 - Sol approval=`APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`；PR #45 已 squash merged 为 `f679443d52d767841c0df3ff2e0179648b536fb0`，merge-after main CI `33494893693` success。
-- 分支：`codex/setup02-decision-risk-v1`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`；Decision/Risk 独立 PR 待创建；不自动 merge。
+- 分支：`codex/setup02-decision-risk-v1`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`；Decision/Risk 独立 PR #50 已创建，head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`；不自动 merge。
 - 新增 `trading/setup02_decision.py`、`research/setup02_decision_funnel.py`、`scripts/run_setup02_decision_funnel.py`、`scripts/run_setup02_generic_operational_shadow.py`、对应测试与 `docs/SETUP_02_DECISION_RISK_V1.md`；未修改 `trading/setup02.py` structural lifecycle、SETUP_01、Wave Engine 或 SETUP_03。
 - 冻结语义：只消费首个 `CONFIRMED`（`event_type == CONFIRMED`、`is_new_confirmed_event_as_of == true`、event identity exactly-once）；T close 只形成 plan；Entry Zone=`[HIGH3, HIGH3+0.5*ATR14(T)]`；structural invalidation 直接复制 event；Execution Stop=`structural_invalidation-0.5*ATR14(T)`；targets first→R/R；exact T+1 session OPEN only。
 - Frozen `DEVELOPMENT_EXPOSED` v2 funnel：213 CONFIRMED → 213 Decision；`ENTRY_ALLOWED=0`；gate=`ABOVE_ENTRY_ZONE 97 / INVALID_STRUCTURE 12 / RR_BELOW_MINIMUM 104 / others 0`；T+1 attempts/executed=`0/0`；target provenance candidates=`CONFIRMED_SWING_HIGH 771`、`CONTINUATION_FIB_EXTENSION 414`（1 merged dual-source candidate）；extension ratios=`1.272 103 / 1.618 104 / 2.0 104 / 2.618 104`；>5R=`0`；missing T+1=`0`。

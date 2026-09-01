@@ -27,8 +27,8 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub `main` exact SHA=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；merge-after `CI Test Gate` run=`33494893693` completed/success。
 - **working checkout:** 当前 checkout 为 `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；Decision/Risk implementation 与测试在本分支，replay output 位于 ignored `artifacts/`。
-- **open PR / governance:** PR #45 已 merged；Decision/Risk PR 尚未创建，创建后不自动 merge。
-- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；本分支 exact-head CI 待 PR 创建后现场核对。
+- **open PR / governance:** PR #45 已 merged；Decision/Risk PR #50 已创建并保持 OPEN，不自动 merge。
+- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；PR #50 head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` 的 `CI Test Gate` run=`33498226860` 与 synthetic shadow run=`33498226908` 均 success。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
 - **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_02 structural lifecycle 已 merged/frozen；本轮只推进 SETUP_02 Decision/Risk，未开启任何 production path。
 
@@ -244,7 +244,7 @@
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
-| current task verification | SETUP_02 code/tests/replay are locally complete; PR and branch exact-head CI have not yet been created/verified | finish docs and tests, create PR, then record live PR/CI facts; do not merge | No |
+| current task verification | SETUP_02 code/tests/replay are locally complete; PR #50 exact-head CI and synthetic shadow are successful; final docs push requires one last live head check | recheck final PR head/mergeability and CI after docs closeout; do not merge | No |
 | development evidence boundary | replay uses frozen local DEVELOPMENT_EXPOSED v2 (40/40, 84,284 bars), not formal validation or Final OOS | keep all reports structure/decision/risk-only and retain dataset/manifest pins | Yes for any production/formal-validation claim |
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | PR #43 merged at squash commit `3b300975e999a934533398a951e7ec34e80a17bd`; pre-merge exact-head CI `33402171900` and generic shadow `33402171991` success; merge-after main exact-head CI `33404615092` success | keep the post-merge main SHA and CI as live GitHub evidence; docs-only governance commit does not self-reference its own SHA | No |
@@ -313,9 +313,9 @@
 2. [x] 已完成 PR #45 merge closeout：pre-merge exact-head CI `33493027270` success；merge-after main exact-head CI `33494893693` success。
 3. [x] 已实现独立 SETUP_02 Decision/Risk evaluator、funnel、synthetic-only generic shadow、tests 与 Decision/Risk protocol。
 4. [x] frozen v2 funnel 已完成：213 CONFIRMED → 213 Decision、0 ENTRY_ALLOWED、0 T+1 attempts；CN/US=`74/139`；identity/ledger/conservation 全部通过。
-5. [ ] 运行 focused/full unittest、compileall、`git diff --check`，并核对 SETUP_01 regression/invariance。
-6. [ ] 更新本交接与治理文档，commit/push 分支，创建独立 Decision/Risk PR。
-7. [ ] 核对 PR `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；最终停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`，不自动 merge。
+5. [x] 运行 focused/full unittest、compileall、`git diff --check`，并核对 SETUP_01 regression/invariance：focused=`33/33`、full=`471/471`。
+6. [x] 更新本交接与治理文档，commit=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`，push 分支并创建独立 Decision/Risk PR #50。
+7. [ ] 在最终 docs commit push 后重新核对 PR #50 `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；最终停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`，不自动 merge。
 
 ## 11. Handoff Checklist
 
@@ -326,20 +326,20 @@
 - [x] 重要 decision 已写入 `docs/DECISION_LOG.md`
 - [x] Important Files Changed 已在当前 task 文档列出
 - [x] PR #45 最终 exact-head CI / mergeability 及 merge-after main CI 现场核对完成
-- [ ] Decision/Risk PR exact-head CI / mergeability 待创建后核对
+- [x] Decision/Risk PR #50 exact-head CI 与 mergeability 已现场核对；最终 docs commit 后需再次核对 exact head
 - [x] 所有当前治理文件与真实 merged main / current branch 状态一致（本文件不自引用最终 docs commit SHA）
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-01`
 - `verified_origin_main_sha`: `f679443d52d767841c0df3ff2e0179648b536fb0`
-- `latest_substantive_implementation_sha`: pending local Decision/Risk commit (structural source merged as `f679443d52d767841c0df3ff2e0179648b536fb0`)
+- `latest_substantive_implementation_sha`: `4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` (structural source merged as `f679443d52d767841c0df3ff2e0179648b536fb0`)
 - `merged_pr`: #45 `https://github.com/EFSing/stock-data-pipeline/pull/45`; pre-merge head=`19c6e0eaa8841b757e6359e897ab559e31d39f65`; merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`; merge-after CI=`33494893693` success
-- `current_branch`: `codex/setup02-decision-risk-v1`; Decision/Risk PR not yet created; do not merge automatically
+- `current_branch`: `codex/setup02-decision-risk-v1`; PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`, head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`, OPEN; do not merge automatically
 - `latest_structural_replay_result`: 40/40 symbols, 84,284 bars, 0 errors, 213 CONFIRMED events, 281 FAILED events, identity duplicates/mismatches=`0/0`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
 - `latest_decision_funnel_result`: 213 CONFIRMED → 213 Decision; 0 ENTRY_ALLOWED; 0 T+1 attempts; gate `ABOVE_ENTRY_ZONE=97`, `INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`; CN/US=`74/139`; all exact-once/conservation/ledger checks passed
-- `latest_test_result`: focused Decision/Risk + generic shadow=`16/16`; full unittest/compileall/git diff --check pending final closeout
+- `latest_test_result`: focused Decision/Risk + generic shadow + SETUP_01 regression=`33/33`; full unittest=`471/471`; compileall and `git diff --check` passed
 - `scope_boundary`: no returns/forward returns/MFE/MAE/P&L/expectancy/profit factor/Final OOS; no holdings/broker/account/Secrets/Sheets/production calendar; SETUP_02 structural lifecycle, SETUP_01, Wave Engine and SETUP_03 not modified
-- `next_action`: final verification, docs closeout, create PR, verify exact-head CI and stop at `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`
+- `next_action`: update/push final governance docs, reverify PR #50 exact head and CI/mergeability, then stop at `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
