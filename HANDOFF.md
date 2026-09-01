@@ -12,24 +12,25 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`（实现完成，等待 Sol review）。
-- **唯一目标:** 在最新 clean `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 上实现独立的 Wave 3 continuation structural lifecycle，并把 `DEVELOPMENT_EXPOSED` replay 接到 Sol decision node。
-- **实现范围:** `trading/setup02.py`、`trading/setup02_replay.py`、`scripts/run_setup02_structural_replay.py` 与 `tests/test_setup02.py`；SETUP_02 只消费现有 Wave Engine 的 primary `WAVE_3_CONTINUATION_CANDIDATE` 与 `setup02_context_eligible=true`，不修改 Wave Engine、SETUP_01 或 Decision/Risk。
-- **分支 / PR:** 当前分支为 `codex/setup02-wave3-continuation-v1`，源自已核实的 clean `main`；计划 PR 标题为 `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`，不自动 merge。PR 创建及 exact-head CI/mergeability 仍待本轮后续步骤。
-- **当前 replay pin:** frozen local `DEVELOPMENT_EXPOSED` dataset `SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`；此处仅作结构性 development evidence，不是 formal validation 或 Final OOS。
-- **操作边界:** 不实现 SETUP_02 Decision/Risk、holdings、Entry、Exit、production、outcome/returns/MFE/MAE/P&L/expectancy/OOS、production calendar、Sheets 或自动 merge；不重开 SETUP_03，不改 SETUP_01。
-- **停止条件:** focused/full unittest、compileall、`git diff --check`、replay identity audit、PR `OPEN/CLEAN/MERGEABLE` 与 exact-head CI success 完成后，停止在 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`，不进入 Decision/Risk。
+- **当前 Phase / task:** `SETUP_02_DECISION_RISK_V1`（实现完成，等待 Sol review）。
+- **Sol approval / previous closeout:** `APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`；PR #45 已 squash merged，真实 merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`；pre-merge exact-head CI=`33493027270` success，merge-after main CI=`33494893693` success。
+- **唯一目标:** 从 clean `main@f679443d52d767841c0df3ff2e0179648b536fb0` 开发独立 SETUP_02 Decision/Risk v1，接入同一 frozen `DEVELOPMENT_EXPOSED` v2 dataset，完成验证并创建待 Sol review 的独立 PR。
+- **实现范围:** `trading/setup02_decision.py`、`research/setup02_decision_funnel.py`、`scripts/run_setup02_decision_funnel.py`、`scripts/run_setup02_generic_operational_shadow.py`、对应测试与 `docs/SETUP_02_DECISION_RISK_V1.md`；不得修改 `trading/setup02.py` structural lifecycle、Wave Engine、SETUP_01 或 SETUP_03。
+- **当前 replay pin:** frozen `DEVELOPMENT_EXPOSED` dataset `SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`，replay aggregate=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`；仅作 structure/Decision development evidence，不是 formal validation 或 Final OOS。
+- **当前 funnel:** 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=0`；gate=`ABOVE_ENTRY_ZONE 97 / INVALID_STRUCTURE 12 / RR_BELOW_MINIMUM 104 / others 0`；T+1 attempts/executed=`0/0`；CN/US=`74/139`；all 494 structural identity rows exact-once；target source/ratio、quality、>5R、missing T+1 与 ledger 报告已输出。
+- **操作边界:** 不读取或计算 returns/forward returns/MFE/MAE/P&L/expectancy/profit factor/Final OOS；不访问 holdings、broker、account、Secrets 或 Sheets；不实现 production calendar，不启动 Position Management/Exit、Wave 5、SETUP_04，不自动 merge Decision/Risk PR。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、development funnel、synthetic-only generic operational shadow、PR `OPEN/CLEAN/MERGEABLE` 与 exact-head CI success 完成后，停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`；若出现真实 correctness blocker，返回 `READY_FOR_DECISION`。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub `main` exact SHA=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`，为本任务启动前现场核对的 clean base；PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372` 为历史事实。
-- **working checkout:** 当前 checkout 为 `codex/setup02-wave3-continuation-v1`，由上述 clean main 创建；实现、测试和治理 closeout 已提交并 push，replay output 位于 ignored `artifacts/`。
-- **open PR / governance:** 启动前 GitHub open PR 列表为空；当前唯一任务 PR 为 #45，状态 `OPEN / CLEAN / MERGEABLE`。
-- **base CI:** `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 的 `test` check / workflow run `99787662103` / `33486490335` 为 completed/success；本分支 exact-head CI 已现场核对 success。
+- **main/base SHA:** GitHub `main` exact SHA=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；merge-after `CI Test Gate` run=`33494893693` completed/success。
+- **working checkout:** 当前 checkout 为 `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；Decision/Risk implementation 与测试在本分支，replay output 位于 ignored `artifacts/`。
+- **open PR / governance:** PR #45 已 merged；Decision/Risk PR 尚未创建，创建后不自动 merge。
+- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；本分支 exact-head CI 待 PR 创建后现场核对。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
-- **current project/phase status:** SETUP_03 仍保持停止状态；本轮只推进 SETUP_02 structural replay 到 Sol review，不开启 SETUP_02 Decision/Risk 或任何 production path。
+- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_02 structural lifecycle 已 merged/frozen；本轮只推进 SETUP_02 Decision/Risk，未开启任何 production path。
 
 ## 3. Completed Work
 
@@ -108,14 +109,14 @@
 
 ### Deferred
 
-- SETUP_02 Decision/Risk、Entry/Exit/holdings/production integration、任何 outcome/backtest/OOS 与 production calendar，须等待新的 Sol 决策；本任务停在 structural review。
+- SETUP_02 Entry/Exit/holdings/production integration、任何 outcome/backtest/OOS 与 production calendar 仍须等待后续明确授权；当前 Decision/Risk development 仅限本快照所述的 development-only、structure/decision/risk evidence。
 - SETUP_01 production integration 与任何 SETUP_01 语义修改不属于本任务。
 - 如需继续 SETUP_03，等待新的明确研究决策并注册新 protocol/version；当前结果不授权任何 threshold 或 production 选择。
 - Final OOS、formal Phase 5K-B1、IBKR readiness 和任何 production parameter/strategy change。
 
 ### Prohibited For Now
 
-- 不实现 SETUP_02 Decision/Risk、Entry、Exit、holdings、production 或 outcome research；不进入 Final OOS。
+- 不实现 SETUP_02 Entry、Exit、holdings、production 或 outcome research；不进入 Final OOS。当前获授权的 Decision/Risk v1 仍不得扩展到这些路径。
 - 不修改现有 Wave Engine、SETUP_01、Fibonacci canonical definitions、SETUP_01 Decision/Risk、SETUP_03 或 production calendars。
 - 不危险 rebase 旧 PR；本任务只能创建本分支的单一 SETUP_02 PR，不自动 merge。
 - 不读取真实持仓、账户数量、成本、NAV、盈亏、broker、Google Secrets 或 holdings-derived private data；不运行 private holdings shadow。
@@ -154,6 +155,13 @@
 | `scripts/run_setup02_structural_replay.py` | frozen DEVELOPMENT_EXPOSED replay runner | structure-only Sol review report; ignored derived artifacts |
 | `tests/test_setup02.py` | lifecycle, causal, block, terminal-once and invariance regressions | SETUP_02 correctness coverage |
 | `docs/SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1.md` | SETUP_02 protocol and review boundary | protocol / governance |
+| `trading/setup02_decision.py` | independent SETUP_02 Decision/Risk, target provenance, exact T+1 OPEN classification | T-day plan + read-only execution feasibility; no production path |
+| `research/setup02_decision_funnel.py` | structure-only Decision/Risk conservation, provenance, quality and identity reporting | DEVELOPMENT_EXPOSED funnel; no outcome/OOS |
+| `scripts/run_setup02_decision_funnel.py` | frozen v2 Decision/Risk funnel runner | 213 CONFIRMED development evidence; ignored derived artifacts |
+| `scripts/run_setup02_generic_operational_shadow.py` | controlled synthetic-only operational validation | exactly-once/terminal/gap/open/RR/fail-closed/ledger gate |
+| `.github/workflows/setup02-generic-operational-shadow.yml` | PR/manual synthetic-only operational gate | no credentials, holdings or Sheets |
+| `tests/test_setup02_decision.py` / `tests/test_setup02_generic_operational_shadow.py` | Decision/Risk, provenance, exact-session, open-only and generic gate regressions | SETUP_02 Decision/Risk correctness coverage |
+| `docs/SETUP_02_DECISION_RISK_V1.md` | Decision/Risk v1 protocol, frozen formulas and scope boundary | protocol / governance |
 | `HANDOFF.md` | 当前操作交接快照 | governance；下一次会话的第一入口 |
 | `AGENTS.md` | 新会话启动、冲突和更新 gate | governance；不改变交易规则 |
 | `README.md` | 公开发现入口，链接治理文件 | documentation / governance |
@@ -210,6 +218,8 @@
 - SETUP_02 protocol: `SETUP-02-WAVE3-CONTINUATION-2026-09-01-v1`；only primary `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`, causal LOW0→HIGH1→LOW2→HIGH3, `HIGH3>HIGH1`, `LOW2>LOW0`, daily/weekly `UPTREND`, and existing Wave Engine `structural_invalidation`.
 - SETUP_02 lifecycle invariant: `NONE/WATCH/ARMED/CONFIRMED/FAILED`; recovery is `invalidation + 0.5 × (HIGH3-invalidation)`, ARMED is bounded through HIGH3, confirmation is the first daily close strictly above HIGH3, and terminal event identity is first-entry only. Historical terminal state persists across refresh; no Decision/Risk/Entry/Exit.
 - SETUP_02 replay evidence: frozen dataset v2 manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`, 40 symbols / 84,284 bars; replay aggregate SHA=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`; 494 unique terminal events, identity duplicates/mismatches `0/0`。
+- SETUP_02 Decision/Risk protocol: `SETUP-02-DECISION-RISK-2026-09-01-v1`; first-entry CONFIRMED only, T close plan, `[HIGH3, HIGH3+0.5*ATR14(T)]`, event-carried invalidation, `invalidation-0.5*ATR14(T)` execution stop, target-first/RR-second, exact T+1 OPEN only, and `actual_entry != None iff outcome == EXECUTED`。
+- SETUP_02 Decision funnel evidence: 213 first CONFIRMED → 213 Decision; `ENTRY_ALLOWED=0`; `ABOVE_ENTRY_ZONE=97`, `INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`; CN/US=`74/139`; T+1 attempts/executed=`0/0`; target candidate sources and extension ratios preserved; >5R=`0`; missing T+1=`0`; exact-once/conservation/ledger all pass。
 - Development evidence: 40 symbols / 86,305 days / 1,404 events (745 CONFIRMED / 659 FAILED) / 0 errors; real shadow run `33300273180`: 10 enabled / 8 evaluated / 2 fail-closed errors, no returns/OOS/Sheets writes。
 - SETUP_01 Decision/Risk v1 identity: `SETUP-01-DECISION-RISK-2026-08-30-v1`; first T-day `CONFIRMED` identity only, exactly-once, T close plan, exact T+1 OPEN, fixed Entry Zone/stop, target-before-RR, and no same-bar execution。
 - Execution-ledger invariant: `actual_entry != None` if and only if `outcome == EXECUTED`; `t1_open` is observed T+1 OPEN and remains populated for diagnostics; skipped outcomes keep `actual_entry=None`。
@@ -235,7 +245,7 @@
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
 | current task verification | SETUP_02 code/tests/replay are locally complete; PR and branch exact-head CI have not yet been created/verified | finish docs and tests, create PR, then record live PR/CI facts; do not merge | No |
-| development evidence boundary | replay uses frozen local DEVELOPMENT_EXPOSED v2 (40/40, 84,284 bars), not formal validation or Final OOS | keep all reports structure-only and retain dataset/manifest pins | Yes for any Decision/Risk or production claim |
+| development evidence boundary | replay uses frozen local DEVELOPMENT_EXPOSED v2 (40/40, 84,284 bars), not formal validation or Final OOS | keep all reports structure/decision/risk-only and retain dataset/manifest pins | Yes for any production/formal-validation claim |
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | PR #43 merged at squash commit `3b300975e999a934533398a951e7ec34e80a17bd`; pre-merge exact-head CI `33402171900` and generic shadow `33402171991` success; merge-after main exact-head CI `33404615092` success | keep the post-merge main SHA and CI as live GitHub evidence; docs-only governance commit does not self-reference its own SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
@@ -299,33 +309,37 @@
 
 ## 10. Next Action
 
-1. [x] 已从真实 `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 建立 `codex/setup02-wave3-continuation-v1`。
-2. [x] SETUP_02 evaluator/replay/runner/tests 已实现；frozen DEVELOPMENT_EXPOSED replay 已完成且 identity audit exactly-once；source commit=`ac63bd7`。
-3. [x] 已更新 SETUP_02 protocol、当前状态、决策日志和本交接快照；同一 v2 输入的 SETUP_01/SETUP_02 overlap 审计已完成。
-4. [x] push 本分支，远端 head=`5ace5cf6ba942e5a23b9f7ed9df39abf3a4028b2`。
-5. [x] 创建 PR #45，核对 PR `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；不 merge。
-6. [x] 满足条件后返回 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`，停止在 Sol decision node。
+1. [x] 已从真实 merged `main@f679443d52d767841c0df3ff2e0179648b536fb0` 建立 `codex/setup02-decision-risk-v1`。
+2. [x] 已完成 PR #45 merge closeout：pre-merge exact-head CI `33493027270` success；merge-after main exact-head CI `33494893693` success。
+3. [x] 已实现独立 SETUP_02 Decision/Risk evaluator、funnel、synthetic-only generic shadow、tests 与 Decision/Risk protocol。
+4. [x] frozen v2 funnel 已完成：213 CONFIRMED → 213 Decision、0 ENTRY_ALLOWED、0 T+1 attempts；CN/US=`74/139`；identity/ledger/conservation 全部通过。
+5. [ ] 运行 focused/full unittest、compileall、`git diff --check`，并核对 SETUP_01 regression/invariance。
+6. [ ] 更新本交接与治理文档，commit/push 分支，创建独立 Decision/Risk PR。
+7. [ ] 核对 PR `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；最终停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`，不自动 merge。
 
 ## 11. Handoff Checklist
 
-- [x] Current Objective 已更新
-- [x] main / branch / PR / CI baseline 已更新：PR #45 `OPEN / CLEAN / MERGEABLE`，exact-head CI success
-- [x] SETUP_02 lifecycle implementation、replay 与回归事实已更新
-- [x] scope boundary 明确：无 Decision/Risk、production、outcome、Sheets、账户/券商访问
+- [x] Current Objective 已更新为 SETUP_02 Decision/Risk v1
+- [x] main / branch / merge-after CI baseline 已更新：main=`f679443d...`，CI=`33494893693` success
+- [x] PR #45 merge closeout、SETUP_02 lifecycle implementation、replay 与 Decision/Risk 回归事实已更新
+- [x] scope boundary 明确：无 production、outcome、Sheets、账户/券商访问；Decision/Risk PR 不自动 merge
 - [x] 重要 decision 已写入 `docs/DECISION_LOG.md`
 - [x] Important Files Changed 已在当前 task 文档列出
-- [x] PR 最终 exact-head CI / mergeability 现场核对完成
-- [x] 所有治理文件与最终 PR 状态一致（本文件不自引用最终 docs commit SHA）
+- [x] PR #45 最终 exact-head CI / mergeability 及 merge-after main CI 现场核对完成
+- [ ] Decision/Risk PR exact-head CI / mergeability 待创建后核对
+- [x] 所有当前治理文件与真实 merged main / current branch 状态一致（本文件不自引用最终 docs commit SHA）
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-01`
-- `verified_origin_main_sha`: `2f56cd0697592c5815dbfea84bf328abe6c4c8c7`
-- `latest_substantive_implementation_sha`: `ac63bd7` (`Implement SETUP_02 Wave 3 continuation structural lifecycle`)
-- `current_pr`: #45 `https://github.com/EFSing/stock-data-pipeline/pull/45`; branch=`codex/setup02-wave3-continuation-v1`; base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`; state=`OPEN`; final live head/CI recorded in closeout
-- `latest_replay_result`: 40/40 symbols, 84,284 bars, 0 errors, 213 CONFIRMED events, 281 FAILED events, identity duplicates/mismatches=`0/0`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
-- `latest_test_result`: focused Wave + SETUP_02=`26/26`、full unittest=`455/455`、compileall、`git diff --check` success
-- `scope_boundary`: Decision/Risk/Entry/Exit/holdings/production/Sheets/account/broker/Secrets/outcome/OOS=`NOT_ACCESSED`; SETUP_01/Wave Engine/SETUP_03=`NOT_MODIFIED`
-- `next_action`: Sol review only; no merge and no SETUP_02 Decision/Risk continuation
+- `verified_origin_main_sha`: `f679443d52d767841c0df3ff2e0179648b536fb0`
+- `latest_substantive_implementation_sha`: pending local Decision/Risk commit (structural source merged as `f679443d52d767841c0df3ff2e0179648b536fb0`)
+- `merged_pr`: #45 `https://github.com/EFSing/stock-data-pipeline/pull/45`; pre-merge head=`19c6e0eaa8841b757e6359e897ab559e31d39f65`; merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`; merge-after CI=`33494893693` success
+- `current_branch`: `codex/setup02-decision-risk-v1`; Decision/Risk PR not yet created; do not merge automatically
+- `latest_structural_replay_result`: 40/40 symbols, 84,284 bars, 0 errors, 213 CONFIRMED events, 281 FAILED events, identity duplicates/mismatches=`0/0`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
+- `latest_decision_funnel_result`: 213 CONFIRMED → 213 Decision; 0 ENTRY_ALLOWED; 0 T+1 attempts; gate `ABOVE_ENTRY_ZONE=97`, `INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`; CN/US=`74/139`; all exact-once/conservation/ledger checks passed
+- `latest_test_result`: focused Decision/Risk + generic shadow=`16/16`; full unittest/compileall/git diff --check pending final closeout
+- `scope_boundary`: no returns/forward returns/MFE/MAE/P&L/expectancy/profit factor/Final OOS; no holdings/broker/account/Secrets/Sheets/production calendar; SETUP_02 structural lifecycle, SETUP_01, Wave Engine and SETUP_03 not modified
+- `next_action`: final verification, docs closeout, create PR, verify exact-head CI and stop at `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

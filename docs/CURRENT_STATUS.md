@@ -10,17 +10,28 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` exact base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`，为本任务启动前现场核对的 clean HEAD；PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372` 为历史事实。
-- Current checkout: `codex/setup02-wave3-continuation-v1`，由上述 clean main 创建；实现、测试和治理 closeout 已提交并 push，replay artifacts 保持 ignored。
-- Main exact-head `test` check=`99787662103` / workflow run=`33486490335` 为 completed/success；PR #45 exact-head CI 已现场核对 success，PR 当前为 OPEN/CLEAN/MERGEABLE。
+- GitHub `main` exact HEAD=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33494893693` 为 completed/success。
+- Current checkout: `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；本分支正在实现 Decision/Risk v1，replay artifacts 保持 ignored。
+- PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
-- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01 Decision/Risk v1 保持已合并；当前授权任务为 `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`，停止节点为 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
+- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01 Decision/Risk v1 保持已合并；当前授权任务为 `SETUP_02_DECISION_RISK_V1`，停止节点为 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1（实现完成，等待 Sol review）
+## Current Task: SETUP_02_DECISION_RISK_V1（实现完成，等待 Sol review）
+
+- Sol approval=`APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`；PR #45 已 squash merged 为 `f679443d52d767841c0df3ff2e0179648b536fb0`，merge-after main CI `33494893693` success。
+- 分支：`codex/setup02-decision-risk-v1`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`；Decision/Risk 独立 PR 待创建；不自动 merge。
+- 新增 `trading/setup02_decision.py`、`research/setup02_decision_funnel.py`、`scripts/run_setup02_decision_funnel.py`、`scripts/run_setup02_generic_operational_shadow.py`、对应测试与 `docs/SETUP_02_DECISION_RISK_V1.md`；未修改 `trading/setup02.py` structural lifecycle、SETUP_01、Wave Engine 或 SETUP_03。
+- 冻结语义：只消费首个 `CONFIRMED`（`event_type == CONFIRMED`、`is_new_confirmed_event_as_of == true`、event identity exactly-once）；T close 只形成 plan；Entry Zone=`[HIGH3, HIGH3+0.5*ATR14(T)]`；structural invalidation 直接复制 event；Execution Stop=`structural_invalidation-0.5*ATR14(T)`；targets first→R/R；exact T+1 session OPEN only。
+- Frozen `DEVELOPMENT_EXPOSED` v2 funnel：213 CONFIRMED → 213 Decision；`ENTRY_ALLOWED=0`；gate=`ABOVE_ENTRY_ZONE 97 / INVALID_STRUCTURE 12 / RR_BELOW_MINIMUM 104 / others 0`；T+1 attempts/executed=`0/0`；target provenance candidates=`CONFIRMED_SWING_HIGH 771`、`CONTINUATION_FIB_EXTENSION 414`（1 merged dual-source candidate）；extension ratios=`1.272 103 / 1.618 104 / 2.0 104 / 2.618 104`；>5R=`0`；missing T+1=`0`。
+- Funnel invariants：CN/US first CONFIRMED=`74/139`；all 494 structural event identities unique/matched；first CONFIRMED exact-once=`213/213`；decision/entry/execution ledger conservation passed；`risk_capital` 未提供且不猜 NAV；production calendar 未实现。
+- Generic operational shadow synthetic-only passed exactly-once、terminal filtering、T→T+1 OPEN、gap/RR branches、fail-closed、reporting 与 ledger invariant。
+- 边界：不读取或计算 returns/forward returns、MFE、MAE、P&L、expectancy、profit factor、Final OOS；不访问 holdings/broker/account/Secrets；不启动 Position Management/Exit、Wave 5、SETUP_04；Decision/Risk PR 不自动 merge。
+
+## Previous Task: SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1（已 squash merged）
 
 - 分支：`codex/setup02-wave3-continuation-v1`；base：`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；不复用旧 PR，不自动 merge。
 - 新增 `trading/setup02.py`、`trading/setup02_replay.py`、`scripts/run_setup02_structural_replay.py`、`tests/test_setup02.py` 与 `docs/SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1.md`。
@@ -30,7 +41,8 @@ V0.2
 - 同一 v2 输入上的 overlap 审计：SETUP_01 有 1,389 个终态事件、SETUP_02 有 494 个；相同 symbol+date 的终态日期交集为 11（9 个 symbols），相同 symbol+date+event type 为 0；candidate state-day 交集为 0（SETUP_01 5,195 天、SETUP_02 2,689 天）；两者 primary Wave context 在 84,284/84,284 日一致。
 - frozen `DEVELOPMENT_EXPOSED` v2：40/40 symbols、84,284 bars、manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`、replay aggregate SHA=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`；0 errors、213 CONFIRMED、281 FAILED、identity duplicate/mismatch=`0/0`。
 - 当前 replay state-day：`NONE=20,433`、`WATCH=1,288`、`ARMED=1,401`、`CONFIRMED=10,930`、`FAILED=50,232`；唯一当前候选为 US `AMAT` / `WATCH` / `2026-08-26` / Fib `0.618-0.786`。
-- 边界：不实现 SETUP_02 Decision/Risk、Entry/Exit、holdings、production、outcome research、Final OOS、production calendar、Sheets 或 SETUP_01/SETUP_03/Wave Engine 修改。
+- PR #45 已在 Sol approval 后 squash merged；真实 merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`，merge-after main exact-head CI run=`33494893693` success。
+- structural lifecycle、replay 与 213 CONFIRMED 事件身份保持冻结；本轮 Decision/Risk 仅消费该结构层的 first-entry CONFIRMED。
 
 ## Previous Task: HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2（已完成并 squash merged）
 
@@ -145,10 +157,10 @@ V0.2
 
 ## Closeout / Next
 
-- `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1` 已完成本地实现与 DEVELOPMENT_EXPOSED structural replay，当前停止在 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`。
-- 当前 branch=`codex/setup02-wave3-continuation-v1`，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；implementation source head=`ac63bd7`；PR #45 为 OPEN/CLEAN/MERGEABLE，exact-head CI success；本文件不自引用最终 docs commit SHA。
+- `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1` 已完成本地实现与 DEVELOPMENT_EXPOSED structural replay，并已 squash merged；当前 Decision/Risk v1 在独立分支继续。
+- 历史 structural closeout：branch=`codex/setup02-wave3-continuation-v1`，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`，implementation source head=`ac63bd7`；PR #45 已由 Sol 授权 squash merge，merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`，merge-after main CI=`33494893693` success。
 - focused Wave + SETUP_02=`26/26`、full unittest=`455/455`、compileall 与 `git diff --check` 已通过。replay 为 40/40 symbols、84,284 bars、0 errors、213 CONFIRMED / 281 FAILED、identity duplicate/mismatch=`0/0`。
 - 唯一当前候选为 US `AMAT` / `WATCH` / as-of `2026-08-26`；state-day counts：`NONE=20,433`、`WATCH=1,288`、`ARMED=1,401`、`CONFIRMED=10,930`、`FAILED=50,232`。
 - PR #45 `https://github.com/EFSing/stock-data-pipeline/pull/45` 已创建，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；当前为 `OPEN / CLEAN / MERGEABLE`，exact-head CI 已成功。最终 live head/CI 以 GitHub closeout 核对为准；不 merge。
 - overlap 审计已完成：同一 v2 输入上 SETUP_01/SETUP_02 的终态日期交集为 11 个 symbol-date、同类型交集为 0，candidate state-day 交集为 0；primary Wave context 84,284/84,284 日一致。
-- 停止在 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`；不进入 SETUP_02 Decision/Risk 或任何 production/outcome/OOS 路径。
+- 该历史 structural task 已停止并合并；当前 Decision/Risk task 仍不进入 production/holdings/position-management/exit/outcome/OOS 路径。

@@ -1184,3 +1184,51 @@ separate and no event identity was reused.
 **PR closeout:** PR #45 targets the verified current `main` base
 `2f56cd0697592c5815dbfea84bf328abe6c4c8c7`, is `OPEN / CLEAN / MERGEABLE`,
 and its exact-head CI completed successfully. No merge was performed.
+
+## 2026-09-01 — SETUP_02 structural approval and Decision/Risk v1
+
+**Approval / merge:** Sol approved
+`APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`. PR #45 was
+rechecked as `OPEN / CLEAN / MERGEABLE` with pre-merge HEAD
+`19c6e0eaa8841b757e6359e897ab559e31d39f65`, base
+`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`, and exact-head CI run
+`33493027270` success. It was squash merged as
+`f679443d52d767841c0df3ff2e0179648b536fb0`; merge-after main exact-head CI
+run `33494893693` is success.
+
+**Decision:** Freeze the independent SETUP_02 Decision/Risk v1 protocol as
+`SETUP-02-DECISION-RISK-2026-09-01-v1`, implemented in
+`trading/setup02_decision.py` with a separate development funnel and
+synthetic-only generic operational shadow. The frozen structural lifecycle in
+`trading/setup02.py` is not modified, and SETUP_01 is not refactored.
+
+**Rules:** Decision consumes only first-entry `CONFIRMED` events with
+`event_type == CONFIRMED`, `is_new_confirmed_event_as_of == true`, and exact
+event identity once. T close forms the plan; same-bar execution is forbidden.
+`confirmation_level=HIGH3`, `planned_entry=T close`, Entry Zone is
+`[HIGH3, HIGH3+0.5*ATR14(T)]`, structural invalidation is copied directly from
+the event, and Execution Stop is
+`structural_invalidation-0.5*ATR14(T)`. Targets are generated first from
+T-known confirmed swing highs and the frozen
+`structural_invalidation → HIGH3` continuation leg using only canonical
+`EXTENSION_RATIOS`; shared `risk_reward()` gates on T1. `fib_retracement_ratio`
+remains descriptive only. Missing `risk_capital` produces an explicit required
+input and never guesses NAV.
+
+**Development evidence:** On the same frozen `DEVELOPMENT_EXPOSED` v2 input,
+213 first-entry CONFIRMED events produced 213 Decision rows. The funnel result
+was `ENTRY_ALLOWED=0`; gates were `ABOVE_ENTRY_ZONE=97`,
+`INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`, with all other gates zero.
+T+1 attempts/executed were `0/0`; CN/US first-confirmed split was `74/139`.
+All 494 structural event identities were unique and matched, first-confirmed
+exact-once, target provenance, conservation, and execution-ledger invariants
+passed. Target candidates included 771 confirmed-swing candidates and 414
+continuation-Fib candidates (one merged dual-source price); extension ratio
+counts were `1.272=103`, `1.618=104`, `2.0=104`, `2.618=104`. The >5R count and
+missing T+1 count were both zero.
+
+**Boundary:** This evidence does not read or calculate returns/forward returns,
+MFE, MAE, P&L, expectancy, profit factor, or Final OOS. No holdings, account,
+broker, Secrets, Sheets, production calendar, Position Management, Exit, Wave
+5, SETUP_04, or automatic merge is permitted. Decision/Risk stops at
+`SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW` pending Sol review.
