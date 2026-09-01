@@ -10,8 +10,8 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA 为 `e1625274a5c4ad267cb710c6b36e057ba6dd5d86`；PR #44 的 lifecycle closure 真实 base 仍为 `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`。此前 PR #43 的 SETUP_01 squash merge 仍是历史事实。
-- Current checkout: `codex/holdings-data-manager-lifecycle-closure-v2`，从 `origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 创建；治理 docs-only commit 不自引用自身 SHA。
+- GitHub `main` 当前真实 SHA 为 `a64102a9f222029a3079bd231790c842e074f372`（PR #44 的 squash merge commit）；PR #44 的 lifecycle closure 原始 base 仍为 `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`。此前 PR #43 的 SETUP_01 squash merge 仍是历史事实。
+- Current checkout: `main@a64102a9f222029a3079bd231790c842e074f372`，已快进至 `origin/main`；PR #44 工作分支的历史 provenance 为 `origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`；治理 docs-only commit 不自引用自身 SHA。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01 Decision/Risk v1 已按 Sol 批准完成 merge，当前停止节点为 `SETUP_01_DECISION_RISK_V1_MERGED`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
@@ -19,10 +19,10 @@ V0.2
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2
+## Current Task: HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2（已完成并 squash merged）
 
 - 生命周期实现 source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；共享 `latest_snapshot.py` evaluator/row projection 已接入 scheduled latest 与 holdings manager。
-- PR #44 已创建：`https://github.com/EFSing/stock-data-pipeline/pull/44`，base=`main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，尚未 merge；本次治理文档包含在该 PR。精确 HEAD、mergeability 与 CI 必须以 GitHub 现场状态为准，文档不自引用自身 SHA。
+- PR #44：`https://github.com/EFSing/stock-data-pipeline/pull/44`，base=`main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，已 squash merged；真实 merge commit=`a64102a9f222029a3079bd231790c842e074f372`。merge 后 main exact-head `CI Test Gate` run=`33485998503` / `test` check=`99786090755` success；文档不自引用自身 SHA。
 - ADD/REENTER 已实现 normalization → 最近已完成 session latest snapshot → 同一 completed trade_date 的 raw/qfq history QC → latest upsert → validation append → enable-last；current single-source/pending 语义与 scheduled latest 保持一致。重试按 history/latest/validation component-wise repair，只有 identity absent/disabled 才最后 enable；全部组件完整且已启用才幂等。
 - 新增回归覆盖：watchlist enable 失败后 ADD retry 只补身份；disabled 且完整的 REENTER 不重复 validation；validation append 失败后 retry 只补 validation + final enable。既有 repeated ADD/CLOSE/SYNC 与 scheduled latest parity 保持通过。
 - WatchlistTable 新行通过真实 spreadsheet metadata 动态扩展到所有表头/新行（含正式 P 列 `历史数据源`），复制既有格式且保留未知列；不硬编码 sheet/table/range，不创建额外 banding。
@@ -130,8 +130,8 @@ V0.2
 - Phase 5J-v4 parity/integrity：对 `origin/main@142b7345a5640b1e87932e41f3dc9311172bf54c` 比较 120 cells / 258,915 Setup bars / 1,028 CONFIRMED/FAILED events，Setup/event mismatches 均为 0；Phase 5J-v3 qualification 和 prior frozen tracked content 未变，Final OOS untouched。capsule file SHA `sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f`，canonical payload `sha256:a2e9a48cac483bca6aae9aeec4d5405634118632e7c34170aef863f24991e797`，trace `sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4`；tracked provenance hashes 使用 Git-normalized LF bytes，跨 Windows/Linux checkout 稳定。
 - Historical symptom concordance（PR #29 tracked capsule only，`NOT_CAUSAL_REPLICATION`）：CN 3→4 `PARTIALLY_CONCORDANT`，US 3→4 `CONCORDANT`，CN 4→5 `PARTIALLY_CONCORDANT`，US 4→5 `PARTIALLY_CONCORDANT`。没有使用旧 residual drift median/P90 或 extreme nearest pairs 作为 causal evidence。
 
-## Next
+## Closeout / Next
 
-- PR #44 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2` 已创建但不 merge；其 implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`，治理文档已同步到同一 PR。
-- 正式 focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`，full unittest=`445/445`，compileall 与 `git diff --check` 已通过；最终 PR exact-head CI 与 `OPEN / CLEAN / MERGEABLE` 状态以 GitHub 现场核对。
-- 停止在 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`；不执行真实 ADD/CLOSE/REENTER/SYNC，不写 production Sheet，不读取账户/券商，不启动 SETUP_02/03、Wave/Decision、Final OOS 或 outcome 研究，不自动 merge。
+- PR #44 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2` 已 squash merged；implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`，真实 merge commit=`a64102a9f222029a3079bd231790c842e074f372`。
+- 正式 focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`，full unittest=`445/445`，compileall 与 `git diff --check` 已通过；PR merge 前 exact-head CI 与 `OPEN / CLEAN / MERGEABLE` 状态、以及 merge 后 main exact-head CI 均已从 GitHub 现场核对。
+- 停止在已完成的 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`；不执行真实 ADD/CLOSE/REENTER/SYNC，不写 production Sheet，不读取账户/券商，不启动 SETUP_02/03、Wave/Decision、Final OOS 或 outcome 研究，不启动下一 Phase。
