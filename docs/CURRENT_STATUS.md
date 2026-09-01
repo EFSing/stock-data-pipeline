@@ -27,6 +27,7 @@ V0.2
 - 只接受 primary `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`；要求因果 `LOW0 → HIGH1 → LOW2 → HIGH3`、`HIGH3>HIGH1`、`LOW2>LOW0`、daily/weekly `UPTREND`，并复用 Wave Engine 既有 structural invalidation。
 - lifecycle 固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED`；recovery=`invalidation + 0.5*(HIGH3-invalidation)`；`close == HIGH3` 不确认，首个 `close > HIGH3` 才确认；终态事件仅首次进入发出一次。
 - replay 严格按历史 prefix，禁止未来 confirmed Swing 泄漏；Fib 仅描述性；报告只含 structural state/event/failure/CN-US/per-symbol/primary-wave/candidate/identity 统计，不含 outcome/returns/MFE/MAE/P&L/expectancy/OOS。
+- 同一 v2 输入上的 overlap 审计：SETUP_01 有 1,389 个终态事件、SETUP_02 有 494 个；相同 symbol+date 的终态日期交集为 11（9 个 symbols），相同 symbol+date+event type 为 0；candidate state-day 交集为 0（SETUP_01 5,195 天、SETUP_02 2,689 天）；两者 primary Wave context 在 84,284/84,284 日一致。
 - frozen `DEVELOPMENT_EXPOSED` v2：40/40 symbols、84,284 bars、manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`、replay aggregate SHA=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`；0 errors、213 CONFIRMED、281 FAILED、identity duplicate/mismatch=`0/0`。
 - 当前 replay state-day：`NONE=20,433`、`WATCH=1,288`、`ARMED=1,401`、`CONFIRMED=10,930`、`FAILED=50,232`；唯一当前候选为 US `AMAT` / `WATCH` / `2026-08-26` / Fib `0.618-0.786`。
 - 边界：不实现 SETUP_02 Decision/Risk、Entry/Exit、holdings、production、outcome research、Final OOS、production calendar、Sheets 或 SETUP_01/SETUP_03/Wave Engine 修改。
@@ -145,7 +146,9 @@ V0.2
 ## Closeout / Next
 
 - `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1` 已完成本地实现与 DEVELOPMENT_EXPOSED structural replay，当前停止在 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`。
-- 当前 branch=`codex/setup02-wave3-continuation-v1`，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；implementation source head=`ac63bd7`；PR、PR exact-head CI 与 mergeability 待创建后现场核对，不自引用 governance 文档 SHA。
+- 当前 branch=`codex/setup02-wave3-continuation-v1`，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；implementation source head=`ac63bd7`；PR #45 为 OPEN/CLEAN/MERGEABLE，exact-head CI success；本文件不自引用最终 docs commit SHA。
 - focused Wave + SETUP_02=`26/26`、full unittest=`455/455`、compileall 与 `git diff --check` 已通过。replay 为 40/40 symbols、84,284 bars、0 errors、213 CONFIRMED / 281 FAILED、identity duplicate/mismatch=`0/0`。
 - 唯一当前候选为 US `AMAT` / `WATCH` / as-of `2026-08-26`；state-day counts：`NONE=20,433`、`WATCH=1,288`、`ARMED=1,401`、`CONFIRMED=10,930`、`FAILED=50,232`。
-- 下一步仅为提交/push、创建 PR、等待 exact-head CI 并核对 `OPEN / CLEAN / MERGEABLE`；不 merge，不进入 SETUP_02 Decision/Risk 或任何 production/outcome/OOS 路径。
+- PR #45 `https://github.com/EFSing/stock-data-pipeline/pull/45` 已创建，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；当前为 `OPEN / CLEAN / MERGEABLE`，exact-head CI 已成功。最终 live head/CI 以 GitHub closeout 核对为准；不 merge。
+- overlap 审计已完成：同一 v2 输入上 SETUP_01/SETUP_02 的终态日期交集为 11 个 symbol-date、同类型交集为 0，candidate state-day 交集为 0；primary Wave context 84,284/84,284 日一致。
+- 停止在 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`；不进入 SETUP_02 Decision/Risk 或任何 production/outcome/OOS 路径。

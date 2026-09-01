@@ -1172,3 +1172,15 @@ compileall, `git diff --check`, PR exact-head CI and live `OPEN / CLEAN /
 MERGEABLE` verification, hand off to Sol. Do not implement SETUP_02
 Decision/Risk or any production/outcome/OOS continuation without a new
 decision.
+
+**SETUP_01 overlap audit:** On the same frozen v2 input, SETUP_01 produced
+1,389 terminal events and SETUP_02 produced 494. There were 11 shared
+`(symbol, trade_date)` terminal dates across 9 symbols, 0 shared
+`(symbol, trade_date, event_type)` rows, and 0 shared pre-confirmation
+candidate state-days (SETUP_01: 5,195; SETUP_02: 2,689). The primary Wave
+context pair was identical on all 84,284 days; the two setup namespaces remain
+separate and no event identity was reused.
+
+**PR closeout:** PR #45 targets the verified current `main` base
+`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`, is `OPEN / CLEAN / MERGEABLE`,
+and its exact-head CI completed successfully. No merge was performed.
