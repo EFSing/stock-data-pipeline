@@ -8,12 +8,20 @@
 
 `运行日志` 复用既有表头承载 append-only 生命周期审计：北京时间 `运行时间`、市场、规范化统一代码、动作/结果（写入 `消息`）和历史写入行数。没有新增 Sheet 列或 registry。
 
+ADD/REENTER 的一次 operation contract 是：identity normalization → 最近已完成
+market session 的 latest snapshot → 复用日期、future-date、sanity、freshness、
+validate/fresher 语义 → 用同一个 completed `交易日期` 做 raw/qfq history target
+并完成 coverage/QC → upsert `最新行情` → append `校验记录` → 最后才更新
+`自选清单.启用`。当前 single-source/current/pending 仍可按 latest pipeline 语义
+发布；不能发布 future、stale 或 identity 不一致的 snapshot。latest、history QC
+或 latest Sheet 写入失败时，新增身份不得启用；已经合法写入的历史不回滚。
+
 ## 操作 contract
 
 | 操作 | 已有身份 | 历史行为 | 启用语义 |
 |---|---|---|---|
-| `ADD` | 已启用时幂等；已停用时自动采用 REENTER 语义 | 新身份初始化一年；已停用身份只补缺口 | 双历史成功后设为启用 |
-| `REENTER` | 必须已存在 | 只补 raw/qfq 缺口；完整覆盖不重抓一年 | 双历史成功后恢复启用 |
+| `ADD` | 先按 history/latest/validation 分组件 reconciliation；全部状态完整且已启用才幂等；已停用时自动采用 REENTER 语义 | 新身份初始化一年；已停用身份只补缺口 | 只写缺失组件；latest + 校验 + 双历史成功后最后设为启用 |
+| `REENTER` | 必须已存在 | 按组件补 latest/校验与 raw/qfq 缺口；完整覆盖不重抓一年 | 只写缺失组件；最后恢复启用 |
 | `CLOSE` | 不存在/已停用幂等 | 不访问、不删除历史 | 仅设为停用 |
 | `SYNC` | 必须已存在 | 只补缺口 | 保持原状态 |
 
@@ -23,4 +31,16 @@
 
 `history_coverage_report()` 是确定性的 coverage/QC contract：它只看 provider 与已有历史的 observed session dates，从不把周一至周五当作交易所日历。raw/qfq 必须拥有相同且无重复的日期集；每套历史必须在目标末日结束、起点最多落后 7 个自然日、至少有 180 个有效日线 bar，并且相邻 observed session 的自然日间隔不得超过 14 天。首尾两根、中间大段缺失、provider 截断最近 N 日、raw/qfq 日期集不一致都会 fail closed；正常节假日导致的短闭市区间合法，不生成休市日 bar。
 
-`REENTER`/`SYNC` 通过 observed session dates 计算边界和中段 gap：仅抓尾部缺口或异常中段区间，完整一年不因 US/CN 节假日重复请求。补齐后的 raw/qfq 仍需整体 coverage/QC 通过，之后 `ADD` 首次或停用身份自动恢复才会写 `自选清单.启用=True`。只读验证可运行 `scripts/holdings_data_manager_smoke.py`；该脚本不写 Sheet、不进入任何策略/研究路径。
+`REENTER`/`SYNC` 通过 observed session dates 计算边界和中段 gap：仅抓尾部缺口或异常中段区间，完整一年不因 US/CN 节假日重复请求。补齐后的 raw/qfq 仍需整体 coverage/QC 通过。已启用的重复 `ADD` 不再提前返回：完整历史不重抓，缺失/落后 latest 或校验记录会修复，只有全部状态完整才返回 `IDEMPOTENT`。只读验证可运行 `scripts/holdings_data_manager_smoke.py`；该脚本不写 Sheet、不进入任何策略/研究路径。
+
+ADD/REENTER 会在每次 operation 重新读取并评估当前 completed session，但把持久状态按组件对账：history 不完整才调用 `_sync_history`，latest 不完整或落后才 upsert，validation 不完整才 append；只有 identity 不存在或 disabled 时才在这些步骤全部成功后执行最后的 watchlist enable/upsert。若某次尝试在 enable-last 或 validation append 处失败，已合法写入的组件保留，后续 retry 只修复缺失组件，不重复 append 相同 completed-date validation；所有组件完整且 identity 已 enabled 时返回 `IDEMPOTENT`。该语义不引入 request ledger、第二套 registry，也不删除 append-only 记录。
+
+scheduled `main.run(mode="latest")` 与 holdings manager 共用
+`latest_snapshot.py` 的 evaluator、日期选择、`validate_quotes`/`fresher_quote`
+语义和 latest/validation row projection；provider orchestration、history gap
+编排和写入顺序仍由各自调用方负责，避免复制一套 latest pipeline。
+
+`SheetsClient.upsert_watchlist()` 在新增身份时从真实 spreadsheet metadata
+读取 table/range/sheetId，自动覆盖所有实际表头（包括正式 P 列 `历史数据源`）
+和新行，再在表内复制既有格式。它不硬编码 table/range、不创建额外 banded
+range，并在更新已有身份时保留用户未管理列。

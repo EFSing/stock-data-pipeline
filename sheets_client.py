@@ -126,8 +126,115 @@ class SheetsClient:
             )
         else:
             output = [[self._clean(row.get(header)) for header in headers]]
-            worksheet.append_row(output[0], value_input_option="USER_ENTERED")
+            row_number = len(values) + 1
+            self._prepare_watchlist_table_for_new_row(
+                worksheet, len(headers), row_number, len(values) - 1
+            )
+            # Write into the resized table's row instead of using append_row,
+            # which can land outside a pre-existing Table range.  RAW keeps
+            # normalized ticker/code values literal and avoids number-format
+            # inference for newly appended identities.
+            worksheet.update(
+                output,
+                f"A{row_number}",
+                value_input_option="RAW",
+            )
         return 1
+
+    def _prepare_watchlist_table_for_new_row(
+        self,
+        worksheet,
+        header_count: int,
+        row_number: int,
+        existing_data_rows: int,
+    ) -> None:
+        """Resize the real WatchlistTable before writing a new data row.
+
+        Table identity and coordinates are discovered from spreadsheet
+        metadata.  No sheet/table ID or A1 range is stored in code, and no
+        independent banded range is created.  The Sheets Table style owns the
+        alternating rows; a same-parity existing row is copied for custom
+        fonts/borders/number formats when one is available.
+        """
+        metadata = self.book.fetch_sheet_metadata()
+        sheet_title = getattr(worksheet, "title", None)
+        if not sheet_title:
+            properties = getattr(worksheet, "_properties", {})
+            sheet_title = properties.get("title")
+        sheets = [
+            sheet for sheet in metadata.get("sheets", [])
+            if sheet.get("properties", {}).get("title") == sheet_title
+        ]
+        if len(sheets) != 1:
+            raise RuntimeError("自选清单 worksheet 元数据缺失或不唯一")
+
+        tables = sheets[0].get("tables", [])
+        candidates = []
+        for table in tables:
+            table_range = table.get("range") or {}
+            if (
+                table.get("tableId")
+                and table_range.get("startRowIndex", 0) == 0
+                and table_range.get("startColumnIndex", 0) == 0
+            ):
+                candidates.append(table)
+        if len(candidates) != 1:
+            raise RuntimeError("自选清单 WatchlistTable 元数据缺失或不唯一")
+
+        table = candidates[0]
+        current_range = dict(table["range"])
+        desired_range = dict(current_range)
+        desired_range["endColumnIndex"] = max(
+            int(current_range.get("endColumnIndex", 0)), header_count
+        )
+        desired_range["endRowIndex"] = max(
+            int(current_range.get("endRowIndex", 0)), row_number
+        )
+        if desired_range != current_range:
+            self.book.batch_update({
+                "requests": [{
+                    "updateTable": {
+                        "table": {
+                            "tableId": table["tableId"],
+                            "range": desired_range,
+                        },
+                        "fields": "range",
+                    }
+                }]
+            })
+
+        # Copy only formatting from a row with the same alternating parity.
+        # This is supplemental to the existing Table style and does not make
+        # an unrelated banded range or overwrite any values/formulas.
+        if existing_data_rows > 0:
+            new_row_index = row_number - 1
+            distance = 2 if existing_data_rows >= 2 else 1
+            source_row_index = new_row_index - distance
+            sheet_id = sheets[0].get("properties", {}).get("sheetId")
+            if sheet_id is None:
+                raise RuntimeError("自选清单 sheetId 元数据缺失")
+            self.book.batch_update({
+                "requests": [{
+                    "copyPaste": {
+                        "source": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": source_row_index,
+                            "endRowIndex": source_row_index + 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": header_count,
+                        },
+                        "destination": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": new_row_index,
+                            "endRowIndex": new_row_index + 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": header_count,
+                        },
+                        "pasteType": "PASTE_FORMAT",
+                        "pasteOrientation": "NORMAL",
+                    }
+                }]
+            })
 
     def upsert_history(self, sheet_name: str, rows: Iterable[dict]) -> int:
         return self._upsert(

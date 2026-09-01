@@ -26,9 +26,12 @@ result = HoldingsDataManager().execute_text(user_request)
 当请求需要通过仓库执行时，ChatGPT/Codex 必须把已经确定的单一操作序列化为
 `EFSing/stock-data-pipeline` 的一个 GitHub Issue：标题必须精确为
 `[HOLDINGS_COMMAND]`，body 必须是严格 JSON；不要把自然语言、Markdown、shell
-片段或账户信息放入 Issue body，也不要使用 MCP 作为执行通道。当前 v1 只提交
-`dry_run: true`，等待 workflow 的 result comment 和自动关闭；不要提交真实
-`ADD`/`CLOSE` 来绕过 review gate。
+片段或账户信息放入 Issue body，也不要使用 MCP 作为执行通道。command bus v1
+已有受控 live route：用户明确要求真实持仓数据变更（例如“新增/买入/重新买回/清仓”）
+且单一身份、市场和操作已经确定时，可以提交 `dry_run: false`，由 workflow 的
+既有治理门控和 `HoldingsDataManager` 执行；这不是绕过 review 或权限门。
+询问、假设、演示、仅要求解释或存在任何身份/市场/操作歧义时，必须保持
+`dry_run: true` 或停止并要求澄清，不得 live write。
 
 ```json
 {
@@ -57,8 +60,8 @@ result = HoldingsDataManager().execute_text(user_request)
 
 ## 生命周期语义
 
-- `ADD`：新身份先完成 symbol/market/source normalization，再确保未复权与前复权历史覆盖最近已完成市场交易日前的过去一个自然年；两套历史和质量检查成功后才设 `自选清单.启用=True`。已启用身份重复 ADD 为幂等，不重抓历史；已存在但停用的身份自动采用 REENTER 的补缺口后恢复语义，用户不需要记忆内部操作名。
-- `REENTER`：只接受已有身份；检查历史覆盖，仅抓取缺失的边界/区间；完整覆盖时不重抓一年；完成后恢复 `启用=True`。历史或 provider 失败时保持停用。
+- `ADD`：新身份先完成 symbol/market/source normalization，获取最近已完成市场 session 的 latest snapshot，并以同一个 completed trade date 作为 raw/qfq 历史目标；按组件 reconciliation：history 不完整才同步，latest 不完整或落后才 upsert，validation 不完整才 append，最后才设 `自选清单.启用=True`。latest、history 或 Sheet 写入失败时不得启用。已启用身份重复 ADD 只有在 history/latest/validation 全部完整后才幂等；已存在但停用的身份自动采用 REENTER 语义。
+- `REENTER`：只接受已有身份；先形成可发布 latest snapshot，再按同一 completed trade date 检查历史覆盖，仅抓取缺失的边界/区间；完整覆盖时不重抓一年。latest、校验记录和历史按组件只写缺失状态，全部必要步骤成功后最后恢复 `启用=True`。失败时保持停用；失败后 retry 保留合法已写组件，不重复相同 completed-date validation append。
 - `CLOSE`：只把当前身份从 `启用=True` 改为 `False`。绝不删除 `历史行情_未复权`、`历史行情_前复权`、校验记录、数据源映射或证券身份；重复 CLOSE 为幂等。
 - `SYNC`：补齐目标身份的 raw/qfq 历史缺口，不改变当前启用状态；它不是 ADD，也不会触发 SETUP、Decision 或任何交易动作。
 
@@ -68,7 +71,17 @@ result = HoldingsDataManager().execute_text(user_request)
 
 REENTER/SYNC 只对 observed dates 推导边界和异常中段区间。尾部缺口请求增量区间，中段异常 gap 请求中间区间；provider 返回空、仍不完整或 raw/qfq 集合不一致时 fail closed。完整一年历史不会因圣诞节、感恩节、春节、国庆等休市日重复抓取。
 
-所有操作复用既有 `providers.fetch_with_retry` / `fetch_latest_with_retry`、`core` 的日期/行情质量检查、`SheetsClient.upsert_history` 和 `自选清单.启用` 语义。不要调用整个 `main.py --mode full` 作为单标的操作。
+所有操作复用既有 `providers.fetch_with_retry` / `fetch_latest_with_retry`、共享
+latest-snapshot evaluator、`core` 的日期/行情质量检查、`SheetsClient` upsert
+语义和 `自选清单.启用` 事实源。scheduled `main.run(mode="latest")` 与 ADD/REENTER
+共享日期选择、校验和 row projection；不要调用整个 `main.py --mode full` 作为
+单标的操作。
+
+每次 ADD/REENTER 可以重新读取 provider/evaluate snapshot 以确认当前 completed
+session，但 Sheet repair 必须 component-wise：history、latest、validation 已完整时
+不得因 retry 重写；identity absent/disabled 才执行 enable-last。所有组件完整且已
+enabled 返回 `IDEMPOTENT`。该 retry contract 不新增 request ledger、registry 或
+非 append-only 的删除路径。
 
 ## 禁止动作
 

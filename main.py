@@ -16,6 +16,12 @@ from core import (
     quote_sanity_issue,
     validate_quotes,
 )
+from latest_snapshot import (
+    evaluate_latest_snapshot,
+    project_latest_row,
+    project_validation_row,
+    quote_row,
+)
 from trading.events import (
     DecisionEventKey,
     evaluate_setup03_event,
@@ -85,17 +91,6 @@ def wanted_markets_for_group(group: str) -> set[str]:
         "us": {"US", "SE"},
     }
     return markets.get(group, {"CN", "HK", "JP", "US", "SE"})
-
-
-def quote_row(quote: Quote, fetched_at: datetime, adjustment: str) -> dict:
-    return {
-        "统一代码": quote.symbol, "名称": quote.name, "市场": quote.market,
-        "交易日期": quote.trade_date, "复权方式": adjustment, "数据源": quote.source,
-        "开盘": quote.open, "最高": quote.high, "最低": quote.low, "收盘": quote.close,
-        "昨收": quote.preclose, "涨跌幅": quote.pct_change, "成交量": quote.volume,
-        "成交额": quote.amount, "换手率": quote.turnover_rate, "币种": quote.currency,
-        "抓取时间": fetched_at,
-    }
 
 
 def decision_row(
@@ -319,26 +314,22 @@ def run(group: str, mode: str = "full") -> dict:
             except Exception as exc:
                 errors.append(str(exc))
 
-        local_today = fetched_at.astimezone(ZoneInfo(str(watch["时区"]))).date()
-        future_quotes = [
-            quote for quote in (*primary_quotes, *verifier_quotes)
-            if quote.trade_date > local_today
-        ]
-        future_note = ""
-        if future_quotes:
-            future_dates = ",".join(
-                sorted({quote.trade_date.isoformat() for quote in future_quotes})
-            )
-            future_note = f"未来交易日行情已拒绝：{future_dates}"
-            errors.append(future_note)
-            stale_sources_rejected += len({quote.source for quote in future_quotes})
-
-        completed_date = latest_completed_market_session(
-            str(watch["时区"]),
-            str(watch["收盘时间"]),
-            fetched_at,
-            (*primary_quotes, *verifier_quotes),
+        snapshot = evaluate_latest_snapshot(
+            primary_quotes,
+            verifier_quotes,
+            fetched_at=fetched_at,
+            timezone_name=str(watch["时区"]),
+            close_time_text=str(watch["收盘时间"]),
+            close_tolerance=close_tolerance,
+            volume_tolerance=volume_tolerance,
+            primary_source=primary_source,
+            verifier_source=verifier_source,
+            errors=errors,
+            apply_calendar_freshness=mode == "latest",
         )
+        errors = list(snapshot.errors)
+        completed_date = snapshot.completed_trade_date
+        stale_sources_rejected += snapshot.stale_sources_rejected
         if completed_date is None:
             failed_symbols.append(str(watch.get("统一代码") or ""))
             errors.append("无法根据有效来源确定最新已完成市场交易日，已拒绝发布")
@@ -349,62 +340,21 @@ def run(group: str, mode: str = "full") -> dict:
             })
             continue
 
-        calendar_stale_note = ""
-        if mode == "latest":
-            calendar_guard = ordinary_calendar_freshness_guard(
-                str(watch["时区"]),
-                str(watch["收盘时间"]),
-                fetched_at,
-            )
-            if completed_date < calendar_guard:
-                calendar_stale_note = (
-                    f"有效来源最新日期{completed_date.isoformat()}"
-                    f"早于普通日历freshness guard{calendar_guard.isoformat()}；"
-                    "不推断交易所节假日，行情仅保留显示并待复核"
-                )
-
-        primary = latest_quote(primary_quotes, max_trade_date=completed_date)
-        verifier = latest_quote(verifier_quotes, max_trade_date=completed_date)
-        if primary is not None and verifier is not None and primary.trade_date != verifier.trade_date:
-            stale_sources_rejected += 1
-        primary_sanity_issue = quote_sanity_issue(primary) if primary is not None else None
-        verifier_sanity_issue = quote_sanity_issue(verifier) if verifier is not None else None
-        result = validate_quotes(primary, verifier, close_tolerance, volume_tolerance)
-        chosen = fresher_quote(primary, verifier)
-        source_selection_note = ""
-        if (
-            chosen is verifier
-            and primary is not None
-            and verifier is not None
-            and primary.trade_date == verifier.trade_date
-            and primary_sanity_issue
-            and not verifier_sanity_issue
-        ):
-            issue = primary_sanity_issue.removeprefix("行情字段异常：")
-            source_selection_note = (
-                f"主数据源{primary.source}字段异常（{issue}），"
-                f"最终行情采用{verifier.source}"
-            )
+        primary = snapshot.primary
+        verifier = snapshot.verifier
+        chosen = snapshot.chosen
+        result = snapshot.validation
         if chosen is None:
             failed_symbols.append(str(watch.get("统一代码") or ""))
             log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": "失败", "新增／更新行数": 0, "消息": "；".join(errors)})
             continue
 
-        stale_note = ""
-        sanity_note = quote_sanity_issue(chosen) or ""
-        displayed_status = result.status
-        if chosen.trade_date != completed_date:
-            displayed_status = "待复核"
-            stale_note = (
-                f"选中行情日期{chosen.trade_date.isoformat()}"
-                f"早于最新已完成市场交易日{completed_date.isoformat()}"
-            )
-        if sanity_note:
-            displayed_status = "待复核"
-        if future_note:
-            displayed_status = "待复核"
-        if calendar_stale_note:
-            displayed_status = "待复核"
+        stale_note = snapshot.stale_note
+        sanity_note = snapshot.sanity_note
+        future_note = snapshot.future_note
+        calendar_stale_note = snapshot.calendar_stale_note
+        source_selection_note = snapshot.source_selection_note
+        displayed_status = snapshot.displayed_status
 
         freshness_single_source = "最新交易日仅单源可用" in result.note
         if displayed_status == "已验证":
@@ -414,61 +364,14 @@ def run(group: str, mode: str = "full") -> dict:
         if displayed_status != "已验证":
             pending_review_count += 1
 
-        confirmed = displayed_status == "已验证" and market_close_confirmed(
-            chosen.trade_date, str(watch["时区"]), str(watch["收盘时间"]), fetched_at
-        )
+        confirmed = snapshot.confirmed
         fallback_notes = []
-        if primary is not None and primary.source != primary_source:
-            fallback_notes.append(f"主数据源{primary_source}回退至{primary.source}")
-        if verifier is not None and verifier.source != verifier_source:
-            fallback_notes.append(f"校验数据源{verifier_source}回退至{verifier.source}")
-        actual_primary_source = primary.source if primary is not None else primary_source
-        actual_verifier_source = verifier.source if verifier is not None else verifier_source
-        notes = [
-            item for item in
-            (
-                result.note,
-                stale_note,
-                calendar_stale_note,
-                sanity_note,
-                future_note,
-                source_selection_note,
-                "；".join(fallback_notes),
-            )
-            if item
-        ]
-        latest_rows.append({
-            "统一代码": chosen.symbol, "名称": chosen.name, "市场": chosen.market,
-            "交易日期": chosen.trade_date, "抓取时间": fetched_at, "正式收盘": confirmed,
-            "校验状态": displayed_status, "主数据源": actual_primary_source,
-            "校验数据源": actual_verifier_source,
-            "开盘": chosen.open, "最高": chosen.high, "最低": chosen.low, "收盘": chosen.close,
-            "昨收": chosen.preclose, "涨跌幅": chosen.pct_change, "成交量": chosen.volume,
-            "成交额": chosen.amount, "换手率": chosen.turnover_rate,
-            "收盘价差异": result.close_diff, "成交量差异": result.volume_diff,
-            "币种": chosen.currency, "备注": "；".join((*notes, *errors)),
-        })
-        validation_rows.append({
-            "抓取时间": fetched_at, "统一代码": chosen.symbol, "交易日期": chosen.trade_date,
-            "主数据源": actual_primary_source, "校验数据源": actual_verifier_source,
-            "主源收盘": primary.close if primary else None, "校验源收盘": verifier.close if verifier else None,
-            "收盘价差异": result.close_diff, "主源成交量": primary.volume if primary else None,
-            "校验源成交量": verifier.volume if verifier else None, "成交量差异": result.volume_diff,
-            "日期一致": result.date_match, "价格通过": result.close_pass, "成交量通过": result.volume_pass,
-            "校验状态": displayed_status,
-            "说明": "；".join(
-                item
-                for item in (
-                    result.note,
-                    stale_note,
-                    calendar_stale_note,
-                    sanity_note,
-                    future_note,
-                    source_selection_note,
-                )
-                if item
-            ),
-        })
+        fallback_notes.extend(snapshot.fallback_notes)
+        notes = snapshot.notes
+        # Shared projection preserves the scheduled latest contract:
+        # "交易日期": chosen.trade_date and "抓取时间": fetched_at.
+        latest_rows.append(project_latest_row(snapshot, fetched_at))
+        validation_rows.append(project_validation_row(snapshot, fetched_at))
         raw_for_symbol = []
         adjusted_for_symbol = []
         adjusted = []

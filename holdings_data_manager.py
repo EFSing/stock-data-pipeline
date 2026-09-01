@@ -16,13 +16,17 @@ from zoneinfo import ZoneInfo
 
 from core import (
     Quote,
-    latest_completed_market_session,
-    ordinary_calendar_freshness_guard,
     quote_sanity_issue,
 )
-from main import beijing_now, quote_row
+from latest_snapshot import (
+    LatestSnapshot,
+    evaluate_latest_snapshot,
+    project_latest_row,
+    project_validation_row,
+    quote_row,
+)
 from providers import QFQ_HISTORY_SOURCES as QFQ_SOURCES
-from sheets_client import LOG_HEADERS
+from sheets_client import LOG_HEADERS, VALIDATION_HEADERS
 
 
 BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -34,6 +38,18 @@ SUPPORTED_MARKETS = frozenset({"CN", "HK", "US", "JP", "SE"})
 MIN_ONE_YEAR_BARS = 180
 MAX_NORMAL_SESSION_GAP_DAYS = 14
 MAX_COVERAGE_BOUNDARY_LAG_DAYS = 7
+
+
+def beijing_now() -> datetime:
+    """Return the lifecycle timestamp in the spreadsheet's canonical zone."""
+    return datetime.now(BEIJING_TIMEZONE)
+
+
+def _ratio(value, default: float) -> float:
+    if value is None or str(value).strip() == "":
+        return default
+    text = str(value).strip()
+    return float(text[:-1].strip()) / 100 if text.endswith("%") else float(text)
 
 
 class HoldingsDataManagerError(ValueError):
@@ -526,6 +542,7 @@ class HoldingsDataManager:
         name: str | None = None,
         source_overrides: Mapping[str, str] | None = None,
     ) -> OperationResult:
+        rows_written = 0
         try:
             action = operation if isinstance(operation, Operation) else Operation(str(operation).upper())
             normalized = normalize_holding(symbol, market, name, source_overrides)
@@ -541,48 +558,83 @@ class HoldingsDataManager:
             existing = matches[0] if matches else None
             if action is Operation.CLOSE:
                 return self._close(normalized, existing)
-            auto_reenter = False
-            if action is Operation.ADD and existing is not None:
-                if self._enabled(existing):
-                    return self._audit_result(
-                        normalized, action, ResultStatus.IDEMPOTENT,
-                        True, 0, "ADD幂等：标的已经是当前启用持仓",
-                    )
-                # Natural-language callers should not need to know the
-                # internal distinction between a first ADD and a re-entry.
-                # Keep the externally requested action in the audit trail,
-                # while applying the same gap-fill-before-enable semantics as
-                # an explicit REENTER.
-                auto_reenter = True
-            if action is Operation.REENTER and existing is not None and self._enabled(existing):
-                return self._audit_result(
-                    normalized, action, ResultStatus.IDEMPOTENT,
-                    True, 0, "REENTER幂等：标的已经是当前启用持仓",
-                )
             if action is Operation.REENTER and existing is None:
                 raise HoldingsDataManagerError("REENTER要求自选清单中已有历史身份，请先ADD")
             if action is Operation.SYNC and existing is None:
                 raise HoldingsDataManagerError("SYNC要求自选清单中已有历史身份")
 
             watch = self._watch_for_operation(normalized, existing)
-            rows_written = self._sync_history(normalized, watch)
-            if action in {Operation.ADD, Operation.REENTER}:
+            operation_at = self._operation_timestamp()
+            if action is Operation.SYNC:
+                target = self._latest_completed_date(watch, operation_at)
+                rows_written = self._sync_history(normalized, watch, target, operation_at)
+                return self._audit_result(
+                    normalized, action, ResultStatus.SUCCESS,
+                    self._enabled(existing), rows_written,
+                    f"SYNC成功：历史缺口补齐，写入/更新{rows_written}行",
+                )
+
+            snapshot = self._latest_snapshot(normalized, watch, operation_at)
+            target = snapshot.completed_trade_date
+            assert target is not None
+            start = _calendar_year_before(target)
+            existing_report = self._existing_history_report(normalized, start, target)
+            history_complete = existing_report.ok
+            latest_complete = self._latest_row_is_current(normalized, snapshot)
+            validation_complete = self._validation_row_is_current(normalized, target)
+
+            # Enabled identities are idempotent only after all state has been
+            # reconciled.  A missing latest or validation row must be repaired.
+            if (
+                existing is not None
+                and self._enabled(existing)
+                and history_complete
+                and latest_complete
+                and validation_complete
+            ):
+                return self._audit_result(
+                    normalized, action, ResultStatus.IDEMPOTENT, True, 0,
+                    f"{action.value}幂等：latest、校验记录和历史 coverage 均完整",
+                )
+
+            # Reconcile each durable component independently.  A previous
+            # attempt may have persisted history/latest/validation before its
+            # final watchlist write failed; retrying must preserve those
+            # complete components and only repair what is still missing.
+            if not history_complete:
+                # History QC is the first write boundary.  No latest or
+                # validation publication happens until history is complete.
+                rows_written = self._sync_history(
+                    normalized, watch, target, operation_at,
+                )
+            if not latest_complete:
+                self.client.upsert_latest([project_latest_row(snapshot, operation_at)])
+            if not validation_complete:
+                self.client.append_rows(
+                    "校验记录",
+                    VALIDATION_HEADERS,
+                    [project_validation_row(snapshot, operation_at)],
+                )
+
+            # Enable only after latest and validation writes both succeed.
+            if existing is None or not self._enabled(existing):
                 if existing is None:
                     watchlist_row = normalized.watch_row(enabled=True)
                 else:
                     watchlist_row = dict(existing)
                     watchlist_row["启用"] = True
                 self.client.upsert_watchlist(watchlist_row)
-                enabled = True
-            else:
-                enabled = self._enabled(existing)
             action_message = (
                 f"{action.value}成功（按REENTER语义）"
-                if auto_reenter else f"{action.value}成功"
+                if action is Operation.ADD and existing is not None and not self._enabled(existing)
+                else f"{action.value}成功"
             )
-            message = f"{action_message}：历史缺口补齐，写入/更新{rows_written}行"
+            message = (
+                f"{action_message}：以同一已完成交易日{target.isoformat()}"
+                f"完成历史、最新行情和校验记录，历史写入/更新{rows_written}行"
+            )
             return self._audit_result(
-                normalized, action, ResultStatus.SUCCESS, enabled, rows_written, message
+                normalized, action, ResultStatus.SUCCESS, True, rows_written, message
             )
         except Exception as exc:
             try:
@@ -596,7 +648,7 @@ class HoldingsDataManager:
                         operation if isinstance(operation, Operation) else Operation(str(operation).upper()),
                         ResultStatus.FAILED,
                         None,
-                        0,
+                        rows_written,
                         str(exc),
                     )
                 except Exception as audit_exc:
@@ -635,6 +687,143 @@ class HoldingsDataManager:
             raise HoldingsDataManagerError("自选清单历史数据源不支持前复权")
         return watch
 
+    def _operation_timestamp(self) -> datetime:
+        operation_at = self.now_fn()
+        if operation_at.tzinfo is None:
+            operation_at = operation_at.replace(tzinfo=BEIJING_TIMEZONE)
+        return operation_at.astimezone(BEIJING_TIMEZONE)
+
+    def _validation_tolerances(self) -> tuple[float, float]:
+        config_reader = getattr(self.client, "config", None)
+        config = config_reader() if callable(config_reader) else {}
+        return (
+            _ratio(config.get("close_tolerance_pct"), 0.0005),
+            _ratio(config.get("volume_tolerance_pct"), 0.02),
+        )
+
+    def _latest_snapshot(
+        self,
+        normalized: NormalizedHolding,
+        watch: dict,
+        operation_at: datetime,
+    ) -> LatestSnapshot:
+        local_end = operation_at.astimezone(ZoneInfo(str(watch["时区"]))).date()
+        retry_count = max(1, int(float(watch.get("重试次数") or 1)))
+        retry_wait = max(0.0, float(watch.get("重试等待秒") or 0.0))
+        primary_quotes: list[Quote] = []
+        verifier_quotes: list[Quote] = []
+        errors: list[str] = []
+        for source, target in (
+            (str(watch["主数据源"]).strip(), primary_quotes),
+            (str(watch.get("校验数据源") or "").strip(), verifier_quotes),
+        ):
+            if not source:
+                continue
+            try:
+                target.extend(
+                    self.fetch_latest(source, watch, local_end, retry_count, retry_wait)
+                )
+            except Exception as exc:
+                errors.append(str(exc))
+
+        close_tolerance, volume_tolerance = self._validation_tolerances()
+        snapshot = evaluate_latest_snapshot(
+            primary_quotes,
+            verifier_quotes,
+            fetched_at=operation_at,
+            timezone_name=str(watch["时区"]),
+            close_time_text=str(watch["收盘时间"]),
+            close_tolerance=close_tolerance,
+            volume_tolerance=volume_tolerance,
+            primary_source=str(watch["主数据源"]).strip(),
+            verifier_source=str(watch.get("校验数据源") or "").strip(),
+            errors=errors,
+            expected_symbol=normalized.symbol,
+            expected_market=normalized.market,
+        )
+        if not snapshot.publishable:
+            raise HoldingsDataManagerError(
+                f"最新行情不可发布：{snapshot.blocking_reason}"
+            )
+        return snapshot
+
+    def _latest_completed_date(self, watch: dict, operation_at: datetime) -> date:
+        normalized = normalize_holding(
+            str(watch["统一代码"]),
+            str(watch["市场"]),
+            str(watch.get("名称") or ""),
+            {
+                "主数据源": str(watch.get("主数据源") or ""),
+                "校验数据源": str(watch.get("校验数据源") or ""),
+                "历史数据源": str(watch.get("历史数据源") or ""),
+            },
+        )
+        snapshot = self._latest_snapshot(normalized, watch, operation_at)
+        assert snapshot.completed_trade_date is not None
+        return snapshot.completed_trade_date
+
+    def _existing_history_report(
+        self, normalized: NormalizedHolding, start: date, target: date
+    ) -> HistoryCoverageReport:
+        identity = (normalized.symbol, normalized.market)
+        raw_existing = [
+            row for row in self.client.records("历史行情_未复权")
+            if _identity_matches(row, identity)
+        ]
+        adjusted_existing = [
+            row for row in self.client.records("历史行情_前复权")
+            if _identity_matches(row, identity)
+        ]
+        raw_dates = _history_dates(raw_existing, identity)
+        adjusted_dates = _history_dates(adjusted_existing, identity)
+        if any(trade_date > target for trade_date in raw_dates | adjusted_dates):
+            raise HoldingsDataManagerError("历史行情包含未来交易日期")
+        return history_coverage_report(
+            sorted(raw_dates), sorted(adjusted_dates), start, target
+        )
+
+    def _latest_row_is_current(
+        self, normalized: NormalizedHolding, snapshot: LatestSnapshot
+    ) -> bool:
+        target = snapshot.completed_trade_date
+        if target is None:
+            return False
+        rows = [
+            row for row in self.client.records("最新行情")
+            if _identity_matches(row, (normalized.symbol, normalized.market))
+        ]
+        if len(rows) > 1:
+            raise HoldingsDataManagerError(
+                f"最新行情存在重复身份：{normalized.market}|{normalized.symbol}"
+            )
+        if not rows:
+            return False
+        try:
+            row_date = _date_from_sheet(rows[0].get("交易日期"))
+        except HoldingsDataManagerError:
+            return False
+        return (
+            row_date == target
+            and str(rows[0].get("校验状态") or "").strip()
+            in {"已验证", "单源可用", "待复核"}
+        )
+
+    def _validation_row_is_current(
+        self, normalized: NormalizedHolding, target: date
+    ) -> bool:
+        for row in self.client.records("校验记录"):
+            # The existing validation schema has no 市场 column; normalized
+            # symbols are canonical (for example ``512400.SH``), so the
+            # unified code remains the existing validation identity key.
+            if str(row.get("统一代码") or "").strip().upper() != normalized.symbol:
+                continue
+            try:
+                if _date_from_sheet(row.get("交易日期")) == target:
+                    return True
+            except HoldingsDataManagerError:
+                continue
+        return False
+
     def _close(
         self, normalized: NormalizedHolding, existing: dict | None
     ) -> OperationResult:
@@ -651,39 +840,13 @@ class HoldingsDataManager:
             False, 0, "CLOSE成功：仅停用当前持仓；历史数据未删除",
         )
 
-    def _latest_completed_date(self, watch: dict, operation_at: datetime) -> date:
-        local_end = operation_at.astimezone(ZoneInfo(str(watch["时区"]))).date()
-        retry_count = max(1, int(float(watch.get("重试次数") or 1)))
-        retry_wait = max(0.0, float(watch.get("重试等待秒") or 0.0))
-        latest_quotes = self.fetch_latest(
-            str(watch["主数据源"]).strip(), watch, local_end, retry_count, retry_wait
-        )
-        latest_quotes = _validate_fetched_quotes(
-            latest_quotes, watch, date.min, local_end
-        )
-        completed = latest_completed_market_session(
-            str(watch["时区"]),
-            str(watch["收盘时间"]),
-            operation_at,
-            latest_quotes,
-        )
-        if completed is None:
-            raise HoldingsDataManagerError("无法确定最近已完成市场交易日")
-        guard = ordinary_calendar_freshness_guard(
-            str(watch["时区"]), str(watch["收盘时间"]), operation_at
-        )
-        if completed < guard:
-            raise HoldingsDataManagerError(
-                f"行情来源落后于普通日历 freshness guard：{completed.isoformat()}<{guard.isoformat()}"
-            )
-        return completed
-
-    def _sync_history(self, normalized: NormalizedHolding, watch: dict) -> int:
-        operation_at = self.now_fn()
-        if operation_at.tzinfo is None:
-            operation_at = operation_at.replace(tzinfo=BEIJING_TIMEZONE)
-        operation_at = operation_at.astimezone(BEIJING_TIMEZONE)
-        target = self._latest_completed_date(watch, operation_at)
+    def _sync_history(
+        self,
+        normalized: NormalizedHolding,
+        watch: dict,
+        target: date,
+        operation_at: datetime,
+    ) -> int:
         start = _calendar_year_before(target)
         identity = (normalized.symbol, normalized.market)
         raw_existing = [
@@ -716,10 +879,8 @@ class HoldingsDataManager:
         raw_quotes = _validate_fetched_quotes(raw_quotes, watch, start, target) if raw_quotes else []
         adjusted_quotes = _validate_fetched_quotes(adjusted_quotes, watch, start, target) if adjusted_quotes else []
         coverage = history_coverage_report(
-            sorted(raw_dates) +
-            [quote.trade_date for quote in raw_quotes],
-            sorted(adjusted_dates) +
-            [quote.trade_date for quote in adjusted_quotes],
+            sorted(raw_dates) + [quote.trade_date for quote in raw_quotes],
+            sorted(adjusted_dates) + [quote.trade_date for quote in adjusted_quotes],
             start,
             target,
         )
