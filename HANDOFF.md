@@ -25,7 +25,7 @@
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
 - **main/base SHA:** 当前 GitHub `origin/main@e1625274a5c4ad267cb710c6b36e057ba6dd5d86`；PR #44 的原始 base 仍为 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前无其他 open PR（除本任务新建 #44）。
-- **working checkout:** 当前 checkout 为 `codex/holdings-data-manager-lifecycle-closure-v2`，从上述真实 main 创建；治理同步、push 和 CI 后保持 clean。
+- **working checkout:** 当前 checkout 为 `codex/holdings-data-manager-lifecycle-closure-v2`，从 PR #44 原始 base `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 创建；治理同步、push 和 CI 后保持 clean。
 - **implementation source head:** `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；当前 source commit 包含 lifecycle component-wise retry repair 与 A/B/C regressions，治理 docs-only commit 不自引用自身 SHA。
 - **PR handling:** PR #44 为本任务唯一新 PR，当前 `OPEN`、不 merge；旧 PR #43 已 squash merged，为历史事实。最终状态以 GitHub 实时查询为准。
 - **PR:** #41 `CLOSED`、`merged=true`，final head=`919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit=`74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；pre-merge exact-head CI `33377922272` success。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
