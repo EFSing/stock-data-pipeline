@@ -1032,3 +1032,45 @@ returns/MFE/MAE/P&L/Final OOS, implement production execution/calendar
 integration, or create a new development PR. Stop at
 `SETUP_01_DECISION_RISK_V1_MERGED` with
 `HANDOFF_CURRENT_AND_CONSISTENT` and wait for the next Sol decision.
+
+---
+
+## 2026-09-01 — HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2
+
+**Context:** The real current base was rechecked as
+`origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`, with no pre-existing
+open PR. Issue #42 is evidence that the controlled command bus live route has
+already performed one explicit `ADD 512400` successfully; the repository Skill
+still described a dry-run-only route, and ADD/REENTER did not publish latest
+and validation state before enabling the watchlist identity.
+
+**Decision:** Keep command bus schema/version v1 and permit `dry_run=false`
+only for an explicit, unambiguous user-requested holdings data mutation. Keep
+questions, assumptions, demonstrations, and ambiguous requests non-live/fail
+closed. Close ADD/REENTER as one operation: normalize identity, evaluate a
+latest snapshot for the most recent completed market session, use that exact
+completed trade date for raw/qfq history, pass coverage/QC, upsert latest,
+append validation, and enable the watchlist row last. Current single-source
+and pending-review semantics remain valid; future/stale/identity-invalid
+snapshots are not lifecycle-publishable. Legal history already written is
+retained for idempotent retry; CLOSE never deletes history and SYNC is not
+expanded into strategy or trading behavior.
+
+**Architecture:** Extract the minimal `latest_snapshot.py` evaluator and row
+projection contract shared by scheduled `main.run(mode="latest")` and the
+holdings manager. Do not maintain a second latest pipeline. Repeated enabled
+ADD reconciles history, latest, and validation before returning IDEMPOTENT:
+complete history is not refetched, while missing or lagging latest/validation
+state is repaired. Watchlist new-row writes discover actual Sheet metadata,
+resize the existing table through all formal headers/new row (including P
+`历史数据源`), copy existing formatting, preserve unknown columns, and do not
+create an independent banded range.
+
+**Evidence / boundary:** Implementation source commit is
+`3462d22dee5a3e060f79786ab13a8806674afd58`; PR #44 was opened from the real
+base and remains unmerged. Focused holdings/validation/governance tests pass
+`87/87`, full unittest passes `442/442`, and compileall plus `git diff --check`
+pass. Local tests use fixtures only: no real ADD/CLOSE/REENTER/SYNC, no
+production Sheet/account/broker access, and no SETUP/Wave/Decision/Final OOS
+or outcome research. Final exact-head CI and mergeability remain PR #44
+closeout gates.

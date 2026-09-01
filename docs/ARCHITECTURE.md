@@ -18,12 +18,10 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
         → BaoStock (仅 A股)
         → Tencent / Sina 快照回退 (CN/HK/US)
         ↓
-    latest_completed_market_session()               [core: source-date evidence]
-    ordinary_calendar_freshness_guard()             [core: ordinary-calendar lower bound]
-    validate_quotes(primary, verifier)              [core]
-    quote_sanity_issue(primary / verifier)           [core]
-    fresher_quote(primary, verifier)                 [core: 日期优先；同日质量优先]
-    quote_sanity_issue(chosen)                       [core]
+    evaluate_latest_snapshot()                      [latest_snapshot: shared contract]
+        → latest_completed_market_session / ordinary freshness guard
+        → validate_quotes / quote_sanity_issue / fresher_quote
+        → project_latest_row / project_validation_row
     SheetsClient.upsert_latest("最新行情")
     SheetsClient.append_rows("校验记录")
     SheetsClient.append_rows("运行日志")
@@ -44,12 +42,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     上层自然语言请求
         → skills/holdings-data-manager/SKILL.md  [thin contract only]
         → holdings_data_manager.py               [one normalized symbol]
-        → existing fetch_latest_with_retry()     [latest completed session]
-        → existing fetch_with_retry()            [raw + qfq missing intervals]
+        → shared latest-snapshot evaluator      [completed date + validation]
+        → existing fetch_with_retry()           [raw + qfq missing intervals]
         → observed provider session-date coverage/QC
-        → core date / OHLCV quality gates
-        → SheetsClient.upsert_history()          [idempotent date key]
-        → SheetsClient.upsert_watchlist()        [自选清单.启用 only]
+        → SheetsClient.upsert_history()         [idempotent date key]
+        → SheetsClient.upsert_latest()          [latest snapshot]
+        → SheetsClient.append_rows()            [校验记录]
+        → SheetsClient.upsert_watchlist()       [enable last]
         → existing 运行日志 append-only audit
 
     The holdings manager never calls the full pipeline and never enters
@@ -69,7 +68,13 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 
 `--mode full` 保留需要历史数据的手动路径，继续执行未复权历史、qfq、SETUP_03 和 Decision。它不由 daily schedule 调用；workflow_dispatch 可显式选择该模式。
 
-`holdings-data-manager` 是上层 ChatGPT/Codex Skill 使用的单标的路径：它只执行确定性的 `ADD`、`REENTER`、`CLOSE`、`SYNC`，不调用 `main.run()` 或把完整 `full` pipeline 当作新增股票接口。历史窗口、缺口、启用状态和审计均由 `holdings_data_manager.py` 编排，provider、日期/OHLCV 质量门控与 Sheet 写入仍复用现有模块。
+`holdings-data-manager` 是上层 ChatGPT/Codex Skill 使用的单标的路径：它只执行确定性的 `ADD`、`REENTER`、`CLOSE`、`SYNC`，不调用 `main.run()` 或把完整 `full` pipeline 当作新增股票接口。ADD/REENTER 以同一 completed trade date 完成 latest snapshot、raw/qfq history QC、latest upsert、validation append 和 enable-last；已启用重复 ADD 先 reconciliation，完整历史不重抓。provider、日期/OHLCV 质量门控与 Sheet 写入仍复用现有模块。
+
+`main.run(mode="latest")` 与 holdings manager 共享 `latest_snapshot.py` 的
+evaluator 和 row projection。共享 contract 保持 source-date evidence、普通日历
+freshness guard、future/sanity、`validate_quotes`/`fresher_quote`、single-source
+和 pending 状态语义一致；manager 额外用 identity expectation 和 publishable
+gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 
 历史 coverage 只使用 provider/已有历史的 observed session dates；不以 weekday 推断交易所开市，不伪造休市日 bar。raw/qfq 日期集必须一致、无重复，并满足一年窗口的末日、边界、最小 180 bar 和最长 14 日 observed-session gap contract。`REENTER`/`SYNC` 只请求尾部或异常中段 gap；完整历史不会因 US/CN 节假日重复抓取。`scripts/holdings_data_manager_smoke.py` 提供不写 Sheet 的真实 provider read-only smoke。
 
@@ -88,6 +93,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 ├── core.py                   # 数据模型与校验逻辑（无外部依赖）
 ├── main.py                   # CLI 入口与流水线编排
 ├── holdings_data_manager.py  # 单标的持仓生命周期编排（ADD/REENTER/CLOSE/SYNC）
+├── latest_snapshot.py        # scheduled latest 与 holdings 共用 evaluator/projection
 ├── providers.py              # 行情数据源适配器与回退链
 ├── sheets_client.py          # Google Sheets 客户端与表头定义
 ├── skills/

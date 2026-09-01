@@ -12,7 +12,7 @@ ChatGPT/Codex
     -> issues.opened workflow in EFSing/stock-data-pipeline
     -> event + sender/actor + schema guards
     -> existing identity normalization
-    -> dry-run receipt, or (reviewed live route) HoldingsDataManager.execute
+    -> dry-run receipt, or (strictly authorized live route) HoldingsDataManager.execute
     -> machine-readable + human-readable comment
     -> result label and issue close
 ```
@@ -26,6 +26,12 @@ passed as environment variables to the bridge. The bridge still defaults to
 fail closed, requires both credential values before manager construction, and
 delegates the live operation only to the existing `SheetsClient` path owned by
 `HoldingsDataManager`.
+
+The live route is enabled for an explicit, unambiguous user-requested holdings
+data mutation such as ADD/买入/新增, REENTER/重新买回, or CLOSE/清仓. Questions,
+assumptions, demonstrations, or ambiguous identity/market/operation requests
+must not use live write and remain dry-run or fail closed. The command schema
+and version remain v1.
 
 Invariant: `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`.
 
@@ -87,10 +93,13 @@ state.
 
 Transport reruns do not create a second business truth source. Existing manager
 semantics remain authoritative: history upsert identity is
-`市场+统一代码+交易日期`, ADD is idempotent for an enabled identity, CLOSE only
-changes `自选清单.启用` and never deletes history, REENTER/SYNC fetch only
-observed-session gaps, and Sheets upsert is key-idempotent. The manager
-regressions plus command-bus fixture tests cover these boundaries.
+`市场+统一代码+交易日期`; ADD/REENTER complete latest snapshot, matching-date
+raw/qfq history QC, latest upsert, validation append, and enable-last in one
+operation. An enabled repeated ADD is idempotent only after reconciliation;
+complete history is not refetched while missing/stale latest or validation is
+repaired. CLOSE only changes `自选清单.启用` and never deletes history,
+REENTER/SYNC fetch only observed-session gaps, and Sheets upsert is key-idempotent.
+The manager regressions plus command-bus fixture tests cover these boundaries.
 
 ## Dry-run verification
 
@@ -105,5 +114,5 @@ and sender/actor guards, runs event parsing through identity normalization,
 asserts no `SheetsClient` or manager construction in dry-run, covers live ADD,
 fail-closed actor/schema gates, manager `FAILED`, rerun/idempotency, workflow
 Secret routing and output redaction, and checks the exact receipt/comment
-shape. The focused suite is `19/19`; the full repository suite is `414/414`.
-No real ADD/CLOSE is run at this review node.
+shape. Focused and full-suite counts are recorded by the current task handoff;
+local regression tests never execute a real ADD/CLOSE/REENTER/SYNC.
