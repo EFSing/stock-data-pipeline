@@ -1066,12 +1066,48 @@ resize the existing table through all formal headers/new row (including P
 `历史数据源`), copy existing formatting, preserve unknown columns, and do not
 create an independent banded range.
 
-**Evidence / boundary:** Implementation source commit is
-`3462d22dee5a3e060f79786ab13a8806674afd58`; PR #44 was opened from the real
-base and remains unmerged. Focused holdings/validation/governance tests pass
-`87/87`, full unittest passes `442/442`, and compileall plus `git diff --check`
-pass. Local tests use fixtures only: no real ADD/CLOSE/REENTER/SYNC, no
-production Sheet/account/broker access, and no SETUP/Wave/Decision/Final OOS
-or outcome research. PR #44 remains unmerged; final exact-head CI and
-`OPEN / CLEAN / MERGEABLE` state are live GitHub evidence at handoff. Do not
-merge automatically.
+**Evidence / boundary:** The current lifecycle retry-idempotency source commit
+is `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`; PR #44 was opened from the real
+base and remains unmerged. The formal focused command
+`python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`
+passes `90/90`, full unittest passes `445/445`, and compileall plus
+`git diff --check` pass. Local tests use fixtures only: no real
+ADD/CLOSE/REENTER/SYNC, no production Sheet/account/broker access, and no
+SETUP/Wave/Decision/Final OOS or outcome research. PR #44 remains unmerged;
+final exact-head CI and `OPEN / CLEAN / MERGEABLE` state are live GitHub
+evidence at handoff. Do not merge automatically.
+
+## 2026-09-01 — component-wise retry-idempotency repair after enable-last failure
+
+**Context:** Sol review identified that ADD/REENTER computed history coverage,
+latest completeness and validation completeness but used them only for the
+single all-state idempotency shortcut. If history, latest and validation had
+already been written and the final watchlist enable/upsert failed, a retry
+could append a duplicate completed-date validation record.
+
+**Decision:** Keep command-bus v1, `自选清单.启用` as the holdings identity fact,
+append-only validation/audit records, and enable-last ordering. Each ADD/REENTER
+operation may re-read and evaluate the current completed session, then repairs
+components independently: call `_sync_history` only when history is
+incomplete, upsert latest only when latest is missing or behind, append
+validation only when validation is missing for the completed date, and upsert
+the watchlist with `启用=True` only when the identity is absent or disabled,
+after all required repairs succeed. An enabled identity with every component
+complete returns `IDEMPOTENT`. No request ledger, second registry, schema
+change, or deletion of append-only records is introduced.
+
+**Regression / evidence:** The fixture suite explicitly covers (A) first ADD
+with successful history/latest/validation followed by a failed final watchlist
+write, where retry performs only the identity write; (B) disabled REENTER with
+complete state, where retry performs only enablement; and (C) successful
+history/latest followed by validation append failure, where retry performs
+only validation plus final enable. Existing repeated ADD idempotency, CLOSE,
+SYNC, scheduled latest parity and enable-last regressions remain green. The
+formal focused command is `python -m unittest
+tests.test_holdings_data_manager tests.test_validation tests.test_governance
+-v` with `90/90` tests; full unittest is `445/445`.
+
+**Boundary:** No real ADD/CLOSE/REENTER/SYNC was executed, no production Sheet
+was written, no account/broker or credential data was accessed, and no
+SETUP/Wave/Decision/Final OOS/outcome work was started. PR #44 remains open,
+unmerged and subject to exact-head CI/live state verification.

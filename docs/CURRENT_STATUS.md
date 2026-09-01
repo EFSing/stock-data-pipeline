@@ -21,9 +21,10 @@ V0.2
 
 ## Current Task: HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2
 
-- 生命周期实现 source head=`3462d22dee5a3e060f79786ab13a8806674afd58`；共享 `latest_snapshot.py` evaluator/row projection 已接入 scheduled latest 与 holdings manager。
+- 生命周期实现 source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；共享 `latest_snapshot.py` evaluator/row projection 已接入 scheduled latest 与 holdings manager。
 - PR #44 已创建：`https://github.com/EFSing/stock-data-pipeline/pull/44`，base=`main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，尚未 merge；本次治理文档包含在该 PR。精确 HEAD、mergeability 与 CI 必须以 GitHub 现场状态为准，文档不自引用自身 SHA。
-- ADD/REENTER 已实现 normalization → 最近已完成 session latest snapshot → 同一 completed trade_date 的 raw/qfq history QC → latest upsert → validation append → enable-last；current single-source/pending 语义与 scheduled latest 保持一致。重复 ADD 仅在历史、latest、validation 全部 reconciliation 完整后幂等。
+- ADD/REENTER 已实现 normalization → 最近已完成 session latest snapshot → 同一 completed trade_date 的 raw/qfq history QC → latest upsert → validation append → enable-last；current single-source/pending 语义与 scheduled latest 保持一致。重试按 history/latest/validation component-wise repair，只有 identity absent/disabled 才最后 enable；全部组件完整且已启用才幂等。
+- 新增回归覆盖：watchlist enable 失败后 ADD retry 只补身份；disabled 且完整的 REENTER 不重复 validation；validation append 失败后 retry 只补 validation + final enable。既有 repeated ADD/CLOSE/SYNC 与 scheduled latest parity 保持通过。
 - WatchlistTable 新行通过真实 spreadsheet metadata 动态扩展到所有表头/新行（含正式 P 列 `历史数据源`），复制既有格式且保留未知列；不硬编码 sheet/table/range，不创建额外 banding。
 - 本任务边界：只做 holdings lifecycle closure；未执行真实 ADD/CLOSE/REENTER/SYNC，未写 production Sheet，未读取账户/券商，不启动 SETUP_02/03、Wave/Decision/Final OOS 或 outcome 研究。
 
@@ -131,6 +132,6 @@ V0.2
 
 ## Next
 
-- PR #44 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2` 已创建但不 merge；其 implementation source head=`3462d22dee5a3e060f79786ab13a8806674afd58`，治理文档已提交到同一 PR。
-- 本地 focused holdings/validation/governance tests=`87/87`，full unittest=`442/442`，compileall 与 `git diff --check` 已通过；最终 PR exact-head CI 与 `OPEN / CLEAN / MERGEABLE` 状态在 handoff 时以 GitHub 现场核对。
+- PR #44 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2` 已创建但不 merge；其 implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`，治理文档将提交到同一 PR。
+- 正式 focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`，full unittest=`445/445`，compileall 与 `git diff --check` 已通过；最终 PR exact-head CI 与 `OPEN / CLEAN / MERGEABLE` 状态以 GitHub 现场核对。
 - 停止在 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`；不执行真实 ADD/CLOSE/REENTER/SYNC，不写 production Sheet，不读取账户/券商，不启动 SETUP_02/03、Wave/Decision、Final OOS 或 outcome 研究，不自动 merge。

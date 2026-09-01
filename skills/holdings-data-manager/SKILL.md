@@ -60,8 +60,8 @@ result = HoldingsDataManager().execute_text(user_request)
 
 ## 生命周期语义
 
-- `ADD`：新身份先完成 symbol/market/source normalization，获取最近已完成市场 session 的 latest snapshot，并以同一个 completed trade date 作为 raw/qfq 历史目标；history coverage/QC 成功后才依次 upsert 最新行情、追加校验记录，最后设 `自选清单.启用=True`。latest、history 或 Sheet 写入失败时不得启用。已启用身份重复 ADD 先做 data-state reconciliation：完整历史不重抓一年，缺失/落后 latest 或校验记录会修复，全部完整后才幂等；已存在但停用的身份自动采用 REENTER 语义。
-- `REENTER`：只接受已有身份；先形成可发布 latest snapshot，再按同一 completed trade date 检查历史覆盖，仅抓取缺失的边界/区间；完整覆盖时不重抓一年；latest、校验记录和历史成功后最后恢复 `启用=True`。失败时保持停用。
+- `ADD`：新身份先完成 symbol/market/source normalization，获取最近已完成市场 session 的 latest snapshot，并以同一个 completed trade date 作为 raw/qfq 历史目标；按组件 reconciliation：history 不完整才同步，latest 不完整或落后才 upsert，validation 不完整才 append，最后才设 `自选清单.启用=True`。latest、history 或 Sheet 写入失败时不得启用。已启用身份重复 ADD 只有在 history/latest/validation 全部完整后才幂等；已存在但停用的身份自动采用 REENTER 语义。
+- `REENTER`：只接受已有身份；先形成可发布 latest snapshot，再按同一 completed trade date 检查历史覆盖，仅抓取缺失的边界/区间；完整覆盖时不重抓一年。latest、校验记录和历史按组件只写缺失状态，全部必要步骤成功后最后恢复 `启用=True`。失败时保持停用；失败后 retry 保留合法已写组件，不重复相同 completed-date validation append。
 - `CLOSE`：只把当前身份从 `启用=True` 改为 `False`。绝不删除 `历史行情_未复权`、`历史行情_前复权`、校验记录、数据源映射或证券身份；重复 CLOSE 为幂等。
 - `SYNC`：补齐目标身份的 raw/qfq 历史缺口，不改变当前启用状态；它不是 ADD，也不会触发 SETUP、Decision 或任何交易动作。
 
@@ -76,6 +76,12 @@ latest-snapshot evaluator、`core` 的日期/行情质量检查、`SheetsClient`
 语义和 `自选清单.启用` 事实源。scheduled `main.run(mode="latest")` 与 ADD/REENTER
 共享日期选择、校验和 row projection；不要调用整个 `main.py --mode full` 作为
 单标的操作。
+
+每次 ADD/REENTER 可以重新读取 provider/evaluate snapshot 以确认当前 completed
+session，但 Sheet repair 必须 component-wise：history、latest、validation 已完整时
+不得因 retry 重写；identity absent/disabled 才执行 enable-last。所有组件完整且已
+enabled 返回 `IDEMPOTENT`。该 retry contract 不新增 request ledger、registry 或
+非 append-only 的删除路径。
 
 ## 禁止动作
 

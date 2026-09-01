@@ -14,11 +14,11 @@
 
 - **当前 Phase / task:** `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`。
 - **具体目标:** 关闭 ADD/REENTER 的 latest + validation 缺口，抽取 scheduled latest 与 holdings 共用的 evaluator/row projection，修复 WatchlistTable 动态扩展，并同步 live command-bus/Skill 语义；不启动任何交易研究、SETUP、Wave 或 Decision。
-- **当前实现:** implementation source head=`3462d22dee5a3e060f79786ab13a8806674afd58`；新增 `latest_snapshot.py`，ADD/REENTER 采用 matching completed trade_date、history QC、latest upsert、validation append、enable-last；重复 ADD 先 reconciliation。
+- **当前实现:** implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；新增 `latest_snapshot.py`，ADD/REENTER 采用 matching completed trade_date、history QC、latest upsert、validation append、enable-last；retry 按 history/latest/validation 分组件 repair，只有 absent/disabled identity 最后 enable。
 - **PR:** #44 `https://github.com/EFSing/stock-data-pipeline/pull/44` 已创建，基于真实 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，不 merge。治理文档提交后 PR HEAD 会变化；精确 HEAD、mergeability、checks 必须按 GitHub 现场事实更新，docs-only commit 不自引用自身 SHA。
 - **已核实 production holdings 事实:** GitHub Issue #42 的历史真实 command 为 `ADD 512400`、`market=CN`、`dry_run=false`、normalized=`512400.SH`、`status=SUCCESS`、`enabled=true`、`history_rows_written=480`；本任务不重复执行该操作。
 - **操作边界:** 不执行真实 `ADD`/`CLOSE`/`REENTER`/`SYNC`，不写 Google Sheets，不读取账户 Secrets/券商/真实持仓，不启动 SETUP_02/03、Wave、Decision、Final OOS、returns/MFE/MAE/P&L 或 outcome 研究，不自动 merge。
-- **停止条件:** 仅在 focused/full tests、compileall、`git diff --check`、scheduled latest parity、PR CLEAN/MERGEABLE、exact-head CI success 与 HANDOFF consistency 全部满足后停止，并返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_READY_FOR_SOL_REVIEW`。
+- **停止条件:** 仅在 focused/full tests、compileall、`git diff --check`、scheduled latest parity、PR CLEAN/MERGEABLE、exact-head CI success 与 HANDOFF consistency 全部满足后停止，并返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_RETRY_IDEMPOTENCY_FIX_FIXED_READY_FOR_SOL_REVIEW`。
 
 ## 2. Current Repository State
 
@@ -26,7 +26,7 @@
 - **default/main branch:** `main`
 - **main/base SHA:** 当前 GitHub `origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`；这是本任务真实 base，当前无其他 open PR（除本任务新建 #44）。
 - **working checkout:** 当前 checkout 为 `codex/holdings-data-manager-lifecycle-closure-v2`，从上述真实 main 创建；治理同步、push 和 CI 后保持 clean。
-- **implementation source head:** `291b5f771a2e00e58bbe689a6f2896f718166d8a`；此 head 只包含从 PR #37 cherry-pick 的 SETUP_01 Decision/Risk code/test/protocol changes，未移植旧 PR 的历史 holdings governance。
+- **implementation source head:** `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；当前 source commit 包含 lifecycle component-wise retry repair 与 A/B/C regressions，治理 docs-only commit 不自引用自身 SHA。
 - **PR handling:** PR #44 为本任务唯一新 PR，当前 `OPEN`、不 merge；旧 PR #43 已 squash merged，为历史事实。最终状态以 GitHub 实时查询为准。
 - **PR:** #41 `CLOSED`、`merged=true`，final head=`919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit=`74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；pre-merge exact-head CI `33377922272` success。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
 - **latest exact-head checks:** base `dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 的 GitHub `test` check `33405352265` success；PR #44 的最终 exact-head test、`OPEN / CLEAN / MERGEABLE` 状态在 handoff 时以 GitHub 现场核对。
@@ -42,6 +42,7 @@
 - Enabled repeated ADD now reconciles history, latest, and validation before returning IDEMPOTENT; complete history is not refetched while missing/latest-lagging state is repaired. CLOSE and SYNC retain their existing boundaries.
 - `SheetsClient.upsert_watchlist()` discovers the actual worksheet/table metadata, expands the real table through all headers/new row including P `历史数据源`, copies existing row format, preserves unmanaged columns, and writes normalized codes with literal-safe RAW input.
 - Added regression coverage for first ADD/REENTER closure, enable-last, shared completed date, provider/latest/history failures, future/stale/sanity fail-closed, repeated ADD repair, scheduled parity, and WatchlistTable metadata/format preservation.
+- Added explicit retry regressions: a failed final watchlist enable retries with only the identity write, a complete disabled REENTER only restores enablement, and a failed validation append retries only validation plus final enable. Existing repeated ADD idempotency, CLOSE, SYNC, and scheduled latest parity remain covered.
 
 - Holdings manager implementation: deterministic symbol/market/source normalization; natural-language parsing for single-symbol `ADD`/`REENTER`/`CLOSE`/`SYNC`; observed-session raw/qfq latest-completed-session one-year initialization and gap-only sync; deterministic 180-bar / 7-day boundary / 14-day observed-gap / exact date-set QC; fail-closed provider/QC/duplicate-date gates; idempotent `自选清单` update; CLOSE history preservation; Beijing-time append-only audit.
 - Repository-local Skill specification and capability documentation are tracked. `SheetsClient.upsert_watchlist()` updates only known headers and preserves unverified `自选清单` columns; no schema/registry change.
@@ -279,12 +280,12 @@
 
 ## 10. Next Action
 
-1. [x] 已从真实 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 建立独立分支并完成 lifecycle implementation source commit `3462d22dee5a3e060f79786ab13a8806674afd58`。
+1. [x] 已从真实 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 建立独立分支并完成 lifecycle implementation source commit `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`。
 2. [x] PR #44 已创建且未 merge：`https://github.com/EFSing/stock-data-pipeline/pull/44`。
-3. [x] focused holdings/validation/governance=`87/87`、full unittest=`442/442`、compileall、`git diff --check` 已通过；本地测试只用 fixture，不执行真实 holdings command。
+3. [x] 正式 focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`，full unittest=`445/445`，compileall、`git diff --check` 已通过；本地测试只用 fixture，不执行真实 holdings command。
 4. [x] 已将本文件、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md` 与相关 Skill/command-bus/architecture 文档提交并推送到 PR #44。
 5. [x] PR #44 最终 exact HEAD、`OPEN / CLEAN / MERGEABLE` 状态和 CI 已在 handoff 时从 GitHub 现场核对；未 merge。
-6. [ ] 所有条件满足后返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_READY_FOR_SOL_REVIEW`。
+6. [ ] 所有条件满足后返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_RETRY_IDEMPOTENCY_FIX_FIXED_READY_FOR_SOL_REVIEW`。
 
 ## 11. Handoff Checklist
 
@@ -301,11 +302,11 @@
 
 - `last_updated_at`: `2026-09-01`
 - `verified_origin_main_sha`: `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`
-- `latest_substantive_implementation_sha`: `3462d22dee5a3e060f79786ab13a8806674afd58`
-- `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`3462d22dee5a3e060f79786ab13a8806674afd58`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`OPEN`; final exact HEAD=`live GitHub evidence at handoff`、mergeability=`CLEAN / MERGEABLE`、exact-head test=`success`；最终 HEAD SHA 不在治理 commit 中自引用
-- `latest_test_result`: focused `87/87`、full unittest `442/442`、compileall、`git diff --check` success
+- `latest_substantive_implementation_sha`: `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`
+- `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`OPEN`; final exact HEAD=`live GitHub evidence at handoff`、mergeability=`CLEAN / MERGEABLE`、exact-head test=`pending after push`；最终 HEAD SHA 不在治理 commit 中自引用
+- `latest_test_result`: formal focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`、full unittest=`445/445`、compileall、`git diff --check` success
 - `scheduled_latest_parity`: shared evaluator/projection regression passed; full fixture latest outputs retain existing verified/single-source/pending semantics
 - `scope_boundary`: real ADD/CLOSE/REENTER/SYNC=`NOT_RUN`; production Sheet=`NOT_WRITTEN`; account/broker=`NOT_ACCESSED`; SETUP/Wave/Decision/Final OOS/outcome research=`NOT_STARTED`
-- `next_action`: stop at `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`; do not merge; return the Sol review marker
+- `next_action`: after push and exact-head CI success, stop at `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`; do not merge; return the retry-idempotency Sol review marker
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

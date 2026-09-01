@@ -93,12 +93,14 @@ state.
 
 Transport reruns do not create a second business truth source. Existing manager
 semantics remain authoritative: history upsert identity is
-`市场+统一代码+交易日期`; ADD/REENTER complete latest snapshot, matching-date
-raw/qfq history QC, latest upsert, validation append, and enable-last in one
-operation. An enabled repeated ADD is idempotent only after reconciliation;
-complete history is not refetched while missing/stale latest or validation is
-repaired. CLOSE only changes `自选清单.启用` and never deletes history,
-REENTER/SYNC fetch only observed-session gaps, and Sheets upsert is key-idempotent.
+`市场+统一代码+交易日期`; ADD/REENTER evaluate the matching completed session
+and reconcile history/latest/validation component-wise before enable-last. An
+enabled repeated ADD is idempotent only after all components are complete;
+complete history/latest/validation are not rewritten while only missing state is
+repaired. A failed enable-last or validation append retains legal prior writes,
+so retry does not create a duplicate completed-date validation record. CLOSE
+only changes `自选清单.启用` and never deletes history, REENTER/SYNC fetch only
+observed-session gaps, and Sheets upsert is key-idempotent.
 The manager regressions plus command-bus fixture tests cover these boundaries.
 
 ## Dry-run verification
