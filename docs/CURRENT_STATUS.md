@@ -10,7 +10,7 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA 为 `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`；该提交为当前 lifecycle closure 的真实 base。此前 PR #43 的 SETUP_01 squash merge 仍是历史事实。
+- GitHub `main` 当前真实 SHA 为 `e1625274a5c4ad267cb710c6b36e057ba6dd5d86`；PR #44 的 lifecycle closure 真实 base 仍为 `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`。此前 PR #43 的 SETUP_01 squash merge 仍是历史事实。
 - Current checkout: `codex/holdings-data-manager-lifecycle-closure-v2`，从 `origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 创建；治理 docs-only commit 不自引用自身 SHA。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01 Decision/Risk v1 已按 Sol 批准完成 merge，当前停止节点为 `SETUP_01_DECISION_RISK_V1_MERGED`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。

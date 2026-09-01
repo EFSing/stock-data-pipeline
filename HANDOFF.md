@@ -24,7 +24,7 @@
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** 当前 GitHub `origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`；这是本任务真实 base，当前无其他 open PR（除本任务新建 #44）。
+- **main/base SHA:** 当前 GitHub `origin/main@e1625274a5c4ad267cb710c6b36e057ba6dd5d86`；PR #44 的原始 base 仍为 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前无其他 open PR（除本任务新建 #44）。
 - **working checkout:** 当前 checkout 为 `codex/holdings-data-manager-lifecycle-closure-v2`，从上述真实 main 创建；治理同步、push 和 CI 后保持 clean。
 - **implementation source head:** `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；当前 source commit 包含 lifecycle component-wise retry repair 与 A/B/C regressions，治理 docs-only commit 不自引用自身 SHA。
 - **PR handling:** PR #44 为本任务唯一新 PR，当前 `OPEN`、不 merge；旧 PR #43 已 squash merged，为历史事实。最终状态以 GitHub 实时查询为准。
@@ -301,7 +301,7 @@
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-01`
-- `verified_origin_main_sha`: `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`
+- `verified_origin_main_sha`: `e1625274a5c4ad267cb710c6b36e057ba6dd5d86`
 - `latest_substantive_implementation_sha`: `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`
 - `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`OPEN`; final exact HEAD=`live GitHub evidence at handoff`、mergeability=`CLEAN / MERGEABLE`、exact-head test=`success`；最终 HEAD SHA 不在治理 commit 中自引用
 - `latest_test_result`: formal focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`、full unittest=`445/445`、compileall、`git diff --check` success
