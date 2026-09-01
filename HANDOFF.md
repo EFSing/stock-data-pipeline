@@ -28,7 +28,7 @@
 - **main/base SHA:** GitHub `main` exact SHA=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；merge-after `CI Test Gate` run=`33494893693` completed/success。
 - **working checkout:** 当前 checkout 为 `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；Decision/Risk implementation 与测试在本分支，replay output 位于 ignored `artifacts/`。
 - **open PR / governance:** PR #45 已 merged；Decision/Risk PR #50 已创建并保持 OPEN，不自动 merge。
-- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；PR #50 head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` 的 `CI Test Gate` run=`33498226860` 与 synthetic shadow run=`33498226908` 均 success。
+- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；PR #50 的 substantive implementation head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`，其 exact-head `CI Test Gate` run=`33498226860` 与 synthetic shadow run=`33498226908` 均 success。最终 docs-only tip 不在本文件自引用，live GitHub state 以 closeout 核对为准。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
 - **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_02 structural lifecycle 已 merged/frozen；本轮只推进 SETUP_02 Decision/Risk，未开启任何 production path。
 
@@ -315,7 +315,7 @@
 4. [x] frozen v2 funnel 已完成：213 CONFIRMED → 213 Decision、0 ENTRY_ALLOWED、0 T+1 attempts；CN/US=`74/139`；identity/ledger/conservation 全部通过。
 5. [x] 运行 focused/full unittest、compileall、`git diff --check`，并核对 SETUP_01 regression/invariance：focused=`33/33`、full=`471/471`。
 6. [x] 更新本交接与治理文档，commit=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`，push 分支并创建独立 Decision/Risk PR #50。
-7. [ ] 在最终 docs commit push 后重新核对 PR #50 `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；最终停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`，不自动 merge。
+7. [x] 最终 docs commit push 后已重新核对 PR #50 `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；当前停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`，不自动 merge。最终 docs-only tip 不自引用，exact head 以 live GitHub closeout 为准。
 
 ## 11. Handoff Checklist
 
@@ -326,7 +326,7 @@
 - [x] 重要 decision 已写入 `docs/DECISION_LOG.md`
 - [x] Important Files Changed 已在当前 task 文档列出
 - [x] PR #45 最终 exact-head CI / mergeability 及 merge-after main CI 现场核对完成
-- [x] Decision/Risk PR #50 exact-head CI 与 mergeability 已现场核对；最终 docs commit 后需再次核对 exact head
+- [x] Decision/Risk PR #50 exact-head CI 与 mergeability 已现场核对，包括最终 docs commit 后的 live closeout
 - [x] 所有当前治理文件与真实 merged main / current branch 状态一致（本文件不自引用最终 docs commit SHA）
 
 ## 12. Last Verified
@@ -340,6 +340,6 @@
 - `latest_decision_funnel_result`: 213 CONFIRMED → 213 Decision; 0 ENTRY_ALLOWED; 0 T+1 attempts; gate `ABOVE_ENTRY_ZONE=97`, `INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`; CN/US=`74/139`; all exact-once/conservation/ledger checks passed
 - `latest_test_result`: focused Decision/Risk + generic shadow + SETUP_01 regression=`33/33`; full unittest=`471/471`; compileall and `git diff --check` passed
 - `scope_boundary`: no returns/forward returns/MFE/MAE/P&L/expectancy/profit factor/Final OOS; no holdings/broker/account/Secrets/Sheets/production calendar; SETUP_02 structural lifecycle, SETUP_01, Wave Engine and SETUP_03 not modified
-- `next_action`: update/push final governance docs, reverify PR #50 exact head and CI/mergeability, then stop at `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`
+- `next_action`: hand off PR #50 to Sol for review; do not merge automatically; remain at `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

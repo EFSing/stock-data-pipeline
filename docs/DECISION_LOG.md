@@ -1239,4 +1239,6 @@ broker, Secrets, Sheets, production calendar, Position Management, Exit, Wave
 `main@f679443d52d767841c0df3ff2e0179648b536fb0`. Its exact-head `CI Test Gate`
 run `33498226860` and `SETUP_02 generic operational shadow` run
 `33498226908` both completed successfully. The PR remains open for Sol review;
-it is not to be merged automatically.
+it is not to be merged automatically. A subsequent governance-only commit is
+intentionally not self-referenced here; its final PR head and exact-head CI
+were rechecked live at closeout.
