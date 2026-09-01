@@ -1109,5 +1109,6 @@ tests.test_holdings_data_manager tests.test_validation tests.test_governance
 
 **Boundary:** No real ADD/CLOSE/REENTER/SYNC was executed, no production Sheet
 was written, no account/broker or credential data was accessed, and no
-SETUP/Wave/Decision/Final OOS/outcome work was started. PR #44 remains open,
-unmerged and subject to exact-head CI/live state verification.
+SETUP/Wave/Decision/Final OOS/outcome work was started. PR #44 remains open
+and unmerged; its final exact-head CI and `OPEN / CLEAN / MERGEABLE` state are
+verified live at handoff.

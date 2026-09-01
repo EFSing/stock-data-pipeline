@@ -285,7 +285,7 @@
 3. [x] 正式 focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`，full unittest=`445/445`，compileall、`git diff --check` 已通过；本地测试只用 fixture，不执行真实 holdings command。
 4. [x] 已将本文件、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md` 与相关 Skill/command-bus/architecture 文档提交并推送到 PR #44。
 5. [x] PR #44 最终 exact HEAD、`OPEN / CLEAN / MERGEABLE` 状态和 CI 已在 handoff 时从 GitHub 现场核对；未 merge。
-6. [ ] 所有条件满足后返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_RETRY_IDEMPOTENCY_FIX_FIXED_READY_FOR_SOL_REVIEW`。
+6. [x] 所有条件满足后返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_RETRY_IDEMPOTENCY_FIX_FIXED_READY_FOR_SOL_REVIEW`。
 
 ## 11. Handoff Checklist
 
@@ -303,7 +303,7 @@
 - `last_updated_at`: `2026-09-01`
 - `verified_origin_main_sha`: `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`
 - `latest_substantive_implementation_sha`: `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`
-- `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`OPEN`; final exact HEAD=`live GitHub evidence at handoff`、mergeability=`CLEAN / MERGEABLE`、exact-head test=`pending after push`；最终 HEAD SHA 不在治理 commit 中自引用
+- `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`OPEN`; final exact HEAD=`live GitHub evidence at handoff`、mergeability=`CLEAN / MERGEABLE`、exact-head test=`success`；最终 HEAD SHA 不在治理 commit 中自引用
 - `latest_test_result`: formal focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`、full unittest=`445/445`、compileall、`git diff --check` success
 - `scheduled_latest_parity`: shared evaluator/projection regression passed; full fixture latest outputs retain existing verified/single-source/pending semantics
 - `scope_boundary`: real ADD/CLOSE/REENTER/SYNC=`NOT_RUN`; production Sheet=`NOT_WRITTEN`; account/broker=`NOT_ACCESSED`; SETUP/Wave/Decision/Final OOS/outcome research=`NOT_STARTED`
