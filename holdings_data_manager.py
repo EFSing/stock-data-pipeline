@@ -579,39 +579,51 @@ class HoldingsDataManager:
             assert target is not None
             start = _calendar_year_before(target)
             existing_report = self._existing_history_report(normalized, start, target)
+            history_complete = existing_report.ok
             latest_complete = self._latest_row_is_current(normalized, snapshot)
             validation_complete = self._validation_row_is_current(normalized, target)
-            all_state_complete = (
-                existing_report.ok and latest_complete and validation_complete
-            )
 
             # Enabled identities are idempotent only after all state has been
             # reconciled.  A missing latest or validation row must be repaired.
-            if existing is not None and self._enabled(existing) and all_state_complete:
+            if (
+                existing is not None
+                and self._enabled(existing)
+                and history_complete
+                and latest_complete
+                and validation_complete
+            ):
                 return self._audit_result(
                     normalized, action, ResultStatus.IDEMPOTENT, True, 0,
                     f"{action.value}幂等：latest、校验记录和历史 coverage 均完整",
                 )
 
-            # History QC is the first write boundary.  No latest or validation
-            # publication happens until both raw/qfq histories are complete.
-            rows_written = self._sync_history(
-                normalized, watch, target, operation_at,
-            )
-            self.client.upsert_latest([project_latest_row(snapshot, operation_at)])
-            self.client.append_rows(
-                "校验记录",
-                VALIDATION_HEADERS,
-                [project_validation_row(snapshot, operation_at)],
-            )
+            # Reconcile each durable component independently.  A previous
+            # attempt may have persisted history/latest/validation before its
+            # final watchlist write failed; retrying must preserve those
+            # complete components and only repair what is still missing.
+            if not history_complete:
+                # History QC is the first write boundary.  No latest or
+                # validation publication happens until history is complete.
+                rows_written = self._sync_history(
+                    normalized, watch, target, operation_at,
+                )
+            if not latest_complete:
+                self.client.upsert_latest([project_latest_row(snapshot, operation_at)])
+            if not validation_complete:
+                self.client.append_rows(
+                    "校验记录",
+                    VALIDATION_HEADERS,
+                    [project_validation_row(snapshot, operation_at)],
+                )
 
             # Enable only after latest and validation writes both succeed.
-            if existing is None:
-                watchlist_row = normalized.watch_row(enabled=True)
-            else:
-                watchlist_row = dict(existing)
-                watchlist_row["启用"] = True
-            self.client.upsert_watchlist(watchlist_row)
+            if existing is None or not self._enabled(existing):
+                if existing is None:
+                    watchlist_row = normalized.watch_row(enabled=True)
+                else:
+                    watchlist_row = dict(existing)
+                    watchlist_row["启用"] = True
+                self.client.upsert_watchlist(watchlist_row)
             action_message = (
                 f"{action.value}成功（按REENTER语义）"
                 if action is Operation.ADD and existing is not None and not self._enabled(existing)

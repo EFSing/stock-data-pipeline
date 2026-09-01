@@ -268,11 +268,15 @@ class HoldingsDataManagerTests(unittest.TestCase):
         first = manager.execute_text("添加 MU")
         self.assertTrue(first.ok)
         self.history_calls.clear()
+        client.events.clear()
 
         result = manager.execute(Operation.ADD, "MU")
 
         self.assertEqual(result.status, ResultStatus.IDEMPOTENT.value)
         self.assertEqual(self.history_calls, [])
+        self.assertNotIn("upsert_latest", client.events)
+        self.assertNotIn("append_rows:校验记录", client.events)
+        self.assertNotIn("upsert_watchlist", client.events)
         self.assertTrue(client.watchlist[0]["启用"])
 
     def test_repeated_add_repairs_missing_latest_without_refetching_complete_history(self):
@@ -291,6 +295,103 @@ class HoldingsDataManagerTests(unittest.TestCase):
         self.assertEqual(client.latest_rows[0]["交易日期"], TARGET)
         self.assertEqual(client.validation_rows[0]["交易日期"], TARGET)
         self.assertTrue(client.watchlist[0]["启用"])
+
+    def test_add_retry_after_watchlist_enable_failure_repairs_only_identity(self):
+        self.history_calls = []
+        client = FakeSheetsClient()
+        manager = self.manager(client)
+        original_upsert_watchlist = client.upsert_watchlist
+        watchlist_attempts = [0]
+
+        def fail_first_watchlist_write(row):
+            watchlist_attempts[0] += 1
+            if watchlist_attempts[0] == 1:
+                raise RuntimeError("watchlist down")
+            return original_upsert_watchlist(row)
+
+        client.upsert_watchlist = fail_first_watchlist_write
+        first = manager.execute(Operation.ADD, "MU")
+        self.assertEqual(first.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertEqual(len(client.latest_rows), 1)
+        self.assertEqual(len(client.validation_rows), 1)
+        self.assertGreater(len(client.histories["历史行情_未复权"]), 0)
+        self.assertGreater(len(client.histories["历史行情_前复权"]), 0)
+
+        self.history_calls.clear()
+        second = manager.execute(Operation.ADD, "MU")
+
+        self.assertEqual(second.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(self.history_calls, [])
+        self.assertEqual(len(client.latest_rows), 1)
+        self.assertEqual(len(client.validation_rows), 1)
+        self.assertTrue(client.watchlist[0]["启用"])
+        self.assertEqual(
+            [event for event in client.events if event != "append_rows:运行日志"].count(
+                "upsert_latest"
+            ),
+            1,
+        )
+        self.assertEqual(
+            [event for event in client.events if event == "append_rows:校验记录"],
+            ["append_rows:校验记录"],
+        )
+
+    def test_disabled_reenter_with_complete_state_only_reenables_identity(self):
+        self.history_calls = []
+        client = FakeSheetsClient()
+        manager = self.manager(client)
+        self.assertEqual(manager.execute(Operation.ADD, "MU").status, ResultStatus.SUCCESS.value)
+        self.assertEqual(manager.execute(Operation.CLOSE, "MU").status, ResultStatus.SUCCESS.value)
+        client.events.clear()
+        client.audit_rows.clear()
+        validation_count = len(client.validation_rows)
+
+        result = manager.execute(Operation.REENTER, "MU")
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(self.history_calls, [("yfinance", "raw", START, TARGET, {"target_trade_date": TARGET}), ("yfinance", "qfq", START, TARGET, {"target_trade_date": TARGET})])
+        self.assertEqual(len(client.validation_rows), validation_count)
+        self.assertEqual(client.events[0], "upsert_watchlist")
+        self.assertNotIn("upsert_history:历史行情_未复权", client.events)
+        self.assertNotIn("upsert_history:历史行情_前复权", client.events)
+        self.assertNotIn("upsert_latest", client.events)
+        self.assertNotIn("append_rows:校验记录", client.events)
+        self.assertTrue(client.watchlist[0]["启用"])
+
+    def test_validation_failure_retry_repairs_only_validation_and_enable(self):
+        self.history_calls = []
+        client = FakeSheetsClient()
+        manager = self.manager(client)
+        original_append_rows = client.append_rows
+        validation_attempts = [0]
+
+        def fail_first_validation_append(sheet_name, headers, rows):
+            if sheet_name == "校验记录":
+                validation_attempts[0] += 1
+                if validation_attempts[0] == 1:
+                    raise RuntimeError("validation sheet down")
+            return original_append_rows(sheet_name, headers, rows)
+
+        client.append_rows = fail_first_validation_append
+        first = manager.execute(Operation.ADD, "MU")
+        self.assertEqual(first.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertEqual(client.validation_rows, [])
+        self.assertEqual(len(client.latest_rows), 1)
+        self.assertGreater(len(client.histories["历史行情_未复权"]), 0)
+        self.assertGreater(len(client.histories["历史行情_前复权"]), 0)
+
+        self.history_calls.clear()
+        second = manager.execute(Operation.ADD, "MU")
+
+        self.assertEqual(second.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(self.history_calls, [])
+        self.assertEqual(len(client.latest_rows), 1)
+        self.assertEqual(len(client.validation_rows), 1)
+        self.assertTrue(client.watchlist[0]["启用"])
+        self.assertEqual(client.events.count("upsert_latest"), 1)
+        self.assertEqual(client.events.count("append_rows:校验记录"), 1)
 
     def test_first_add_is_enable_last_after_latest_and_validation(self):
         self.history_calls = []
