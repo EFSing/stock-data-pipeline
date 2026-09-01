@@ -10,8 +10,8 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实 SHA 为 `a64102a9f222029a3079bd231790c842e074f372`（PR #44 的 squash merge commit）；PR #44 的 lifecycle closure 原始 base 仍为 `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`。此前 PR #43 的 SETUP_01 squash merge 仍是历史事实。
-- Current checkout: `main@a64102a9f222029a3079bd231790c842e074f372`，已快进至 `origin/main`；PR #44 工作分支的历史 provenance 为 `origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`；治理 docs-only commit 不自引用自身 SHA。
+- GitHub `main` 已包含 PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372`；随后已推送必要的 governance closeout docs。PR #44 的 lifecycle closure 原始 base 仍为 `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`。此前 PR #43 的 SETUP_01 squash merge 仍是历史事实。
+- Current checkout: `main`，已与 `origin/main` 同步；PR #44 工作分支的历史 provenance 为 `origin/main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`；治理 docs-only commit 不自引用自身 SHA。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：v4 `PHASE_5J_V4_CAUSAL_ATTRIBUTION_READY_FOR_SOL_DECISION` 已按授权完成 merge；Sol 授权的下一步是 `REDESIGN_PLATFORM_BOUNDARY_SEMANTICS`。当前 v5 已完成唯一 ATR-normalized boundary family 的 clean-holdout qualification，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01 Decision/Risk v1 已按 Sol 批准完成 merge，当前停止节点为 `SETUP_01_DECISION_RISK_V1_MERGED`。`SETUP_03` 仍只是四类 Setup 之一，总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。

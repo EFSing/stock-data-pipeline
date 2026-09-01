@@ -24,12 +24,12 @@
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** 当前 GitHub `origin/main@a64102a9f222029a3079bd231790c842e074f372`；PR #44 的原始 base 仍为 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前无其他 open PR。
-- **working checkout:** 当前 checkout 为 `main@a64102a9f222029a3079bd231790c842e074f372`，已快进至 `origin/main`；PR #44 工作分支的历史 provenance 为原始 base `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前保持 clean。
+- **main/base SHA:** PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372`，已进入 GitHub `main`；随后已推送必要的 governance closeout docs。PR #44 的原始 base 仍为 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前无其他 open PR。
+- **working checkout:** 当前 checkout 为 `main`，已与 `origin/main` 同步；PR #44 工作分支的历史 provenance 为原始 base `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前保持 clean。
 - **implementation source head:** `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；当前 source commit 包含 lifecycle component-wise retry repair 与 A/B/C regressions，治理 docs-only commit 不自引用自身 SHA。
 - **PR handling:** PR #44 为本任务唯一新 PR，已 `MERGED`（`merged=true`），squash merge commit=`a64102a9f222029a3079bd231790c842e074f372`；旧 PR #43 已 squash merged，为历史事实。最终状态以 GitHub 实时查询为准。
 - **PR:** #41 `CLOSED`、`merged=true`，final head=`919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit=`74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；pre-merge exact-head CI `33377922272` success。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
-- **latest exact-head checks:** PR #44 最终 HEAD=`9ae54e8588ea3053da0a363f9dae6f1e45b38f47` 的 `test` check `99773728791` success；merge 后 main exact-head `CI Test Gate` run `33485998503` / `test` check `99786090755` success；PR #44 merge 前状态为 `OPEN / CLEAN / MERGEABLE`，现已 `MERGED`。
+- **latest exact-head checks:** PR #44 最终 HEAD=`9ae54e8588ea3053da0a363f9dae6f1e45b38f47` 的 `test` check `99773728791` success；merge 后 main exact-head `CI Test Gate` run `33485998503` / `test` check `99786090755` success，closeout docs main exact-head `CI Test Gate` run `33486324496` / `test` check `99787129785` success；PR #44 merge 前状态为 `OPEN / CLEAN / MERGEABLE`，现已 `MERGED`。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
 - **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；SETUP_01 Decision/Risk v1 已合并；`HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2` 已完成并合并。Issue #42 仅作历史事实，不因其成功启动新的真实 holdings 操作或研究；不启动下一 Phase。
 
