@@ -25,9 +25,9 @@
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub `main` exact SHA=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`，为本任务启动前现场核对的 clean base；PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372` 为历史事实。
-- **working checkout:** 当前 checkout 为 `codex/setup02-wave3-continuation-v1`，由上述 clean main 创建；本轮新增代码/测试尚未提交，replay output 位于 ignored `artifacts/`。
-- **open PR / governance:** 启动前 GitHub open PR 列表为空；本任务不复用旧 PR。最终 PR 状态以 GitHub 现场查询为准。
-- **base CI:** `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 的 `test` check / workflow run `99787662103` / `33486490335` 为 completed/success；最终本分支 exact-head CI 以 GitHub 现场结果为准。
+- **working checkout:** 当前 checkout 为 `codex/setup02-wave3-continuation-v1`，由上述 clean main 创建；实现、测试和治理 closeout 已提交并 push，replay output 位于 ignored `artifacts/`。
+- **open PR / governance:** 启动前 GitHub open PR 列表为空；当前唯一任务 PR 为 #45，状态 `OPEN / CLEAN / MERGEABLE`。
+- **base CI:** `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 的 `test` check / workflow run `99787662103` / `33486490335` 为 completed/success；本分支 exact-head CI 已现场核对 success。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
 - **current project/phase status:** SETUP_03 仍保持停止状态；本轮只推进 SETUP_02 structural replay 到 Sol review，不开启 SETUP_02 Decision/Risk 或任何 production path。
 

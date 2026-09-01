@@ -11,8 +11,8 @@ V0.2
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`，为本任务启动前现场核对的 clean HEAD；PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372` 为历史事实。
-- Current checkout: `codex/setup02-wave3-continuation-v1`，由上述 clean main 创建；启动前 open PR 列表为空；本分支新增实现与测试尚未提交，replay artifacts 保持 ignored。
-- Main exact-head `test` check=`99787662103` / workflow run=`33486490335` 为 completed/success；本分支 PR/CI 状态待创建后现场核对。
+- Current checkout: `codex/setup02-wave3-continuation-v1`，由上述 clean main 创建；实现、测试和治理 closeout 已提交并 push，replay artifacts 保持 ignored。
+- Main exact-head `test` check=`99787662103` / workflow run=`33486490335` 为 completed/success；PR #45 exact-head CI 已现场核对 success，PR 当前为 OPEN/CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01 Decision/Risk v1 保持已合并；当前授权任务为 `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`，停止节点为 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
