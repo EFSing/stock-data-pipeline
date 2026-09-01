@@ -16,6 +16,7 @@ from core import (
     validate_quotes,
 )
 from main import as_ratio, beijing_now, select_history_series, wanted_markets_for_group
+from latest_snapshot import evaluate_latest_snapshot, project_latest_row
 from providers import (
     PROVIDERS,
     _as_date,
@@ -50,6 +51,63 @@ def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: dat
 
 
 class ValidationTests(unittest.TestCase):
+    def test_shared_latest_snapshot_matches_verified_scheduled_projection(self):
+        fetched_at = datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc)
+        snapshot = evaluate_latest_snapshot(
+            [quote("yfinance", day=date(2026, 8, 28))],
+            [quote("Tencent", day=date(2026, 8, 28))],
+            fetched_at=fetched_at,
+            timezone_name="America/New_York",
+            close_time_text="16:00",
+            close_tolerance=0.0005,
+            volume_tolerance=0.02,
+            primary_source="yfinance",
+            verifier_source="Tencent",
+        )
+
+        self.assertEqual(snapshot.completed_trade_date, date(2026, 8, 28))
+        self.assertEqual(snapshot.displayed_status, "已验证")
+        self.assertTrue(snapshot.confirmed)
+        row = project_latest_row(snapshot, fetched_at)
+        self.assertEqual(row["交易日期"], date(2026, 8, 28))
+        self.assertEqual(row["抓取时间"], fetched_at)
+
+    def test_shared_latest_snapshot_allows_current_single_source_pending_semantics(self):
+        fetched_at = datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc)
+        snapshot = evaluate_latest_snapshot(
+            [quote("yfinance", day=date(2026, 8, 28))],
+            [quote("Tencent", day=date(2026, 8, 27))],
+            fetched_at=fetched_at,
+            timezone_name="America/New_York",
+            close_time_text="16:00",
+            close_tolerance=0.0005,
+            volume_tolerance=0.02,
+            primary_source="yfinance",
+            verifier_source="Tencent",
+        )
+
+        self.assertEqual(snapshot.validation.status, "待复核")
+        self.assertEqual(snapshot.chosen.trade_date, date(2026, 8, 28))
+        self.assertEqual(snapshot.displayed_status, "待复核")
+        self.assertTrue(snapshot.publishable)
+
+    def test_shared_latest_snapshot_rejects_calendar_stale_source_for_lifecycle(self):
+        fetched_at = datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc)
+        snapshot = evaluate_latest_snapshot(
+            [quote("yfinance", day=date(2026, 8, 26))],
+            [quote("Tencent", day=date(2026, 8, 26))],
+            fetched_at=fetched_at,
+            timezone_name="America/New_York",
+            close_time_text="16:00",
+            close_tolerance=0.0005,
+            volume_tolerance=0.02,
+            primary_source="yfinance",
+            verifier_source="Tencent",
+        )
+
+        self.assertFalse(snapshot.publishable)
+        self.assertIn("freshness guard", snapshot.blocking_reason)
+
     def test_pipeline_timestamp_uses_beijing_time(self):
         current = beijing_now()
         self.assertEqual(current.utcoffset(), timedelta(hours=8))

@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
@@ -66,17 +67,25 @@ class FakeSheetsClient:
             "历史行情_未复权": list(raw or []),
             "历史行情_前复权": list(adjusted or []),
         }
+        self.latest_rows = []
+        self.validation_rows = []
         self.audit_rows = []
         self.watchlist_writes = []
+        self.events = []
 
     def records(self, sheet_name):
         if sheet_name == "自选清单":
             return list(self.watchlist)
         if sheet_name in self.histories:
             return list(self.histories[sheet_name])
+        if sheet_name == "最新行情":
+            return list(self.latest_rows)
+        if sheet_name == "校验记录":
+            return list(self.validation_rows)
         return []
 
     def upsert_watchlist(self, row):
+        self.events.append("upsert_watchlist")
         self.watchlist_writes.append(dict(row))
         identity = (row.get("统一代码"), row.get("市场"))
         for index, existing in enumerate(self.watchlist):
@@ -89,6 +98,7 @@ class FakeSheetsClient:
         return 1
 
     def upsert_history(self, sheet_name, rows):
+        self.events.append(f"upsert_history:{sheet_name}")
         incoming = list(rows)
         current = {
             (row.get("市场"), row.get("统一代码"), row.get("交易日期")): row
@@ -101,8 +111,20 @@ class FakeSheetsClient:
         self.histories[sheet_name] = list(current.values())
         return len(incoming)
 
+    def upsert_latest(self, rows):
+        self.events.append("upsert_latest")
+        incoming = list(rows)
+        current = {row.get("统一代码"): row for row in self.latest_rows}
+        current.update({row.get("统一代码"): row for row in incoming})
+        self.latest_rows = list(current.values())
+        return len(incoming)
+
     def append_rows(self, sheet_name, headers, rows):
-        self.audit_rows.extend(rows)
+        self.events.append(f"append_rows:{sheet_name}")
+        if sheet_name == "校验记录":
+            self.validation_rows.extend(rows)
+        elif sheet_name == "运行日志":
+            self.audit_rows.extend(rows)
         return len(rows)
 
 
@@ -223,6 +245,18 @@ class HoldingsDataManagerTests(unittest.TestCase):
             [(call[1], call[2], call[3]) for call in self.history_calls],
             [("raw", START, TARGET), ("qfq", START, TARGET)],
         )
+        self.assertEqual(client.latest_rows[0]["交易日期"], TARGET)
+        self.assertEqual(client.validation_rows[0]["交易日期"], TARGET)
+        self.assertEqual(
+            client.events[:5],
+            [
+                "upsert_history:历史行情_未复权",
+                "upsert_history:历史行情_前复权",
+                "upsert_latest",
+                "append_rows:校验记录",
+                "upsert_watchlist",
+            ],
+        )
         self.assertEqual(len(client.audit_rows), 1)
         self.assertIn("action=ADD", client.audit_rows[0]["消息"])
         self.assertEqual(client.audit_rows[0]["运行时间"].tzinfo, BEIJING)
@@ -240,6 +274,105 @@ class HoldingsDataManagerTests(unittest.TestCase):
         self.assertEqual(result.status, ResultStatus.IDEMPOTENT.value)
         self.assertEqual(self.history_calls, [])
         self.assertTrue(client.watchlist[0]["启用"])
+
+    def test_repeated_add_repairs_missing_latest_without_refetching_complete_history(self):
+        self.history_calls = []
+        client = FakeSheetsClient()
+        manager = self.manager(client)
+        self.assertEqual(manager.execute(Operation.ADD, "MU").status, ResultStatus.SUCCESS.value)
+        client.latest_rows.clear()
+        client.validation_rows.clear()
+        self.history_calls.clear()
+
+        result = manager.execute(Operation.ADD, "MU")
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(self.history_calls, [])
+        self.assertEqual(client.latest_rows[0]["交易日期"], TARGET)
+        self.assertEqual(client.validation_rows[0]["交易日期"], TARGET)
+        self.assertTrue(client.watchlist[0]["启用"])
+
+    def test_first_add_is_enable_last_after_latest_and_validation(self):
+        self.history_calls = []
+        client = FakeSheetsClient()
+        result = self.manager(client).execute(Operation.ADD, "INTC")
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS.value)
+        self.assertFalse(any(event == "upsert_watchlist" for event in client.events[:4]))
+        self.assertEqual(client.events[2:5], [
+            "upsert_latest",
+            "append_rows:校验记录",
+            "upsert_watchlist",
+        ])
+
+    def test_reenter_publishes_latest_and_validation_before_reenabling(self):
+        self.history_calls = []
+        client = FakeSheetsClient(
+            watchlist=[us_watch(False)],
+            raw=session_history("MU", "US", START, TARGET, "未复权"),
+            adjusted=session_history("MU", "US", START, TARGET, "前复权"),
+        )
+
+        result = self.manager(client).execute(Operation.REENTER, "MU")
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS.value)
+        self.assertEqual(client.latest_rows[0]["交易日期"], TARGET)
+        self.assertEqual(client.validation_rows[0]["交易日期"], TARGET)
+        self.assertEqual(client.events[-4:-1], [
+            "upsert_latest",
+            "append_rows:校验记录",
+            "upsert_watchlist",
+        ])
+
+    def test_latest_failure_does_not_enable_after_history_is_valid(self):
+        self.history_calls = []
+        client = FakeSheetsClient()
+
+        def latest_failure(rows):
+            raise RuntimeError("latest sheet down")
+
+        client.upsert_latest = latest_failure
+        result = self.manager(client).execute(Operation.ADD, "INTC")
+
+        self.assertEqual(result.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertEqual(client.validation_rows, [])
+        self.assertGreater(len(client.histories["历史行情_未复权"]), 0)
+        self.assertIn("latest sheet down", result.message)
+
+    def test_latest_sanity_failure_does_not_enable_or_publish(self):
+        client = FakeSheetsClient()
+
+        def invalid_latest(source, watch, end, retry_count, retry_wait):
+            return [replace(
+                quote(watch["统一代码"], watch["市场"], TARGET, source),
+                open=999.0,
+            )]
+
+        result = self.manager(client, fetch_latest=invalid_latest).execute(
+            Operation.ADD, "INTC"
+        )
+
+        self.assertEqual(result.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertEqual(client.latest_rows, [])
+        self.assertEqual(client.validation_rows, [])
+        self.assertEqual(client.histories["历史行情_未复权"], [])
+
+    def test_future_latest_is_fail_closed_when_no_completed_snapshot_exists(self):
+        client = FakeSheetsClient()
+
+        def future_latest(source, watch, end, retry_count, retry_wait):
+            return [quote(watch["统一代码"], watch["市场"], TARGET + timedelta(days=2), source)]
+
+        result = self.manager(client, fetch_latest=future_latest).execute(
+            Operation.ADD, "INTC"
+        )
+
+        self.assertEqual(result.status, ResultStatus.FAILED.value)
+        self.assertEqual(client.watchlist, [])
+        self.assertEqual(client.latest_rows, [])
+        self.assertEqual(client.histories["历史行情_未复权"], [])
 
     def test_close_preserves_all_history_and_repeated_close_is_idempotent(self):
         self.history_calls = []
@@ -318,6 +451,8 @@ class HoldingsDataManagerTests(unittest.TestCase):
         self.assertEqual(client.watchlist, [])
         self.assertEqual(client.histories["历史行情_未复权"], [])
         self.assertEqual(client.histories["历史行情_前复权"], [])
+        self.assertEqual(client.latest_rows, [])
+        self.assertEqual(client.validation_rows, [])
         self.assertIn("qfq历史抓取失败", client.audit_rows[0]["消息"])
 
     def test_duplicate_history_date_fails_closed_and_does_not_enable(self):
@@ -594,6 +729,90 @@ class SheetsWatchlistTests(unittest.TestCase):
 
         self.assertEqual(worksheet.values[1][3], "keep")
         self.assertEqual(worksheet.updated[1], "A2")
+
+    def test_new_watchlist_row_expands_real_table_through_p_column_and_copies_format(self):
+        headers = [
+            "启用", "市场", "主数据源", "校验数据源", "时区", "收盘时间",
+            "统一代码", "名称", "币种", "BaoStock代码", "yfinance代码",
+            "AKShare代码", "重试次数", "重试等待秒", "未管理列", "历史数据源",
+        ]
+
+        class Worksheet:
+            title = "自选清单"
+
+            def __init__(self):
+                self.values = [headers, ["TRUE", "US", "yfinance", "Tencent", "America/New_York", "16:00", "MU", "MU", "USD", "", "MU", "", "3", "5", "keep", "yfinance"]]
+                self.updates = []
+
+            def get_all_values(self):
+                return self.values
+
+            def update(self, values, range_name, value_input_option=None):
+                self.updates.append((values, range_name, value_input_option))
+                row_number = int(range_name[1:])
+                while len(self.values) < row_number:
+                    self.values.append([])
+                self.values[row_number - 1] = values[0]
+
+            def append_row(self, values, value_input_option=None):
+                raise AssertionError("new identities must be written inside WatchlistTable")
+
+        class Book:
+            def __init__(self, worksheet):
+                self._worksheet = worksheet
+                self.batch_requests = []
+
+            def worksheet(self, name):
+                self.assert_name = name
+                return self._worksheet
+
+            def fetch_sheet_metadata(self):
+                return {
+                    "sheets": [{
+                        "properties": {"sheetId": 731, "title": "自选清单"},
+                        "tables": [{
+                            "tableId": "table-from-metadata",
+                            "name": "WatchlistTable",
+                            "range": {
+                                "sheetId": 731,
+                                "startRowIndex": 0,
+                                "endRowIndex": 2,
+                                "startColumnIndex": 0,
+                                "endColumnIndex": 15,
+                            },
+                        }],
+                    }]
+                }
+
+            def batch_update(self, body):
+                self.batch_requests.append(body)
+
+        worksheet = Worksheet()
+        book = Book(worksheet)
+        client = object.__new__(SheetsClient)
+        client.book = book
+
+        client.upsert_watchlist({
+            "启用": True,
+            "市场": "CN",
+            "统一代码": "000001.SZ",
+            "历史数据源": "yfinance",
+        })
+
+        update_request = book.batch_requests[0]["requests"][0]["updateTable"]
+        self.assertEqual(update_request["table"]["tableId"], "table-from-metadata")
+        self.assertEqual(update_request["table"]["range"]["endColumnIndex"], len(headers))
+        self.assertEqual(update_request["table"]["range"]["endRowIndex"], 3)
+        copy_request = book.batch_requests[1]["requests"][0]["copyPaste"]
+        self.assertEqual(copy_request["source"]["sheetId"], 731)
+        self.assertEqual(copy_request["destination"]["sheetId"], 731)
+        self.assertEqual(copy_request["pasteType"], "PASTE_FORMAT")
+        self.assertFalse(any("addBanding" in request for body in book.batch_requests for request in body["requests"]))
+        self.assertEqual(worksheet.updates[0][1], "A3")
+        self.assertEqual(worksheet.updates[0][2], "RAW")
+        self.assertEqual(worksheet.values[2][6], "000001.SZ")
+        self.assertEqual(worksheet.values[2][15], "yfinance")
+        self.assertEqual(worksheet.values[2][14], "")
 
     def test_history_upsert_identity_includes_market(self):
         client = object.__new__(SheetsClient)
