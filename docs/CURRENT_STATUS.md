@@ -132,5 +132,5 @@ V0.2
 ## Next
 
 - PR #44 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2` 已创建但不 merge；其 implementation source head=`3462d22dee5a3e060f79786ab13a8806674afd58`，治理文档已提交到同一 PR。
-- 本地 focused holdings/validation/governance tests=`87/87`，full unittest=`442/442`，compileall 与 `git diff --check` 已通过；PR exact-head CI 仍需在最终 governance commit 后读取。
+- 本地 focused holdings/validation/governance tests=`87/87`，full unittest=`442/442`，compileall 与 `git diff --check` 已通过；最终 PR exact-head CI 与 `OPEN / CLEAN / MERGEABLE` 状态在 handoff 时以 GitHub 现场核对。
 - 停止在 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`；不执行真实 ADD/CLOSE/REENTER/SYNC，不写 production Sheet，不读取账户/券商，不启动 SETUP_02/03、Wave/Decision、Final OOS 或 outcome 研究，不自动 merge。

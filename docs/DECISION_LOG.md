@@ -1072,5 +1072,6 @@ base and remains unmerged. Focused holdings/validation/governance tests pass
 `87/87`, full unittest passes `442/442`, and compileall plus `git diff --check`
 pass. Local tests use fixtures only: no real ADD/CLOSE/REENTER/SYNC, no
 production Sheet/account/broker access, and no SETUP/Wave/Decision/Final OOS
-or outcome research. Final exact-head CI and mergeability remain PR #44
-closeout gates.
+or outcome research. PR #44 remains unmerged; final exact-head CI and
+`OPEN / CLEAN / MERGEABLE` state are live GitHub evidence at handoff. Do not
+merge automatically.

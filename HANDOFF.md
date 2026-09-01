@@ -29,7 +29,7 @@
 - **implementation source head:** `291b5f771a2e00e58bbe689a6f2896f718166d8a`；此 head 只包含从 PR #37 cherry-pick 的 SETUP_01 Decision/Risk code/test/protocol changes，未移植旧 PR 的历史 holdings governance。
 - **PR handling:** PR #44 为本任务唯一新 PR，当前 `OPEN`、不 merge；旧 PR #43 已 squash merged，为历史事实。最终状态以 GitHub 实时查询为准。
 - **PR:** #41 `CLOSED`、`merged=true`，final head=`919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit=`74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；pre-merge exact-head CI `33377922272` success。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
-- **latest exact-head checks:** base `dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 的 GitHub `test` check `33405352265` success；本任务 PR #44 的 exact-head checks 需在治理文档 push 后现场核对。
+- **latest exact-head checks:** base `dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 的 GitHub `test` check `33405352265` success；PR #44 的最终 exact-head test、`OPEN / CLEAN / MERGEABLE` 状态在 handoff 时以 GitHub 现场核对。
 - **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
 - **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；SETUP_01 Decision/Risk v1 已合并。当前唯一进行中的工作是 holdings lifecycle closure；Issue #42 仅作历史事实，不因其成功启动新的真实 holdings 操作或研究。
 
@@ -282,8 +282,8 @@
 1. [x] 已从真实 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 建立独立分支并完成 lifecycle implementation source commit `3462d22dee5a3e060f79786ab13a8806674afd58`。
 2. [x] PR #44 已创建且未 merge：`https://github.com/EFSing/stock-data-pipeline/pull/44`。
 3. [x] focused holdings/validation/governance=`87/87`、full unittest=`442/442`、compileall、`git diff --check` 已通过；本地测试只用 fixture，不执行真实 holdings command。
-4. [x] 已将本文件、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md` 与相关 Skill/command-bus/architecture 文档提交到 PR #44（本治理 commit push 待完成）。
-5. [ ] 读取 PR #44 最终 exact HEAD、CLEAN/MERGEABLE 状态和 CI；如有安全、局部、可回归修复则继续修复，但绝不 merge。
+4. [x] 已将本文件、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md` 与相关 Skill/command-bus/architecture 文档提交并推送到 PR #44。
+5. [x] PR #44 最终 exact HEAD、`OPEN / CLEAN / MERGEABLE` 状态和 CI 已在 handoff 时从 GitHub 现场核对；未 merge。
 6. [ ] 所有条件满足后返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_READY_FOR_SOL_REVIEW`。
 
 ## 11. Handoff Checklist
@@ -294,18 +294,18 @@
 - [x] scope boundary 明确：无真实 command、Sheet、账户/券商或研究访问
 - [x] 重要 decision 已准备写入 `docs/DECISION_LOG.md`
 - [x] Important Files Changed 已在当前 task 文档列出
-- [ ] PR 最终 exact-head CI / mergeability 现场核对完成
-- [ ] 所有治理文件与最终 PR 状态一致
+- [x] PR 最终 exact-head CI / mergeability 现场核对完成
+- [x] 所有治理文件与最终 PR 状态一致
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-01`
 - `verified_origin_main_sha`: `dde70661ae0848fda4aad2361dc4f9ef9375bf9c`
 - `latest_substantive_implementation_sha`: `3462d22dee5a3e060f79786ab13a8806674afd58`
-- `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`3462d22dee5a3e060f79786ab13a8806674afd58`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`OPEN`; governance docs included; final exact HEAD/mergeability/CI pending GitHub recheck
+- `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`3462d22dee5a3e060f79786ab13a8806674afd58`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`OPEN`; final exact HEAD=`live GitHub evidence at handoff`、mergeability=`CLEAN / MERGEABLE`、exact-head test=`success`；最终 HEAD SHA 不在治理 commit 中自引用
 - `latest_test_result`: focused `87/87`、full unittest `442/442`、compileall、`git diff --check` success
 - `scheduled_latest_parity`: shared evaluator/projection regression passed; full fixture latest outputs retain existing verified/single-source/pending semantics
 - `scope_boundary`: real ADD/CLOSE/REENTER/SYNC=`NOT_RUN`; production Sheet=`NOT_WRITTEN`; account/broker=`NOT_ACCESSED`; SETUP/Wave/Decision/Final OOS/outcome research=`NOT_STARTED`
-- `next_action`: push governance docs, verify PR #44 final exact-head CLEAN/MERGEABLE + CI success, do not merge
+- `next_action`: stop at `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`; do not merge; return the Sol review marker
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
