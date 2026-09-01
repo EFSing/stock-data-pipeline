@@ -12,30 +12,37 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`（已完成，PR #44 已 squash merged）。
-- **具体目标:** 关闭 ADD/REENTER 的 latest + validation 缺口，抽取 scheduled latest 与 holdings 共用的 evaluator/row projection，修复 WatchlistTable 动态扩展，并同步 live command-bus/Skill 语义；不启动任何交易研究、SETUP、Wave 或 Decision。
-- **当前实现:** implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；新增 `latest_snapshot.py`，ADD/REENTER 采用 matching completed trade_date、history QC、latest upsert、validation append、enable-last；retry 按 history/latest/validation 分组件 repair，只有 absent/disabled identity 最后 enable。
-- **PR:** #44 `https://github.com/EFSing/stock-data-pipeline/pull/44` 基于原始 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 创建，已 squash merged；真实 merge commit=`a64102a9f222029a3079bd231790c842e074f372`。本任务已完成，不启动下一 Phase；精确 HEAD、mergeability、checks 以 GitHub 现场事实为准，治理文档不自引用自身 SHA。
-- **已核实 production holdings 事实:** GitHub Issue #42 的历史真实 command 为 `ADD 512400`、`market=CN`、`dry_run=false`、normalized=`512400.SH`、`status=SUCCESS`、`enabled=true`、`history_rows_written=480`；本任务不重复执行该操作。
-- **操作边界:** 不执行真实 `ADD`/`CLOSE`/`REENTER`/`SYNC`，不写 Google Sheets，不读取账户 Secrets/券商/真实持仓，不启动 SETUP_02/03、Wave、Decision、Final OOS、returns/MFE/MAE/P&L 或 outcome 研究，不自动 merge。
-- **停止条件:** focused/full tests、compileall、`git diff --check`、scheduled latest parity、PR CLEAN/MERGEABLE、exact-head CI success 与 HANDOFF consistency 均已满足；本任务已完成并 squash merged，返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_MERGED`。
+- **当前 Phase / task:** `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`（实现完成，等待 Sol review）。
+- **唯一目标:** 在最新 clean `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 上实现独立的 Wave 3 continuation structural lifecycle，并把 `DEVELOPMENT_EXPOSED` replay 接到 Sol decision node。
+- **实现范围:** `trading/setup02.py`、`trading/setup02_replay.py`、`scripts/run_setup02_structural_replay.py` 与 `tests/test_setup02.py`；SETUP_02 只消费现有 Wave Engine 的 primary `WAVE_3_CONTINUATION_CANDIDATE` 与 `setup02_context_eligible=true`，不修改 Wave Engine、SETUP_01 或 Decision/Risk。
+- **分支 / PR:** 当前分支为 `codex/setup02-wave3-continuation-v1`，源自已核实的 clean `main`；计划 PR 标题为 `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`，不自动 merge。PR 创建及 exact-head CI/mergeability 仍待本轮后续步骤。
+- **当前 replay pin:** frozen local `DEVELOPMENT_EXPOSED` dataset `SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`；此处仅作结构性 development evidence，不是 formal validation 或 Final OOS。
+- **操作边界:** 不实现 SETUP_02 Decision/Risk、holdings、Entry、Exit、production、outcome/returns/MFE/MAE/P&L/expectancy/OOS、production calendar、Sheets 或自动 merge；不重开 SETUP_03，不改 SETUP_01。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、replay identity audit、PR `OPEN/CLEAN/MERGEABLE` 与 exact-head CI success 完成后，停止在 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`，不进入 Decision/Risk。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372`，已进入 GitHub `main`；随后已推送必要的 governance closeout docs。PR #44 的原始 base 仍为 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前无其他 open PR。
-- **working checkout:** 当前 checkout 为 `main`，已与 `origin/main` 同步；PR #44 工作分支的历史 provenance 为原始 base `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，当前保持 clean。
-- **implementation source head:** `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；当前 source commit 包含 lifecycle component-wise retry repair 与 A/B/C regressions，治理 docs-only commit 不自引用自身 SHA。
-- **PR handling:** PR #44 为本任务唯一新 PR，已 `MERGED`（`merged=true`），squash merge commit=`a64102a9f222029a3079bd231790c842e074f372`；旧 PR #43 已 squash merged，为历史事实。最终状态以 GitHub 实时查询为准。
-- **PR:** #41 `CLOSED`、`merged=true`，final head=`919cbfc7be531d42ffdfbda508bd9c86ab1902c9`，squash merge commit=`74dc7d2fc1ef26d27b663eba7b3321a64e801ead`；pre-merge exact-head CI `33377922272` success。PR #39 已 `MERGED`，merge commit=`c40e278e307ce64c126ef899b4db9fa26c47bb61`。
-- **latest exact-head checks:** PR #44 最终 HEAD=`9ae54e8588ea3053da0a363f9dae6f1e45b38f47` 的 `test` check `99773728791` success；merge 后 main exact-head `CI Test Gate` run `33485998503` / `test` check `99786090755` success，closeout docs main exact-head `CI Test Gate` run `33486324496` / `test` check `99787129785` success；PR #44 merge 前状态为 `OPEN / CLEAN / MERGEABLE`，现已 `MERGED`。
-- **working tree expected state:** 治理文档同步后工作区保持 clean；ignored `artifacts/` 保持 ignored；development replay 与 shadow artifact 仅作审计核验，不进入生产 Sheet。
-- **current project/phase status:** `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` 保持不变；SETUP_01 Decision/Risk v1 已合并；`HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2` 已完成并合并。Issue #42 仅作历史事实，不因其成功启动新的真实 holdings 操作或研究；不启动下一 Phase。
+- **main/base SHA:** GitHub `main` exact SHA=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`，为本任务启动前现场核对的 clean base；PR #44 的真实 squash merge commit=`a64102a9f222029a3079bd231790c842e074f372` 为历史事实。
+- **working checkout:** 当前 checkout 为 `codex/setup02-wave3-continuation-v1`，由上述 clean main 创建；本轮新增代码/测试尚未提交，replay output 位于 ignored `artifacts/`。
+- **open PR / governance:** 启动前 GitHub open PR 列表为空；本任务不复用旧 PR。最终 PR 状态以 GitHub 现场查询为准。
+- **base CI:** `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 的 `test` check / workflow run `99787662103` / `33486490335` 为 completed/success；最终本分支 exact-head CI 以 GitHub 现场结果为准。
+- **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
+- **current project/phase status:** SETUP_03 仍保持停止状态；本轮只推进 SETUP_02 structural replay 到 Sol review，不开启 SETUP_02 Decision/Risk 或任何 production path。
 
 ## 3. Completed Work
 
-### Current lifecycle closure implementation
+### Current SETUP_02 structural implementation
+
+- Added an independent immutable SETUP_02 evaluator and strict-prefix replay layer. The evaluator consumes only the existing Wave Engine primary `WAVE_3_CONTINUATION_CANDIDATE` with `setup02_context_eligible=true`; it does not alter Wave Engine semantics.
+- Context eligibility is causal `LOW0 → HIGH1 → LOW2 → HIGH3`, with `HIGH3 > HIGH1`, `LOW2 > LOW0`, confirmed daily/weekly `UPTREND`, and the Wave Engine's existing latest confirmed higher-low `structural_invalidation`. `continuation_high=HIGH3`.
+- Lifecycle is `NONE → WATCH ↔ ARMED → CONFIRMED`, with `WATCH/ARMED → FAILED`; recovery is `invalidation + 0.5 × (HIGH3 - invalidation)`, equality at `HIGH3` is not confirmation, and confirmation requires the first daily close strictly above `HIGH3`.
+- Terminal failures are fail-closed for structural invalidation, weekly/daily structure loss, primary ABC/downtrend/invalid context, and loss of primary eligibility. Ordinary context refresh does not fabricate a failure; terminal lifecycles do not emit a second event.
+- Fibonacci uses existing canonical levels/regions descriptively only. Event identities are deterministic in the `SETUP_02` namespace and emitted only on first-entry terminal `CONFIRMED`/`FAILED`.
+- Added structural-only `DEVELOPMENT_EXPOSED` reporting: state-day counts, terminal counts, CN/US split, per-symbol counts, primary-wave distribution, current candidates, failure/block reasons, Fib regions, and identity audit. No outcome, return, P&L, or OOS field is produced.
+
+### Previous holdings lifecycle closure implementation
 
 - Added `latest_snapshot.py` as the minimal shared latest evaluator/contract and row projection used by scheduled `main.run(mode="latest")` and `HoldingsDataManager`; scheduled latest fixture semantics remain green.
 - ADD/REENTER now normalize identity, obtain the latest completed session, reuse latest validation/freshness/sanity semantics, use that exact trade date for raw/qfq coverage/QC, publish latest, append validation, and enable the watchlist row last. Failures leave a new identity disabled; legal history is retained for idempotent retry.
@@ -92,25 +99,27 @@
 
 ### Required Next
 
-- [x] 从最新 `origin/main@e5d967d3936ba7731c8bd3b0bb8212833733f2bd` 建立 clean reconciliation branch，并确认 PR #37 的 substantive Decision/Risk changes 尚未进入当前 main。
-- [x] 最小移植 PR #37 的 Decision/Risk implementation、session identity、target provenance、generic synthetic shadow、protocol 与 regression；未移植旧 holdings 状态或旧 base docs。
-- [x] 更正 production command governance：Issue #42 的真实 `ADD 512400` 成功事实已写入恢复快照；不修改 holdings manager、command bus 或 Sheets 业务逻辑。
-- [x] SETUP_01/Wave、Decision/Risk、exact-once、T→T+1 OPEN、target-before-RR、terminal、gap、fail-closed、reporting、funnel invariance focused tests 及 full unittest 通过；compileall/diff-check 通过。
-- [x] DEVELOPMENT_EXPOSED funnel 与 generic operational shadow 通过；counts delta=0，target provenance 与 execution-ledger invariant 已记录。
-- [x] reconciliation branch 已 push，PR #43 已按 Sol 批准 squash merge；旧 #37 已关闭且未合并；pre-merge exact-head CI/shadow 与 merge-after main exact-head CI 均 success，main/worktree 已刷新并保持 clean。
+- [x] 从现场核对的 clean `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 建立 `codex/setup02-wave3-continuation-v1`，并确认启动前无 open PR。
+- [x] 实现独立 SETUP_02 structural evaluator/replay；只接受 primary `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`，不修改 Wave Engine 或 SETUP_01。
+- [x] 固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED`、严格高点确认、Wave Engine structural invalidation、weekly/daily/primary failure blocks、terminal once-only event identity 与 future append invariance。
+- [x] 完成冻结 DEVELOPMENT_EXPOSED structure-only replay：40/40 symbols、84,284 days、494 terminal events、0 errors、identity audit exactly-once。
+- [ ] 更新 protocol/status/decision docs，运行 focused/full unittest、compileall、`git diff --check`，提交并 push 分支。
+- [ ] 创建 PR，等待 exact-head CI，核对 `OPEN / CLEAN / MERGEABLE`；不 merge。
 
 ### Deferred
 
-- SETUP_01 production integration、任何 outcome/backtest 与独立 SETUP_02 实现，须等待新的 Sol 决策；本任务不进入下一 Phase。
+- SETUP_02 Decision/Risk、Entry/Exit/holdings/production integration、任何 outcome/backtest/OOS 与 production calendar，须等待新的 Sol 决策；本任务停在 structural review。
+- SETUP_01 production integration 与任何 SETUP_01 语义修改不属于本任务。
 - 如需继续 SETUP_03，等待新的明确研究决策并注册新 protocol/version；当前结果不授权任何 threshold 或 production 选择。
 - Final OOS、formal Phase 5K-B1、IBKR readiness 和任何 production parameter/strategy change。
 
 ### Prohibited For Now
 
-- 不创建新的开发 PR；不危险 rebase 旧 PR，不改变已合并的 SETUP_01 Decision/Risk v1。
-- 不启动 SETUP_02，不重开 SETUP_03 structural development，不进入 outcome/backtest/OOS。
+- 不实现 SETUP_02 Decision/Risk、Entry、Exit、holdings、production 或 outcome research；不进入 Final OOS。
+- 不修改现有 Wave Engine、SETUP_01、Fibonacci canonical definitions、SETUP_01 Decision/Risk、SETUP_03 或 production calendars。
+- 不危险 rebase 旧 PR；本任务只能创建本分支的单一 SETUP_02 PR，不自动 merge。
 - 不读取真实持仓、账户数量、成本、NAV、盈亏、broker、Google Secrets 或 holdings-derived private data；不运行 private holdings shadow。
-- 不改变已冻结 SETUP_01/Wave/Fibonacci/Decision/Risk strategy semantics、Google Sheets schema 或 holdings manager/command bus 业务逻辑。
+- 不改变 Google Sheets schema 或 holdings manager/command bus 业务逻辑。
 - `CLOSE` 物理删除历史行情、校验记录、数据源映射或证券身份；任何 provider/history/QC 失败时错误启用标的。
 
 ## 5. Key Decisions And Rationale
@@ -140,6 +149,11 @@
 
 | path | purpose | semantic impact / nature |
 |---|---|---|
+| `trading/setup02.py` | SETUP_02 Wave 3 continuation structural evaluator | independent structural lifecycle; no Decision/Risk or production behavior |
+| `trading/setup02_replay.py` | strict-prefix replay and terminal event projection | deterministic structural evidence; no outcome fields |
+| `scripts/run_setup02_structural_replay.py` | frozen DEVELOPMENT_EXPOSED replay runner | structure-only Sol review report; ignored derived artifacts |
+| `tests/test_setup02.py` | lifecycle, causal, block, terminal-once and invariance regressions | SETUP_02 correctness coverage |
+| `docs/SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1.md` | SETUP_02 protocol and review boundary | protocol / governance |
 | `HANDOFF.md` | 当前操作交接快照 | governance；下一次会话的第一入口 |
 | `AGENTS.md` | 新会话启动、冲突和更新 gate | governance；不改变交易规则 |
 | `README.md` | 公开发现入口，链接治理文件 | documentation / governance |
@@ -193,6 +207,9 @@
 - Wave Engine protocol: `WAVE-SCENARIO-ENGINE-2026-08-30-v1`；fixed as-of uses only `data <= as_of_date`，weekly aggregation excludes Monday–Thursday incomplete ISO week，and daily continuation requires current daily `UPTREND`。
 - SETUP_01 protocol: `SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1`；eligible primary context is confirmed LOW→HIGH→LOW with `peak > origin`, `wave2_low > origin`, `wave2_low < peak`, weekly parent not DOWNTREND, and `setup01_context_eligible=true`。
 - SETUP_01 lifecycle invariant: `NONE/WATCH/ARMED/CONFIRMED/FAILED`; ARMED uses fixed causal 0.5 recovery, CONFIRMED requires close strictly above Wave 1 peak, and origin versus confirmed Wave 2 low remain separate invalidations. No ACTIVE/COMPLETED state, no Fib hard gate, no production ENTRY/Decision.
+- SETUP_02 protocol: `SETUP-02-WAVE3-CONTINUATION-2026-09-01-v1`；only primary `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`, causal LOW0→HIGH1→LOW2→HIGH3, `HIGH3>HIGH1`, `LOW2>LOW0`, daily/weekly `UPTREND`, and existing Wave Engine `structural_invalidation`.
+- SETUP_02 lifecycle invariant: `NONE/WATCH/ARMED/CONFIRMED/FAILED`; recovery is `invalidation + 0.5 × (HIGH3-invalidation)`, ARMED is bounded through HIGH3, confirmation is the first daily close strictly above HIGH3, and terminal event identity is first-entry only. Historical terminal state persists across refresh; no Decision/Risk/Entry/Exit.
+- SETUP_02 replay evidence: frozen dataset v2 manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`, 40 symbols / 84,284 bars; replay aggregate SHA=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`; 494 unique terminal events, identity duplicates/mismatches `0/0`。
 - Development evidence: 40 symbols / 86,305 days / 1,404 events (745 CONFIRMED / 659 FAILED) / 0 errors; real shadow run `33300273180`: 10 enabled / 8 evaluated / 2 fail-closed errors, no returns/OOS/Sheets writes。
 - SETUP_01 Decision/Risk v1 identity: `SETUP-01-DECISION-RISK-2026-08-30-v1`; first T-day `CONFIRMED` identity only, exactly-once, T close plan, exact T+1 OPEN, fixed Entry Zone/stop, target-before-RR, and no same-bar execution。
 - Execution-ledger invariant: `actual_entry != None` if and only if `outcome == EXECUTED`; `t1_open` is observed T+1 OPEN and remains populated for diagnostics; skipped outcomes keep `actual_entry=None`。
@@ -217,6 +234,8 @@
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
+| current task verification | SETUP_02 code/tests/replay are locally complete; PR and branch exact-head CI have not yet been created/verified | finish docs and tests, create PR, then record live PR/CI facts; do not merge | No |
+| development evidence boundary | replay uses frozen local DEVELOPMENT_EXPOSED v2 (40/40, 84,284 bars), not formal validation or Final OOS | keep all reports structure-only and retain dataset/manifest pins | Yes for any Decision/Risk or production claim |
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | PR #43 merged at squash commit `3b300975e999a934533398a951e7ec34e80a17bd`; pre-merge exact-head CI `33402171900` and generic shadow `33402171991` success; merge-after main exact-head CI `33404615092` success | keep the post-merge main SHA and CI as live GitHub evidence; docs-only governance commit does not self-reference its own SHA | No |
 | research/design blocker | v5 预注册 ATR family 已完成；candidate-level 全通过但 adjacent/lifecycle qualification 未通过，结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` | 不选择 threshold，不改 terminal/rearm；后续需新的明确研究决策和新 protocol/version | Yes for any further SETUP_03 research or production/strategy change |
@@ -280,33 +299,33 @@
 
 ## 10. Next Action
 
-1. [x] 已从真实 `main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c` 建立独立分支并完成 lifecycle implementation source commit `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`。
-2. [x] PR #44 已 squash merged：`https://github.com/EFSing/stock-data-pipeline/pull/44`，merge commit=`a64102a9f222029a3079bd231790c842e074f372`。
-3. [x] 正式 focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`，full unittest=`445/445`，compileall、`git diff --check` 已通过；本地测试只用 fixture，不执行真实 holdings command。
-4. [x] 已将本文件、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md` 与相关 Skill/command-bus/architecture 文档提交并推送到 PR #44。
-5. [x] PR #44 最终 exact HEAD、`OPEN / CLEAN / MERGEABLE` 状态和 CI 已从 GitHub 现场核对，并按批准完成 squash merge；真实 merge commit 与 merge 后 main exact-head CI 已核对。
-6. [x] 所有条件满足后返回 `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2_MERGED`，不启动下一 Phase。
+1. [x] 已从真实 `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 建立 `codex/setup02-wave3-continuation-v1`。
+2. [x] SETUP_02 evaluator/replay/runner/tests 已实现；frozen DEVELOPMENT_EXPOSED replay 已完成且 identity audit exactly-once。
+3. [x] 已更新 SETUP_02 protocol、当前状态、决策日志和本交接快照；等待本轮验证结果写回。
+4. [ ] 运行 focused/full unittest、compileall、`git diff --check`，提交并 push 本分支。
+5. [ ] 创建 PR，核对 PR `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；不 merge。
+6. [ ] 满足条件后返回 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`，停止在 Sol decision node。
 
 ## 11. Handoff Checklist
 
 - [x] Current Objective 已更新
-- [x] main / branch / PR / CI baseline 已更新
-- [x] lifecycle implementation 与回归事实已更新
-- [x] scope boundary 明确：无真实 command、Sheet、账户/券商或研究访问
-- [x] 重要 decision 已准备写入 `docs/DECISION_LOG.md`
+- [x] main / branch / PR / CI baseline 已更新（PR/CI final verification pending）
+- [x] SETUP_02 lifecycle implementation、replay 与回归事实已更新
+- [x] scope boundary 明确：无 Decision/Risk、production、outcome、Sheets、账户/券商访问
+- [x] 重要 decision 已写入 `docs/DECISION_LOG.md`
 - [x] Important Files Changed 已在当前 task 文档列出
-- [x] PR 最终 exact-head CI / mergeability 现场核对完成
-- [x] 所有治理文件与最终 PR 状态一致
+- [ ] PR 最终 exact-head CI / mergeability 现场核对完成
+- [ ] 所有治理文件与最终 PR 状态一致
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-01`
-- `verified_origin_main_sha`: `a64102a9f222029a3079bd231790c842e074f372`
-- `latest_substantive_implementation_sha`: `25c89056ba3f3d38df62b7f4c990c2127e2ae10c`
-- `current_pr`: #44 `https://github.com/EFSing/stock-data-pipeline/pull/44`; implementation source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`; base=`dde70661ae0848fda4aad2361dc4f9ef9375bf9c`; state=`MERGED`（`merged=true`）；final PR HEAD=`9ae54e8588ea3053da0a363f9dae6f1e45b38f47`、squash merge commit=`a64102a9f222029a3079bd231790c842e074f372`、merge 后 main exact-head `CI Test Gate` run=`33485998503` / `test` check=`99786090755` success；最终 HEAD SHA 不在治理 commit 中自引用
-- `latest_test_result`: formal focused command `python -m unittest tests.test_holdings_data_manager tests.test_validation tests.test_governance -v`=`90/90`、full unittest=`445/445`、compileall、`git diff --check` success
-- `scheduled_latest_parity`: shared evaluator/projection regression passed; full fixture latest outputs retain existing verified/single-source/pending semantics
-- `scope_boundary`: real ADD/CLOSE/REENTER/SYNC=`NOT_RUN`; production Sheet=`NOT_WRITTEN`; account/broker=`NOT_ACCESSED`; SETUP/Wave/Decision/Final OOS/outcome research=`NOT_STARTED`
-- `next_action`: stop at completed and merged `HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2`; do not start the next Phase or new holdings work
+- `verified_origin_main_sha`: `2f56cd0697592c5815dbfea84bf328abe6c4c8c7`
+- `latest_substantive_implementation_sha`: pending local commit
+- `current_pr`: pending; branch=`codex/setup02-wave3-continuation-v1`; planned title=`SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`; base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`
+- `latest_replay_result`: 40/40 symbols, 84,284 bars, 0 errors, 213 CONFIRMED events, 281 FAILED events, identity duplicates/mismatches=`0/0`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
+- `latest_test_result`: focused SETUP_02=`10/10` success; full unittest/compileall/`git diff --check` pending final rerun
+- `scope_boundary`: Decision/Risk/Entry/Exit/holdings/production/Sheets/account/broker/Secrets/outcome/OOS=`NOT_ACCESSED`; SETUP_01/Wave Engine/SETUP_03=`NOT_MODIFIED`
+- `next_action`: finish final verification, create PR, verify exact-head CI and `OPEN / CLEAN / MERGEABLE`, then stop at `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

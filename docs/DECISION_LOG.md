@@ -1112,3 +1112,63 @@ was written, no account/broker or credential data was accessed, and no
 SETUP/Wave/Decision/Final OOS/outcome work was started. PR #44 remains open
 and unmerged; its final exact-head CI and `OPEN / CLEAN / MERGEABLE` state are
 verified live at handoff.
+
+## 2026-09-01 — SETUP_02 Wave 3 continuation structural v1
+
+**Governance / base:** The live repository check at task start found
+`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`, a clean working tree, no open
+PRs, and successful main exact-head `test` check `99787662103` / workflow run
+`33486490335`. PR #44 is historical and already merged at squash commit
+`a64102a9f222029a3079bd231790c842e074f372`; it is not reused. The new branch
+is `codex/setup02-wave3-continuation-v1`.
+
+**Decision:** Implement only
+`SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`, protocol
+`SETUP-02-WAVE3-CONTINUATION-2026-09-01-v1`, as an independent structural
+evaluator and strict-prefix replay layer. SETUP_02 consumes only the existing
+Wave Engine primary `WAVE_3_CONTINUATION_CANDIDATE` with
+`setup02_context_eligible=true`. The context must be causal confirmed
+`LOW0 → HIGH1 → LOW2 → HIGH3`, satisfy `HIGH3 > HIGH1` and `LOW2 > LOW0`,
+have daily and weekly `UPTREND`, and use the Wave Engine's existing latest
+confirmed higher-low `structural_invalidation`. `continuation_high` is exactly
+`HIGH3`; no future confirmed Swing may enter an as-of evaluation.
+
+**Lifecycle:** Keep only `NONE`, `WATCH`, `ARMED`, `CONFIRMED`, and `FAILED`.
+Recovery is `invalidation + 0.5 * (HIGH3 - invalidation)`. `WATCH` requires a
+close above invalidation and below recovery; `ARMED` requires a close at or
+above recovery and at or below `HIGH3`; equality with `HIGH3` does not confirm;
+the first daily close strictly above `HIGH3` confirms. A post-ARMED close below
+recovery but above invalidation returns to `WATCH`. Before confirmation,
+close-at-or-below invalidation, weekly/daily structure loss, primary ABC,
+primary downtrend/invalid, or primary eligibility loss fails closed. Ordinary
+context refresh does not fabricate a failure. Terminal state persists, and
+only the first terminal entry emits an event.
+
+**Diagnostics / boundary:** Existing canonical Fibonacci helpers are used only
+for descriptive ratio/region fields. Deterministic identities remain in the
+`SETUP_02` namespace; no Decision/Risk, Entry, Exit, holdings, production,
+calendar, Sheets, account, outcome, returns, MFE, MAE, P&L, expectancy or OOS
+field is implemented or reported. SETUP_01, Wave Engine, SETUP_03 and existing
+Fibonacci definitions are unchanged.
+
+**DEVELOPMENT_EXPOSED evidence:** The replay reads the existing frozen local v2
+dataset `SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`,
+40/40 symbols and 84,284 bars (CN 20/40,873; US 20/43,411), manifest SHA
+`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`,
+replay aggregate SHA
+`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`.
+There were 0 replay errors and 84,284 state-days: `NONE=20,433`,
+`WATCH=1,288`, `ARMED=1,401`, `CONFIRMED=10,930`, `FAILED=50,232`.
+First-entry events were 213 `CONFIRMED` and 281 `FAILED`; CN was 74/123 and
+US was 139/158. Failure reasons were structural invalidation 130, daily
+structure loss 99, primary ineligible 27, and weekly structure loss 25. The
+only current candidate was US `AMAT`, `WATCH`, as-of `2026-08-26`, Fib region
+`0.618-0.786`. Identity audit found 494 events, 494 unique identities, 0
+duplicates and 0 mismatches.
+
+**Stop:** The current stop state is
+`SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`. After focused/full tests,
+compileall, `git diff --check`, PR exact-head CI and live `OPEN / CLEAN /
+MERGEABLE` verification, hand off to Sol. Do not implement SETUP_02
+Decision/Risk or any production/outcome/OOS continuation without a new
+decision.
