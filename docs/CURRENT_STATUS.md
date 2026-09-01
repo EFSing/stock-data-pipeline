@@ -145,7 +145,7 @@ V0.2
 ## Closeout / Next
 
 - `SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1` 已完成本地实现与 DEVELOPMENT_EXPOSED structural replay，当前停止在 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`。
-- 当前 branch=`codex/setup02-wave3-continuation-v1`，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；implementation source head、PR、PR exact-head CI 与 mergeability 在最终提交后补写，不自引用 governance 文档 SHA。
-- focused SETUP_02=`10/10` 已通过；full unittest、compileall 与 `git diff --check` 需最终 rerun。replay 为 40/40 symbols、84,284 bars、0 errors、213 CONFIRMED / 281 FAILED、identity duplicate/mismatch=`0/0`。
+- 当前 branch=`codex/setup02-wave3-continuation-v1`，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；implementation source head=`ac63bd7`；PR、PR exact-head CI 与 mergeability 待创建后现场核对，不自引用 governance 文档 SHA。
+- focused Wave + SETUP_02=`26/26`、full unittest=`455/455`、compileall 与 `git diff --check` 已通过。replay 为 40/40 symbols、84,284 bars、0 errors、213 CONFIRMED / 281 FAILED、identity duplicate/mismatch=`0/0`。
 - 唯一当前候选为 US `AMAT` / `WATCH` / as-of `2026-08-26`；state-day counts：`NONE=20,433`、`WATCH=1,288`、`ARMED=1,401`、`CONFIRMED=10,930`、`FAILED=50,232`。
 - 下一步仅为提交/push、创建 PR、等待 exact-head CI 并核对 `OPEN / CLEAN / MERGEABLE`；不 merge，不进入 SETUP_02 Decision/Risk 或任何 production/outcome/OOS 路径。

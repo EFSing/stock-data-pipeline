@@ -103,7 +103,7 @@
 - [x] 实现独立 SETUP_02 structural evaluator/replay；只接受 primary `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`，不修改 Wave Engine 或 SETUP_01。
 - [x] 固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED`、严格高点确认、Wave Engine structural invalidation、weekly/daily/primary failure blocks、terminal once-only event identity 与 future append invariance。
 - [x] 完成冻结 DEVELOPMENT_EXPOSED structure-only replay：40/40 symbols、84,284 days、494 terminal events、0 errors、identity audit exactly-once。
-- [ ] 更新 protocol/status/decision docs，运行 focused/full unittest、compileall、`git diff --check`，提交并 push 分支。
+- [x] 更新 protocol/status/decision docs，完成 focused/full unittest、compileall、`git diff --check`，并提交本地 source commit `ac63bd7`。
 - [ ] 创建 PR，等待 exact-head CI，核对 `OPEN / CLEAN / MERGEABLE`；不 merge。
 
 ### Deferred
@@ -300,9 +300,9 @@
 ## 10. Next Action
 
 1. [x] 已从真实 `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 建立 `codex/setup02-wave3-continuation-v1`。
-2. [x] SETUP_02 evaluator/replay/runner/tests 已实现；frozen DEVELOPMENT_EXPOSED replay 已完成且 identity audit exactly-once。
+2. [x] SETUP_02 evaluator/replay/runner/tests 已实现；frozen DEVELOPMENT_EXPOSED replay 已完成且 identity audit exactly-once；source commit=`ac63bd7`。
 3. [x] 已更新 SETUP_02 protocol、当前状态、决策日志和本交接快照；等待本轮验证结果写回。
-4. [ ] 运行 focused/full unittest、compileall、`git diff --check`，提交并 push 本分支。
+4. [ ] push 本分支。
 5. [ ] 创建 PR，核对 PR `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；不 merge。
 6. [ ] 满足条件后返回 `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`，停止在 Sol decision node。
 
@@ -321,10 +321,10 @@
 
 - `last_updated_at`: `2026-09-01`
 - `verified_origin_main_sha`: `2f56cd0697592c5815dbfea84bf328abe6c4c8c7`
-- `latest_substantive_implementation_sha`: pending local commit
+- `latest_substantive_implementation_sha`: `ac63bd7` (`Implement SETUP_02 Wave 3 continuation structural lifecycle`)
 - `current_pr`: pending; branch=`codex/setup02-wave3-continuation-v1`; planned title=`SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1`; base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`
 - `latest_replay_result`: 40/40 symbols, 84,284 bars, 0 errors, 213 CONFIRMED events, 281 FAILED events, identity duplicates/mismatches=`0/0`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
-- `latest_test_result`: focused SETUP_02=`10/10` success; full unittest/compileall/`git diff --check` pending final rerun
+- `latest_test_result`: focused Wave + SETUP_02=`26/26`、full unittest=`455/455`、compileall、`git diff --check` success
 - `scope_boundary`: Decision/Risk/Entry/Exit/holdings/production/Sheets/account/broker/Secrets/outcome/OOS=`NOT_ACCESSED`; SETUP_01/Wave Engine/SETUP_03=`NOT_MODIFIED`
 - `next_action`: finish final verification, create PR, verify exact-head CI and `OPEN / CLEAN / MERGEABLE`, then stop at `SETUP_02_STRUCTURAL_V1_READY_FOR_SOL_REVIEW`
 
