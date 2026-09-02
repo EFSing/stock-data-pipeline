@@ -314,8 +314,8 @@
 2. [x] PR #50 merge closeout 已完成：真实 squash merge=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`；merge-after `CI Test Gate`=`33588525870` success。
 3. [x] 已实现 Position Management + Exit v1、Wave5 context、frozen mechanical replay、synthetic-only generic shadow、tests 与协议文档。
 4. [x] 当前 v2 replay 已完成：3 positions / 134 position-days、SETUP_01=`3 EXECUTED`、SETUP_02=`0 EXECUTED`、30 stop raises；exit/gate/target/Wave5 与 invariants 已写入报告。
-5. [x] 最终 focused=`18/18`、full unittest=`492/492`、compileall、`git diff --check` 与 frozen replay 均通过；提交并 push 新分支、创建新 PR、等待 exact-head CI 与 generic shadow。
-6. [ ] 待完成：将新 PR URL/head/check run 写回本文件与治理文档后，再次核验最终 exact-head CI，并停止在 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`。
+5. [x] 最终 focused=`18/18`、full unittest=`492/492`、compileall、`git diff --check` 与 frozen replay 均通过；提交=`682d05975eb407ee648920ef2bb2d7f760886cfc`，push 新分支并创建 PR #51。
+6. [x] PR #51 exact-head=`682d05975eb407ee648920ef2bb2d7f760886cfc`；`CI Test Gate`=`33595416196` success、`SETUP_02 generic operational shadow`=`33595442847` success；PR=`OPEN / CLEAN / MERGEABLE`、`merged=false`；待本次治理 docs closeout tip 再次核验最终 exact-head CI，停止在 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`。
 
 ## 11. Handoff Checklist
 
@@ -325,21 +325,21 @@
 - [x] scope boundary 明确：只消费 EXECUTED；无新 entry、production、禁止绩效统计、账户/券商/Sheets 访问；新 PR 不自动 merge
 - [x] SETUP_02 corrected funnel、12 条 geometry root-cause audit、SETUP_01/SETUP_02 identity invariance 与 governance consistency 已写入报告/文档
 - [x] 重要 decision 已写入 `docs/DECISION_LOG.md`
-- [ ] 新 PR exact-head CI / generic shadow / OPEN-CLEAN-MERGEABLE closeout 待现场核验
-- [ ] 所有当前治理文件与最终 remote head 一致（docs closeout commit 不自引用自身 SHA）
+- [x] PR #51 exact-head CI=`33595416196`、generic shadow=`33595442847` 均 success；PR=`OPEN / CLEAN / MERGEABLE`、`merged=false`
+- [x] 所有当前治理文件已更新至 PR #51 closeout；本次 docs closeout tip 不自引用自身 SHA，最终 live head/check 以 GitHub 现场核验为准
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-02`
 - `verified_origin_main_sha`: `07e267bdcae32e8fb4bbc8ee07f9758703feaa09`
-- `latest_substantive_implementation_sha`: pending local commit on `codex/position-management-exit-v1`
+- `latest_substantive_implementation_sha`: `682d05975eb407ee648920ef2bb2d7f760886cfc`
 - `merged_pr`: #50 `https://github.com/EFSing/stock-data-pipeline/pull/50`; merge commit=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`; merge-after CI=`33588525870` success
-- `current_branch`: `codex/position-management-exit-v1`; new PR/head/exact-head checks pending; no merge authorized
+- `current_branch`: `codex/position-management-exit-v1`; PR #51=`https://github.com/EFSing/stock-data-pipeline/pull/51`; source head=`682d05975eb407ee648920ef2bb2d7f760886cfc`; `OPEN / CLEAN / MERGEABLE`, `merged=false`; docs closeout tip intentionally not self-referenced
 - `latest_frozen_replay_result`: 40/40 symbols, 84,284 bars, manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`; positions=`3`, position-days=`134`, stop raises=`30`; exits=`GAP 1 / STOP 1 / STRUCTURAL_PENDING 1`
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
 - `latest_test_result`: focused=`18/18`; full unittest=`492/492`; compileall、`git diff --check` 与 frozen replay validation pass
 - `scope_boundary`: only EXECUTED rows; no entry rescreen/new setup/production; no forbidden performance metrics/OOS; no holdings/broker/account/Secrets/Sheets; no automatic merge
-- `live_ci`: new PR exact-head CI/generic shadow pending
-- `next_action`: final validation, commit/push, create new PR, wait for checks, then hand off at `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`
+- `live_ci`: PR #51 source head exact-head `CI Test Gate` run=`33595416196` success; `SETUP_02 generic operational shadow` run=`33595442847` success
+- `next_action`: hand off PR #51 to Sol for review at `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`; do not merge
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

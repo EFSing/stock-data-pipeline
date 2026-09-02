@@ -12,7 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`，为 PR #50 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33588525870` 为 completed/success。
 - Current checkout: `codex/position-management-exit-v1`，从上述 clean merged main 创建；本分支正在实现 Position Management + Exit v1，replay artifacts 保持 ignored。
-- PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50` 已 `MERGED`；本轮新 Position Management/Exit PR 的最终 head 与 exact-head CI/shadow 以 GitHub closeout 为准，禁止自动 merge。
+- PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50` 已 `MERGED`；PR #51=`https://github.com/EFSing/stock-data-pipeline/pull/51` 当前 `OPEN / CLEAN / MERGEABLE`、`merged=false`，source head=`682d05975eb407ee648920ef2bb2d7f760886cfc`；禁止自动 merge。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 entry/Decision layers frozen；当前授权任务为 `POSITION_MANAGEMENT_EXIT_V1`，停止节点为 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
@@ -36,6 +36,7 @@ V0.2
 - replay machine report 已直接确认 `SETUP_01_structural_identity_invariance=true`、`SETUP_02_structural_identity_invariance=true`、`future_append_invariance=true`、`governance_consistency=true`；focused=`18/18`，full unittest=`492/492`，compileall 与 `git diff --check` 通过。
 - 边界：Position Management 只消费 `outcome == EXECUTED`，不重筛 entry、不生成新 entry；不读取或计算 win rate、aggregate P&L、expectancy、profit factor、Sharpe、optimized thresholds、Final OOS；不访问 holdings/broker/account/Secrets/Sheets；不自动 merge 新 PR。
 - Generic operational shadow 为 synthetic-only SUCCESS：1 position / 3 position-days；初始 1R 冻结、target 只追踪不自动退出、stop 不下移、causal day count 全通过；returns/P&L/broker/holdings/Sheets 均未访问。
+- PR #51 exact-head `CI Test Gate` run=`33595416196` success；手动 dispatch 的 `SETUP_02 generic operational shadow` run=`33595442847` success；两者均 exact head=`682d05975eb407ee648920ef2bb2d7f760886cfc`。
 - Machine-readable protocol=`research/protocols/position_management_exit_v1.json`；中文协议=`docs/POSITION_MANAGEMENT_EXIT_V1.md`；停止节点为 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`，新 PR 保持 OPEN，禁止 merge。
 
 ## Previous Task: SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1（已 squash merged）
