@@ -1,0 +1,24 @@
+name: Daily Decision Chain generic operational shadow
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  generic-shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run synthetic-only Daily Decision Chain shadow
+        run: python scripts/run_daily_decision_chain_generic_operational_shadow.py
+      - name: Upload read-only shadow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-decision-chain-generic-shadow
+          path: artifacts/daily_decision_chain_generic_shadow/

@@ -1584,3 +1584,31 @@ remains downstream-only, with no holdings, broker, account, Secrets, Sheets,
 returns, or OOS access. Stop at
 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW` with
 `HANDOFF_CURRENT_AND_CONSISTENT`; do not merge.
+
+## 2026-09-02 — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+
+**Decision:** Build the prospective Daily Decision Chain as a read-only
+orchestration layer over the frozen Wave, SETUP_01/SETUP_02 Decision/Risk,
+Portfolio Risk, Position Management, and Wave5 contracts. SETUP_03 remains
+`STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` and SETUP_04 remains unimplemented.
+The chain may emit a T-day prospective Decision, but it must not submit broker
+orders or claim that a mechanical T+1 ledger observation is a broker
+execution.
+
+**Reason:** The next product boundary is daily decision support on production
+data, not automatic trading. Keeping orchestration separate preserves the
+Single Source of Truth for Entry, Target, invalidation, stop, R/R, and T+1
+semantics while making missing production inputs explicit.
+
+**Decision:** Require production injection of a formal strategy universe,
+reliable NAV, accepted risk-group metadata, authoritative position origin, an
+exact exchange-calendar session identity, and a persistent DecisionStateStore.
+Missing prerequisites fail closed with machine-readable reasons while the
+individual Decision remains visible where safe. The current enabled
+`自选清单`, holdings view, ordinary weekday guard, and legacy SETUP_03
+`交易决策` Sheet are not silently promoted to those roles.
+
+**Reason:** The repository audit found no existing authoritative contract for
+those production facts. Choosing a new Sheets schema, GitHub state file,
+external database, account/NAV source, or exchange-calendar dependency would
+be a separate product decision and must not be hidden inside this phase.
