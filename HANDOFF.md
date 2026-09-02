@@ -318,11 +318,11 @@
 
 ## 11. Handoff Checklist
 
-- [ ] Current Objective 已更新为 volume validation noise bugfix
+- [x] Current Objective 已更新为 volume validation noise bugfix
 - [x] governance conflict 已最小 reconciliation：PR #51 merged=`993d03e...`，真实 main=`6ed3234...`，main CI=`33617194589` success；历史 provenance 保持不变
 - [x] scope boundary 明确：只改现有 validation 语义与必要回归；不改 tolerance/provider/lifecycle/command bus/Position/SETUP/Wave/OOS
-- [ ] volume mismatch/missing、scheduled latest、holdings ADD/REENTER、HK mapping 回归与 focused/full unittest、compileall、`git diff --check`
-- [ ] 本任务 PR exact-head CI、merge、merge-after main CI 与最终治理 closeout
+- [x] volume mismatch/missing、scheduled latest、holdings ADD/REENTER、HK mapping 回归与 focused/full unittest、compileall、`git diff --check` 已完成：focused `104/104`、full `502/502`
+- [x] PR #61 head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5` exact-head `CI Test Gate`=`33618409589` success、live `CLEAN / MERGEABLE`；merge、merge-after main CI 与最终治理 closeout pending
 - [x] 本任务不新增 DECISION_LOG 设计条目；历史 provenance 保持不变
 
 ## 12. Last Verified
@@ -334,9 +334,9 @@
 - `current_branch`: `codex/volume-validation-noise-fix`; baseline=`origin/main@6ed32349449b0f0b59193187dd4d5a4728790dc6`
 - `latest_hk_ticker_mapping`: verified; `00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`，`12345.HK` unchanged
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
-- `latest_test_result`: new task pending; baseline main CI=`33617194589` success
+- `latest_test_result`: focused=`104/104`; full unittest=`502/502`; compileall=`PASS`; `git diff --check`=`PASS`; baseline main CI=`33617194589` success
 - `scope_boundary`: only existing `validate_quotes()` volume status semantics, tests, and minimal governance freshness; no holdings ADD/REENTER, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
-- `live_ci`: baseline main=`6ed32349449b0f0b59193187dd4d5a4728790dc6`; exact-head `CI Test Gate`=`33617194589` success; task PR/merge CI pending
-- `next_action`: implement the minimal validation semantics fix, verify, create one PR, squash merge only after exact-head CI and clean governance closeout
+- `live_ci`: baseline main=`6ed32349449b0f0b59193187dd4d5a4728790dc6`; exact-head `CI Test Gate`=`33617194589` success; PR #61 head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5`; exact-head `CI Test Gate`=`33618409589` success; live `CLEAN / MERGEABLE`
+- `next_action`: squash merge PR #61, verify merge-after main CI, then perform governance closeout only
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

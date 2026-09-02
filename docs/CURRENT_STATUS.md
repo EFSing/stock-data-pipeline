@@ -29,6 +29,7 @@ V0.2
 - 不执行真实 holdings ADD/REENTER；现有 HK ticker normalization 只做回归确认。
 - 完成条件为 validation/latest/holdings/command-bus focused、full unittest、compileall、`git diff --check`、新 PR exact-head CI、merge 后 main exact-head CI 与本文件治理 closeout 全部成功。
 - 本任务不新增 DECISION_LOG 设计条目，不启动下一任务。
+- PR #61 已创建，head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5`，exact-head `CI Test Gate`=`33618409589` success，live state=`CLEAN / MERGEABLE`；本地 focused=`104/104`、full=`502/502`、compileall 与 `git diff --check` 均通过，等待按授权直接 squash merge。
 
 ## Previous Task: POSITION_MANAGEMENT_EXIT_V1（已 squash merged）
 
