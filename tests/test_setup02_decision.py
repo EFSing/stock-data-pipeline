@@ -1,11 +1,13 @@
 import json
 from dataclasses import replace
 from datetime import date, timedelta
+import inspect
 import unittest
 from unittest.mock import patch
 
 from core import Quote
 from research.market_sessions import build_market_session_dates
+from trading.fibonacci import project_extension
 from trading.models import DecisionAction, SetupState, SwingKind, SwingPoint
 from trading.setup02 import Setup02Evaluation
 from trading.setup02_decision import (
@@ -21,6 +23,7 @@ from trading.setup02_decision import (
     evaluate_setup02_decision_stream,
     execute_setup02_t1_open,
     setup02_decision_to_dict,
+    setup02_structure_geometry_audit,
     setup02_target_provenance_audit,
 )
 from trading.setup02_replay import Setup02ReplayEvent
@@ -195,7 +198,7 @@ class Setup02DecisionTests(unittest.TestCase):
         self.assertEqual(decision.gate_reason, Setup02DecisionGateReason.ATR_UNAVAILABLE)
         self.assertTrue(decision.decision_calculable)
 
-    def test_invalid_structure_does_not_recompute_event_invalidation(self):
+    def test_stale_confirmation_geometry_fails_closed_without_recomputing_invalidation(self):
         event, quotes = _fixture()
         malformed = replace(
             event,
@@ -205,8 +208,25 @@ class Setup02DecisionTests(unittest.TestCase):
             ),
         )
         decision = evaluate_setup02_decision(malformed, quotes)
-        self.assertEqual(decision.gate_reason, Setup02DecisionGateReason.INVALID_STRUCTURE)
+        self.assertEqual(
+            decision.gate_reason,
+            Setup02DecisionGateReason.STALE_CONFIRMATION_GEOMETRY,
+        )
+        self.assertEqual(decision.structural_invalidation, 121.0)
+        self.assertEqual(decision.planned_entry, 120.5)
         self.assertIsNone(decision.execution_stop)
+
+        audit = setup02_structure_geometry_audit(malformed, quotes)
+        self.assertEqual(audit["classification"], "STALE_CONFIRMATION_GEOMETRY")
+        self.assertIn(
+            "structural_invalidation >= HIGH3",
+            audit["exact_invariant_failure_reason"],
+        )
+        self.assertEqual(audit["LOW0"]["price"], 100.0)
+        self.assertEqual(audit["HIGH1"]["price"], 110.0)
+        self.assertEqual(audit["LOW2"]["price"], 108.0)
+        self.assertEqual(audit["HIGH3"]["price"], 120.0)
+        self.assertEqual(audit["t_close"], 120.5)
 
     def test_entry_zone_and_atr_stop_are_frozen(self):
         event, quotes = _fixture(t_close=130.0)
@@ -253,10 +273,16 @@ class Setup02DecisionTests(unittest.TestCase):
         fib_event, fib_quotes = _fixture()
         fib_decision = evaluate_setup02_decision(fib_event, fib_quotes)
         fib = fib_decision.target_candidates[0]
-        self.assertEqual(fib.source, "CONTINUATION_FIB_EXTENSION")
+        self.assertEqual(fib.source, "WAVE3_FIB_EXTENSION")
         self.assertEqual(fib.provenance[0].extension_ratio, 1.272)
-        self.assertEqual(fib.provenance[0].reference_start_price, 108.0)
-        self.assertEqual(fib.provenance[0].reference_end_price, 120.0)
+        self.assertEqual(fib.price, project_extension(108.0, 100.0, 110.0, 1.272))
+        self.assertEqual(fib.provenance[0].wave1_origin_price, 100.0)
+        self.assertEqual(fib.provenance[0].wave1_peak_price, 110.0)
+        self.assertEqual(fib.provenance[0].wave2_low_price, 108.0)
+        self.assertEqual(
+            fib.provenance[0].formula_identity,
+            "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+        )
         self.assertNotIn("fib_retracement_ratio", setup02_decision_to_dict(fib_decision))
 
         changed_diagnostic = replace(
@@ -270,6 +296,50 @@ class Setup02DecisionTests(unittest.TestCase):
         changed_decision = evaluate_setup02_decision(changed_diagnostic, fib_quotes)
         self.assertEqual(changed_decision.targets, fib_decision.targets)
         self.assertEqual(changed_decision.gate_reason, fib_decision.gate_reason)
+
+    def test_remaining_wave3_targets_are_above_entry_and_nearest_is_t1(self):
+        event, quotes = _fixture(wide=True, t_close=123.0)
+        with patch("trading.setup02_decision.find_swings", return_value=[]):
+            decision = evaluate_setup02_decision(event, quotes)
+        self.assertEqual(
+            decision.targets[0],
+            project_extension(108.0, 100.0, 110.0, 1.618),
+        )
+        self.assertTrue(all(target > decision.planned_entry for target in decision.targets))
+        self.assertEqual(
+            decision.target_candidates[0].provenance[0].extension_ratio,
+            1.618,
+        )
+
+    def test_nearest_target_rr_failure_does_not_skip_to_distant_target(self):
+        event, quotes = _fixture(t_close=120.5)
+        event = replace(
+            event,
+            setup02=replace(event.setup02, structural_invalidation=119.9),
+        )
+        steady = [
+            _quote(event.symbol, quote.trade_date, 120.0, high=121.0, low=119.0)
+            for quote in quotes[:20]
+        ]
+        quotes = [*steady, quotes[20]]
+        with patch("trading.setup02_decision.find_swings", return_value=[]):
+            decision = evaluate_setup02_decision(event, quotes)
+        self.assertEqual(
+            decision.gate_reason,
+            Setup02DecisionGateReason.RR_BELOW_MINIMUM,
+        )
+        self.assertEqual(
+            decision.targets[0],
+            project_extension(108.0, 100.0, 110.0, 1.272),
+        )
+        self.assertLess(decision.rr.rr_ratios[0], 2.0)
+        self.assertGreater(decision.rr.rr_ratios[1], 2.0)
+
+    def test_setup02_target_builder_no_longer_contains_old_invalidation_projection(self):
+        module = __import__("trading.setup02_decision", fromlist=["_target_candidates"])
+        source = inspect.getsource(module._target_candidates)
+        self.assertNotIn("structural_invalidation", source)
+        self.assertNotIn("HIGH3", source)
 
     def test_high_asymmetry_runs_geometry_audit_without_historical_gate(self):
         event, quotes = _fixture(wide=True, t_close=140.0)
@@ -395,6 +465,7 @@ class Setup02DecisionTests(unittest.TestCase):
         projection = setup02_decision_to_dict(decision)
         json.dumps(projection, ensure_ascii=False)
         self.assertEqual(decision.protocol_version, SETUP02_DECISION_PROTOCOL_VERSION)
+        self.assertEqual(projection["wave1_length"], 10.0)
         self.assertNotIn("setup01", __import__("pathlib").Path("trading/setup02_decision.py").read_text(encoding="utf-8").lower())
 
 

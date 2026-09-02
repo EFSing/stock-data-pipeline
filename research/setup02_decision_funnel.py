@@ -20,9 +20,11 @@ from trading.setup02_decision import (
     Setup02DecisionStream,
     Setup02Execution,
     Setup02DecisionGateReason,
+    SETUP02_DECISION_PROTOCOL_VERSION,
     evaluate_setup02_decision_stream,
     setup02_decision_to_dict,
     setup02_execution_to_dict,
+    setup02_structure_geometry_audit,
     setup02_target_provenance_audit,
 )
 from trading.setup02_replay import Setup02ReplayEvent
@@ -178,6 +180,14 @@ def build_setup02_decision_funnel(
         atr_period=atr_period,
     )
     first_confirmed = _unique_first_confirmed_events(event_rows)
+    invalid_structure_audit = []
+    for event in first_confirmed:
+        audit = setup02_structure_geometry_audit(
+            event,
+            quotes_by_symbol[event.symbol],
+        )
+        if audit["classification"] != "VALID":
+            invalid_structure_audit.append(audit)
     decision_rows = []
     execution_by_identity = {
         execution.event_identity: execution for execution in stream.executions
@@ -209,6 +219,15 @@ def build_setup02_decision_funnel(
         if execution.actual_rr is not None
     )
     candidate_source_counts, provenance = _provenance_summary(stream.decisions)
+    t1_source_counts = Counter(
+        audit["target_t1_source"] for audit in target_audits
+    )
+    t1_extension_ratio_counts = Counter(
+        str(item["extension_ratio"])
+        for audit in target_audits
+        for item in audit["target_t1_provenance"]
+        if item["extension_ratio"] is not None
+    )
     market_counts: dict[str, Counter[str]] = {}
     for event in first_confirmed:
         market_counts.setdefault(event.market, Counter())[event.event_type.value] += 1
@@ -244,7 +263,7 @@ def build_setup02_decision_funnel(
     market_session_dates = build_market_session_dates(quotes_by_symbol)
     identity_audit = event_identity_audit(event_rows)
     document = {
-        "protocol_version": "SETUP-02-DECISION-RISK-2026-09-01-v1",
+        "protocol_version": SETUP02_DECISION_PROTOCOL_VERSION,
         "mode": "DEVELOPMENT_EXPOSED_DECISION_EXECUTION_FUNNEL",
         "development_session_identity": DEVELOPMENT_SESSION_IDENTITY,
         "dataset_version": dataset_version,
@@ -276,7 +295,11 @@ def build_setup02_decision_funnel(
         "per_symbol": decision_scope_rows(stream),
         "target_candidate_source_counts": candidate_source_counts,
         "target_provenance": provenance,
+        "t1_source_counts": dict(sorted(t1_source_counts.items())),
+        "t1_extension_ratio_counts": dict(sorted(t1_extension_ratio_counts.items())),
         "target_provenance_audit": target_audits,
+        "invalid_structure_audit": invalid_structure_audit,
+        "invalid_structure_audit_count": len(invalid_structure_audit),
         "rr_quality_distribution": dict(sorted(quality_counts.items())),
         "actual_open_rr_quality_distribution": dict(sorted(actual_quality_counts.items())),
         "planned_over_5r_count": sum(item["planned_first_target_over_5r"] for item in target_audits),

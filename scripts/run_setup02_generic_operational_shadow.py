@@ -26,6 +26,7 @@ from trading.setup02 import Setup02Evaluation
 from trading.setup02_decision import (
     EXECUTED,
     SKIP_GAP_BELOW_CONFIRMATION,
+    SETUP02_DECISION_PROTOCOL_VERSION,
     Setup02DecisionStream,
     evaluate_setup02_decision_stream,
     setup02_decision_to_dict,
@@ -35,7 +36,7 @@ from trading.setup02_replay import Setup02ReplayEvent
 
 
 DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts" / "setup02_generic_operational_shadow"
-FIXTURE_VERSION = "SETUP-02-GENERIC-OPERATIONAL-SHADOW-FIXTURE-2026-09-01-v1"
+FIXTURE_VERSION = "SETUP-02-GENERIC-OPERATIONAL-SHADOW-FIXTURE-2026-09-02-v2"
 
 
 def _quote(
@@ -307,7 +308,7 @@ def run_setup02_generic_operational_shadow(
         "reporting_pipeline": True,
     }
     document: dict[str, Any] = {
-        "protocol_version": "SETUP-02-DECISION-RISK-2026-09-01-v1",
+        "protocol_version": SETUP02_DECISION_PROTOCOL_VERSION,
         "mode": "GENERIC_OPERATIONAL_SHADOW",
         "development_session_identity": DEVELOPMENT_SESSION_IDENTITY,
         "fixture_version": FIXTURE_VERSION,

@@ -1,8 +1,8 @@
 # SETUP_02 Decision/Risk v1 Protocol
 
-Status: `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`
+Status: `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`
 
-Protocol identity: `SETUP-02-DECISION-RISK-2026-09-01-v1`
+Protocol identity: `SETUP-02-DECISION-RISK-2026-09-02-v2`
 
 This protocol is the independent Decision/Risk layer after the frozen
 SETUP_02 structural lifecycle. It consumes only first-entry structural
@@ -42,6 +42,41 @@ ATR is `NO_TRADE / ATR_UNAVAILABLE`. If `planned_entry` is above the inclusive
 zone's upper bound, the gate is `NO_TRADE / ABOVE_ENTRY_ZONE`; the zone is not
 expanded.
 
+## Pre-merge geometry correction
+
+The pre-merge version used the wrong continuation-Fib reference leg:
+`structural_invalidation → HIGH3`. With `D = HIGH3 - structural_invalidation`,
+`planned_entry > HIGH3`, and `execution_stop < structural_invalidation`, that
+geometry gives `RR < r - 1` for every extension ratio `r`. The largest existing
+ratio is `2.618`, so the target family is mathematically bounded below
+`1.618R`, before the ATR stop buffer lowers R/R further. This was recorded as
+`PREMERGE_TARGET_GEOMETRY_DEFECT`; it was an ex-ante structural correction,
+not outcome-driven tuning. The minimum R/R remains `2`; the Entry Zone and stop
+are unchanged.
+
+The twelve pre-correction `INVALID_STRUCTURE` rows were audited in the causal
+Decision prefix. Each has `structural_invalidation >= HIGH3` and is therefore
+classified as `STALE_CONFIRMATION_GEOMETRY`. The Decision layer fails closed;
+the upstream structural lifecycle is not changed. The machine-readable audit
+is emitted as `setup02_invalid_structure_geometry_audit.csv`.
+
+The deterministic audit rows are:
+
+| symbol | T date | LOW0 | HIGH1 | LOW2 | HIGH3 | structural_invalidation | T close | exact reason |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| 000963.SZ | 2018-02-14 | 20.94123232 | 23.08316879 | 21.40586448 | 25.14012930 | 26.39468546 | 27.12487635 | `STALE_CONFIRMATION_GEOMETRY` |
+| 601117.SH | 2024-11-04 | 6.84641309 | 7.28271585 | 6.90192025 | 7.29223574 | 7.39695453 | 7.82534958 | `STALE_CONFIRMATION_GEOMETRY` |
+| 601390.SH | 2025-11-07 | 4.83098808 | 5.38336850 | 5.15867138 | 5.39273088 | 5.41205840 | 5.47004474 | `STALE_CONFIRMATION_GEOMETRY` |
+| 601658.SH | 2025-01-08 | 4.07612200 | 4.50975200 | 4.31895480 | 4.63175427 | 4.93322940 | 5.11619295 | `STALE_CONFIRMATION_GEOMETRY` |
+| 603893.SH | 2025-02-14 | 51.43548100 | 60.59158670 | 54.69076670 | 68.44951200 | 95.23633250 | 167.43285256 | `STALE_CONFIRMATION_GEOMETRY` |
+| AI | 2023-07-21 | 11.28999996 | 13.60000038 | 11.71000004 | 14.97000027 | 31.56999969 | 38.02999878 | `STALE_CONFIRMATION_GEOMETRY` |
+| INTC | 2023-07-28 | 24.44444235 | 29.29475870 | 27.23120532 | 29.40083064 | 30.75315878 | 36.09429550 | `STALE_CONFIRMATION_GEOMETRY` |
+| INTC | 2026-06-08 | 32.88999939 | 44.02000046 | 34.95000076 | 54.59999847 | 102.40000153 | 110.26999664 | `STALE_CONFIRMATION_GEOMETRY` |
+| MU | 2018-04-25 | 38.09860488 | 45.63642314 | 39.75634446 | 45.81194399 | 46.08498813 | 46.41652679 | `STALE_CONFIRMATION_GEOMETRY` |
+| MU | 2021-12-20 | 69.34201205 | 73.74963195 | 69.42003158 | 73.99342236 | 78.63754247 | 80.10230255 | `STALE_CONFIRMATION_GEOMETRY` |
+| RKLB | 2025-09-22 | 20.23200035 | 30.78000069 | 25.52000046 | 32.70000076 | 42.38999939 | 49.81000137 | `STALE_CONFIRMATION_GEOMETRY` |
+| ROP | 2024-02-06 | 472.45488091 | 494.64232314 | 480.13814595 | 498.72897877 | 511.98955017 | 535.91870117 | `STALE_CONFIRMATION_GEOMETRY` |
+
 ## Target-first construction
 
 Targets are built before R/R is calculated. A valid candidate must be strictly
@@ -51,19 +86,54 @@ ascending, and truncated to the three nearest legal prices as `T1`, `T2`, and
 
 1. T-known confirmed swing highs: only `HIGH` swings with pivot and
    confirmation provenance available as of T are accepted.
-2. Continuation Fib extensions: the only reference leg is
-   `structural_invalidation → HIGH3`. For positive
-   `reference_range = HIGH3 - structural_invalidation`, the existing canonical
-   `EXTENSION_RATIOS` are reused without additions or tuning:
+2. Wave 3 continuation Fib extensions: SETUP_02 is already inside a started
+   Wave 3, so the projection reuses the original Wave 3 geometry shared with
+   SETUP_01. The only reference leg is `LOW0 → HIGH1`, with `LOW2` as the
+   projection base. For `wave1_length = HIGH1 - LOW0 > 0`, the existing
+   canonical `EXTENSION_RATIOS` are reused without additions or tuning:
 
-   `target = structural_invalidation + reference_range * extension_ratio`
+   `target = LOW2 + (HIGH1 - LOW0) * extension_ratio`
 
-   These candidates use source `CONTINUATION_FIB_EXTENSION` and retain the
-   extension ratio plus both frozen reference prices. The structural
-   descriptive `fib_retracement_ratio` is never a Decision gate or target
-   anchor.
+   These candidates use source `WAVE3_FIB_EXTENSION`. Their provenance retains
+   LOW0, HIGH1, LOW2, the extension ratio, and formula identity
+   `LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO`. The structural
+   `structural_invalidation` remains only the structural invalidation and
+   execution-stop anchor; it is not a Wave 3 target anchor. The descriptive
+   `fib_retracement_ratio` is never a Decision gate or target anchor.
 
-No legal candidate produces `NO_TRADE / NO_VALID_TARGET`.
+After all canonical Wave 3 and T-known confirmed swing-high candidates are
+generated, only candidates strictly above `planned_entry` remain. They are
+merged by price, sorted ascending, and the nearest three are T1/T2/T3. A
+nearest remaining target is never skipped because its R/R is below 2 in order
+to manufacture a more distant passing target; Target first, then R/R.
+
+## Old → corrected deterministic delta
+
+On the same 213 first-entry events and frozen v2 input, the pre-merge draft
+versus corrected Decision-only counts are:
+
+| field | pre-merge draft | corrected protocol |
+|---|---:|---:|
+| `ABOVE_ENTRY_ZONE` | 97 | 97 |
+| stale/invalid geometry | `INVALID_STRUCTURE=12` | `STALE_CONFIRMATION_GEOMETRY=12` |
+| `NO_VALID_TARGET` | 0 | 1 |
+| `RR_BELOW_MINIMUM` | 104 | 102 |
+| `ENTRY_ALLOWED` | 0 | 1 |
+| T+1 attempts | 0 | 1 |
+| T+1 classification | none | `SKIP_GAP_BELOW_CONFIRMATION=1` |
+
+Confirmed swing-high candidates remain 771 plus one merged dual-source price.
+The old continuation-Fib candidate family had 414 candidates under its old
+source label; the corrected `WAVE3_FIB_EXTENSION` family has 321 standalone
+candidates plus that same merged price. Corrected all-provenance extension
+ratio counts are `1.272=61`, `1.618=75`, `2.0=84`, and `2.618=102`; corrected
+T1 sources are confirmed swing high `44` and Wave3 Fib `59`. These are only
+formula, gate, target, and T+1 classifications; no forward-performance field
+is part of the delta.
+
+If every canonical projection and T-known swing high is at or below the T-day
+planned entry, the layer returns `NO_TRADE / NO_VALID_TARGET`; it does not
+look ahead or select a farther target to manufacture R/R.
 
 ## R/R and position sizing
 
@@ -77,8 +147,9 @@ exist. T1 is the gate:
 
 For `RR > 5`, the implementation records a provenance/geometry audit. It
 checks `structural_invalidation < HIGH3`, `execution_stop < planned_entry`,
-all targets above entry, legal target provenance, and the frozen continuation
-Fib reference leg. It introduces no historical performance parameter. A
+all targets above entry, legal target provenance, and the corrected Wave3
+reference identity `LOW2 + (HIGH1-LOW0) * existing extension ratio`. It
+introduces no historical performance parameter. A
 failed audit is an invalid structure/provenance failure; a valid high-asymmetry
 plan is not rejected merely because it is above 5R.
 
@@ -115,7 +186,7 @@ not fall forward to T+2.
 `DEVELOPMENT_EXPOSED` v2 dataset and report total conservation, CN/US,
 per-symbol counts, decision reasons, target source and extension-ratio
 provenance, R/R quality, >5R audits, missing T+1 bars, exact-once identity,
-and the execution ledger invariant.
+the execution ledger invariant, and the causal stale-geometry audit.
 
 `scripts/run_setup02_generic_operational_shadow.py` is synthetic-only. It
 covers exactly-once consumption, terminal filtering, T→T+1 OPEN behavior,

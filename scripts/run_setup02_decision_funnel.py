@@ -179,6 +179,10 @@ def run_setup02_decision_funnel(
     _write_csv(output_path / "setup02_decision_execution_events.csv", document["decisions"])
     _write_csv(output_path / "setup02_decision_execution_funnel.csv", document["per_symbol"])
     _write_csv(output_path / "setup02_target_provenance_audit.csv", document["target_provenance_audit"])
+    _write_csv(
+        output_path / "setup02_invalid_structure_geometry_audit.csv",
+        document["invalid_structure_audit"],
+    )
     _write_csv(output_path / "setup02_decision_replay_errors.csv", errors)
     print(
         "SETUP02_DECISION_FUNNEL_SUMMARY "
@@ -186,7 +190,13 @@ def run_setup02_decision_funnel(
             {
                 key: value
                 for key, value in document.items()
-                if key not in {"decisions", "replay_errors_detail", "per_symbol", "target_provenance_audit"}
+                if key not in {
+                    "decisions",
+                    "replay_errors_detail",
+                    "per_symbol",
+                    "target_provenance_audit",
+                    "invalid_structure_audit",
+                }
             },
             ensure_ascii=False,
         )

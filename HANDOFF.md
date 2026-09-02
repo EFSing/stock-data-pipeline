@@ -12,14 +12,14 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `SETUP_02_DECISION_RISK_V1`（实现完成，等待 Sol review）。
+- **当前 Phase / task:** `SETUP_02_DECISION_RISK_V1`（几何修正完成，等待 Sol review）。
 - **Sol approval / previous closeout:** `APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`；PR #45 已 squash merged，真实 merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`；pre-merge exact-head CI=`33493027270` success，merge-after main CI=`33494893693` success。
-- **唯一目标:** 从 clean `main@f679443d52d767841c0df3ff2e0179648b536fb0` 开发独立 SETUP_02 Decision/Risk v1，接入同一 frozen `DEVELOPMENT_EXPOSED` v2 dataset，完成验证并创建待 Sol review 的独立 PR。
+- **唯一目标:** 在既有 PR #50 上完成 SETUP_02 Decision/Risk geometry correction，接入同一 frozen `DEVELOPMENT_EXPOSED` v2 dataset，完成验证并保持 PR 待 Sol review；不新建 PR、不 merge。
 - **实现范围:** `trading/setup02_decision.py`、`research/setup02_decision_funnel.py`、`scripts/run_setup02_decision_funnel.py`、`scripts/run_setup02_generic_operational_shadow.py`、对应测试与 `docs/SETUP_02_DECISION_RISK_V1.md`；不得修改 `trading/setup02.py` structural lifecycle、Wave Engine、SETUP_01 或 SETUP_03。
 - **当前 replay pin:** frozen `DEVELOPMENT_EXPOSED` dataset `SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`，replay aggregate=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`；仅作 structure/Decision development evidence，不是 formal validation 或 Final OOS。
-- **当前 funnel:** 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=0`；gate=`ABOVE_ENTRY_ZONE 97 / INVALID_STRUCTURE 12 / RR_BELOW_MINIMUM 104 / others 0`；T+1 attempts/executed=`0/0`；CN/US=`74/139`；all 494 structural identity rows exact-once；target source/ratio、quality、>5R、missing T+1 与 ledger 报告已输出。
+- **当前 funnel:** corrected protocol 下 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=1`；gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102 / others 0`；T+1 attempts/executed=`1/0`，`SKIP_GAP_BELOW_CONFIRMATION=1`；CN/US=`74/139`；all 494 structural identity rows exact-once；target source/ratio、T1 source、quality、>5R、missing T1 与 ledger 报告已输出。
 - **操作边界:** 不读取或计算 returns/forward returns/MFE/MAE/P&L/expectancy/profit factor/Final OOS；不访问 holdings、broker、account、Secrets 或 Sheets；不实现 production calendar，不启动 Position Management/Exit、Wave 5、SETUP_04，不自动 merge Decision/Risk PR。
-- **停止条件:** focused/full unittest、compileall、`git diff --check`、development funnel、synthetic-only generic operational shadow、PR `OPEN/CLEAN/MERGEABLE` 与 exact-head CI success 完成后，停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`；若出现真实 correctness blocker，返回 `READY_FOR_DECISION`。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、corrected development funnel、synthetic-only generic operational shadow、PR `OPEN/CLEAN/MERGEABLE` 与 exact-head CI success 完成后，停止在 `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`；若出现 upstream structural contract inconsistency，返回 `READY_FOR_DECISION`。
 
 ## 2. Current Repository State
 
@@ -28,7 +28,7 @@
 - **main/base SHA:** GitHub `main` exact SHA=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；merge-after `CI Test Gate` run=`33494893693` completed/success。
 - **working checkout:** 当前 checkout 为 `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；Decision/Risk implementation 与测试在本分支，replay output 位于 ignored `artifacts/`。
 - **open PR / governance:** PR #45 已 merged；Decision/Risk PR #50 已创建并保持 OPEN，不自动 merge。
-- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；PR #50 的 substantive implementation head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`，其 exact-head `CI Test Gate` run=`33498226860` 与 synthetic shadow run=`33498226908` 均 success。最终 docs-only tip 不在本文件自引用，live GitHub state 以 closeout 核对为准。
+- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；PR #50 的 pre-correction substantive head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` 与其旧 exact-head CI 均已成功；当前 geometry correction commit/head/CI 待最终 push 后以 live GitHub closeout 为准。最终 docs-only tip 不在本文件自引用。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
 - **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_02 structural lifecycle 已 merged/frozen；本轮只推进 SETUP_02 Decision/Risk，未开启任何 production path。
 
@@ -218,13 +218,13 @@
 - SETUP_02 protocol: `SETUP-02-WAVE3-CONTINUATION-2026-09-01-v1`；only primary `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`, causal LOW0→HIGH1→LOW2→HIGH3, `HIGH3>HIGH1`, `LOW2>LOW0`, daily/weekly `UPTREND`, and existing Wave Engine `structural_invalidation`.
 - SETUP_02 lifecycle invariant: `NONE/WATCH/ARMED/CONFIRMED/FAILED`; recovery is `invalidation + 0.5 × (HIGH3-invalidation)`, ARMED is bounded through HIGH3, confirmation is the first daily close strictly above HIGH3, and terminal event identity is first-entry only. Historical terminal state persists across refresh; no Decision/Risk/Entry/Exit.
 - SETUP_02 replay evidence: frozen dataset v2 manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`, 40 symbols / 84,284 bars; replay aggregate SHA=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`; 494 unique terminal events, identity duplicates/mismatches `0/0`。
-- SETUP_02 Decision/Risk protocol: `SETUP-02-DECISION-RISK-2026-09-01-v1`; first-entry CONFIRMED only, T close plan, `[HIGH3, HIGH3+0.5*ATR14(T)]`, event-carried invalidation, `invalidation-0.5*ATR14(T)` execution stop, target-first/RR-second, exact T+1 OPEN only, and `actual_entry != None iff outcome == EXECUTED`。
-- SETUP_02 Decision funnel evidence: 213 first CONFIRMED → 213 Decision; `ENTRY_ALLOWED=0`; `ABOVE_ENTRY_ZONE=97`, `INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`; CN/US=`74/139`; T+1 attempts/executed=`0/0`; target candidate sources and extension ratios preserved; >5R=`0`; missing T+1=`0`; exact-once/conservation/ledger all pass。
+- SETUP_02 Decision/Risk corrected protocol: `SETUP-02-DECISION-RISK-2026-09-02-v2`; first-entry CONFIRMED only, T close plan, `[HIGH3, HIGH3+0.5*ATR14(T)]`, event-carried invalidation, `invalidation-0.5*ATR14(T)` execution stop, Wave3 target `LOW2 + (HIGH1-LOW0)*existing ratio`, target-first/RR-second, exact T+1 OPEN only, and `actual_entry != None iff outcome == EXECUTED`。旧 invalidation→HIGH3 projection 已撤回，不是正式冻结语义。
+- SETUP_02 corrected Decision funnel evidence: 213 first CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; `ABOVE_ENTRY_ZONE=97`, `STALE_CONFIRMATION_GEOMETRY=12`, `NO_VALID_TARGET=1`, `RR_BELOW_MINIMUM=102`; CN/US=`74/139`; T+1 attempts/executed=`1/0`, with `SKIP_GAP_BELOW_CONFIRMATION=1`; T1 source=`CONFIRMED_SWING_HIGH 44 / WAVE3_FIB_EXTENSION 59`; extension ratios=`1.272 61 / 1.618 75 / 2.0 84 / 2.618 102`; >5R=`0`; missing T+1=`0`; exact-once/conservation/ledger all pass。
 - Development evidence: 40 symbols / 86,305 days / 1,404 events (745 CONFIRMED / 659 FAILED) / 0 errors; real shadow run `33300273180`: 10 enabled / 8 evaluated / 2 fail-closed errors, no returns/OOS/Sheets writes。
 - SETUP_01 Decision/Risk v1 identity: `SETUP-01-DECISION-RISK-2026-08-30-v1`; first T-day `CONFIRMED` identity only, exactly-once, T close plan, exact T+1 OPEN, fixed Entry Zone/stop, target-before-RR, and no same-bar execution。
 - Execution-ledger invariant: `actual_entry != None` if and only if `outcome == EXECUTED`; `t1_open` is observed T+1 OPEN and remains populated for diagnostics; skipped outcomes keep `actual_entry=None`。
 - Development session identity: `DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`; production prerequisite: `PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`; no third-party calendar is added in this task。
-- Target provenance status: five `ENTRY_ALLOWED` rows use existing `WAVE3_FIB_EXTENSION / 1.272`; historical swing-high T1 count `0`, >5R count `0`, geometry pass; `TARGET_PROVENANCE_NO_NEW_BLOCKER`。
+- SETUP_02 corrected target provenance: T1 source=`CONFIRMED_SWING_HIGH 44 / WAVE3_FIB_EXTENSION 59`; all legal Wave3 candidates use `LOW2 + (HIGH1-LOW0)*ratio`, ratios=`1.272 61 / 1.618 75 / 2.0 84 / 2.618 102`; >5R count `0`, missing T+1 `0`。
 
 - Phase 5J-v3 event-matching protocol: `SETUP_03-PHASE5J-V3-EVENT-MATCHING-2026-08-28-v1`, canonical SHA-256 `sha256:84c85e3abe24745022dd8040330e92e9d97736a05b249972a2203d4a9a4fe816`。
 - Phase 5J-v4 lifecycle-attribution protocol: `SETUP_03-PHASE5J-V4-LIFECYCLE-ATTRIBUTION-2026-08-29-v1`, canonical SHA-256 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`；state `LIFECYCLE_ATTRIBUTION_PROTOCOL_FROZEN_NOT_EXECUTED`。
@@ -244,7 +244,7 @@
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
-| current task verification | SETUP_02 code/tests/replay are locally complete; PR #50 exact-head CI and synthetic shadow are successful; final docs push requires one last live head check | recheck final PR head/mergeability and CI after docs closeout; do not merge | No |
+| current task verification | corrected SETUP_02 code/tests/replay are locally complete; corrected PR #50 push and exact-head CI/mergeability recheck remain pending | push the same branch, verify final live head/CI, then stop for Sol review; do not merge | No |
 | development evidence boundary | replay uses frozen local DEVELOPMENT_EXPOSED v2 (40/40, 84,284 bars), not formal validation or Final OOS | keep all reports structure/decision/risk-only and retain dataset/manifest pins | Yes for any production/formal-validation claim |
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | PR #43 merged at squash commit `3b300975e999a934533398a951e7ec34e80a17bd`; pre-merge exact-head CI `33402171900` and generic shadow `33402171991` success; merge-after main exact-head CI `33404615092` success | keep the post-merge main SHA and CI as live GitHub evidence; docs-only governance commit does not self-reference its own SHA | No |
@@ -312,10 +312,10 @@
 1. [x] 已从真实 merged `main@f679443d52d767841c0df3ff2e0179648b536fb0` 建立 `codex/setup02-decision-risk-v1`。
 2. [x] 已完成 PR #45 merge closeout：pre-merge exact-head CI `33493027270` success；merge-after main exact-head CI `33494893693` success。
 3. [x] 已实现独立 SETUP_02 Decision/Risk evaluator、funnel、synthetic-only generic shadow、tests 与 Decision/Risk protocol。
-4. [x] frozen v2 funnel 已完成：213 CONFIRMED → 213 Decision、0 ENTRY_ALLOWED、0 T+1 attempts；CN/US=`74/139`；identity/ledger/conservation 全部通过。
-5. [x] 运行 focused/full unittest、compileall、`git diff --check`，并核对 SETUP_01 regression/invariance：focused=`33/33`、full=`471/471`。
+4. [x] corrected frozen v2 funnel 已完成：213 CONFIRMED → 213 Decision、`ENTRY_ALLOWED=1`、T+1 attempts/executed=`1/0`；CN/US=`74/139`；identity/ledger/conservation 全部通过。
+5. [x] 运行 focused/full unittest、compileall、`git diff --check`，并核对 SETUP_01 regression/invariance：focused=`36/36`、full=`474/474`。
 6. [x] 更新本交接与治理文档，commit=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`，push 分支并创建独立 Decision/Risk PR #50。
-7. [x] 最终 docs commit push 后已重新核对 PR #50 `OPEN / CLEAN / MERGEABLE` 与 exact-head CI success；当前停止在 `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`，不自动 merge。最终 docs-only tip 不自引用，exact head 以 live GitHub closeout 为准。
+7. [ ] corrected geometry implementation and governance docs are complete; after final push, rerun full tests and live-verify PR #50 exact head/CI/mergeability, then stop at `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`; do not merge automatically。
 
 ## 11. Handoff Checklist
 
@@ -331,15 +331,15 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-09-01`
+- `last_updated_at`: `2026-09-02`
 - `verified_origin_main_sha`: `f679443d52d767841c0df3ff2e0179648b536fb0`
-- `latest_substantive_implementation_sha`: `4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` (structural source merged as `f679443d52d767841c0df3ff2e0179648b536fb0`)
+- `latest_substantive_implementation_sha`: pre-correction draft=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`; corrected geometry commit is pending final local commit/push (structural source merged as `f679443d52d767841c0df3ff2e0179648b536fb0`)
 - `merged_pr`: #45 `https://github.com/EFSing/stock-data-pipeline/pull/45`; pre-merge head=`19c6e0eaa8841b757e6359e897ab559e31d39f65`; merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`; merge-after CI=`33494893693` success
-- `current_branch`: `codex/setup02-decision-risk-v1`; PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`, head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`, OPEN; do not merge automatically
+- `current_branch`: `codex/setup02-decision-risk-v1`; PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`, corrected head pending push, remains OPEN and must not be merged automatically
 - `latest_structural_replay_result`: 40/40 symbols, 84,284 bars, 0 errors, 213 CONFIRMED events, 281 FAILED events, identity duplicates/mismatches=`0/0`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
-- `latest_decision_funnel_result`: 213 CONFIRMED → 213 Decision; 0 ENTRY_ALLOWED; 0 T+1 attempts; gate `ABOVE_ENTRY_ZONE=97`, `INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`; CN/US=`74/139`; all exact-once/conservation/ledger checks passed
-- `latest_test_result`: focused Decision/Risk + generic shadow + SETUP_01 regression=`33/33`; full unittest=`471/471`; compileall and `git diff --check` passed
+- `latest_decision_funnel_result`: corrected protocol `SETUP-02-DECISION-RISK-2026-09-02-v2`; 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate `ABOVE_ENTRY_ZONE=97`, `STALE_CONFIRMATION_GEOMETRY=12`, `NO_VALID_TARGET=1`, `RR_BELOW_MINIMUM=102`; T+1 attempts/executed=`1/0`, `SKIP_GAP_BELOW_CONFIRMATION=1`; CN/US=`74/139`; all exact-once/conservation/ledger checks passed
+- `latest_test_result`: focused Decision/Risk + generic shadow + SETUP_01 regression=`36/36`; full unittest=`474/474`; compileall and `git diff --check` passed
 - `scope_boundary`: no returns/forward returns/MFE/MAE/P&L/expectancy/profit factor/Final OOS; no holdings/broker/account/Secrets/Sheets/production calendar; SETUP_02 structural lifecycle, SETUP_01, Wave Engine and SETUP_03 not modified
-- `next_action`: hand off PR #50 to Sol for review; do not merge automatically; remain at `SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`
+- `next_action`: rerun final tests, push corrected geometry to PR #50, reverify exact-head CI/mergeability, then hand off to Sol; do not merge automatically
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

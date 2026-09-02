@@ -19,7 +19,7 @@ from typing import Iterable, Mapping, Sequence
 
 from core import Quote
 from research.market_sessions import build_market_session_dates
-from trading.fibonacci import EXTENSION_RATIOS
+from trading.fibonacci import EXTENSION_RATIOS, project_extension
 from trading.indicators import atr
 from trading.models import (
     DecisionAction,
@@ -35,7 +35,7 @@ from trading.setup02_replay import Setup02ReplayEvent
 from trading.swing import find_swings
 
 
-SETUP02_DECISION_PROTOCOL_VERSION = "SETUP-02-DECISION-RISK-2026-09-01-v1"
+SETUP02_DECISION_PROTOCOL_VERSION = "SETUP-02-DECISION-RISK-2026-09-02-v2"
 SETUP02_ATR_PERIOD = 14
 SETUP02_ENTRY_ZONE_ATR = 0.5
 SETUP02_EXECUTION_STOP_ATR = 0.5
@@ -49,6 +49,7 @@ class Setup02DecisionGateReason(str, Enum):
     ABOVE_ENTRY_ZONE = "ABOVE_ENTRY_ZONE"
     NO_VALID_TARGET = "NO_VALID_TARGET"
     RR_BELOW_MINIMUM = "RR_BELOW_MINIMUM"
+    STALE_CONFIRMATION_GEOMETRY = "STALE_CONFIRMATION_GEOMETRY"
     INVALID_STRUCTURE = "INVALID_STRUCTURE"
     ENTRY_ALLOWED = "ENTRY_ALLOWED"
 
@@ -70,8 +71,10 @@ class Setup02TargetProvenance:
     pivot_date: date | None = None
     confirmed_date: date | None = None
     extension_ratio: float | None = None
-    reference_start_price: float | None = None
-    reference_end_price: float | None = None
+    wave1_origin_price: float | None = None
+    wave1_peak_price: float | None = None
+    wave2_low_price: float | None = None
+    formula_identity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -105,7 +108,7 @@ class Setup02Decision:
     entry_zone_high: float | None
     structural_invalidation: float | None
     execution_stop: float | None
-    continuation_reference_range: float | None
+    wave1_length: float | None
     target_candidates: tuple[Setup02TargetCandidate, ...]
     targets: tuple[float, ...]
     target_reasonableness_checked: bool
@@ -160,7 +163,7 @@ def _empty_decision(
     entry_zone_high: float | None = None,
     structural_invalidation: float | None = None,
     execution_stop: float | None = None,
-    continuation_reference_range: float | None = None,
+    wave1_length: float | None = None,
     target_candidates: tuple[Setup02TargetCandidate, ...] = (),
     targets: tuple[float, ...] = (),
     target_reasonableness_checked: bool = False,
@@ -195,7 +198,7 @@ def _empty_decision(
         entry_zone_high=entry_zone_high,
         structural_invalidation=structural_invalidation,
         execution_stop=execution_stop,
-        continuation_reference_range=continuation_reference_range,
+        wave1_length=wave1_length,
         target_candidates=target_candidates,
         targets=targets,
         target_reasonableness_checked=target_reasonableness_checked,
@@ -278,19 +281,6 @@ def _structure_fields(
         for item in required
     ):
         raise ValueError("CONFIRMED event contains a future or unconfirmed swing")
-    if not (
-        low0.kind is SwingKind.LOW
-        and high1.kind is SwingKind.HIGH
-        and low2.kind is SwingKind.LOW
-        and high3.kind is SwingKind.HIGH
-        and low0.pivot_index < high1.pivot_index < low2.pivot_index < high3.pivot_index
-        and high3.price > high1.price
-        and low2.price > low0.price
-        and high3.price == confirmation_level
-        and structural_invalidation < high3.price
-        and prefix[-1].close > confirmation_level
-    ):
-        raise ValueError("SETUP_02 continuation structural invariants failed")
     return (
         low0,
         high1,
@@ -301,12 +291,117 @@ def _structure_fields(
     )
 
 
+def _structure_invariant_failures(
+    low0: SwingPoint,
+    high1: SwingPoint,
+    low2: SwingPoint,
+    high3: SwingPoint,
+    confirmation_level: float,
+    structural_invalidation: float,
+    t_close: float,
+) -> tuple[str, ...]:
+    """Return deterministic Decision-layer checks without changing structure."""
+    failures: list[str] = []
+    # This check has priority because an invalidation at/above the old HIGH3
+    # makes that confirmation geometry stale for a new Decision plan.
+    if structural_invalidation >= high3.price:
+        failures.append(
+            "STALE_CONFIRMATION_GEOMETRY: structural_invalidation >= HIGH3"
+        )
+    if not (
+        low0.kind is SwingKind.LOW
+        and high1.kind is SwingKind.HIGH
+        and low2.kind is SwingKind.LOW
+        and high3.kind is SwingKind.HIGH
+        and low0.pivot_index < high1.pivot_index < low2.pivot_index < high3.pivot_index
+    ):
+        failures.append("INVALID_SWING_KINDS_OR_ORDER")
+    if high3.price <= high1.price:
+        failures.append("HIGH3_NOT_ABOVE_HIGH1")
+    if low2.price <= low0.price:
+        failures.append("LOW2_NOT_ABOVE_LOW0")
+    if high3.price != confirmation_level:
+        failures.append("CONFIRMATION_LEVEL_NOT_HIGH3")
+    if t_close <= confirmation_level:
+        failures.append("T_CLOSE_NOT_ABOVE_CONFIRMATION")
+    return tuple(failures)
+
+
+def setup02_structure_geometry_audit(
+    event: Setup02ReplayEvent,
+    quotes: Sequence[Quote],
+) -> dict:
+    """Audit the causal structural fields consumed by the Decision layer.
+
+    This is a structure/geometry audit only.  It reads the event fields and
+    the T-day quote prefix, and never reads any later bar or outcome field.
+    """
+    _validated_event(event)
+    row = {
+        "event_identity": event.event_identity,
+        "symbol": event.symbol,
+        "market": str(event.market),
+        "trade_date": event.trade_date.isoformat(),
+        "LOW0": None,
+        "HIGH1": None,
+        "LOW2": None,
+        "HIGH3": None,
+        "confirmation_level": None,
+        "structural_invalidation": None,
+        "t_close": None,
+        "failure_reasons": [],
+        "exact_invariant_failure_reason": "UNAVAILABLE_STRUCTURE_FIELDS",
+        "classification": "INVALID_STRUCTURE",
+    }
+    try:
+        prefix = _prefix_at_event(event, quotes)
+        fields = _structure_fields(event, prefix)
+    except ValueError as exc:
+        row["failure_reasons"] = [str(exc)]
+        row["exact_invariant_failure_reason"] = str(exc)
+        return row
+
+    low0, high1, low2, high3, confirmation_level, structural_invalidation = fields
+    t_close = float(prefix[-1].close)
+    failures = _structure_invariant_failures(
+        low0,
+        high1,
+        low2,
+        high3,
+        confirmation_level,
+        structural_invalidation,
+        t_close,
+    )
+    row.update(
+        {
+            "LOW0": _swing_to_dict(low0),
+            "HIGH1": _swing_to_dict(high1),
+            "LOW2": _swing_to_dict(low2),
+            "HIGH3": _swing_to_dict(high3),
+            "confirmation_level": confirmation_level,
+            "structural_invalidation": structural_invalidation,
+            "t_close": t_close,
+            "failure_reasons": list(failures),
+            "exact_invariant_failure_reason": failures[0] if failures else "NONE",
+            "classification": (
+                "STALE_CONFIRMATION_GEOMETRY"
+                if failures and failures[0].startswith("STALE_CONFIRMATION_GEOMETRY")
+                else "INVALID_STRUCTURE"
+                if failures
+                else "VALID"
+            ),
+        }
+    )
+    return row
+
+
 def _target_candidates(
     prefix: Sequence[Quote],
     *,
-    high3: SwingPoint,
+    low0: SwingPoint,
+    high1: SwingPoint,
+    low2: SwingPoint,
     entry: float,
-    structural_invalidation: float,
     swing_lookback: int,
 ) -> tuple[Setup02TargetCandidate, ...]:
     """Generate all legal T-known candidates before calculating R/R."""
@@ -342,26 +437,34 @@ def _target_candidates(
                 )
             )
 
-    reference_range = high3.price - structural_invalidation
-    if reference_range > 0 and math.isfinite(float(reference_range)):
+    wave1_length = high1.price - low0.price
+    if wave1_length > 0 and math.isfinite(float(wave1_length)):
         for ratio_name, ratio in EXTENSION_RATIOS.items():
-            target = structural_invalidation + reference_range * float(ratio)
+            target = project_extension(
+                low2.price,
+                low0.price,
+                high1.price,
+                float(ratio),
+            )
             if math.isfinite(float(target)) and target > entry:
                 candidates.append(
                     Setup02TargetCandidate(
                         price=float(target),
-                        source="CONTINUATION_FIB_EXTENSION",
+                        source="WAVE3_FIB_EXTENSION",
                         reason=(
-                            "structural_invalidation + (HIGH3 - "
-                            "structural_invalidation) * existing extension "
+                            "LOW2 + (HIGH1 - LOW0) * existing extension "
                             f"{ratio_name}"
                         ),
                         provenance=(
                             Setup02TargetProvenance(
-                                source="CONTINUATION_FIB_EXTENSION",
+                                source="WAVE3_FIB_EXTENSION",
                                 extension_ratio=float(ratio),
-                                reference_start_price=float(structural_invalidation),
-                                reference_end_price=float(high3.price),
+                                wave1_origin_price=float(low0.price),
+                                wave1_peak_price=float(high1.price),
+                                wave2_low_price=float(low2.price),
+                                formula_identity=(
+                                    "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO"
+                                ),
                             ),
                         ),
                     )
@@ -386,8 +489,8 @@ def _target_candidates(
                     item.extension_ratio
                     if item.extension_ratio is not None
                     else -math.inf,
-                    item.reference_start_price
-                    if item.reference_start_price is not None
+                    item.wave1_origin_price
+                    if item.wave1_origin_price is not None
                     else -math.inf,
                 ),
             )
@@ -407,8 +510,6 @@ def _target_provenance_is_valid(
     candidate: Setup02TargetCandidate,
     *,
     entry: float,
-    high3: float,
-    structural_invalidation: float,
     as_of_date: date,
 ) -> bool:
     if not candidate.provenance or not math.isfinite(candidate.price):
@@ -425,46 +526,59 @@ def _target_provenance_is_valid(
                 or item.extension_ratio is not None
             ):
                 return False
-        elif item.source == "CONTINUATION_FIB_EXTENSION":
-            if item.extension_ratio is None:
+        elif item.source == "WAVE3_FIB_EXTENSION":
+            if (
+                item.extension_ratio is None
+                or item.wave1_origin_price is None
+                or item.wave1_peak_price is None
+                or item.wave2_low_price is None
+                or item.formula_identity
+                != "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO"
+            ):
                 return False
             known_ratios = tuple(float(value) for value in EXTENSION_RATIOS.values())
             if not any(math.isclose(item.extension_ratio, value) for value in known_ratios):
                 return False
-            if item.reference_start_price != structural_invalidation:
+            if not (
+                math.isfinite(item.wave1_origin_price)
+                and math.isfinite(item.wave1_peak_price)
+                and math.isfinite(item.wave2_low_price)
+                and item.wave1_peak_price > item.wave1_origin_price
+            ):
                 return False
-            if item.reference_end_price != high3:
-                return False
-            expected = structural_invalidation + (
-                high3 - structural_invalidation
-            ) * item.extension_ratio
+            expected = project_extension(
+                item.wave2_low_price,
+                item.wave1_origin_price,
+                item.wave1_peak_price,
+                item.extension_ratio,
+            )
             if not math.isclose(candidate.price, expected, rel_tol=0.0, abs_tol=1e-12):
                 return False
         else:
             return False
-    return structural_invalidation < high3
+    return True
 
 
 def _targets_are_reasonable(
     candidates: Sequence[Setup02TargetCandidate],
     *,
     entry: float,
-    high3: float,
-    structural_invalidation: float,
+    low0: float,
+    high1: float,
+    low2: float,
     execution_stop: float,
     as_of_date: date,
 ) -> bool:
     """Check only frozen geometry and provenance, never historical outcomes."""
     return (
-        structural_invalidation < high3
+        high1 > low0
+        and low2 > low0
         and execution_stop < entry
         and bool(candidates)
         and all(
             _target_provenance_is_valid(
                 candidate,
                 entry=entry,
-                high3=high3,
-                structural_invalidation=structural_invalidation,
                 as_of_date=as_of_date,
             )
             for candidate in candidates
@@ -496,9 +610,15 @@ def evaluate_setup02_decision(
         )
 
     planned_entry = float(prefix[-1].close)
-    if atr_period <= 0:
-        raise ValueError("atr_period 必须为正整数")
-    atr_value = atr(list(prefix), atr_period)[-1]
+    invariant_failures = _structure_invariant_failures(
+        low0,
+        high1,
+        low2,
+        high3,
+        confirmation_level,
+        structural_invalidation,
+        planned_entry,
+    )
     common = dict(
         continuation_low0=low0,
         continuation_high1=high1,
@@ -508,8 +628,25 @@ def evaluate_setup02_decision(
         planned_entry=planned_entry,
         entry_zone_low=confirmation_level,
         structural_invalidation=structural_invalidation,
-        continuation_reference_range=high3.price - structural_invalidation,
+        wave1_length=high1.price - low0.price,
     )
+    if invariant_failures:
+        gate_reason = (
+            Setup02DecisionGateReason.STALE_CONFIRMATION_GEOMETRY
+            if invariant_failures[0].startswith("STALE_CONFIRMATION_GEOMETRY")
+            else Setup02DecisionGateReason.INVALID_STRUCTURE
+        )
+        return _empty_decision(
+            event,
+            decision_calculable=True,
+            gate_reason=gate_reason,
+            gate_detail="; ".join(invariant_failures),
+            **common,
+        )
+
+    if atr_period <= 0:
+        raise ValueError("atr_period 必须为正整数")
+    atr_value = atr(list(prefix), atr_period)[-1]
     if atr_value is None or not math.isfinite(float(atr_value)) or float(atr_value) <= 0:
         return _empty_decision(
             event,
@@ -535,9 +672,10 @@ def evaluate_setup02_decision(
 
     candidates = _target_candidates(
         prefix,
-        high3=high3,
+        low0=low0,
+        high1=high1,
+        low2=low2,
         entry=planned_entry,
-        structural_invalidation=structural_invalidation,
         swing_lookback=swing_lookback,
     )
     targets = tuple(candidate.price for candidate in candidates[:3])
@@ -560,8 +698,9 @@ def evaluate_setup02_decision(
         reasonableness_passed = _targets_are_reasonable(
             candidates,
             entry=planned_entry,
-            high3=high3.price,
-            structural_invalidation=structural_invalidation,
+            low0=low0.price,
+            high1=high1.price,
+            low2=low2.price,
             execution_stop=execution_stop,
             as_of_date=event.trade_date,
         )
@@ -803,8 +942,10 @@ def _target_to_dict(candidate: Setup02TargetCandidate) -> dict:
                     else None
                 ),
                 "extension_ratio": item.extension_ratio,
-                "reference_start_price": item.reference_start_price,
-                "reference_end_price": item.reference_end_price,
+                "wave1_origin_price": item.wave1_origin_price,
+                "wave1_peak_price": item.wave1_peak_price,
+                "wave2_low_price": item.wave2_low_price,
+                "formula_identity": item.formula_identity,
             }
             for item in candidate.provenance
         ],
@@ -830,8 +971,10 @@ def setup02_target_provenance_audit(
                 item.confirmed_date.isoformat() if item.confirmed_date else None
             ),
             "extension_ratio": item.extension_ratio,
-            "reference_start_price": item.reference_start_price,
-            "reference_end_price": item.reference_end_price,
+            "wave1_origin_price": item.wave1_origin_price,
+            "wave1_peak_price": item.wave1_peak_price,
+            "wave2_low_price": item.wave2_low_price,
+            "formula_identity": item.formula_identity,
         }
         for item in t1.provenance
     ]
@@ -841,12 +984,16 @@ def setup02_target_provenance_audit(
         and decision.confirmation_level is not None
         and decision.structural_invalidation is not None
         and decision.execution_stop is not None
+        and decision.continuation_low0 is not None
+        and decision.continuation_high1 is not None
+        and decision.continuation_low2 is not None
     ):
         geometry_check = _targets_are_reasonable(
             decision.target_candidates,
             entry=decision.planned_entry,
-            high3=decision.confirmation_level,
-            structural_invalidation=decision.structural_invalidation,
+            low0=decision.continuation_low0.price,
+            high1=decision.continuation_high1.price,
+            low2=decision.continuation_low2.price,
             execution_stop=decision.execution_stop,
             as_of_date=decision.trade_date,
         )
@@ -927,7 +1074,7 @@ def setup02_decision_to_dict(value: Setup02Decision) -> dict:
         "entry_zone_high": value.entry_zone_high,
         "structural_invalidation": value.structural_invalidation,
         "execution_stop": value.execution_stop,
-        "continuation_reference_range": value.continuation_reference_range,
+        "wave1_length": value.wave1_length,
         "target_candidates": [_target_to_dict(item) for item in value.target_candidates],
         "targets": list(value.targets),
         "T1": value.targets[0] if len(value.targets) > 0 else None,
@@ -982,5 +1129,6 @@ __all__ = [
     "execute_setup02_t1_open",
     "setup02_decision_to_dict",
     "setup02_execution_to_dict",
+    "setup02_structure_geometry_audit",
     "setup02_target_provenance_audit",
 ]
