@@ -343,7 +343,7 @@
 
 **Permanent prevention rule:** branch name 只能作为线索；正式任务必须由 HANDOFF/CURRENT_STATUS、用户本轮授权、protocol、PR/commit 和客观 artifact evidence 共同确认。
 
-## 10. Historical Next Action — PORTFOLIO_RISK_V1
+## 10. Next Action — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
 
 1. [x] PR #51 closeout 已完成：source head=`2dbb7a751916921a29360b28467de92e150683e3`，squash merge=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after CI=`33607481962` success。
 2. [x] PR #59 四个 implementation commits 已从远端恢复；frozen archive 81/81 hash/size 与 loader 的 40 symbols/84,284 bars 已验证。
