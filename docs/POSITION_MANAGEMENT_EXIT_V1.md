@@ -1,6 +1,6 @@
 # Position Management + Exit v1 Protocol
 
-Status: `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`
+Status: `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`
 
 Protocol identity: `POSITION-MANAGEMENT-EXIT-2026-09-02-v1`
 
@@ -15,7 +15,10 @@ entry is generated and Position Management never re-screens an entry.
 
 Each position freezes source setup and event identity, symbol/market, execution
 date and actual entry, initial execution stop, initial structural invalidation,
-T1/T2/T3, original Wave anchors, and initial risk/share. `1R` is exactly
+T1/T2/T3, original Wave anchors, and initial risk/share. `PositionTarget`
+copies the first three Decision target candidates in their original
+price/order/source/provenance order; target prices are never recomputed after
+execution. `1R` is exactly
 `actual_entry - initial_execution_stop > 0` for the life of the position.
 
 ## Causal daily state
@@ -50,9 +53,11 @@ above HIGH3. The record preserves supporting evidence, counter-evidence,
 invalidation, and swing provenance. It can create `NO_ADD` or advisory
 `PROFIT_PROTECTION`, never a full exit and never a new entry.
 
-Risk flags are independent advisories: Wave5 candidate, Fib target
+Risk flags are independent advisories: Wave5 candidate, provenance-qualified
+Fib target proximity/reached, provenance-qualified confirmed-swing target
 proximity/reached, abnormal high volume, price stall, long upper wick, and
-momentum divergence. Action priority is confirmed exit -> `EXIT`, pending
+momentum divergence. A confirmed-swing target is never labelled Fib; a
+dual-source target may emit both labels. Action priority is confirmed exit -> `EXIT`, pending
 structural/MFE -> `PROFIT_PROTECTION`, Wave5 -> `NO_ADD`, raised stop/high-risk
 flag -> `PROFIT_PROTECTION`, otherwise `HOLD`.
 
@@ -69,4 +74,8 @@ Synthetic fixtures cover frozen 1R, confirmed/provisional swing timing, next
 session activation, gap/intraday stop paths, MFE trigger/floor/giveback, target
 tracking without auto-sell, structural pending, Wave4/Wave5 strictness, NO_ADD,
 terminal exit behavior, future-append invariance, and read-only operational
-controls.
+terminal exit behavior, future-append invariance, and read-only operational
+controls. The one-time frozen replay cache audit compares the strict original
+prefix path and cached path for every frozen bar and every Wave/SETUP snapshot
+and event field; its exact canonical digests are recorded in the replay
+artifact under `cache_semantic_parity`.

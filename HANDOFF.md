@@ -12,7 +12,7 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `POSITION_MANAGEMENT_EXIT_V1`（实现完成，等待 Sol review）。
+- **当前 Phase / task:** `POSITION_MANAGEMENT_EXIT_V1`（pre-merge hardened，等待 Sol review）。
 - **Sol approval / previous closeout:** `APPROVE_SETUP_02_DECISION_RISK_V2_MERGE_AND_PROCEED_POSITION_MANAGEMENT_EXIT_V1`；PR #50 已 squash merged，真实 merge commit=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`；merge-after main exact-head CI=`33588525870` success。
 - **唯一目标:** 从最新 clean merged main 建立 Position Management + Exit v1，回放冻结 SETUP_01/SETUP_02 source streams 且只适配 `EXECUTED` rows，完成 synthetic shadow、frozen replay、回归与治理核验；创建新 PR 供 Sol review，不 merge。
 - **实现范围:** `trading/position_management.py`、`trading/wave5_context.py`、`research/position_management_replay.py`、两个 replay/shadow runner、tests、`research/protocols/position_management_exit_v1.json` 与 `docs/POSITION_MANAGEMENT_EXIT_V1.md`；历史 Wave/Setup cache 仅保持严格确认索引因果语义，不改变冻结 entry semantics。
@@ -20,7 +20,7 @@
 - **当前 replay:** 3 positions / 134 position-days，全部来自当前 v2 frozen SETUP_01 `EXECUTED=3`；SETUP_02 `EXECUTED=0`；30 stop raises；exit reasons=`EXIT_GAP_BELOW_STOP=1 / EXIT_STOP_TRIGGERED=1 / STRUCTURAL_EXIT_PENDING=1`；Wave5 contexts=`NO_WAVE5_CONTEXT=19 / WAVE4_PULLBACK_CONTEXT=19 / WAVE5_CANDIDATE=96`。
 - **SETUP_02 corrected funnel retained:** 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=1`；gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`；T+1 attempts/executed=`1/0`，`SKIP_GAP_BELOW_CONFIRMATION=1`；target source/ratio provenance is preserved in the replay report, and all 12 old geometry rows remain `STALE_CONFIRMATION_GEOMETRY`。
 - **操作边界:** Position Management 只消费 `outcome == EXECUTED`；不重筛 entry、不生成新 entry、不访问 holdings、broker、account、Secrets 或 Sheets；不输出 win rate、aggregate P&L、expectancy、profit factor、Sharpe、optimized thresholds 或 Final OOS。
-- **停止条件:** focused/full unittest、compileall、`git diff --check`、generic operational shadow、frozen replay causal/conservation/identity/governance checks、新 PR exact-head CI 与 generic shadow success 完成后，停止在 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`；禁止 merge 新 PR。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、generic operational shadow、frozen replay causal/conservation/identity/governance checks、strict-vs-cached semantic parity、新 PR exact-head CI 与 generic shadow success 完成后，停止在 `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`；禁止 merge 新 PR。
 
 ## 2. Current Repository State
 
@@ -28,7 +28,7 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub `main` exact SHA=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`，为 PR #50 的真实 squash merge commit；merge-after `CI Test Gate` run=`33588525870` completed/success。
 - **working checkout:** 当前 checkout 为 `codex/position-management-exit-v1`，从上述 clean merged main 创建；Position Management/Exit implementation、tests 与 protocol docs 在本分支，replay output 位于 ignored `artifacts/`。
-- **open PR / governance:** PR #50 已 merged；本轮新建独立 Position Management/Exit PR，保持 OPEN、等待 Sol review，不自动 merge。
+- **open PR / governance:** PR #50 已 merged；PR #51 是既有 Position Management/Exit review PR，hardening commit=`e289281c7860615ca44bd402db6051756d56b357` 待 push，保持 OPEN、等待 Sol review，不自动 merge。
 - **base CI:** `main@07e267bdcae32e8fb4bbc8ee07f9758703feaa09` merge-after exact-head CI run=`33588525870` success；新 PR 的最终 head 与 exact-head CI/shadow 以 live GitHub closeout 为准。禁止 merge 新 PR。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
 - **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02 entry/Decision layers frozen；本轮只推进 Position Management + Exit，未开启任何 production path。
@@ -313,9 +313,10 @@
 1. [x] 已从真实 merged `main@07e267bdcae32e8fb4bbc8ee07f9758703feaa09` 建立 `codex/position-management-exit-v1`。
 2. [x] PR #50 merge closeout 已完成：真实 squash merge=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`；merge-after `CI Test Gate`=`33588525870` success。
 3. [x] 已实现 Position Management + Exit v1、Wave5 context、frozen mechanical replay、synthetic-only generic shadow、tests 与协议文档。
-4. [x] 当前 v2 replay 已完成：3 positions / 134 position-days、SETUP_01=`3 EXECUTED`、SETUP_02=`0 EXECUTED`、30 stop raises；exit/gate/target/Wave5 与 invariants 已写入报告。
-5. [x] 最终 focused=`18/18`、full unittest=`492/492`、compileall、`git diff --check` 与 frozen replay 均通过；提交=`682d05975eb407ee648920ef2bb2d7f760886cfc`，push 新分支并创建 PR #51。
-6. [x] PR #51 exact-head=`682d05975eb407ee648920ef2bb2d7f760886cfc`；`CI Test Gate`=`33595416196` success、`SETUP_02 generic operational shadow`=`33595442847` success；PR=`OPEN / CLEAN / MERGEABLE`、`merged=false`；待本次治理 docs closeout tip 再次核验最终 exact-head CI，停止在 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`。
+4. [x] 当前 v2 replay 已完成：3 positions / 134 position-days、SETUP_01=`3 EXECUTED`、SETUP_02=`0 EXECUTED`、30 stop raises；exit/gate/target/Wave5、provenance correction 与 invariants 已写入报告。
+5. [x] 已完成一次性 frozen replay cache semantic parity：40 symbols / 84,284 bars，Wave/SETUP01/SETUP02 snapshots/events 全部 strict=`cached`，`first_mismatch=null`，cache retained。
+6. [x] hardening focused=`25/25`、full unittest=`499/499`、compileall、`git diff --check` 与 frozen replay 均通过；提交=`e289281c7860615ca44bd402db6051756d56b357`，尚未 push。
+7. [ ] 将 hardening commit push 至既有 PR #51，等待并核验最终 exact-head CI、SETUP_02 generic shadow、PR `OPEN / CLEAN / MERGEABLE`，停止在 `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`；禁止 merge。
 
 ## 11. Handoff Checklist
 
@@ -323,23 +324,24 @@
 - [x] merged main / new branch baseline 已更新：main=`07e267bd...`，PR #50 merge-after CI=`33588525870` success
 - [x] Position Management/Exit、Wave5 context、frozen replay、synthetic-only shadow 与协议文件已列入当前 task
 - [x] scope boundary 明确：只消费 EXECUTED；无新 entry、production、禁止绩效统计、账户/券商/Sheets 访问；新 PR 不自动 merge
-- [x] SETUP_02 corrected funnel、12 条 geometry root-cause audit、SETUP_01/SETUP_02 identity invariance 与 governance consistency 已写入报告/文档
+- [x] SETUP_02 corrected funnel、12 条 geometry root-cause audit、SETUP_01/SETUP_02 structural identity uniqueness、cache semantic parity 与 governance consistency 已写入报告/文档
 - [x] 重要 decision 已写入 `docs/DECISION_LOG.md`
-- [x] PR #51 exact-head CI=`33595416196`、generic shadow=`33595442847` 均 success；PR=`OPEN / CLEAN / MERGEABLE`、`merged=false`
-- [x] 所有当前治理文件已更新至 PR #51 closeout；本次 docs closeout tip 不自引用自身 SHA，最终 live head/check 以 GitHub 现场核验为准
+- [x] 本地 hardening replay、shadows、499/499 full unittest、compileall 与 `git diff --check` 已通过
+- [ ] PR #51 hardening tip push 后 exact-head CI/generic shadow/PR state 需 live 核验；PR 不 merge
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-02`
 - `verified_origin_main_sha`: `07e267bdcae32e8fb4bbc8ee07f9758703feaa09`
-- `latest_substantive_implementation_sha`: `682d05975eb407ee648920ef2bb2d7f760886cfc`
+- `latest_substantive_implementation_sha`: `e289281c7860615ca44bd402db6051756d56b357`
 - `merged_pr`: #50 `https://github.com/EFSing/stock-data-pipeline/pull/50`; merge commit=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`; merge-after CI=`33588525870` success
-- `current_branch`: `codex/position-management-exit-v1`; PR #51=`https://github.com/EFSing/stock-data-pipeline/pull/51`; source head=`682d05975eb407ee648920ef2bb2d7f760886cfc`; `OPEN / CLEAN / MERGEABLE`, `merged=false`; docs closeout tip intentionally not self-referenced
+- `current_branch`: `codex/position-management-exit-v1`; PR #51=`https://github.com/EFSing/stock-data-pipeline/pull/51`; local hardening source=`e289281c7860615ca44bd402db6051756d56b357`; push and final live PR state/checks pending
 - `latest_frozen_replay_result`: 40/40 symbols, 84,284 bars, manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`; positions=`3`, position-days=`134`, stop raises=`30`; exits=`GAP 1 / STOP 1 / STRUCTURAL_PENDING 1`
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
-- `latest_test_result`: focused=`18/18`; full unittest=`492/492`; compileall、`git diff --check` 与 frozen replay validation pass
+- `latest_test_result`: hardening/parity/PM focused=`25/25`; full unittest=`499/499`; compileall、`git diff --check`、frozen replay and both generic shadows pass
 - `scope_boundary`: only EXECUTED rows; no entry rescreen/new setup/production; no forbidden performance metrics/OOS; no holdings/broker/account/Secrets/Sheets; no automatic merge
-- `live_ci`: PR #51 source head exact-head `CI Test Gate` run=`33595416196` success; `SETUP_02 generic operational shadow` run=`33595442847` success
-- `next_action`: hand off PR #51 to Sol for review at `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`; do not merge
+- `cache_parity`: `SUCCESS`, 40 symbols / 84,284 bars, `strict_cached_semantic_parity=true`, `first_mismatch=null`; artifact=`artifacts/cache_semantic_parity/frozen_replay_cache_semantic_parity.json`
+- `live_ci`: final hardening head checks pending after push; old head checks=`33595416196` / `33595442847` are superseded
+- `next_action`: push hardening to PR #51, verify final exact-head CI/shadow/PR state, then hand off at `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`; do not merge
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

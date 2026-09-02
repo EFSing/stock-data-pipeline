@@ -1318,3 +1318,46 @@ the final live PR head and exact-head checks remain authoritative.
 **Correction continuity:** The merged SETUP_02 v2 funnel remains `213 CONFIRMED → 213 Decision`, `ENTRY_ALLOWED=1`, `T+1 attempts/executed=1/0`, and `SKIP_GAP_BELOW_CONFIRMATION=1`; gates are `ABOVE_ENTRY_ZONE=97`, `STALE_CONFIRMATION_GEOMETRY=12`, `NO_VALID_TARGET=1`, `RR_BELOW_MINIMUM=102`. All twelve old geometry rows remain explicitly audited as `STALE_CONFIRMATION_GEOMETRY: structural_invalidation >= HIGH3`; corrected target provenance remains `CONFIRMED_SWING_HIGH=771`, standalone `WAVE3_FIB_EXTENSION=321`, one merged dual-source, ratios `1.272=61 / 1.618=75 / 2.0=84 / 2.618=102`, and T1 sources `44/59`.
 
 **Verification:** Position Management focused tests and independent Wave5 context tests pass (`18/18`), full unittest passes (`492/492`), compileall and `git diff --check` pass, generic operational shadow is synthetic-only SUCCESS, and the frozen replay causal/conservation/future-append/identity/governance checks pass. PR #51 source head `682d05975eb407ee648920ef2bb2d7f760886cfc` is `OPEN / CLEAN / MERGEABLE`, `merged=false`; exact-head `CI Test Gate` run `33595416196` and manually dispatched `SETUP_02 generic operational shadow` run `33595442847` both succeeded. No merge is authorized.
+
+## 2026-09-02 — Position Management + Exit v1 pre-merge hardening
+
+**Decision:** Continue on the existing PR #51 branch without merge, force-push,
+or a new PR. Hardening source commit is
+`e289281c7860615ca44bd402db6051756d56b357`. The required stop state is
+`POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`.
+
+**Frozen replay cache semantic parity:** A one-time
+`FROZEN_REPLAY_CACHE_SEMANTIC_PARITY_AUDIT` ran over the unchanged frozen v2
+manifest (`40` symbols / `84,284` bars,
+`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`).
+Strict original-prefix and cached paths matched exactly for every Wave,
+SETUP_01/SETUP_02 snapshot, and SETUP_01/SETUP_02 event row:
+`first_mismatch=null`, `strict_cached_semantic_parity=true`, and status
+`SUCCESS`. The ten canonical digests are recorded in
+`artifacts/cache_semantic_parity/frozen_replay_cache_semantic_parity.json`; the
+cache is retained and the result is recorded as
+`FROZEN_REPLAY_CACHE_SEMANTIC_PARITY_CONFIRMED`.
+
+**Target provenance correction:** Immutable `PositionTarget` copies the first
+three Decision target candidates' price, order, source, and provenance without
+re-computation. Fib advisories are emitted only when provenance contains
+`WAVE3_FIB_EXTENSION`; confirmed swing labels are non-Fib, while dual-source
+targets may emit both. The old-to-corrected advisory delta is only
+`CONFIRMED_SWING_TARGET_REACHED=+1`; action counts are unchanged at
+`EXIT=3 / HOLD=11 / NO_ADD=96 / PROFIT_PROTECTION=24`. Target prices/order,
+initial 1R, stops, MFE/MAE, Wave5, and exit semantics are unchanged.
+
+**Replay and shadows:** Frozen replay remains `3` positions / `134`
+position-days / `30` stop raises, with exits `GAP=1 / STOP=1 /
+STRUCTURAL_PENDING=1`, target reach `NOT_REACHED=99 / T1=33 / T3=2`, and
+Wave5 contexts `19 / 19 / 96`. SETUP_01 remains `1389` structural events,
+`711` decisions, `3 EXECUTED`; SETUP_02 remains `494` structural events,
+`213` decisions, `0 EXECUTED`; both structural event identity sets are unique.
+Position Management generic shadow and SETUP_02 generic shadow both returned
+`SUCCESS` with synthetic-only / no broker, holdings, Sheets, P&L, or Final OOS
+access. The full unittest gate is `499/499`; the hardening/parity/PM focused
+set is `25/25`; compileall and `git diff --check` pass.
+
+**Governance:** PR #51 remains the only target, must remain OPEN and unmerged,
+and the final exact-head CI, generic shadow, and `OPEN / CLEAN / MERGEABLE`
+state must be verified after the final push. No merge is authorized.

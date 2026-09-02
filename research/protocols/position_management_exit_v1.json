@@ -1,7 +1,7 @@
 {
   "schema_version": "position-management-exit-protocol-v1",
   "protocol_version": "POSITION-MANAGEMENT-EXIT-2026-09-02-v1",
-  "status": "POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW",
+  "status": "POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW",
   "scope": "DEVELOPMENT_EXPOSED_MECHANICAL_REPLAY_ONLY",
   "input_contract": {
     "source_setups": ["SETUP_01", "SETUP_02"],
@@ -61,6 +61,8 @@
   "targets": {
     "tracking": ["NOT_REACHED", "T1_REACHED", "T2_REACHED", "T3_REACHED"],
     "source": "HIGH only",
+    "origin_target_type": "immutable PositionTarget(price, source, provenance)",
+    "provenance_policy": "copy first three Decision target candidates exactly; no target re-computation",
     "automatic_sell": false
   },
   "wave5_context": {
@@ -76,7 +78,10 @@
   },
   "risk_flags": [
     "WAVE5_CANDIDATE",
-    "FIB_TARGET_PROXIMITY_OR_REACHED",
+    "FIB_TARGET_PROXIMITY",
+    "FIB_TARGET_REACHED",
+    "CONFIRMED_SWING_TARGET_PROXIMITY",
+    "CONFIRMED_SWING_TARGET_REACHED",
     "ABNORMAL_HIGH_VOLUME",
     "PRICE_STALL",
     "LONG_UPPER_WICK",
@@ -106,6 +111,7 @@
       "Wave4_Wave5_context",
       "target_reach",
       "action_counts",
+      "cache_semantic_parity",
       "causal_and_conservation_checks",
       "per_symbol_ledger"
     ],
@@ -126,6 +132,6 @@
     "holdings_access": false,
     "sheets_write": false,
     "new_pr_merge": false,
-    "stop_state": "POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW"
+    "stop_state": "POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW"
   }
 }
