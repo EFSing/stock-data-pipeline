@@ -1,6 +1,6 @@
 # Portfolio Risk V1 Protocol
 
-Status: `PORTFOLIO_RISK_V1_READY_FOR_SOL_REVIEW`
+Status: `PORTFOLIO_RISK_V1_REMAINING_RISK_CORRECTED_READY_FOR_SOL_REVIEW`
 
 Protocol identity: `PORTFOLIO-RISK-2026-09-02-v1`
 
@@ -52,16 +52,23 @@ MAX_RISK_PER_GROUP_FRACTION = 0.01
 For each open long position:
 
 ```text
-active_stop_risk_per_share = max(current_price - active_protective_stop, 0)
-remaining_loss_risk = max(quantity * active_stop_risk_per_share / reference_nav, 0)
+remaining_loss_risk_per_share = max(actual_entry - active_protective_stop, 0)
+remaining_loss_risk_fraction = quantity * remaining_loss_risk_per_share / reference_nav
 portfolio_open_risk = sum(remaining_loss_risk)
 ```
 
-If the active protective stop is at or above the frozen actual entry, remaining
-loss risk is zero. Locked profit is never a negative offset for other positions. A new
+This is remaining capital-loss risk, not mark-to-stop giveback risk. Current
+price does not participate in this capacity calculation. If the active
+protective stop is at or above the frozen actual entry, remaining loss risk is
+zero. Locked profit is never a negative offset for other positions. A new
 proposal is allowed only when total current open risk plus its `0.5%` initial
 risk is at most `2%`; otherwise the gate emits
 `BLOCK_TOTAL_RISK_BUDGET`. Equality at the boundary is allowed.
+
+Every open position must carry a finite frozen `actual_entry`. Missing entry
+provenance fails closed under
+`PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING`; Portfolio
+Risk never falls back to current price.
 
 The same canonical symbol can have only one open long position. A duplicate
 is blocked with `BLOCK_EXISTING_POSITION_SAME_SYMBOL`; ADD is not implemented
@@ -101,11 +108,16 @@ settlement creates one frozen-quantity open portfolio position.
 ## Position Management interaction
 
 Each session reads the already-frozen Position Management active protective
-stop. A stop raise can reduce future remaining downside risk, but Portfolio
-Risk does not change the stop, MFE floor, exit behavior, or NAV. When Position
-Management exits a position, that position is removed from the next session's
-open-risk ledger. Wave5 creates no new strategy; its `NO_ADD` action cannot be
-overridden for the same symbol.
+stop. A stop raise can reduce future remaining capital-loss risk, but Portfolio
+Risk does not change the stop, MFE floor, exit behavior, or NAV. The corrected
+before/after diagnostic is the same entry-to-stop formula, and a stop raise
+must satisfy `after <= before`. When Position Management exits a position,
+that position is removed from the next session's open-risk ledger and its
+remaining portfolio risk becomes zero. Gap/slippage loss beyond the stop is
+execution tail risk and is intentionally outside this capacity budget:
+`GAP/SLIPPAGE TAIL RISK NOT MODELED IN PORTFOLIO_RISK_V1`.
+Wave5 creates no new strategy; its `NO_ADD` action cannot be overridden for
+the same symbol.
 
 ## Development replay and evidence boundary
 

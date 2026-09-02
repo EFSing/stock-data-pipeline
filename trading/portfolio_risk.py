@@ -35,6 +35,9 @@ BLOCK_RISK_GROUP_CONCENTRATION = "BLOCK_RISK_GROUP_CONCENTRATION"
 BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION = "BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION"
 BLOCK_POSITION_MANAGEMENT_NO_ADD = "BLOCK_POSITION_MANAGEMENT_NO_ADD"
 BLOCK_INVALID_RISK_GEOMETRY = "BLOCK_INVALID_RISK_GEOMETRY"
+PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING = (
+    "PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING"
+)
 RISK_GROUP_UNKNOWN = "RISK_GROUP_UNKNOWN"
 RESERVATION_RELEASED_ON_FAILED_T1 = "RESERVATION_RELEASED_ON_FAILED_T1"
 
@@ -133,16 +136,43 @@ class OpenPortfolioPosition:
 
     def remaining_loss_risk(self, reference_nav: float) -> float:
         """Return non-negative downside risk as a fraction of reference NAV."""
-        nav = _require_positive_finite(reference_nav, "reference_nav")
-        if (
-            self.actual_entry is not None
-            and float(self.active_protective_stop) >= float(self.actual_entry)
-        ):
-            return 0.0
-        active_stop_risk_per_share = max(
-            float(self.current_price) - float(self.active_protective_stop), 0.0
+        return remaining_loss_risk_fraction(
+            quantity=self.quantity,
+            actual_entry=self.actual_entry,
+            active_protective_stop=self.active_protective_stop,
+            reference_nav=reference_nav,
         )
-        return max(float(self.quantity) * active_stop_risk_per_share / nav, 0.0)
+
+
+def remaining_loss_risk_fraction(
+    *,
+    quantity: float,
+    actual_entry: float | None,
+    active_protective_stop: float,
+    reference_nav: float,
+) -> float:
+    """Return remaining capital-loss risk; mark price is intentionally unused.
+
+    Portfolio Risk V1 budgets the loss from the frozen actual entry to the
+    active protective stop. Giveback from the current mark is Position
+    Management's MFE/MFE Drawdown concern, not this capacity gate.
+    """
+    nav = _require_positive_finite(reference_nav, "reference_nav")
+    if actual_entry is None:
+        raise ValueError(
+            PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING
+        )
+    entry = float(actual_entry)
+    stop = float(active_protective_stop)
+    qty = float(quantity)
+    if not math.isfinite(entry):
+        raise ValueError("actual_entry must be finite")
+    if not math.isfinite(stop):
+        raise ValueError("active_protective_stop must be finite")
+    if not math.isfinite(qty) or qty < 0:
+        raise ValueError("quantity must be finite and non-negative")
+    remaining_per_share = max(entry - stop, 0.0)
+    return max(qty * remaining_per_share / nav, 0.0)
 
 
 @dataclass(frozen=True)
@@ -482,11 +512,19 @@ class PortfolioRiskEngine:
             if actual_entry is not None
             else reservation.candidate.actual_entry
         )
-        if resolved_outcome != "EXECUTED" or resolved_entry is None:
+        if resolved_outcome != "EXECUTED":
             return PortfolioSettlement(
                 reservation=reservation,
                 status=PortfolioReservationStatus.RELEASED,
                 reason=RESERVATION_RELEASED_ON_FAILED_T1,
+                position_size=None,
+                position=None,
+            )
+        if resolved_entry is None:
+            return PortfolioSettlement(
+                reservation=reservation,
+                status=PortfolioReservationStatus.RELEASED,
+                reason=PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING,
                 position_size=None,
                 position=None,
             )
@@ -659,6 +697,7 @@ __all__ = [
     "OpenPortfolioPosition",
     "PORTFOLIO_ALLOWED",
     "PORTFOLIO_NAV_REQUIRED",
+    "PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING",
     "PortfolioCandidate",
     "PortfolioExposure",
     "PortfolioReservation",
@@ -678,6 +717,7 @@ __all__ = [
     "normalize_risk_group",
     "portfolio_exposure",
     "position_to_dict",
+    "remaining_loss_risk_fraction",
     "reservation_to_dict",
     "resolve_reference_nav",
     "settlement_to_dict",

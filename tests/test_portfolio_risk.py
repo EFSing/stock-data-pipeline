@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 
@@ -15,6 +16,7 @@ from trading.portfolio_risk import (
     PortfolioCandidate,
     PortfolioReservationStatus,
     PortfolioRiskEngine,
+    PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING,
     RISK_GROUP_UNKNOWN,
     RESERVATION_RELEASED_ON_FAILED_T1,
     candidate_from_decision,
@@ -137,6 +139,19 @@ class PortfolioRiskTests(unittest.TestCase):
         position = open_position("AAA", price=150.0, stop=120.0)
         self.assertEqual(position.remaining_loss_risk(1.0), 0.0)
 
+    def test_current_price_does_not_change_remaining_capital_loss_risk(self):
+        for price in (100.0, 150.0, 60.0):
+            position = open_position("AAA", price=price, stop=90.0)
+            self.assertAlmostEqual(position.remaining_loss_risk(1.0), 0.005)
+
+    def test_stop_raise_monotonically_releases_remaining_capital_loss_risk(self):
+        risks = [
+            open_position("AAA", price=150.0, stop=stop).remaining_loss_risk(1.0)
+            for stop in (90.0, 95.0, 100.0, 110.0)
+        ]
+        self.assertEqual(risks, [0.005, 0.0025, 0.0, 0.0])
+        self.assertEqual(risks, sorted(risks, reverse=True))
+
     def test_negative_risk_never_offsets_other_positions(self):
         positions = [
             open_position("AAA", price=100.0, stop=110.0),
@@ -145,6 +160,16 @@ class PortfolioRiskTests(unittest.TestCase):
         exposure = portfolio_exposure(positions, reference_nav=1.0)
         self.assertAlmostEqual(exposure.total_open_risk_fraction, 0.005)
         self.assertGreaterEqual(exposure.total_open_risk_fraction, 0.0)
+
+    def test_missing_actual_entry_fails_closed_without_using_current_price(self):
+        position = replace(
+            open_position("AAA", price=150.0, stop=90.0), actual_entry=None
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING,
+        ):
+            position.remaining_loss_risk(1.0)
 
     def test_position_exit_releases_risk(self):
         position = open_position("AAA", price=100.0, stop=90.0)
@@ -159,6 +184,40 @@ class PortfolioRiskTests(unittest.TestCase):
         settlement = engine.settle(reservation)
         self.assertEqual(settlement.status, PortfolioReservationStatus.RELEASED)
         self.assertEqual(settlement.reason, RESERVATION_RELEASED_ON_FAILED_T1)
+        self.assertIsNone(settlement.position)
+
+    def test_executed_actual_entry_recomputes_initial_risk_at_settlement(self):
+        engine = PortfolioRiskEngine()
+        reservation = engine.reserve(
+            [candidate("ACTUAL", actual_entry=100.0)]
+        ).approved[0]
+        settlement = engine.settle(
+            reservation,
+            outcome="EXECUTED",
+            execution_date=START + timedelta(days=1),
+            actual_entry=110.0,
+        )
+        self.assertEqual(settlement.status, PortfolioReservationStatus.EXECUTED)
+        self.assertIsNotNone(settlement.position)
+        self.assertNotEqual(reservation.candidate.planned_entry, 110.0)
+        self.assertAlmostEqual(
+            settlement.position.quantity * (110.0 - 90.0),
+            BASE_RISK_FRACTION,
+        )
+        self.assertAlmostEqual(
+            settlement.position.remaining_loss_risk(1.0),
+            BASE_RISK_FRACTION,
+        )
+
+    def test_executed_without_actual_entry_fails_closed_at_settlement(self):
+        engine = PortfolioRiskEngine()
+        reservation = engine.reserve([replace(candidate("MISSING"), actual_entry=None)]).approved[0]
+        settlement = engine.settle(reservation, outcome="EXECUTED")
+        self.assertEqual(settlement.status, PortfolioReservationStatus.RELEASED)
+        self.assertEqual(
+            settlement.reason,
+            PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING,
+        )
         self.assertIsNone(settlement.position)
 
     def test_simultaneous_order_is_quality_rr_then_symbol(self):

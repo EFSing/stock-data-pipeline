@@ -80,10 +80,22 @@ def run_portfolio_risk_generic_operational_shadow(*, output_dir: str | Path) -> 
     checks["unknown_development_advisory"] = RISK_GROUP_UNKNOWN in unknown_dev.approved[0].advisory_flags
     checks["unknown_production_fail_closed"] = unknown_prod.blocked[0].reason == BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION
 
+    price_risks = [
+        portfolio_exposure([_position("PRICE", price=price)], reference_nav=1.0)
+        .total_open_risk_fraction
+        for price in (100.0, 150.0, 60.0)
+    ]
     raised = portfolio_exposure([_position("RAISED", price=100.0, stop=120.0)], reference_nav=1.0)
     regular = portfolio_exposure([_position("REGULAR")], reference_nav=1.0)
-    checks["stop_raise_reduces_to_zero"] = raised.total_open_risk_fraction == 0.0
-    checks["negative_risk_never_offsets"] = regular.total_open_risk_fraction >= 0.0
+    checks["stop_raise_reduces_to_zero"] = (
+        raised.total_open_risk_fraction == 0.0
+        and price_risks == [0.005, 0.005, 0.005]
+        and regular.total_open_risk_fraction >= 0.0
+    )
+    checks["negative_risk_never_offsets"] = portfolio_exposure(
+        [_position("LOCKED", stop=120.0), _position("REGULAR")],
+        reference_nav=1.0,
+    ).total_open_risk_fraction == 0.005
     checks["exit_releases_risk"] = portfolio_exposure([], reference_nav=1.0).total_open_risk_fraction == 0.0
 
     failed_engine = PortfolioRiskEngine()

@@ -30,7 +30,7 @@
 - **当前 replay pin:** frozen `DEVELOPMENT_EXPOSED` dataset `SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`；仅作 development mechanical evidence，不是 formal validation 或 Final OOS。
 - **操作边界:** no broker/holdings/account/Secrets/Sheets access or writes; no performance metrics/OOS; no production execution wiring; no automatic merge of PR #59。
 - **SETUP_02 corrected funnel retained:** 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=1`；gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`；T+1 attempts/executed=`1/0`；所有上游 identity 与 cache semantic parity 保持通过。
-- **停止条件:** focused/full unittest、compileall、`git diff --check`、17/17 synthetic shadow、frozen replay causal/conservation/identity/governance checks、strict-vs-cached semantic parity、PR #59 final exact-head CI 与 generic shadow success 完成后，停止在 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`；禁止 merge 新 PR。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、17/17 synthetic shadow、frozen replay causal/conservation/identity/governance checks、strict-vs-cached semantic parity、PR #59 final exact-head CI 与 generic shadow success 完成后，停止在 `PORTFOLIO_RISK_V1_REMAINING_RISK_CORRECTED_READY_FOR_SOL_REVIEW`；禁止 merge 新 PR。
 
 ## 2. Current Repository State
 

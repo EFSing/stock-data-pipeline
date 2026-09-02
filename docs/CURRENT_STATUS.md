@@ -26,7 +26,7 @@ V0.2
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit/Wave5 semantics frozen；当前授权任务为 `PORTFOLIO_RISK_V1`，停止节点为 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
-- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 Decision 与 Position Management/Exit/Wave5 layers frozen；`POSITION_MANAGEMENT_EXIT_V1_MERGED`；当前授权任务为 `PORTFOLIO_RISK_V1`，停止节点为 `PORTFOLIO_RISK_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
+- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 Decision 与 Position Management/Exit/Wave5 layers frozen；`POSITION_MANAGEMENT_EXIT_V1_MERGED`；当前授权任务为 `PREMERGE_PORTFOLIO_RISK_DEFINITION_CORRECTION`，停止节点为 `PORTFOLIO_RISK_V1_REMAINING_RISK_CORRECTED_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
@@ -39,7 +39,7 @@ V0.2
 - PR #59 的 rebase 后 validated head=`71d17a0a9aa67d1897fc1f529d6d3b764f2a216b`；exact-head CI Test Gate=`33615646551`、generic shadow=`33615646521` success；治理文档的后续 docs-only tip 不自引用，live GitHub head/checks 为最终事实。
 - 新增 `trading/portfolio_risk.py`、`research/portfolio_risk_replay.py`、synthetic shadow runner/workflow、对应 tests、`research/protocols/portfolio_risk_v1.json` 与 `docs/PORTFOLIO_RISK_V1.md`；既有 Setup/Wave/Decision/Position Management/Exit semantics 保持不变。
 - 冻结 risk unit：`BASE_RISK_FRACTION=0.005`；development `reference_nav=1.0`；total cap=`0.02`；known risk-group cap=`0.01`；production missing NAV=`PORTFOLIO_NAV_REQUIRED`，production UNKNOWN group=`BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION`。
-- frozen v2 replay：40/40 symbols、84,284 bars；individual `ENTRY_ALLOWED=8`，portfolio proposals/reservations=`8`，approved=`8`，failed T+1 released=`5`，final `EXECUTED=3`；max observed total open risk=`0.006810510087817472`；UNKNOWN advisory=`8`。
+- frozen v2 replay（corrected）：40/40 symbols、84,284 bars；individual `ENTRY_ALLOWED=8`，portfolio proposals/reservations=`8`，approved=`8`，blocked=`0`，failed T+1 released=`5`，final `EXECUTED=3`；maximum observed open capital-loss risk=`0.005`；UNKNOWN advisory=`8`。
 - Position Management invariance：3 positions / 134 position-days / 30 stop raises；actions=`EXIT 3 / HOLD 11 / NO_ADD 96 / PROFIT_PROTECTION 24`；Wave5 contexts=`NO_WAVE5_CONTEXT 19 / WAVE4_PULLBACK_CONTEXT 19 / WAVE5_CANDIDATE 96`；cache semantic parity=`SUCCESS`, `first_mismatch=null`。
 - synthetic Portfolio Risk boundary=`17/17` success；覆盖 total/group/symbol/UNKNOWN/stop raise/exit/T+1/order/exact-once/future-append/immutability cases。
 - pre-merge geometry defect 已记录并修正：旧 `structural_invalidation → HIGH3` continuation projection 与 minimum `RR=2` 数学不兼容；新 protocol identity 为 `SETUP-02-DECISION-RISK-2026-09-02-v2`，只使用 `LOW2 + (HIGH1-LOW0)*existing EXTENSION_RATIO`，source=`WAVE3_FIB_EXTENSION`。
@@ -56,6 +56,16 @@ V0.2
 - Generic operational shadow 为 synthetic-only SUCCESS：1 position / 3 position-days；初始 1R 冻结、target 只追踪不自动退出、stop 不下移、causal day count 全通过；returns/P&L/broker/holdings/Sheets 均未访问。
 - PR #51 的 hardening source=`e289281c7860615ca44bd402db6051756d56b357` 已随文档 closeout 推至 exact head=`7c02ca08abab467f8fe0bc6bd43ff158196992d8`；该 head 的 `CI Test Gate` run=`33604216629` 与 `SETUP_02 generic operational shadow` run=`33604268141` 均 success，PR live state=`OPEN / CLEAN / MERGEABLE`、`merged=false`。
 - Machine-readable protocol=`research/protocols/position_management_exit_v1.json`；中文协议=`docs/POSITION_MANAGEMENT_EXIT_V1.md`；停止节点为 `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`，PR #51 保持 OPEN，禁止 merge。
+
+## Current Task Correction: PREMERGE_PORTFOLIO_RISK_DEFINITION_CORRECTION
+
+- Defect recorded as `PREMERGE_REMAINING_RISK_DEFINITION_DEFECT`：旧 `current_price - active_stop` 同时混合 mark-to-stop giveback 与 capital-loss risk，已从正式 Portfolio Risk contract 移除。
+- Frozen SSOT：`remaining_loss_risk_per_share = max(actual_entry - active_protective_stop, 0)`；`remaining_loss_risk_fraction = quantity * remaining_loss_risk_per_share / reference_nav`。Current price 不参与 capacity；MFE/MFE Drawdown 仍由 Position Management 管理。
+- `OpenPortfolioPosition` 缺失 `actual_entry` 时 risk calculation fail closed，错误 contract=`PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING`；EXECUTED settlement 缺失 entry basis 不创建 position。T+1 executed sizing 仍以 actual entry 调用 `position_size(reference_nav*0.005, actual_entry, execution_stop)`，不改 stop。
+- Stop/exit diagnostics 已与同一 SSOT 对齐：stop raise `after <= before`，exit 后 remaining portfolio risk=`0`；`GAP/SLIPPAGE TAIL RISK NOT MODELED IN PORTFOLIO_RISK_V1`。
+- Frozen v2 corrected delta artifact=`artifacts/portfolio_risk_definition_correction_delta.json`（ignored）：counts `8 proposals / 8 approved / 0 blocked / 5 released / 3 executed` unchanged；full open-risk maximum old=`0.010021099674141698` → corrected=`0.005`；stop-raise release old=`0.03216566733623613` → corrected=`0.01`；exit release old=`0.0004660670854315734` → corrected=`0.005`；131/131 observed open-risk sessions are reported in the corrected ledger。
+- Deterministic verification：Portfolio Risk focused/replay=`28/28` with local dataset；generic synthetic shadow=`17/17`；all upstream source identity, Position Management `3 positions / 134 position-days / 30 stop raises`, action counts, Wave5 counts and cache semantic parity remain unchanged。
+- Clean-checkout policy：the 3 dataset-dependent integration assertions remain `skipUnless(dataset available)` with explicit reason; self-contained Portfolio Risk tests and generic shadow always run. Frozen manifest remains `sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`。
 
 ## Previous Task: SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1（已 squash merged）
 

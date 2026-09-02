@@ -41,6 +41,7 @@ from trading.portfolio_risk import (
     candidate_to_dict,
     portfolio_exposure,
     position_to_dict,
+    remaining_loss_risk_fraction,
     reservation_to_dict,
     resolve_reference_nav,
     settlement_to_dict,
@@ -195,12 +196,22 @@ def _risk_release_diagnostics(
         quantity = settlement.position_size.theoretical_quantity
         for day in replay.days:
             if day.stop_raised:
-                before = quantity * max(
-                    float(day.close or day.open) - float(day.active_stop_at_open), 0.0
-                ) / reference_nav
-                after = quantity * max(
-                    float(day.close or day.open) - float(day.active_stop_next_session), 0.0
-                ) / reference_nav
+                before = remaining_loss_risk_fraction(
+                    quantity=quantity,
+                    actual_entry=settlement.position.actual_entry,
+                    active_protective_stop=float(day.active_stop_at_open),
+                    reference_nav=reference_nav,
+                )
+                after = remaining_loss_risk_fraction(
+                    quantity=quantity,
+                    actual_entry=settlement.position.actual_entry,
+                    active_protective_stop=float(day.active_stop_next_session),
+                    reference_nav=reference_nav,
+                )
+                if after > before + 1e-12:
+                    raise AssertionError(
+                        "stop raise increased remaining capital-loss risk"
+                    )
                 stop_releases.append(
                     {
                         "reservation_id": identity,
@@ -208,6 +219,7 @@ def _risk_release_diagnostics(
                         "risk_before": before,
                         "risk_after": after,
                         "capacity_released": max(before - after, 0.0),
+                        "after_lte_before": after <= before + 1e-12,
                     }
                 )
         if replay.exit_date is not None:
@@ -216,14 +228,20 @@ def _risk_release_diagnostics(
                 None,
             )
             if exit_day is not None:
-                at_exit = quantity * max(
-                    float(exit_day.open) - float(exit_day.active_stop_at_open), 0.0
-                ) / reference_nav
+                at_exit = remaining_loss_risk_fraction(
+                    quantity=quantity,
+                    actual_entry=settlement.position.actual_entry,
+                    active_protective_stop=float(exit_day.active_stop_at_open),
+                    reference_nav=reference_nav,
+                )
                 exit_releases.append(
                     {
                         "reservation_id": identity,
                         "exit_date": replay.exit_date.isoformat(),
                         "exit_reason": replay.exit_reason.value if replay.exit_reason else None,
+                        "risk_before_exit": at_exit,
+                        "risk_after_exit": 0.0,
+                        "remaining_portfolio_risk_after": 0.0,
                         "capacity_released": max(at_exit, 0.0),
                     }
                 )
@@ -237,6 +255,41 @@ def _risk_release_diagnostics(
             item["capacity_released"] for item in exit_releases
         ),
     }
+
+
+def _open_risk_session_ledger(
+    settlements: Mapping[str, PortfolioSettlement],
+    replays_by_identity: Mapping[str, PositionReplay],
+    *,
+    reference_nav: float,
+) -> list[dict[str, Any]]:
+    """Report corrected open-risk exposure for every observed PM session."""
+    session_dates = sorted(
+        {
+            day.trade_date
+            for replay in replays_by_identity.values()
+            for day in replay.days
+        }
+    )
+    ledger: list[dict[str, Any]] = []
+    for session_date in session_dates:
+        positions = _session_positions(
+            settlements, replays_by_identity, session_date
+        )
+        exposure = portfolio_exposure(positions, reference_nav=reference_nav)
+        ledger.append(
+            {
+                "session_date": session_date.isoformat(),
+                "total_open_risk_fraction": exposure.total_open_risk_fraction,
+                "risk_by_group": exposure.risk_by_group,
+                "risk_by_market": exposure.risk_by_market,
+                "position_count": exposure.position_count,
+                "open_position_ids": sorted(
+                    item.source_event_identity for item in positions
+                ),
+            }
+        )
+    return ledger
 
 
 def _source_counts(
@@ -428,6 +481,23 @@ def build_portfolio_risk_replay(
         if resolved_nav is not None
         else {"stop_raise_releases": [], "exit_releases": []}
     )
+    open_risk_session_ledger = (
+        _open_risk_session_ledger(
+            settled,
+            replays_by_identity,
+            reference_nav=resolved_nav,
+        )
+        if resolved_nav is not None
+        else []
+    )
+    maximum_observed_open_risk = max(
+        (item["total_open_risk_fraction"] for item in open_risk_session_ledger),
+        default=0.0,
+    )
+    maximum_observed_total = max(
+        maximum_observed_total,
+        maximum_observed_open_risk,
+    )
     pm_position_days = [day for replay in pm_replays for day in replay.days]
     pm_action_counts = Counter(day.action.value for day in pm_position_days)
     pm_context_counts = Counter(day.wave5_context.value for day in pm_position_days)
@@ -556,6 +626,7 @@ def build_portfolio_risk_replay(
         "block_reason_counts": dict(sorted(block_reason_counts.items())),
         "reservation_status_counts": dict(sorted(reservation_status_counts.items())),
         "maximum_observed_total_open_risk_fraction": maximum_observed_total,
+        "maximum_observed_open_risk_fraction": maximum_observed_open_risk,
         "risk_group_exposure": group_exposure.risk_by_group if group_exposure else {},
         "market_exposure": {
             "CN_open_risk": group_exposure.risk_by_market.get("CN", 0.0) if group_exposure else 0.0,
@@ -567,6 +638,7 @@ def build_portfolio_risk_replay(
             item["ordered_candidate_ids"] for item in session_ledger
         ],
         "session_risk_ledger": session_ledger,
+        "open_risk_session_ledger": open_risk_session_ledger,
         "reservation_release_ledger": {
             "failed_t1_releases": [
                 item for item in all_settlements if item["status"] == "RELEASED"
