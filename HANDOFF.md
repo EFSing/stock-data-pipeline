@@ -12,23 +12,23 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `HK_YFINANCE_TICKER_NORMALIZATION_FIX`（最小 bugfix）。
-- **真实状态 reconciliation:** PR #51 已于 `2026-09-02T08:12:24Z` squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after main exact-head CI=`33607481962` success。PR #60 随后已 squash merged，merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`；其 merge-after main exact-head CI=`33611436462` success。
-- **唯一目标:** 修复 holdings 港股 Yahoo ticker normalization；只改现有 `normalize_holding()`、必要回归测试和本次治理 freshness，不启动新 Phase 或研究。
-- **实现范围:** `holdings_data_manager.py`、相关 holdings/command-bus 回归测试、最小治理状态更新；不改 latest/history lifecycle、command-bus schema、Position Management、SETUP、Wave 或 OOS。
-- **操作边界:** 不执行真实 holdings ADD；真实 `ADD 00700.HK` 由后续 ChatGPT command bus 执行。
+- **当前 Phase / task:** `VOLUME_VALIDATION_NOISE_FIX`（最小语义 bugfix）。
+- **真实状态 reconciliation:** stale snapshot 中关于 PR #51 的 `OPEN` 状态已按真实 GitHub 刷新为已 squash merged，merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；当前真实 `main`=`6ed32349449b0f0b59193187dd4d5a4728790dc6`，其 exact-head `CI Test Gate`=`33617194589` success。历史 provenance 不改。
+- **唯一目标:** 让日期和收盘价通过时，成交量 mismatch/missing 仅作为 QC 提示，不阻断核心行情验证；只改现有 `validate_quotes()`、必要回归测试和本次治理 freshness，不启动新 Phase 或研究。
+- **实现范围:** `core.py`、相关 validation/latest/holdings 回归测试、最小治理状态更新；不改 tolerance、provider、latest/history lifecycle、command-bus schema、Position Management、SETUP、Wave 或 OOS。
+- **操作边界:** 不执行真实 holdings ADD/REENTER；不修改现有 HK ticker normalization，仅确认其回归继续通过。
 - **停止条件:** holdings focused、command-bus focused、full unittest、compileall、`git diff --check`、PR exact-head CI 与 merge 后 main exact-head CI 全部成功后完成本任务。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub `main` 已包含 PR #60 的真实 squash merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f` 与治理 closeout；PR #60 merge-after `CI Test Gate` run=`33611436462` completed/success。
-- **working checkout:** 当前 checkout 为 `main`，已从 `origin/main` fast-forward；本任务治理 closeout 已完成，最终 exact-head CI 已现场核验。
-- **open PR / governance:** PR #50/#51/#60 已 merged；无本任务遗留 open PR。PR #60 merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`，exact-head `CI Test Gate`=`33611328193` success，live state=`CLEAN / MERGEABLE`。
-- **base CI:** `main@0789fdfb898b9edcf99ee5aaa3450f467889d67f` merge-after exact-head CI run=`33611436462` success；closeout 后的最终 main head 与 CI 以 live GitHub 核对为准。
+- **main/base SHA:** GitHub `main`=`6ed32349449b0f0b59193187dd4d5a4728790dc6`；PR #51 已 merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；当前 main exact-head CI=`33617194589` success。
+- **working checkout:** 当前 checkout 为 `codex/volume-validation-noise-fix`，从真实 `origin/main@6ed32349449b0f0b59193187dd4d5a4728790dc6` 创建，工作树初始干净。
+- **open PR / governance:** PR #50/#51/#60 已 merged；当前唯一 open PR #59 (`PORTFOLIO_RISK_V1`) 与本任务无关，不触碰；本任务尚无 PR。
+- **base CI:** `main@6ed32349449b0f0b59193187dd4d5a4728790dc6` exact-head `CI Test Gate` run=`33617194589` success。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
-- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；HK normalization bugfix 已完成并合并，未开启新的 production path。
+- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；本任务仅调整 validation 对 volume mismatch/missing 的状态语义，未开启新的 production path。
 
 ## 3. Completed Work
 
@@ -318,25 +318,25 @@
 
 ## 11. Handoff Checklist
 
-- [x] Current Objective 已更新为 HK Yahoo ticker normalization bugfix
-- [x] merged main / new branch baseline 已更新：PR #60 merge=`0789fdf...`，merge-after CI=`33611436462` success
-- [x] scope boundary 明确：只改现有 normalization 与必要回归；不改 lifecycle、command bus schema、Position/SETUP/Wave/OOS；不执行真实 ADD
-- [x] HK mapping regression、focused/full unittest、compileall 与 `git diff --check` 已完成：`91/91`、`19/19`、`500/500`，compileall/diff check pass
-- [x] PR #60 exact-head CI=`33611328193` success、live mergeability=`CLEAN / MERGEABLE`；merge commit=`0789fdf...` 的 main exact-head CI=`33611436462` success
+- [x] Current Objective 已更新为 volume validation noise bugfix
+- [x] governance conflict 已最小 reconciliation：PR #51 merged=`993d03e...`，真实 main=`6ed3234...`，main CI=`33617194589` success；历史 provenance 保持不变
+- [x] scope boundary 明确：只改现有 validation 语义与必要回归；不改 tolerance/provider/lifecycle/command bus/Position/SETUP/Wave/OOS
+- [x] volume mismatch/missing、scheduled latest、holdings ADD/REENTER、HK mapping 回归与 focused/full unittest、compileall、`git diff --check` 已完成：focused `104/104`、full `502/502`
+- [x] PR #61 head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5` exact-head `CI Test Gate`=`33618409589` success、live `CLEAN / MERGEABLE`；merge、merge-after main CI 与最终治理 closeout pending
 - [x] 本任务不新增 DECISION_LOG 设计条目；历史 provenance 保持不变
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-02`
-- `verified_origin_main_sha`: current `origin/main`; PR #60 merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; final closeout exact-head CI verified live
+- `verified_origin_main_sha`: `6ed32349449b0f0b59193187dd4d5a4728790dc6`; PR #51 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; main exact-head CI=`33617194589` success
 - `latest_substantive_implementation_sha`: `3781b0a4e639707df047becc16d25ac6b84d4a56` (implementation source; PR #60 merge included governance freshness)
-- `merged_pr`: #60 `https://github.com/EFSing/stock-data-pipeline/pull/60`; source head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`; merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; merge-after CI=`33611436462` success
-- `current_branch`: `main`; local `main`=`origin/main`; governance closeout and final main exact-head CI verified live
+- `merged_pr`: PR #51 `https://github.com/EFSing/stock-data-pipeline/pull/51`; merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; current main=`6ed32349449b0f0b59193187dd4d5a4728790dc6`
+- `current_branch`: `codex/volume-validation-noise-fix`; baseline=`origin/main@6ed32349449b0f0b59193187dd4d5a4728790dc6`
 - `latest_hk_ticker_mapping`: verified; `00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`，`12345.HK` unchanged
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
-- `latest_test_result`: holdings/validation/governance focused=`91/91`; command-bus focused=`19/19`; full unittest=`500/500`; compileall=`PASS`; `git diff --check`=`PASS`
-- `scope_boundary`: only existing HK normalization and regression tests; no holdings ADD, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
-- `live_ci`: PR #60 source/governance head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`; exact-head `CI Test Gate`=`33611328193` success; merge main head=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; merge-after exact-head `CI Test Gate`=`33611436462` success; final governance closeout main exact-head CI verified success live
-- `next_action`: stop; do not start another task or execute holdings ADD
+- `latest_test_result`: focused=`104/104`; full unittest=`502/502`; compileall=`PASS`; `git diff --check`=`PASS`; baseline main CI=`33617194589` success
+- `scope_boundary`: only existing `validate_quotes()` volume status semantics, tests, and minimal governance freshness; no holdings ADD/REENTER, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
+- `live_ci`: baseline main=`6ed32349449b0f0b59193187dd4d5a4728790dc6`; exact-head `CI Test Gate`=`33617194589` success; PR #61 head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5`; exact-head `CI Test Gate`=`33618409589` success; live `CLEAN / MERGEABLE`
+- `next_action`: squash merge PR #61, verify merge-after main CI, then perform governance closeout only
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
