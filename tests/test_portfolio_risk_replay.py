@@ -1,8 +1,38 @@
+import json
 import unittest
+from pathlib import Path
 
+from research.development_dataset import DATASET_MANIFEST_PATH
 from research.portfolio_risk_replay import build_portfolio_risk_replay
 
 
+def _frozen_dataset_is_available() -> bool:
+    """Replay integration evidence is local-only because artifacts/ is ignored."""
+    if not DATASET_MANIFEST_PATH.exists():
+        return False
+    try:
+        manifest = json.loads(DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    project_root = Path(__file__).resolve().parents[1]
+    accepted_rows = [
+        row
+        for row in manifest.get("symbols", ())
+        if row.get("qc_status") == "VALID_ACCEPTED"
+    ]
+    if not accepted_rows:
+        return False
+    return all(
+        (path if path.is_absolute() else project_root / path).exists()
+        for row in accepted_rows
+        for path in (Path(str(row.get("normalized_path", ""))),)
+    )
+
+
+@unittest.skipUnless(
+    _frozen_dataset_is_available(),
+    "requires the ignored local DEVELOPMENT_EXPOSED frozen dataset artifact",
+)
 class PortfolioRiskReplayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
