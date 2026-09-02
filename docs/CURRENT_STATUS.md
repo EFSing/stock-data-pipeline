@@ -12,7 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`993d03e428b7eb11da791a608940c9d77a608f96`，为 PR #51 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33607481962` 为 completed/success。
 - Current checkout: `codex/hk-yfinance-ticker-normalization-fix`，从上述 clean merged main 创建；本分支只包含 HK Yahoo ticker normalization 最小 bugfix。
-- PR #50/#51=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51` 均已 `MERGED`；新 HK normalization PR 尚未创建。
+- PR #50/#51=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51` 均已 `MERGED`；PR #60=`https://github.com/EFSing/stock-data-pipeline/pull/60` 当前 `OPEN / CLEAN / MERGEABLE`，source head=`3781b0a4e639707df047becc16d25ac6b84d4a56` 的 exact-head `CI Test Gate`=`33611164963` success。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit semantics frozen；当前授权任务为 `HK_YFINANCE_TICKER_NORMALIZATION_FIX`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。

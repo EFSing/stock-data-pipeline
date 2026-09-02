@@ -25,7 +25,7 @@
 - **default/main branch:** `main`
 - **main/base SHA:** GitHub `main` exact SHA=`993d03e428b7eb11da791a608940c9d77a608f96`，为 PR #51 的真实 squash merge commit；merge-after `CI Test Gate` run=`33607481962` completed/success。
 - **working checkout:** 当前 checkout 为 `codex/hk-yfinance-ticker-normalization-fix`，从上述 clean merged main 创建。
-- **open PR / governance:** PR #50/#51 已 merged；本任务的新 HK normalization PR 在完成 push 后保持 OPEN，满足条件后按用户授权 squash merge。
+- **open PR / governance:** PR #50/#51 已 merged；PR #60=`https://github.com/EFSing/stock-data-pipeline/pull/60` 当前 `OPEN / CLEAN / MERGEABLE`、`merged=false`，head=`3781b0a4e639707df047becc16d25ac6b84d4a56` 的 `CI Test Gate`=`33611164963` success；治理 freshness 推送后的新 head 需再核对 exact-head CI。
 - **base CI:** `main@993d03e428b7eb11da791a608940c9d77a608f96` merge-after exact-head CI run=`33607481962` success；新 PR 的最终 head 与 exact-head checks 以 live GitHub closeout 为准。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
 - **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；本轮只推进 HK normalization bugfix，未开启新的 production path。
@@ -312,8 +312,9 @@
 3. [x] 已从 clean merged `main@993d03e428b7eb11da791a608940c9d77a608f96` 建立 `codex/hk-yfinance-ticker-normalization-fix`。
 4. [x] 修复 HK Yahoo ticker normalization：`00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`；非补位零代码保持不变，CN/US normalization 回归通过。
 5. [x] 本地 gates 通过：holdings/validation/governance focused=`91/91`，command-bus focused=`19/19`，full unittest=`500/500`，compileall 与 `git diff --check` 通过。
-6. [ ] 创建最小 bugfix PR，核验 CLEAN/MERGEABLE 与 exact-head CI；满足条件后按用户授权 squash merge。
-7. [ ] 刷新 local main=`origin/main`，确认 merge commit 与 main exact-head CI，并完成治理 closeout。
+6. [x] 已创建最小 bugfix PR #60；source head=`3781b0a4e639707df047becc16d25ac6b84d4a56`，live state=`OPEN / CLEAN / MERGEABLE`，exact-head `CI Test Gate`=`33611164963` success。
+7. [ ] 治理 freshness 推送后重新核对 PR #60 exact-head CI，满足条件后按用户授权 squash merge。
+8. [ ] 刷新 local main=`origin/main`，确认 merge commit 与 main exact-head CI，并完成治理 closeout。
 
 ## 11. Handoff Checklist
 
@@ -321,7 +322,7 @@
 - [x] merged main / new branch baseline 已更新：main=`993d03e...`，PR #51 merge-after CI=`33607481962` success
 - [x] scope boundary 明确：只改现有 normalization 与必要回归；不改 lifecycle、command bus schema、Position/SETUP/Wave/OOS；不执行真实 ADD
 - [x] HK mapping regression、focused/full unittest、compileall 与 `git diff --check` 已完成：`91/91`、`19/19`、`500/500`，compileall/diff check pass
-- [ ] 新 PR exact-head CI、mergeability、merge 后 main exact-head CI 待完成
+- [x] PR #60 source exact-head CI=`33611164963` success、live mergeability=`CLEAN / MERGEABLE`；治理 freshness 新 head 与 merge 后 main CI 待完成
 - [x] 本任务不新增 DECISION_LOG 设计条目；历史 provenance 保持不变
 
 ## 12. Last Verified
@@ -330,12 +331,12 @@
 - `verified_origin_main_sha`: `993d03e428b7eb11da791a608940c9d77a608f96`
 - `latest_substantive_implementation_sha`: current pre-PR HEAD (`fix: preserve HK Yahoo ticker padding`); live PR closeout pending
 - `merged_pr`: #51 `https://github.com/EFSing/stock-data-pipeline/pull/51`; source head=`2dbb7a751916921a29360b28467de92e150683e3`; merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; merge-after CI=`33607481962` success
-- `current_branch`: `codex/hk-yfinance-ticker-normalization-fix`; new HK fix PR will be merged after exact-head checks pass
+- `current_branch`: `codex/hk-yfinance-ticker-normalization-fix`; PR #60=`https://github.com/EFSing/stock-data-pipeline/pull/60`; source head=`3781b0a4e639707df047becc16d25ac6b84d4a56`
 - `latest_hk_ticker_mapping`: verified; `00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`，`12345.HK` unchanged
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
 - `latest_test_result`: holdings/validation/governance focused=`91/91`; command-bus focused=`19/19`; full unittest=`500/500`; compileall=`PASS`; `git diff --check`=`PASS`
 - `scope_boundary`: only existing HK normalization and regression tests; no holdings ADD, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
-- `live_ci`: merge-after main head `993d03e428b7eb11da791a608940c9d77a608f96`; `CI Test Gate`=`33607481962` success; HK PR exact-head checks pending
-- `next_action`: finish HK verification, create PR, squash merge after clean exact-head gates, then close out governance
+- `live_ci`: base main head `993d03e428b7eb11da791a608940c9d77a608f96`; `CI Test Gate`=`33607481962` success; PR #60 source head `3781b0a4e639707df047becc16d25ac6b84d4a56`; exact-head `CI Test Gate`=`33611164963` success; governance-refresh head pending
+- `next_action`: push governance freshness, verify PR #60 exact-head CI remains success, squash merge, refresh main, and close out governance
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
