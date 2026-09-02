@@ -10,25 +10,25 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 已包含 PR #60 的真实 squash merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f` 与治理 closeout；PR #60 merge-after `CI Test Gate` run=`33611436462` 为 completed/success。
-- Current checkout: `main`，已从 `origin/main` fast-forward；治理 closeout 已完成，最终 exact-head CI 已现场核验。
-- PR #50/#51/#60=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51`、`https://github.com/EFSing/stock-data-pipeline/pull/60` 均已 `MERGED`；PR #60 merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc` 的 exact-head `CI Test Gate`=`33611328193` success。
+- GitHub `main` 当前真实为 `6ed32349449b0f0b59193187dd4d5a4728790dc6`；PR #51 已 squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；main exact-head `CI Test Gate`=`33617194589` 为 completed/success。历史 provenance 不改。
+- Current checkout: `codex/volume-validation-noise-fix`，从真实 `origin/main@6ed32349449b0f0b59193187dd4d5a4728790dc6` 创建，初始工作树干净。
+- PR #50/#51/#60=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51`、`https://github.com/EFSing/stock-data-pipeline/pull/60` 均已 `MERGED`；当前唯一 open PR #59 为无关任务，不触碰。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
-- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit semantics frozen；当前授权任务为 `HK_YFINANCE_TICKER_NORMALIZATION_FIX`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
+- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit semantics frozen；当前授权任务为 `VOLUME_VALIDATION_NOISE_FIX`，仅调整成交量 QC 的非阻断提示语义。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: HK_YFINANCE_TICKER_NORMALIZATION_FIX
+## Current Task: VOLUME_VALIDATION_NOISE_FIX
 
-- 真实基线为 `main@993d03e428b7eb11da791a608940c9d77a608f96`；PR #51 已 squash merged，merge-after `CI Test Gate`=`33607481962` success。
-- 当前分支为 `codex/hk-yfinance-ticker-normalization-fix`；只修复现有 `normalize_holding()` 的 HK Yahoo ticker 映射并补必要回归测试。
-- 映射规则为 canonical 5 位港股代码只去掉最前面的一个补位 `0`；CN/US normalization、latest/history lifecycle、command-bus schema、Position/SETUP/Wave/OOS 均不变。
-- 不执行真实 holdings ADD；后续由 ChatGPT command bus 执行 `ADD 00700.HK`。
-- 完成条件为 focused/command-bus/full unittest、compileall、`git diff --check`、新 PR exact-head CI、merge 后 main exact-head CI 与本文件治理 closeout 全部成功。
-- PR #60 已 squash merged；治理 closeout 与最终 main exact-head CI 已完成，本任务不启动下一任务。
+- 真实基线为 `main@6ed32349449b0f0b59193187dd4d5a4728790dc6`；PR #51 的 stale `OPEN` snapshot 已按真实事实 reconciliation 为 merged=`993d03e428b7eb11da791a608940c9d77a608f96`，main exact-head CI=`33617194589` success。
+- 当前分支为 `codex/volume-validation-noise-fix`；只调整现有 `validate_quotes()` 对 volume mismatch/missing 的核心状态语义并补必要回归测试。
+- 日期一致且 close 通过时，volume 仍真实记录 `volume_pass`/`volume_diff`，但 mismatch/missing 只产生 warning，不再把核心行情标为待复核；date/close/freshness/sanity/双源不可用等既有 fail-closed 语义不变。
+- 不执行真实 holdings ADD/REENTER；现有 HK ticker normalization 只做回归确认。
+- 完成条件为 validation/latest/holdings/command-bus focused、full unittest、compileall、`git diff --check`、新 PR exact-head CI、merge 后 main exact-head CI 与本文件治理 closeout 全部成功。
+- 本任务不新增 DECISION_LOG 设计条目，不启动下一任务。
 
 ## Previous Task: POSITION_MANAGEMENT_EXIT_V1（已 squash merged）
 

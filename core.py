@@ -65,9 +65,6 @@ def validate_quotes(
     close_pass = date_match and close_diff is not None and close_diff <= close_tolerance
     volume_pass = date_match and volume_diff is not None and volume_diff <= volume_tolerance
 
-    if date_match and close_pass and volume_pass:
-        return ValidationResult("已验证", True, True, True, close_diff, volume_diff, "日期、收盘价和成交量均通过校验")
-
     if not date_match:
         if primary.trade_date < verifier.trade_date:
             note = "主源日期滞后，已采用更新来源；最新交易日仅单源可用"
@@ -77,12 +74,19 @@ def validate_quotes(
             "待复核", False, False, False, close_diff, volume_diff, note
         )
 
-    reasons = []
-    if date_match and not close_pass:
-        reasons.append("收盘价差异超限")
-    if date_match and not volume_pass:
-        reasons.append("成交量差异超限或缺失")
-    return ValidationResult("待复核", date_match, close_pass, volume_pass, close_diff, volume_diff, "；".join(reasons))
+    if close_pass and volume_pass:
+        return ValidationResult("已验证", True, True, True, close_diff, volume_diff, "日期、收盘价和成交量均通过校验")
+    if close_pass:
+        return ValidationResult(
+            "已验证",
+            True,
+            True,
+            False,
+            close_diff,
+            volume_diff,
+            "日期、收盘价通过校验；成交量差异超限或缺失（仅提示，不影响行情可用性）",
+        )
+    return ValidationResult("待复核", True, False, volume_pass, close_diff, volume_diff, "收盘价差异超限")
 
 
 def market_close_confirmed(

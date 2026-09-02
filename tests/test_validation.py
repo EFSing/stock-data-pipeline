@@ -30,7 +30,7 @@ from providers import (
 from sheets_client import SheetsClient
 
 
-def quote(source: str, close: float = 100.0, volume: float = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
+def quote(source: str, close: float = 100.0, volume: float | None = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
     return Quote(
         symbol="TEST",
         name="测试标的",
@@ -71,6 +71,28 @@ class ValidationTests(unittest.TestCase):
         row = project_latest_row(snapshot, fetched_at)
         self.assertEqual(row["交易日期"], date(2026, 8, 28))
         self.assertEqual(row["抓取时间"], fetched_at)
+
+    def test_shared_latest_snapshot_keeps_volume_warning_non_blocking(self):
+        fetched_at = datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc)
+        snapshot = evaluate_latest_snapshot(
+            [quote("yfinance", day=date(2026, 8, 28))],
+            [quote("Tencent", volume=900_000, day=date(2026, 8, 28))],
+            fetched_at=fetched_at,
+            timezone_name="America/New_York",
+            close_time_text="16:00",
+            close_tolerance=0.0005,
+            volume_tolerance=0.02,
+            primary_source="yfinance",
+            verifier_source="Tencent",
+        )
+
+        self.assertEqual(snapshot.validation.status, "已验证")
+        self.assertEqual(snapshot.displayed_status, "已验证")
+        self.assertTrue(snapshot.confirmed)
+        self.assertFalse(snapshot.validation.volume_pass)
+        self.assertIsNotNone(snapshot.validation.volume_diff)
+        self.assertIn("成交量差异超限或缺失", snapshot.validation.note)
+        self.assertIn("仅提示，不影响行情可用性", snapshot.validation.note)
 
     def test_shared_latest_snapshot_allows_current_single_source_pending_semantics(self):
         fetched_at = datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc)
@@ -144,10 +166,26 @@ class ValidationTests(unittest.TestCase):
             "校验源日期滞后，已采用更新来源；最新交易日仅单源可用",
         )
 
-    def test_rejects_volume_mismatch(self):
+    def test_accepts_volume_mismatch_as_verified(self):
         result = validate_quotes(quote("主源"), quote("校验源", volume=900_000), 0.0005, 0.02)
-        self.assertEqual(result.status, "待复核")
+        self.assertEqual(result.status, "已验证")
+        self.assertTrue(result.date_match)
+        self.assertTrue(result.close_pass)
         self.assertFalse(result.volume_pass)
+        self.assertAlmostEqual(result.volume_diff, 0.1)
+        self.assertIn("仅提示，不影响行情可用性", result.note)
+
+    def test_accepts_missing_volume_as_verified_with_warning(self):
+        result = validate_quotes(
+            quote("主源"), quote("校验源", volume=None), 0.0005, 0.02
+        )
+        self.assertEqual(result.status, "已验证")
+        self.assertTrue(result.date_match)
+        self.assertTrue(result.close_pass)
+        self.assertFalse(result.volume_pass)
+        self.assertIsNone(result.volume_diff)
+        self.assertIn("成交量差异超限或缺失", result.note)
+        self.assertIn("仅提示，不影响行情可用性", result.note)
 
     def test_single_source_is_not_verified(self):
         result = validate_quotes(quote("主源"), None, 0.0005, 0.02)
