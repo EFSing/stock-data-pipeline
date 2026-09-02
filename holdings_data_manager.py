@@ -213,7 +213,8 @@ def normalize_holding(
             raise HoldingsDataManagerError(f"港股代码必须为4至5位数字并带HK：{symbol}")
         code = match.group(1).zfill(5)
         canonical_symbol = f"{code}.HK"
-        yf_symbol = f"{int(code)}.HK"
+        yf_code = code[1:] if code.startswith("0") else code
+        yf_symbol = f"{yf_code}.HK"
         baostock = ""
     elif normalized_market == "US":
         if not re.fullmatch(r"[A-Z][A-Z0-9-]{0,9}(?:\.[A-Z0-9-]{1,8})?", upper):
