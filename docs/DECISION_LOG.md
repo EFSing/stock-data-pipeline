@@ -1548,8 +1548,35 @@ remain explicit `skipUnless(dataset available)` tests in clean checkout; all
 self-contained Portfolio Risk boundary tests and generic shadow remain
 unconditional.
 
-**Governance state:** `PREMERGE_PORTFOLIO_RISK_DEFINITION_CORRECTION` remains
-the current task. The required stop state is
-`PORTFOLIO_RISK_V1_REMAINING_RISK_CORRECTED_READY_FOR_SOL_REVIEW`.
+**Governance state:** `PORTFOLIO_RISK_V1` remains the current task. The required
+stop state is `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`.
 `HANDOFF_CURRENT_AND_CONSISTENT` must be re-confirmed after final exact-head
 CI and generic shadow checks. No merge is authorized.
+
+## 2026-09-02 — PORTFOLIO_RISK_V1 rebase verification closeout
+
+**Decision:** Rebase the existing PR #59 branch `codex/portfolio-risk-v1` onto
+the live latest `main@f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`. Rebase
+conflicts were limited to governance documents; no Portfolio Risk, SETUP,
+Wave, Position Management, Exit, or Wave5 semantic core conflict occurred.
+The latest substantive local source head is
+`96d3d52ef7baf6dacc0f464a07ca7a1c8b9ca1c0`.
+
+**Verification:** The restored Release archive and manifest remain byte/hash
+identical (`15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`
+and `93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`),
+with 40 symbols / 84,284 bars and 81/81 payload hashes matching. Corrected
+Portfolio Risk invariance passed: constants `0.005 / 0.02 / 0.01`, current
+price does not alter remaining capital-loss risk, stop raises are monotone,
+stop at/above entry gives zero, negative offsets are floored, and missing
+`actual_entry` fails closed. Local gates passed: Portfolio Risk/replay 27/27,
+generic synthetic shadow 17/17, Position Management 22/22, SETUP_01/02 57/57,
+cache parity 3/3, and full unittest 529/529; compileall and diff-check passed.
+
+**Boundary / next node:** The full replay was rerun after cache parity and
+dataset restoration; it remained causal/conservative and upstream identity
+invariant. The task remains downstream-only, with no holdings, broker,
+account, Secrets, Sheets, returns, or OOS access. Push the rebased branch,
+live-verify PR #59 exact-head CI and generic shadow, then stop at
+`PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW` with
+`HANDOFF_CURRENT_AND_CONSISTENT`; do not merge.
