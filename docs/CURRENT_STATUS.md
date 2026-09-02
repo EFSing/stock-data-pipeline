@@ -7,10 +7,19 @@ Version:
 V0.2
 ```
 
+## Latest Governance Event
+
+- `FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE` 已完成：私有 GitHub Release tag=`frozen-development-dataset-2026-08-28-v2`，URL=<https://github.com/EFSing/stock-data-pipeline/releases/tag/frozen-development-dataset-2026-08-28-v2>。
+- Archive=`stock-data-pipeline-frozen-development-v2.zip`，5,900,672 bytes，SHA-256=`sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`；独立 sums 与 metadata 同时作为 Release assets 上传。
+- Frozen identity=`SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA-256=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`。
+- 输入仅为 manifest、manifest 引用的 40 个 raw CSV 和 40 个 normalized JSONL；archive integrity=`PASS`，临时解压恢复 `81/81` hashes/sizes match；未重新抓取、normalize、生成或 replay。
+- Release target 为真实 `main@12a9e2aa175a90c5ff1db8556190c6db23d2bb64`；PR #59 已完成 `d1016f2` push 但保持 `OPEN / merged=false`，未 merge，策略代码未改变。Restore instructions=`docs/FROZEN_DATASET_RESTORE.md`。
+- Git remains source-code SSOT；Release asset 是 frozen binary/data archive；manifest/hash 是 dataset identity SSOT。预期恢复目录：`artifacts/development_strategy_stability_v2/`。
+
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实为 `9a6432ffbf4271942bbdf7e169a46fce29776ffe`；PR #51 已 squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；本任务 PR #61 已 squash merged，main exact-head `CI Test Gate`=`33618759657` 为 completed/success。历史 provenance 不改。
+- Archive target was the verified latest `main@12a9e2aa175a90c5ff1db8556190c6db23d2bb64`; PR #51 已 squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；本任务 PR #61 已 squash merged，历史 provenance 不改。
 - Current checkout: `main`，已从 `origin/main` fast-forward，工作树干净。
 - PR #50/#51/#60/#61=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51`、`https://github.com/EFSing/stock-data-pipeline/pull/60`、`https://github.com/EFSing/stock-data-pipeline/pull/61` 均已 `MERGED`；当前唯一 open PR #59 为无关任务，不触碰。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。

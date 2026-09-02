@@ -1365,3 +1365,43 @@ verified hardening head `7c02ca08abab467f8fe0bc6bd43ff158196992d8` is
 `33604268141`; both succeeded. A later governance-only documentation tip is
 not self-referenced here; the final live head/checks remain authoritative. No
 merge is authorized.
+
+## 2026-09-02 — FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE
+
+**Decision / boundary:** Archive the existing, already validated
+`DEVELOPMENT_EXPOSED` v2 dataset as an immutable private GitHub Release asset.
+Do not regenerate, refetch, normalize, modify dataset bytes, commit the dataset
+to Git history, disable `.gitignore`, use Git LFS, or merge PR #59.
+
+**Frozen identity:** Dataset version is
+`SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`, with 40
+symbols / 84,284 bars and manifest SHA-256
+`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`.
+The archive contains the manifest and all 40 manifest-referenced raw CSV plus
+40 normalized JSONL payload files. Derived research evidence is not included.
+
+**Release:** The authorized `d1016f2` was fast-forward pushed to the existing
+PR #59 branch first; PR #59 remains `OPEN / merged=false`. The Release targets
+the verified latest `main@12a9e2aa175a90c5ff1db8556190c6db23d2bb64` and is the
+prerelease/data archive `frozen-development-dataset-2026-08-28-v2`, titled
+`Frozen Development Dataset v2 — 2026-08-28`:
+<https://github.com/EFSing/stock-data-pipeline/releases/tag/frozen-development-dataset-2026-08-28-v2>.
+The ZIP is `stock-data-pipeline-frozen-development-v2.zip`, 5,900,672 bytes,
+archive SHA-256
+`sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`.
+`FROZEN_ARCHIVE_SHA256SUMS.txt` and `FROZEN_ARCHIVE_METADATA.json` are also
+uploaded as separate assets.
+
+**Verification:** ZIP integrity test passed. The archive was extracted into a
+separate temporary directory and all 81 input file hashes and byte sizes
+matched: `ALL_FILE_HASHES_MATCH=true`, with restored manifest identity also
+matching. No 84,284-bar replay was rerun. No secrets, credentials, account or
+broker data, Sheets credentials, personal holdings, `.env`, or Git credential
+files were included.
+
+**Governance:** Git remains the source-code SSOT; the GitHub Release asset is
+the frozen binary/data archive; manifest/hash is the dataset identity SSOT.
+Restore instructions are in `docs/FROZEN_DATASET_RESTORE.md`; expected restore
+destination is `artifacts/development_strategy_stability_v2/`. Final state:
+`FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE` and
+`HANDOFF_CURRENT_AND_CONSISTENT`.

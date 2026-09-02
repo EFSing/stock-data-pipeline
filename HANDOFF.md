@@ -10,14 +10,25 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
+## 0. Latest Governance Event — FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE
+
+- 已完成已授权的 `d1016f2` fast-forward push 到现有 PR #59 分支；PR #59 仍为 `OPEN / merged=false`，未 merge。
+- 以真实最新 `main@12a9e2aa175a90c5ff1db8556190c6db23d2bb64` 为 target，创建私有 prerelease/data archive：`frozen-development-dataset-2026-08-28-v2`。
+- Release URL：<https://github.com/EFSing/stock-data-pipeline/releases/tag/frozen-development-dataset-2026-08-28-v2>；asset 为 `stock-data-pipeline-frozen-development-v2.zip`，`5,900,672` bytes，archive SHA-256=`sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`。
+- Frozen identity：`SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA-256=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`。
+- Archive input 为 manifest 加 40 个 raw CSV 和 40 个 normalized JSONL；派生 research evidence 未纳入。ZIP integrity test=`PASS`，独立临时目录恢复后 `ALL_FILE_HASHES_MATCH=true`（81/81）。
+- Git remains source-code SSOT；GitHub Release asset 是 frozen binary/data archive；manifest/hash 是 dataset identity SSOT。Restore doc 为 `docs/FROZEN_DATASET_RESTORE.md`，预期恢复目录为 `artifacts/development_strategy_stability_v2/`。
+- 不重新抓取、normalize、生成或 replay；不包含 secrets、credentials、account/broker data、Sheets credentials、personal holdings、`.env` 或 Git credential files。
+- 最终状态：`FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE`；`HANDOFF_CURRENT_AND_CONSISTENT`。
+
 ## 1. Current Objective
 
-- **当前 Phase / task:** `VOLUME_VALIDATION_NOISE_FIX`（最小语义 bugfix，已完成并 squash merged）。
-- **真实状态 reconciliation:** stale snapshot 中关于 PR #51 的 `OPEN` 状态已按真实 GitHub 刷新为已 squash merged，merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；本任务 PR #61 已 squash merged，merge commit=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`；当前真实 `main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`，其 exact-head `CI Test Gate`=`33618759657` success。历史 provenance 不改。
-- **唯一目标:** 让日期和收盘价通过时，成交量 mismatch/missing 仅作为 QC 提示，不阻断核心行情验证；只改现有 `validate_quotes()`、必要回归测试和本次治理 freshness，不启动新 Phase 或研究。
-- **实现范围:** `core.py`、相关 validation/latest/holdings 回归测试、最小治理状态更新；不改 tolerance、provider、latest/history lifecycle、command-bus schema、Position Management、SETUP、Wave 或 OOS。
-- **操作边界:** 不执行真实 holdings ADD/REENTER；不修改现有 HK ticker normalization，仅确认其回归继续通过。
-- **停止条件:** holdings focused、command-bus focused、full unittest、compileall、`git diff --check`、PR exact-head CI 与 merge 后 main exact-head CI 全部成功；本任务已完成，不启动下一任务。
+- **当前 Phase / task:** `FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE`（已完成）。
+- **前置开发任务:** `VOLUME_VALIDATION_NOISE_FIX` 已完成并 squash merged；本归档不改变策略代码或 PR #59 scope。
+- **唯一目标:** 保持上述 frozen DEVELOPMENT_EXPOSED v2 bytes 不变，并通过私有 GitHub Release 提供可验证的跨设备恢复路径。
+- **实现范围:** Release archive、restore doc 和最小治理登记；不改 main code，不将 dataset commit 进 Git history，不取消 `.gitignore`，不使用 Git LFS。
+- **操作边界:** 不执行真实 holdings ADD/REENTER；不访问账户/券商/Secrets/Sheets；不启动 SETUP、行情抓取、normalize、replay 或 Final OOS。
+- **停止条件:** archive integrity、temporary restore hash verification、Release assets、治理文档和 restore destination 全部可核对；本任务已完成，不启动下一任务。
 
 ## 2. Current Repository State
 

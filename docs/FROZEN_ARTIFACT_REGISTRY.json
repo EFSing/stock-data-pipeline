@@ -1,8 +1,8 @@
 {
   "schema_version": "repository-frozen-artifact-registry-v1",
   "repository": "EFSing/stock-data-pipeline",
-  "registry_status": "ACTIVE_HOLDOUT_FULLY_RECOVERABLE",
-  "last_verified_at": "2026-08-29T20:54:56+08:00",
+  "registry_status": "ACTIVE_HOLDOUT_AND_FROZEN_RELEASE_FULLY_RECOVERABLE",
+  "last_verified_at": "2026-09-02T19:26:50+08:00",
   "verified_against": {
     "remote_main_sha": "142b7345a5640b1e87932e41f3dc9311172bf54c",
     "working_branch": "research/phase5j-v4-lifecycle-attribution",
@@ -197,6 +197,129 @@
         "final_oos_accessed": false,
         "outcome_metrics_accessed": false
       }
+    },
+    {
+      "artifact_id": "setup03-development-exposed-v2-github-release",
+      "artifact_type": "frozen_dataset_portable_release_archive",
+      "purpose": "Immutable cross-device recovery of the existing DEVELOPMENT_EXPOSED v2 dataset bytes.",
+      "lifecycle": "DEVELOPMENT_ONLY",
+      "status": "FULLY_RECOVERABLE",
+      "labels": [
+        "DEVELOPMENT_ONLY",
+        "NOT_FORMAL_VALIDATION",
+        "NOT_FINAL_OOS",
+        "PRIVATE_GITHUB_RELEASE",
+        "PERSISTENT_BACKUP_VERIFIED",
+        "RECOVERY_VERIFIED",
+        "FULLY_RECOVERABLE"
+      ],
+      "tracked_provenance_paths": [
+        "docs/FROZEN_DATASET_RESTORE.md",
+        "docs/FROZEN_ARTIFACT_POLICY.md",
+        "docs/FROZEN_ARTIFACT_REGISTRY.json"
+      ],
+      "ignored_payload_paths": [
+        "artifacts/development_strategy_stability_v2/development_dataset_manifest.json",
+        "artifacts/development_strategy_stability_v2/raw_baostock/CN/",
+        "artifacts/development_strategy_stability_v2/raw_yfinance/US/",
+        "artifacts/development_strategy_stability_v2/normalized_bars/CN/",
+        "artifacts/development_strategy_stability_v2/normalized_bars/US/"
+      ],
+      "local_backup_container": {
+        "path": "artifacts/frozen_release_staging/stock-data-pipeline-frozen-development-v2.zip",
+        "bytes": 5900672,
+        "sha256": "sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2",
+        "member_count": 83,
+        "input_member_count": 81,
+        "member_hashes_source": "FROZEN_ARCHIVE_SHA256SUMS.txt; exact hashes for the two control members are recorded as standalone Release asset hashes"
+      },
+      "canonical_identities": {
+        "dataset_version": "SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2",
+        "dataset_manifest_sha256": "sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216",
+        "symbol_count": 40,
+        "bar_count": 84284,
+        "archive_purpose": "PORTABLE_FROZEN_DEVELOPMENT_DATASET"
+      },
+      "exact_file_hashes": {
+        "archive_sha256": "sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2",
+        "archive_bytes": 5900672,
+        "sha256_sums_asset_sha256": "sha256:af05eae1d7309e102d36df721f81f0009a3c00ab41eb1ecbd286e3f1ce7a1344",
+        "sha256_sums_asset_bytes": 12636,
+        "metadata_asset_sha256": "sha256:50e9a4ede105db93e6edba7b0f43784b771c7404e4c855dad4e74cd62f34d59f",
+        "metadata_asset_bytes": 1500
+      },
+      "provenance": {
+        "source_repository": "EFSing/stock-data-pipeline",
+        "source_main_commit": "12a9e2aa175a90c5ff1db8556190c6db23d2bb64",
+        "release_tag": "frozen-development-dataset-2026-08-28-v2",
+        "release_id": 381198128,
+        "archive_created_at": "2026-09-02T19:26:50+08:00",
+        "archive_purpose": "PORTABLE_FROZEN_DEVELOPMENT_DATASET",
+        "regenerated": false,
+        "data_bytes_modified": false,
+        "derived_research_evidence_included": false,
+        "pr_59_merged": false
+      },
+      "recovery_gates": {
+        "LOCAL_PRESENT": true,
+        "HASH_VERIFIED": true,
+        "PERSISTENT_BACKUP_PRESENT": true,
+        "RECOVERY_VERIFIED": true,
+        "FULLY_RECOVERABLE": true
+      },
+      "persistent_backup": {
+        "status": "VERIFIED_IMMUTABLE_GITHUB_RELEASE_ASSETS",
+        "provider": "GitHub",
+        "repository": "EFSing/stock-data-pipeline",
+        "release_tag": "frozen-development-dataset-2026-08-28-v2",
+        "release_url": "https://github.com/EFSing/stock-data-pipeline/releases/tag/frozen-development-dataset-2026-08-28-v2",
+        "release_id": 381198128,
+        "prerelease": true,
+        "archive_asset": {
+          "asset_id": 541080366,
+          "file_name": "stock-data-pipeline-frozen-development-v2.zip",
+          "bytes": 5900672,
+          "sha256": "sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2"
+        },
+        "control_assets": [
+          {
+            "asset_id": 541080475,
+            "file_name": "FROZEN_ARCHIVE_SHA256SUMS.txt",
+            "bytes": 12636,
+            "sha256": "sha256:af05eae1d7309e102d36df721f81f0009a3c00ab41eb1ecbd286e3f1ce7a1344"
+          },
+          {
+            "asset_id": 541080532,
+            "file_name": "FROZEN_ARCHIVE_METADATA.json",
+            "bytes": 1500,
+            "sha256": "sha256:50e9a4ede105db93e6edba7b0f43784b771c7404e4c855dad4e74cd62f34d59f"
+          }
+        ],
+        "retention": "Immutable release assets; do not overwrite; future datasets require a new version and tag"
+      },
+      "recovery_verification": {
+        "status": "ARCHIVE_INTEGRITY_AND_TEMPORARY_EXTRACT_RESTORE_VERIFIED",
+        "archive_integrity_test": "PASS",
+        "temporary_restore": "81/81 input file hashes and byte sizes matched",
+        "all_file_hashes_match": true,
+        "restored_manifest_identity": "dataset version, 40 symbols, 84284 bars, and manifest SHA matched",
+        "replay_rerun": false,
+        "provider_accessed": false,
+        "clean_directory_restore_at": "2026-09-02; temporary directory path intentionally not recorded",
+        "method": [
+          "Manifest identity and existing frozen loader were verified before archive staging.",
+          "Manifest-referenced raw and normalized files were copied byte-for-byte and recorded in FROZEN_ARCHIVE_SHA256SUMS.txt.",
+          "ZIP entries were read through an archive integrity test.",
+          "ZIP was extracted into a separate temporary directory and every listed input hash and byte size was recomputed."
+        ]
+      },
+      "invariants": [
+        "Do not modify or replace the frozen dataset bytes.",
+        "Do not refetch, renormalize, regenerate, or replay solely because the dataset is restored on another machine.",
+        "Do not merge PR #59 or treat this archive as Final OOS or production market data.",
+        "Do not overwrite this release asset; future datasets must use a new version and tag."
+      ],
+      "notes": "Raw and normalized dataset payloads are separated from derived research evidence; no derived evidence was included in this portable archive. Git remains source-code SSOT, Release assets are the frozen binary/data archive, and manifest/hash is dataset identity SSOT."
     }
   ],
   "external_audit_notes": [
