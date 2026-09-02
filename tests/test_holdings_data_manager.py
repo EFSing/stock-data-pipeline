@@ -586,6 +586,23 @@ class HoldingsDataManagerTests(unittest.TestCase):
         self.assertEqual(parse_natural_language("NOK 已清仓").operation, Operation.CLOSE)
         self.assertEqual(normalize_holding("512400").symbol, "512400.SH")
 
+    def test_hk_yfinance_ticker_mapping_removes_only_one_padding_zero(self):
+        cases = (
+            ("00700.HK", "0700.HK"),
+            ("09618.HK", "9618.HK"),
+            ("03690.HK", "3690.HK"),
+            ("09888.HK", "9888.HK"),
+            ("00005.HK", "0005.HK"),
+            ("12345.HK", "12345.HK"),
+        )
+        for symbol, expected_yfinance in cases:
+            with self.subTest(symbol=symbol):
+                normalized = normalize_holding(symbol)
+                self.assertEqual(normalized.yfinance_symbol, expected_yfinance)
+
+        self.assertEqual(normalize_holding("512400").yfinance_symbol, "512400.SS")
+        self.assertEqual(normalize_holding("MU").yfinance_symbol, "MU")
+
     def test_sync_fills_history_without_changing_current_enabled_state(self):
         self.history_calls = []
         old = TARGET - timedelta(days=1)
