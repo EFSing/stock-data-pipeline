@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import Counter
 import csv
+import json
 import math
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -45,6 +46,28 @@ SETUP02_GEOMETRY_AUDIT_PATH = (
     / "setup02_decision_risk_v1"
     / "setup02_invalid_structure_geometry_audit.csv"
 )
+CACHE_PARITY_AUDIT_PATH = (
+    PROJECT_ROOT
+    / "artifacts"
+    / "cache_semantic_parity"
+    / "frozen_replay_cache_semantic_parity.json"
+)
+
+# Counts captured from the pre-hardening replay artifact.  They are retained
+# only as an advisory-label comparison baseline; no position-management rule
+# is derived from them.
+LEGACY_TARGET_LABEL_COUNTS = {
+    "FIB_TARGET_PROXIMITY": 2,
+    "FIB_TARGET_REACHED": 33,
+    "CONFIRMED_SWING_TARGET_PROXIMITY": 0,
+    "CONFIRMED_SWING_TARGET_REACHED": 0,
+}
+LEGACY_ACTION_COUNTS = {
+    "EXIT": 3,
+    "HOLD": 11,
+    "NO_ADD": 96,
+    "PROFIT_PROTECTION": 24,
+}
 
 
 def _stream_origins(
@@ -133,6 +156,19 @@ def _load_setup02_geometry_audit() -> dict[str, Any]:
     }
 
 
+def _load_cache_parity_audit() -> dict[str, Any]:
+    if not CACHE_PARITY_AUDIT_PATH.exists():
+        return {
+            "source": "LOCAL_CACHE_PARITY_ARTIFACT_NOT_PRESENT",
+            "status": "ABSENT",
+            "strict_cached_semantic_parity": None,
+        }
+    with CACHE_PARITY_AUDIT_PATH.open("r", encoding="utf-8") as handle:
+        report = json.load(handle)
+    report["source"] = str(CACHE_PARITY_AUDIT_PATH)
+    return report
+
+
 def build_position_management_replay(
     *,
     manifest_path: str | None = None,
@@ -188,6 +224,9 @@ def build_position_management_replay(
         replay.exit_reason.value for replay in replays if replay.exit_reason is not None
     )
     actions = Counter(day.action.value for day in position_days)
+    risk_flags = Counter(
+        flag for day in position_days for flag in day.risk_flags
+    )
     contexts = Counter(day.wave5_context.value for day in position_days)
     targets = Counter(day.target_status.value for day in position_days)
     per_source_positions = Counter(replay.origin.source_setup for replay in replays)
@@ -224,6 +263,30 @@ def build_position_management_replay(
     target_provenance = {
         source: _target_provenance_summary(stream)
         for source, stream in source_streams.items()
+    }
+    cache_semantic_parity = _load_cache_parity_audit()
+    corrected_target_label_counts = {
+        label: risk_flags.get(label, 0)
+        for label in LEGACY_TARGET_LABEL_COUNTS
+    }
+    target_label_delta = {
+        label: corrected_target_label_counts[label] - baseline
+        for label, baseline in LEGACY_TARGET_LABEL_COUNTS.items()
+    }
+    target_provenance_correction = {
+        "position_origin_targets_are_immutable": True,
+        "target_prices_and_order_recomputed": False,
+        "target_prices_and_order_copied_from_decision_candidates": True,
+        "legacy_target_label_counts": LEGACY_TARGET_LABEL_COUNTS,
+        "corrected_target_label_counts": corrected_target_label_counts,
+        "target_label_delta": target_label_delta,
+        "legacy_action_counts": LEGACY_ACTION_COUNTS,
+        "corrected_action_counts": dict(sorted(actions.items())),
+        "action_counts_unchanged": dict(sorted(actions.items())) == LEGACY_ACTION_COUNTS,
+        "interpretation": (
+            "advisory target-label provenance correction only; target prices, "
+            "target order, stop, MFE/MAE, Wave5, and exit rules are unchanged"
+        ),
     }
     decision_gate_counts = {
         source: dict(
@@ -315,10 +378,13 @@ def build_position_management_replay(
         "target_reach_counts": dict(sorted(targets.items())),
         "wave5_context_counts": dict(sorted(contexts.items())),
         "action_counts": dict(sorted(actions.items())),
+        "risk_flag_counts": dict(sorted(risk_flags.items())),
         "identity_audit": identity_counts,
         "decision_gate_reason_counts": decision_gate_counts,
         "execution_status_counts": execution_status_counts,
         "target_provenance": target_provenance,
+        "target_provenance_correction": target_provenance_correction,
+        "cache_semantic_parity": cache_semantic_parity,
         "setup02_corrected_funnel": setup02_corrected_funnel,
         "setup02_geometry_correction_audit": _load_setup02_geometry_audit(),
         "source_stream_provenance": {
@@ -345,13 +411,18 @@ def build_position_management_replay(
             ),
             "actual_entry_is_frozen": True,
             "future_append_invariance": future_append_invariance,
-            "setup01_structural_identity_invariance": (
-                identity_counts["SETUP_01"]["structural_event_count"]
-                == identity_counts["SETUP_01"]["unique_structural_event_identity_count"]
-            ),
-            "setup02_structural_identity_invariance": (
-                identity_counts["SETUP_02"]["structural_event_count"]
-                == identity_counts["SETUP_02"]["unique_structural_event_identity_count"]
+            "structural_event_identity_unique": {
+                "SETUP_01": (
+                    identity_counts["SETUP_01"]["structural_event_count"]
+                    == identity_counts["SETUP_01"]["unique_structural_event_identity_count"]
+                ),
+                "SETUP_02": (
+                    identity_counts["SETUP_02"]["structural_event_count"]
+                    == identity_counts["SETUP_02"]["unique_structural_event_identity_count"]
+                ),
+            },
+            "strict_cached_semantic_parity": cache_semantic_parity.get(
+                "strict_cached_semantic_parity"
             ),
         },
         "controls": controls,

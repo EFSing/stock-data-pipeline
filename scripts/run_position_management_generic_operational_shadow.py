@@ -15,8 +15,10 @@ from core import Quote
 from trading.position_management import (
     PositionAnchor,
     PositionOrigin,
+    PositionTarget,
     replay_position,
 )
+from trading.setup01_decision import Setup01TargetProvenance
 from trading.models import SwingKind
 
 
@@ -56,6 +58,14 @@ def _anchor(name: str, kind: SwingKind, price: float, index: int, day: date) -> 
     )
 
 
+def _target(price: float) -> PositionTarget:
+    return PositionTarget(
+        price=price,
+        source="CONFIRMED_SWING_HIGH",
+        provenance=(Setup01TargetProvenance(source="CONFIRMED_SWING_HIGH"),),
+    )
+
+
 def run_position_management_generic_operational_shadow(
     *, output_dir: str | Path = DEFAULT_OUTPUT
 ) -> dict[str, Any]:
@@ -69,7 +79,7 @@ def run_position_management_generic_operational_shadow(
         actual_entry=100.0,
         initial_execution_stop=90.0,
         initial_structural_invalidation=92.0,
-        targets=(110.0, 120.0, 130.0),
+        targets=(_target(110.0), _target(120.0), _target(130.0)),
         wave_anchors=(
             _anchor("LOW0", SwingKind.LOW, 80.0, 0, start),
             _anchor("HIGH1", SwingKind.HIGH, 95.0, 1, start + timedelta(days=1)),
@@ -97,6 +107,7 @@ def run_position_management_generic_operational_shadow(
         "mfe_accessed": True,
         "mae_accessed": True,
         "pnl_accessed": False,
+        "final_oos_accessed": False,
         "sheets_written": False,
         "broker_accessed": False,
     }

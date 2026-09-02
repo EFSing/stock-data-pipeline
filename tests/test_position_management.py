@@ -10,11 +10,14 @@ from trading.position_management import (
     PositionAnchor,
     PositionExitReason,
     PositionOrigin,
+    PositionTarget,
     TargetReachStatus,
     position_origin_from_execution,
     position_replay_to_dict,
     replay_position,
 )
+from trading.setup01_decision import Setup01TargetCandidate, Setup01TargetProvenance
+from trading.setup02_decision import Setup02TargetCandidate, Setup02TargetProvenance
 from trading.wave5_context import Wave5ContextState, evaluate_wave5_context
 
 
@@ -87,7 +90,7 @@ def _origin(*, stop: float = 90.0, invalidation: float = 92.0) -> PositionOrigin
         actual_entry=100.0,
         initial_execution_stop=stop,
         initial_structural_invalidation=invalidation,
-        targets=(110.0, 120.0, 130.0),
+        targets=tuple(_target(price) for price in (110.0, 120.0, 130.0)),
         wave_anchors=(
             _anchor("LOW0", SwingKind.LOW, 80.0, -2, start - timedelta(days=2)),
             _anchor("HIGH1", SwingKind.HIGH, 95.0, -1, start - timedelta(days=1)),
@@ -95,6 +98,18 @@ def _origin(*, stop: float = 90.0, invalidation: float = 92.0) -> PositionOrigin
         ),
         initial_risk_per_share=100.0 - stop,
     )
+
+
+def _target(
+    price: float,
+    *,
+    sources: tuple[str, ...] = ("CONFIRMED_SWING_HIGH",),
+) -> PositionTarget:
+    source = "+".join(sorted(sources))
+    provenance = tuple(
+        Setup01TargetProvenance(source=item) for item in sorted(sources)
+    )
+    return PositionTarget(price=price, source=source, provenance=provenance)
 
 
 class PositionManagementTests(unittest.TestCase):
@@ -111,6 +126,43 @@ class PositionManagementTests(unittest.TestCase):
         decision = SimpleNamespace(
             execution_stop=90.0,
             structural_invalidation=92.0,
+            target_candidates=(
+                Setup02TargetCandidate(
+                    price=110.0,
+                    source="CONFIRMED_SWING_HIGH",
+                    reason="synthetic confirmed swing",
+                    provenance=(
+                        Setup02TargetProvenance(
+                            source="CONFIRMED_SWING_HIGH",
+                            pivot_date=day,
+                            confirmed_date=day,
+                        ),
+                    ),
+                ),
+                Setup02TargetCandidate(
+                    price=120.0,
+                    source="WAVE3_FIB_EXTENSION",
+                    reason="synthetic Fib extension",
+                    provenance=(
+                        Setup02TargetProvenance(
+                            source="WAVE3_FIB_EXTENSION",
+                            extension_ratio=1.272,
+                        ),
+                    ),
+                ),
+                Setup02TargetCandidate(
+                    price=130.0,
+                    source="CONFIRMED_SWING_HIGH",
+                    reason="synthetic confirmed swing",
+                    provenance=(
+                        Setup02TargetProvenance(
+                            source="CONFIRMED_SWING_HIGH",
+                            pivot_date=day,
+                            confirmed_date=day,
+                        ),
+                    ),
+                ),
+            ),
             targets=(110.0, 120.0, 130.0),
         )
         executed = SimpleNamespace(
@@ -126,6 +178,10 @@ class PositionManagementTests(unittest.TestCase):
         assert origin is not None
         self.assertEqual(origin.initial_risk_per_share, 10.0)
         self.assertEqual([item.name for item in origin.wave_anchors], ["LOW0", "HIGH1", "LOW2", "HIGH3"])
+        self.assertEqual(origin.target_prices, (110.0, 120.0, 130.0))
+        self.assertEqual(origin.targets[0].source, "CONFIRMED_SWING_HIGH")
+        self.assertEqual(origin.targets[1].source, "WAVE3_FIB_EXTENSION")
+        self.assertEqual(origin.targets[1].provenance[0].extension_ratio, 1.272)
         self.assertIsNone(
             position_origin_from_execution(
                 "SETUP_02", event, decision, replace_execution(executed, outcome="SKIP")
@@ -277,6 +333,57 @@ class PositionManagementTests(unittest.TestCase):
         )
         self.assertEqual(replay.days[0].target_status, TargetReachStatus.T1_REACHED)
         self.assertIsNone(replay.exit_reason)
+
+    def test_confirmed_swing_target_is_not_mislabeled_as_fib(self):
+        origin = _origin()
+        replay = replay_position(
+            origin,
+            [_quote(origin.entry_date, 100.0, 111.0, 99.0, 105.0)],
+        )
+        flags = replay.days[0].risk_flags
+        self.assertIn("CONFIRMED_SWING_TARGET_REACHED", flags)
+        self.assertNotIn("FIB_TARGET_REACHED", flags)
+
+    def test_fib_target_provenance_emits_fib_flag(self):
+        origin = _origin()
+        origin = PositionOrigin(
+            **{
+                **vars(origin),
+                "targets": tuple(
+                    _target(price, sources=("WAVE3_FIB_EXTENSION",))
+                    for price in (110.0, 120.0, 130.0)
+                ),
+            }
+        )
+        replay = replay_position(
+            origin,
+            [_quote(origin.entry_date, 100.0, 111.0, 99.0, 105.0)],
+        )
+        flags = replay.days[0].risk_flags
+        self.assertIn("FIB_TARGET_REACHED", flags)
+        self.assertNotIn("CONFIRMED_SWING_TARGET_REACHED", flags)
+
+    def test_dual_source_target_preserves_both_advisory_flags(self):
+        origin = _origin()
+        origin = PositionOrigin(
+            **{
+                **vars(origin),
+                "targets": (
+                    _target(
+                        110.0,
+                        sources=("CONFIRMED_SWING_HIGH", "WAVE3_FIB_EXTENSION"),
+                    ),
+                    *_origin().targets[1:],
+                ),
+            }
+        )
+        replay = replay_position(
+            origin,
+            [_quote(origin.entry_date, 100.0, 111.0, 99.0, 105.0)],
+        )
+        flags = replay.days[0].risk_flags
+        self.assertIn("FIB_TARGET_REACHED", flags)
+        self.assertIn("CONFIRMED_SWING_TARGET_REACHED", flags)
 
     def test_wave5_context_requires_confirmed_high3_low4_and_strict_break(self):
         start = date(2026, 1, 1)

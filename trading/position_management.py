@@ -8,7 +8,7 @@ market session.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import date
 from enum import Enum
 import math
@@ -86,6 +86,21 @@ class PositionAnchor:
 
 
 @dataclass(frozen=True)
+class PositionTarget:
+    """Frozen target price together with the Decision-owned explanation."""
+
+    price: float
+    source: str
+    provenance: tuple[Any, ...]
+
+    def __post_init__(self) -> None:
+        if not self.source or not self.provenance:
+            raise ValueError("a frozen target requires source and provenance")
+        if not math.isfinite(float(self.price)):
+            raise ValueError("frozen target price must be finite")
+
+
+@dataclass(frozen=True)
 class PositionOrigin:
     """Frozen origin and risk geometry for one executed position."""
 
@@ -97,7 +112,7 @@ class PositionOrigin:
     actual_entry: float
     initial_execution_stop: float
     initial_structural_invalidation: float
-    targets: tuple[float, ...]
+    targets: tuple[PositionTarget, ...]
     wave_anchors: tuple[PositionAnchor, ...]
     initial_risk_per_share: float
 
@@ -118,7 +133,7 @@ class PositionOrigin:
         if not self.targets or len(self.targets) > 3:
             raise ValueError("an executed position must retain frozen T1-T3 targets")
         if any(
-            not math.isfinite(float(target)) or target <= self.actual_entry
+            not math.isfinite(float(target.price)) or target.price <= self.actual_entry
             for target in self.targets
         ):
             raise ValueError("frozen targets must be finite and above actual entry")
@@ -128,6 +143,10 @@ class PositionOrigin:
     @property
     def one_r(self) -> float:
         return self.initial_risk_per_share
+
+    @property
+    def target_prices(self) -> tuple[float, ...]:
+        return tuple(float(target.price) for target in self.targets)
 
     def anchor(self, name: str) -> PositionAnchor | None:
         return next((item for item in self.wave_anchors if item.name == name), None)
@@ -207,15 +226,27 @@ def position_origin_from_execution(
     entry_date = getattr(execution, "execution_date", None)
     execution_stop = getattr(decision, "execution_stop", None)
     structural_invalidation = getattr(decision, "structural_invalidation", None)
-    targets = tuple(float(value) for value in getattr(decision, "targets", ()))
+    decision_targets = tuple(float(value) for value in getattr(decision, "targets", ()))
+    target_candidates = tuple(getattr(decision, "target_candidates", ()))[:3]
     if (
         actual_entry is None
         or entry_date is None
         or execution_stop is None
         or structural_invalidation is None
-        or not targets
+        or not decision_targets
+        or len(target_candidates) != len(decision_targets)
     ):
         raise ValueError("EXECUTED ledger row is missing immutable position origin fields")
+    if tuple(float(candidate.price) for candidate in target_candidates) != decision_targets:
+        raise ValueError("Decision target prices and candidates are inconsistent")
+    targets = tuple(
+        PositionTarget(
+            price=float(candidate.price),
+            source=str(candidate.source),
+            provenance=tuple(candidate.provenance),
+        )
+        for candidate in target_candidates
+    )
 
     if source_setup == "SETUP_01":
         snapshot = getattr(event, "setup01", None)
@@ -250,7 +281,7 @@ def position_origin_from_execution(
         actual_entry=actual_entry_value,
         initial_execution_stop=execution_stop_value,
         initial_structural_invalidation=float(structural_invalidation),
-        targets=targets[:3],
+        targets=targets,
         wave_anchors=anchors,
         initial_risk_per_share=actual_entry_value - execution_stop_value,
     )
@@ -292,12 +323,15 @@ def _latest_confirmed_higher_low(
     return max(candidates, key=lambda item: item.pivot_index) if candidates else None
 
 
-def _target_status(max_high: float, targets: Sequence[float]) -> TargetReachStatus:
-    if len(targets) >= 3 and max_high >= targets[2]:
+def _target_status(
+    max_high: float, targets: Sequence[PositionTarget]
+) -> TargetReachStatus:
+    prices = tuple(target.price for target in targets)
+    if len(prices) >= 3 and max_high >= prices[2]:
         return TargetReachStatus.T3_REACHED
-    if len(targets) >= 2 and max_high >= targets[1]:
+    if len(prices) >= 2 and max_high >= prices[1]:
         return TargetReachStatus.T2_REACHED
-    if max_high >= targets[0]:
+    if max_high >= prices[0]:
         return TargetReachStatus.T1_REACHED
     return TargetReachStatus.NOT_REACHED
 
@@ -320,19 +354,41 @@ def _risk_flags(
     prefix: Sequence[Quote],
     *,
     atr14: float | None,
+    max_high: float,
     target_status: TargetReachStatus,
-    targets: Sequence[float],
+    targets: Sequence[PositionTarget],
     wave5_state: Wave5ContextState,
 ) -> tuple[str, ...]:
     flags: list[str] = []
     if wave5_state is Wave5ContextState.WAVE5_CANDIDATE:
         flags.append("WAVE5_CANDIDATE")
     if target_status is not TargetReachStatus.NOT_REACHED:
-        flags.append("FIB_TARGET_REACHED")
+        reached = [
+            target for target in targets if target.price <= max_high
+        ]
+        if any(
+            any(getattr(item, "source", None) == "WAVE3_FIB_EXTENSION" for item in target.provenance)
+            for target in reached
+        ):
+            flags.append("FIB_TARGET_REACHED")
+        if any(
+            any(getattr(item, "source", None) == "CONFIRMED_SWING_HIGH" for item in target.provenance)
+            for target in reached
+        ):
+            flags.append("CONFIRMED_SWING_TARGET_REACHED")
     else:
         next_target = targets[0]
-        if atr14 is not None and next_target - float(quote.close) <= atr14:
-            flags.append("FIB_TARGET_PROXIMITY")
+        if atr14 is not None and next_target.price - float(quote.close) <= atr14:
+            if any(
+                getattr(item, "source", None) == "WAVE3_FIB_EXTENSION"
+                for item in next_target.provenance
+            ):
+                flags.append("FIB_TARGET_PROXIMITY")
+            if any(
+                getattr(item, "source", None) == "CONFIRMED_SWING_HIGH"
+                for item in next_target.provenance
+            ):
+                flags.append("CONFIRMED_SWING_TARGET_PROXIMITY")
 
     prior_volumes = [
         float(item.volume)
@@ -553,6 +609,7 @@ def replay_position(
             quote,
             prefix,
             atr14=atr14,
+            max_high=max_high,
             target_status=target_status,
             targets=origin.targets,
             wave5_state=wave5.state,
@@ -656,6 +713,22 @@ def replay_positions(
 
 
 def position_replay_to_dict(replay: PositionReplay) -> dict[str, Any]:
+    def serialise(value: Any) -> Any:
+        if isinstance(value, Enum):
+            return value.value
+        if hasattr(value, "isoformat") and not isinstance(value, (str, bytes)):
+            return value.isoformat()
+        if is_dataclass(value):
+            return {
+                item.name: serialise(getattr(value, item.name))
+                for item in fields(value)
+            }
+        if isinstance(value, Mapping):
+            return {str(key): serialise(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [serialise(item) for item in value]
+        return value
+
     return {
         "source_setup": replay.origin.source_setup,
         "source_event_identity": replay.origin.source_event_identity,
@@ -666,7 +739,15 @@ def position_replay_to_dict(replay: PositionReplay) -> dict[str, Any]:
         "initial_execution_stop": replay.origin.initial_execution_stop,
         "initial_structural_invalidation": replay.origin.initial_structural_invalidation,
         "initial_risk_per_share": replay.origin.initial_risk_per_share,
-        "targets": list(replay.origin.targets),
+        "targets": list(replay.origin.target_prices),
+        "target_details": [
+            {
+                "price": target.price,
+                "source": target.source,
+                "provenance": [serialise(item) for item in target.provenance],
+            }
+            for target in replay.origin.targets
+        ],
         "wave_anchors": [
             {
                 "name": item.name,
@@ -726,6 +807,7 @@ __all__ = [
     "PositionExitReason",
     "PositionOrigin",
     "PositionReplay",
+    "PositionTarget",
     "TargetReachStatus",
     "position_origin_from_execution",
     "position_replay_to_dict",

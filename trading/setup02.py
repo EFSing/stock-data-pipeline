@@ -407,6 +407,7 @@ def evaluate_setup02_history(
     as_of_date: date | None = None,
     daily_swing_lookback: int = 5,
     weekly_swing_lookback: int = 5,
+    _use_cache: bool = True,
 ) -> tuple[Setup02Evaluation, ...]:
     """Return one strict-prefix SETUP_02 snapshot per visible bar."""
     validate_quote_series(quotes)
@@ -417,28 +418,39 @@ def evaluate_setup02_history(
 
     # Cached full-series projections remain causal because evaluate_wave_scenario
     # admits only confirmed swings available at the current daily/weekly index.
-    daily_swings_all = tuple(find_swings(visible, lookback=daily_swing_lookback))
-    weekly_quotes_all = aggregate_completed_weekly_quotes(visible, visible[-1].trade_date)
-    weekly_swings_all = tuple(find_swings(weekly_quotes_all, lookback=weekly_swing_lookback))
-    weekly_quote_dates = tuple(quote.trade_date for quote in weekly_quotes_all)
+    # The private uncached branch is reserved for the one-time parity audit and
+    # deliberately calls the original strict prefix path.
+    if _use_cache:
+        daily_swings_all = tuple(find_swings(visible, lookback=daily_swing_lookback))
+        weekly_quotes_all = aggregate_completed_weekly_quotes(visible, visible[-1].trade_date)
+        weekly_swings_all = tuple(find_swings(weekly_quotes_all, lookback=weekly_swing_lookback))
+        weekly_quote_dates = tuple(quote.trade_date for quote in weekly_quotes_all)
 
     tracker: _Setup02Tracker | None = None
     snapshots: list[Setup02Evaluation] = []
     for index, quote in enumerate(visible):
         # The evaluator receives only this prefix.  Future confirmed swings can
         # therefore never be backfilled into an earlier SETUP_02 snapshot.
-        prefix = _QuotePrefix(visible, index)
-        wave = evaluate_wave_scenario(
-            prefix,
-            as_of_date=quote.trade_date,
-            daily_swing_lookback=daily_swing_lookback,
-            weekly_swing_lookback=weekly_swing_lookback,
-            _as_of_index=index,
-            _daily_swings_all=daily_swings_all,
-            _weekly_swings_all=weekly_swings_all,
-            _weekly_quote_dates=weekly_quote_dates,
-            _skip_validation=True,
-        )
+        if _use_cache:
+            prefix = _QuotePrefix(visible, index)
+            wave = evaluate_wave_scenario(
+                prefix,
+                as_of_date=quote.trade_date,
+                daily_swing_lookback=daily_swing_lookback,
+                weekly_swing_lookback=weekly_swing_lookback,
+                _as_of_index=index,
+                _daily_swings_all=daily_swings_all,
+                _weekly_swings_all=weekly_swings_all,
+                _weekly_quote_dates=weekly_quote_dates,
+                _skip_validation=True,
+            )
+        else:
+            wave = evaluate_wave_scenario(
+                visible[: index + 1],
+                as_of_date=quote.trade_date,
+                daily_swing_lookback=daily_swing_lookback,
+                weekly_swing_lookback=weekly_swing_lookback,
+            )
         candidate = _candidate_from_wave(wave, index)
 
         if tracker is None:
