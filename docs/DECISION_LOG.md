@@ -1474,3 +1474,19 @@ factor, optimization, or Final OOS path was accessed.
 **Stop:** New PR for `codex/portfolio-risk-v1` must remain OPEN for Sol review;
 do not merge automatically. Final state is
 `PORTFOLIO_RISK_V1_READY_FOR_SOL_REVIEW`.
+
+**Review handoff / CI:** After PR #60 independently advanced `main` to
+`0789fdfb898b9edcf99ee5aaa3450f467889d67f` (merge-after `CI Test Gate`
+`33611436462` success), PR #59 was rebased onto that latest clean base. The
+validated rebased head is `71d17a0a9aa67d1897fc1f529d6d3b764f2a216b`; exact-head
+`CI Test Gate` pull-request run `33615646551` and Portfolio Risk generic shadow
+pull-request run `33615646521` both succeeded. Manual exact-head reruns
+`33615760944` and `33615767231` also succeeded. The
+prior pre-rebase head `653a8807427eb27c52e2c6e01e88c5db9b523eae` had
+`CI Test Gate`=`33610608158` and generic shadow=`33610608185`, both success.
+The clean-checkout gate ran 521 tests with `OK (skipped=3)` because the three
+full frozen-replay assertions require the ignored local development dataset;
+all 19 self-contained Portfolio Risk boundary tests ran, and the complete
+replay was separately verified locally against 40 symbols / 84,284 bars. The
+final governance-only tip is not self-referenced here; live GitHub
+head/checks remain authoritative. No merge is authorized.
