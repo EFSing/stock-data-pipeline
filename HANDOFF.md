@@ -13,7 +13,7 @@
 ## 1. Current Objective
 
 - **当前 Phase / task:** `HK_YFINANCE_TICKER_NORMALIZATION_FIX`（最小 bugfix）。
-- **真实状态 reconciliation:** PR #51 已于 `2026-09-02T08:12:24Z` squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after main exact-head CI=`33607481962` success。
+- **真实状态 reconciliation:** PR #51 已于 `2026-09-02T08:12:24Z` squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after main exact-head CI=`33607481962` success。PR #60 随后已 squash merged，merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`；其 merge-after main exact-head CI=`33611436462` success。
 - **唯一目标:** 修复 holdings 港股 Yahoo ticker normalization；只改现有 `normalize_holding()`、必要回归测试和本次治理 freshness，不启动新 Phase 或研究。
 - **实现范围:** `holdings_data_manager.py`、相关 holdings/command-bus 回归测试、最小治理状态更新；不改 latest/history lifecycle、command-bus schema、Position Management、SETUP、Wave 或 OOS。
 - **操作边界:** 不执行真实 holdings ADD；真实 `ADD 00700.HK` 由后续 ChatGPT command bus 执行。
@@ -23,12 +23,12 @@
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub `main` exact SHA=`993d03e428b7eb11da791a608940c9d77a608f96`，为 PR #51 的真实 squash merge commit；merge-after `CI Test Gate` run=`33607481962` completed/success。
-- **working checkout:** 当前 checkout 为 `codex/hk-yfinance-ticker-normalization-fix`，从上述 clean merged main 创建。
-- **open PR / governance:** PR #50/#51 已 merged；PR #60=`https://github.com/EFSing/stock-data-pipeline/pull/60` 当前 `OPEN / CLEAN / MERGEABLE`、`merged=false`，head=`3781b0a4e639707df047becc16d25ac6b84d4a56` 的 `CI Test Gate`=`33611164963` success；治理 freshness 推送后的新 head 需再核对 exact-head CI。
-- **base CI:** `main@993d03e428b7eb11da791a608940c9d77a608f96` merge-after exact-head CI run=`33607481962` success；新 PR 的最终 head 与 exact-head checks 以 live GitHub closeout 为准。
+- **main/base SHA:** GitHub `main` merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`，为 PR #60 的真实 squash merge commit；merge-after `CI Test Gate` run=`33611436462` completed/success。
+- **working checkout:** 当前 checkout 为 `main`，已从 `origin/main` fast-forward 到上述 PR #60 merge commit；当前仅待治理 closeout 提交。
+- **open PR / governance:** PR #50/#51/#60 已 merged；无本任务遗留 open PR。PR #60 merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`，exact-head `CI Test Gate`=`33611328193` success，live state=`CLEAN / MERGEABLE`。
+- **base CI:** `main@0789fdfb898b9edcf99ee5aaa3450f467889d67f` merge-after exact-head CI run=`33611436462` success；closeout 后的最终 main head 与 CI 以 live GitHub 核对为准。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
-- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；本轮只推进 HK normalization bugfix，未开启新的 production path。
+- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；HK normalization bugfix 已完成并合并，未开启新的 production path。
 
 ## 3. Completed Work
 
@@ -312,31 +312,31 @@
 3. [x] 已从 clean merged `main@993d03e428b7eb11da791a608940c9d77a608f96` 建立 `codex/hk-yfinance-ticker-normalization-fix`。
 4. [x] 修复 HK Yahoo ticker normalization：`00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`；非补位零代码保持不变，CN/US normalization 回归通过。
 5. [x] 本地 gates 通过：holdings/validation/governance focused=`91/91`，command-bus focused=`19/19`，full unittest=`500/500`，compileall 与 `git diff --check` 通过。
-6. [x] 已创建最小 bugfix PR #60；source head=`3781b0a4e639707df047becc16d25ac6b84d4a56`，live state=`OPEN / CLEAN / MERGEABLE`，exact-head `CI Test Gate`=`33611164963` success。
-7. [ ] 治理 freshness 推送后重新核对 PR #60 exact-head CI，满足条件后按用户授权 squash merge。
-8. [ ] 刷新 local main=`origin/main`，确认 merge commit 与 main exact-head CI，并完成治理 closeout。
+6. [x] 已创建并完成 PR #60；merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`，live state=`OPEN / CLEAN / MERGEABLE`，exact-head `CI Test Gate`=`33611328193` success。
+7. [x] PR #60 已 squash merged，真实 merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`；merge-after main exact-head `CI Test Gate`=`33611436462` success。
+8. [x] local `main` 已刷新为 `origin/main`，当前治理 closeout 待提交并验证最终 main exact-head CI。
 
 ## 11. Handoff Checklist
 
 - [x] Current Objective 已更新为 HK Yahoo ticker normalization bugfix
-- [x] merged main / new branch baseline 已更新：main=`993d03e...`，PR #51 merge-after CI=`33607481962` success
+- [x] merged main / new branch baseline 已更新：PR #60 merge=`0789fdf...`，merge-after CI=`33611436462` success
 - [x] scope boundary 明确：只改现有 normalization 与必要回归；不改 lifecycle、command bus schema、Position/SETUP/Wave/OOS；不执行真实 ADD
 - [x] HK mapping regression、focused/full unittest、compileall 与 `git diff --check` 已完成：`91/91`、`19/19`、`500/500`，compileall/diff check pass
-- [x] PR #60 source exact-head CI=`33611164963` success、live mergeability=`CLEAN / MERGEABLE`；治理 freshness 新 head 与 merge 后 main CI 待完成
+- [x] PR #60 exact-head CI=`33611328193` success、live mergeability=`CLEAN / MERGEABLE`；merge commit=`0789fdf...` 的 main exact-head CI=`33611436462` success
 - [x] 本任务不新增 DECISION_LOG 设计条目；历史 provenance 保持不变
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-02`
-- `verified_origin_main_sha`: `993d03e428b7eb11da791a608940c9d77a608f96`
-- `latest_substantive_implementation_sha`: current pre-PR HEAD (`fix: preserve HK Yahoo ticker padding`); live PR closeout pending
-- `merged_pr`: #51 `https://github.com/EFSing/stock-data-pipeline/pull/51`; source head=`2dbb7a751916921a29360b28467de92e150683e3`; merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; merge-after CI=`33607481962` success
-- `current_branch`: `codex/hk-yfinance-ticker-normalization-fix`; PR #60=`https://github.com/EFSing/stock-data-pipeline/pull/60`; source head=`3781b0a4e639707df047becc16d25ac6b84d4a56`
+- `verified_origin_main_sha`: `0789fdfb898b9edcf99ee5aaa3450f467889d67f` (PR #60 merge commit; closeout tip to be verified after push)
+- `latest_substantive_implementation_sha`: `3781b0a4e639707df047becc16d25ac6b84d4a56` (implementation source; PR #60 merge included governance freshness)
+- `merged_pr`: #60 `https://github.com/EFSing/stock-data-pipeline/pull/60`; source head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`; merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; merge-after CI=`33611436462` success
+- `current_branch`: `main`; local `main`=`origin/main`=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; governance closeout tip and final CI to be verified after push
 - `latest_hk_ticker_mapping`: verified; `00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`，`12345.HK` unchanged
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
 - `latest_test_result`: holdings/validation/governance focused=`91/91`; command-bus focused=`19/19`; full unittest=`500/500`; compileall=`PASS`; `git diff --check`=`PASS`
 - `scope_boundary`: only existing HK normalization and regression tests; no holdings ADD, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
-- `live_ci`: base main head `993d03e428b7eb11da791a608940c9d77a608f96`; `CI Test Gate`=`33607481962` success; PR #60 source head `3781b0a4e639707df047becc16d25ac6b84d4a56`; exact-head `CI Test Gate`=`33611164963` success; governance-refresh head pending
-- `next_action`: push governance freshness, verify PR #60 exact-head CI remains success, squash merge, refresh main, and close out governance
+- `live_ci`: PR #60 source/governance head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`; exact-head `CI Test Gate`=`33611328193` success; merge main head=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; merge-after exact-head `CI Test Gate`=`33611436462` success; final closeout head CI pending
+- `next_action`: commit/push this governance closeout, verify final main exact-head CI, and stop without starting another task or executing holdings ADD
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
