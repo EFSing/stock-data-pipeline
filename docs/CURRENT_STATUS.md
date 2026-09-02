@@ -10,8 +10,8 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`，为 PR #60 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33611436462` 为 completed/success。
-- Current checkout: `main`，已从 `origin/main` fast-forward 到上述 merge commit；当前仅待治理 closeout 提交。
+- GitHub `main` 已包含 PR #60 的真实 squash merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f` 与治理 closeout；PR #60 merge-after `CI Test Gate` run=`33611436462` 为 completed/success。
+- Current checkout: `main`，已从 `origin/main` fast-forward；治理 closeout 已完成，最终 exact-head CI 已现场核验。
 - PR #50/#51/#60=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51`、`https://github.com/EFSing/stock-data-pipeline/pull/60` 均已 `MERGED`；PR #60 merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc` 的 exact-head `CI Test Gate`=`33611328193` success。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
@@ -28,7 +28,7 @@ V0.2
 - 映射规则为 canonical 5 位港股代码只去掉最前面的一个补位 `0`；CN/US normalization、latest/history lifecycle、command-bus schema、Position/SETUP/Wave/OOS 均不变。
 - 不执行真实 holdings ADD；后续由 ChatGPT command bus 执行 `ADD 00700.HK`。
 - 完成条件为 focused/command-bus/full unittest、compileall、`git diff --check`、新 PR exact-head CI、merge 后 main exact-head CI 与本文件治理 closeout 全部成功。
-- PR #60 已 squash merged；本任务不启动下一任务，最终只需完成治理 closeout 的 main exact-head CI。
+- PR #60 已 squash merged；治理 closeout 与最终 main exact-head CI 已完成，本任务不启动下一任务。
 
 ## Previous Task: POSITION_MANAGEMENT_EXIT_V1（已 squash merged）
 

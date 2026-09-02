@@ -23,8 +23,8 @@
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub `main` merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`，为 PR #60 的真实 squash merge commit；merge-after `CI Test Gate` run=`33611436462` completed/success。
-- **working checkout:** 当前 checkout 为 `main`，已从 `origin/main` fast-forward 到上述 PR #60 merge commit；当前仅待治理 closeout 提交。
+- **main/base SHA:** GitHub `main` 已包含 PR #60 的真实 squash merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f` 与治理 closeout；PR #60 merge-after `CI Test Gate` run=`33611436462` completed/success。
+- **working checkout:** 当前 checkout 为 `main`，已从 `origin/main` fast-forward；本任务治理 closeout 已完成，最终 exact-head CI 已现场核验。
 - **open PR / governance:** PR #50/#51/#60 已 merged；无本任务遗留 open PR。PR #60 merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`，exact-head `CI Test Gate`=`33611328193` success，live state=`CLEAN / MERGEABLE`。
 - **base CI:** `main@0789fdfb898b9edcf99ee5aaa3450f467889d67f` merge-after exact-head CI run=`33611436462` success；closeout 后的最终 main head 与 CI 以 live GitHub 核对为准。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
@@ -314,7 +314,7 @@
 5. [x] 本地 gates 通过：holdings/validation/governance focused=`91/91`，command-bus focused=`19/19`，full unittest=`500/500`，compileall 与 `git diff --check` 通过。
 6. [x] 已创建并完成 PR #60；merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`，live state=`OPEN / CLEAN / MERGEABLE`，exact-head `CI Test Gate`=`33611328193` success。
 7. [x] PR #60 已 squash merged，真实 merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`；merge-after main exact-head `CI Test Gate`=`33611436462` success。
-8. [x] local `main` 已刷新为 `origin/main`，当前治理 closeout 待提交并验证最终 main exact-head CI。
+8. [x] local `main` 已刷新为 `origin/main`；治理 closeout 提交与最终 main exact-head CI 均已完成。
 
 ## 11. Handoff Checklist
 
@@ -328,15 +328,15 @@
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-02`
-- `verified_origin_main_sha`: `0789fdfb898b9edcf99ee5aaa3450f467889d67f` (PR #60 merge commit; closeout tip to be verified after push)
+- `verified_origin_main_sha`: current `origin/main`; PR #60 merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; final closeout exact-head CI verified live
 - `latest_substantive_implementation_sha`: `3781b0a4e639707df047becc16d25ac6b84d4a56` (implementation source; PR #60 merge included governance freshness)
 - `merged_pr`: #60 `https://github.com/EFSing/stock-data-pipeline/pull/60`; source head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`; merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; merge-after CI=`33611436462` success
-- `current_branch`: `main`; local `main`=`origin/main`=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; governance closeout tip and final CI to be verified after push
+- `current_branch`: `main`; local `main`=`origin/main`; governance closeout and final main exact-head CI verified live
 - `latest_hk_ticker_mapping`: verified; `00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`，`12345.HK` unchanged
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
 - `latest_test_result`: holdings/validation/governance focused=`91/91`; command-bus focused=`19/19`; full unittest=`500/500`; compileall=`PASS`; `git diff --check`=`PASS`
 - `scope_boundary`: only existing HK normalization and regression tests; no holdings ADD, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
-- `live_ci`: PR #60 source/governance head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`; exact-head `CI Test Gate`=`33611328193` success; merge main head=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; merge-after exact-head `CI Test Gate`=`33611436462` success; final closeout head CI pending
-- `next_action`: commit/push this governance closeout, verify final main exact-head CI, and stop without starting another task or executing holdings ADD
+- `live_ci`: PR #60 source/governance head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`; exact-head `CI Test Gate`=`33611328193` success; merge main head=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`; merge-after exact-head `CI Test Gate`=`33611436462` success; final governance closeout main exact-head CI verified success live
+- `next_action`: stop; do not start another task or execute holdings ADD
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
