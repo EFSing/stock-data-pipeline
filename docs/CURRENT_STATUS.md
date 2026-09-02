@@ -12,7 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`，为 PR #50 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33588525870` 为 completed/success。
 - Current checkout: `codex/position-management-exit-v1`，从上述 clean merged main 创建；本分支正在实现 Position Management + Exit v1，replay artifacts 保持 ignored。
-- PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50` 已 `MERGED`；PR #51=`https://github.com/EFSing/stock-data-pipeline/pull/51` 目标仍为 `OPEN / CLEAN / MERGEABLE`、`merged=false`，本地 hardening source=`e289281c7860615ca44bd402db6051756d56b357` 待 push；禁止自动 merge。
+- PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50` 已 `MERGED`；PR #51=`https://github.com/EFSing/stock-data-pipeline/pull/51` 当前 `OPEN / CLEAN / MERGEABLE`、`merged=false`，hardening source=`e289281c7860615ca44bd402db6051756d56b357` 已推送；禁止自动 merge。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 entry/Decision layers frozen；当前授权任务为 `POSITION_MANAGEMENT_EXIT_V1`，停止节点为 `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
@@ -38,7 +38,7 @@ V0.2
 - `PositionTarget` 已将 Decision 的前 3 个 target candidate 的 price/order/source/provenance 原样冻结进 immutable `PositionOrigin`，不重算 target；risk advisory 只按 provenance 发出 Fib/confirmed-swing 标签，dual-source 可同时发出。旧→新 target-label delta 仅为 `CONFIRMED_SWING_TARGET_REACHED +1`，action counts 保持 `EXIT=3 / HOLD=11 / NO_ADD=96 / PROFIT_PROTECTION=24`。
 - 边界：Position Management 只消费 `outcome == EXECUTED`，不重筛 entry、不生成新 entry；不读取或计算 win rate、aggregate P&L、expectancy、profit factor、Sharpe、optimized thresholds、Final OOS；不访问 holdings/broker/account/Secrets/Sheets；不自动 merge 新 PR。
 - Generic operational shadow 为 synthetic-only SUCCESS：1 position / 3 position-days；初始 1R 冻结、target 只追踪不自动退出、stop 不下移、causal day count 全通过；returns/P&L/broker/holdings/Sheets 均未访问。
-- PR #51 的新 hardening commit=`e289281c7860615ca44bd402db6051756d56b357`，尚未 push；push 后必须用最终 exact head 重新核验 `CI Test Gate`、SETUP_02 generic shadow 与 `OPEN / CLEAN / MERGEABLE`。
+- PR #51 的 hardening source=`e289281c7860615ca44bd402db6051756d56b357` 已随文档 closeout 推至 exact head=`7c02ca08abab467f8fe0bc6bd43ff158196992d8`；该 head 的 `CI Test Gate` run=`33604216629` 与 `SETUP_02 generic operational shadow` run=`33604268141` 均 success，PR live state=`OPEN / CLEAN / MERGEABLE`、`merged=false`。
 - Machine-readable protocol=`research/protocols/position_management_exit_v1.json`；中文协议=`docs/POSITION_MANAGEMENT_EXIT_V1.md`；停止节点为 `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`，PR #51 保持 OPEN，禁止 merge。
 
 ## Previous Task: SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1（已 squash merged）
