@@ -12,23 +12,23 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `VOLUME_VALIDATION_NOISE_FIX`（最小语义 bugfix）。
-- **真实状态 reconciliation:** stale snapshot 中关于 PR #51 的 `OPEN` 状态已按真实 GitHub 刷新为已 squash merged，merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；当前真实 `main`=`6ed32349449b0f0b59193187dd4d5a4728790dc6`，其 exact-head `CI Test Gate`=`33617194589` success。历史 provenance 不改。
+- **当前 Phase / task:** `VOLUME_VALIDATION_NOISE_FIX`（最小语义 bugfix，已完成并 squash merged）。
+- **真实状态 reconciliation:** stale snapshot 中关于 PR #51 的 `OPEN` 状态已按真实 GitHub 刷新为已 squash merged，merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；本任务 PR #61 已 squash merged，merge commit=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`；当前真实 `main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`，其 exact-head `CI Test Gate`=`33618759657` success。历史 provenance 不改。
 - **唯一目标:** 让日期和收盘价通过时，成交量 mismatch/missing 仅作为 QC 提示，不阻断核心行情验证；只改现有 `validate_quotes()`、必要回归测试和本次治理 freshness，不启动新 Phase 或研究。
 - **实现范围:** `core.py`、相关 validation/latest/holdings 回归测试、最小治理状态更新；不改 tolerance、provider、latest/history lifecycle、command-bus schema、Position Management、SETUP、Wave 或 OOS。
 - **操作边界:** 不执行真实 holdings ADD/REENTER；不修改现有 HK ticker normalization，仅确认其回归继续通过。
-- **停止条件:** holdings focused、command-bus focused、full unittest、compileall、`git diff --check`、PR exact-head CI 与 merge 后 main exact-head CI 全部成功后完成本任务。
+- **停止条件:** holdings focused、command-bus focused、full unittest、compileall、`git diff --check`、PR exact-head CI 与 merge 后 main exact-head CI 全部成功；本任务已完成，不启动下一任务。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub `main`=`6ed32349449b0f0b59193187dd4d5a4728790dc6`；PR #51 已 merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；当前 main exact-head CI=`33617194589` success。
-- **working checkout:** 当前 checkout 为 `codex/volume-validation-noise-fix`，从真实 `origin/main@6ed32349449b0f0b59193187dd4d5a4728790dc6` 创建，工作树初始干净。
-- **open PR / governance:** PR #50/#51/#60 已 merged；当前唯一 open PR #59 (`PORTFOLIO_RISK_V1`) 与本任务无关，不触碰；本任务尚无 PR。
-- **base CI:** `main@6ed32349449b0f0b59193187dd4d5a4728790dc6` exact-head `CI Test Gate` run=`33617194589` success。
+- **main/base SHA:** GitHub `main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`；PR #51 已 merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；本任务 PR #61 已 merged，当前 main exact-head CI=`33618759657` success。
+- **working checkout:** 当前 checkout 为 `main`，已从 `origin/main` fast-forward，工作树干净。
+- **open PR / governance:** PR #50/#51/#60/#61 已 merged；当前唯一 open PR #59 (`PORTFOLIO_RISK_V1`) 与本任务无关，不触碰；本任务无遗留 PR。
+- **base CI:** `main@9a6432ffbf4271942bbdf7e169a46fce29776ffe` merge-after exact-head `CI Test Gate` run=`33618759657` success。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
-- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；本任务仅调整 validation 对 volume mismatch/missing 的状态语义，未开启新的 production path。
+- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；本任务仅调整 validation 对 volume mismatch/missing 的状态语义，未开启新的 production path，已完成 closeout。
 
 ## 3. Completed Work
 
@@ -322,21 +322,22 @@
 - [x] governance conflict 已最小 reconciliation：PR #51 merged=`993d03e...`，真实 main=`6ed3234...`，main CI=`33617194589` success；历史 provenance 保持不变
 - [x] scope boundary 明确：只改现有 validation 语义与必要回归；不改 tolerance/provider/lifecycle/command bus/Position/SETUP/Wave/OOS
 - [x] volume mismatch/missing、scheduled latest、holdings ADD/REENTER、HK mapping 回归与 focused/full unittest、compileall、`git diff --check` 已完成：focused `104/104`、full `502/502`
-- [x] PR #61 head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5` exact-head `CI Test Gate`=`33618409589` success、live `CLEAN / MERGEABLE`；merge、merge-after main CI 与最终治理 closeout pending
+- [x] PR #61 head=`d3f5ccf89e7a4f5c912ffec7b70042324ef0f463` exact-head `CI Test Gate`=`33618647932` success、live `CLEAN / MERGEABLE`；已 squash merged 为 `9a6432ffbf4271942bbdf7e169a46fce29776ffe`
+- [x] merge 后 main exact-head `CI Test Gate`=`33618759657` success；local `main`=`origin/main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`
 - [x] 本任务不新增 DECISION_LOG 设计条目；历史 provenance 保持不变
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-02`
-- `verified_origin_main_sha`: `6ed32349449b0f0b59193187dd4d5a4728790dc6`; PR #51 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; main exact-head CI=`33617194589` success
-- `latest_substantive_implementation_sha`: `3781b0a4e639707df047becc16d25ac6b84d4a56` (implementation source; PR #60 merge included governance freshness)
-- `merged_pr`: PR #51 `https://github.com/EFSing/stock-data-pipeline/pull/51`; merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; current main=`6ed32349449b0f0b59193187dd4d5a4728790dc6`
-- `current_branch`: `codex/volume-validation-noise-fix`; baseline=`origin/main@6ed32349449b0f0b59193187dd4d5a4728790dc6`
+- `verified_origin_main_sha`: `9a6432ffbf4271942bbdf7e169a46fce29776ffe`; PR #51 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; main exact-head CI=`33618759657` success
+- `latest_substantive_implementation_sha`: `d3f5ccf89e7a4f5c912ffec7b70042324ef0f463` (PR #61 source head)
+- `merged_pr`: PR #61 `https://github.com/EFSing/stock-data-pipeline/pull/61`; source head=`d3f5ccf89e7a4f5c912ffec7b70042324ef0f463`; merge commit=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`; merge-after CI=`33618759657` success
+- `current_branch`: `main`; local `main`=`origin/main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`
 - `latest_hk_ticker_mapping`: verified; `00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`，`12345.HK` unchanged
 - `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
-- `latest_test_result`: focused=`104/104`; full unittest=`502/502`; compileall=`PASS`; `git diff --check`=`PASS`; baseline main CI=`33617194589` success
+- `latest_test_result`: focused=`104/104`; full unittest=`502/502`; compileall=`PASS`; `git diff --check`=`PASS`; merge-after main CI=`33618759657` success
 - `scope_boundary`: only existing `validate_quotes()` volume status semantics, tests, and minimal governance freshness; no holdings ADD/REENTER, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
-- `live_ci`: baseline main=`6ed32349449b0f0b59193187dd4d5a4728790dc6`; exact-head `CI Test Gate`=`33617194589` success; PR #61 head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5`; exact-head `CI Test Gate`=`33618409589` success; live `CLEAN / MERGEABLE`
-- `next_action`: squash merge PR #61, verify merge-after main CI, then perform governance closeout only
+- `live_ci`: PR #61 source head=`d3f5ccf89e7a4f5c912ffec7b70042324ef0f463`; exact-head `CI Test Gate`=`33618647932` success; merge main head=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`; merge-after exact-head `CI Test Gate`=`33618759657` success
+- `next_action`: stop; do not start another task or execute holdings ADD/REENTER
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

@@ -10,12 +10,12 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` 当前真实为 `6ed32349449b0f0b59193187dd4d5a4728790dc6`；PR #51 已 squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；main exact-head `CI Test Gate`=`33617194589` 为 completed/success。历史 provenance 不改。
-- Current checkout: `codex/volume-validation-noise-fix`，从真实 `origin/main@6ed32349449b0f0b59193187dd4d5a4728790dc6` 创建，初始工作树干净。
-- PR #50/#51/#60=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51`、`https://github.com/EFSing/stock-data-pipeline/pull/60` 均已 `MERGED`；当前唯一 open PR #59 为无关任务，不触碰。
+- GitHub `main` 当前真实为 `9a6432ffbf4271942bbdf7e169a46fce29776ffe`；PR #51 已 squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；本任务 PR #61 已 squash merged，main exact-head `CI Test Gate`=`33618759657` 为 completed/success。历史 provenance 不改。
+- Current checkout: `main`，已从 `origin/main` fast-forward，工作树干净。
+- PR #50/#51/#60/#61=`https://github.com/EFSing/stock-data-pipeline/pull/50`、`https://github.com/EFSing/stock-data-pipeline/pull/51`、`https://github.com/EFSing/stock-data-pipeline/pull/60`、`https://github.com/EFSing/stock-data-pipeline/pull/61` 均已 `MERGED`；当前唯一 open PR #59 为无关任务，不触碰。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
-- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit semantics frozen；当前授权任务为 `VOLUME_VALIDATION_NOISE_FIX`，仅调整成交量 QC 的非阻断提示语义。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
+- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit semantics frozen；`VOLUME_VALIDATION_NOISE_FIX` 已完成，仅调整成交量 QC 的非阻断提示语义。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
@@ -24,12 +24,12 @@ V0.2
 ## Current Task: VOLUME_VALIDATION_NOISE_FIX
 
 - 真实基线为 `main@6ed32349449b0f0b59193187dd4d5a4728790dc6`；PR #51 的 stale `OPEN` snapshot 已按真实事实 reconciliation 为 merged=`993d03e428b7eb11da791a608940c9d77a608f96`，main exact-head CI=`33617194589` success。
-- 当前分支为 `codex/volume-validation-noise-fix`；只调整现有 `validate_quotes()` 对 volume mismatch/missing 的核心状态语义并补必要回归测试。
+- PR #61 已 squash merged：source head=`d3f5ccf89e7a4f5c912ffec7b70042324ef0f463`，merge commit=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`，merge-after main exact-head CI=`33618759657` success；当前分支为 `main`，local=`origin/main`。
+- 本任务只调整现有 `validate_quotes()` 对 volume mismatch/missing 的核心状态语义并补必要回归测试。
 - 日期一致且 close 通过时，volume 仍真实记录 `volume_pass`/`volume_diff`，但 mismatch/missing 只产生 warning，不再把核心行情标为待复核；date/close/freshness/sanity/双源不可用等既有 fail-closed 语义不变。
 - 不执行真实 holdings ADD/REENTER；现有 HK ticker normalization 只做回归确认。
-- 完成条件为 validation/latest/holdings/command-bus focused、full unittest、compileall、`git diff --check`、新 PR exact-head CI、merge 后 main exact-head CI 与本文件治理 closeout 全部成功。
-- 本任务不新增 DECISION_LOG 设计条目，不启动下一任务。
-- PR #61 已创建，head=`ca240572ad3caf097ec4d0f5d8f2d92fa4503ae5`，exact-head `CI Test Gate`=`33618409589` success，live state=`CLEAN / MERGEABLE`；本地 focused=`104/104`、full=`502/502`、compileall 与 `git diff --check` 均通过，等待按授权直接 squash merge。
+- 完成条件已满足：validation/latest/holdings/command-bus focused=`104/104`、full unittest=`502/502`、compileall、`git diff --check`、PR #61 exact-head CI=`33618647932` success、live `CLEAN/MERGEABLE`、merge 后 main exact-head CI=`33618759657` success。
+- 本任务不新增 DECISION_LOG 设计条目，不启动下一任务，不执行真实 holdings ADD/REENTER。
 
 ## Previous Task: POSITION_MANAGEMENT_EXIT_V1（已 squash merged）
 
