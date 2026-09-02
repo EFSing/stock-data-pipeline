@@ -10,29 +10,33 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` exact HEAD=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33494893693` 为 completed/success。
-- Current checkout: `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；本分支正在实现 Decision/Risk v1，replay artifacts 保持 ignored。
-- Decision/Risk PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`，当前 `OPEN / CLEAN / MERGEABLE`、`merged=false`；corrected source head=`848e4b92880922c6b079bee6f7d1414600fd3d30`，exact-head `CI Test Gate`=`33584745217`、synthetic shadow=`33584745207` 均 success。最终 docs-only tip 不自引用，live final head/CI 以 GitHub closeout 为准。
+- GitHub `main` exact HEAD=`07e267bdcae32e8fb4bbc8ee07f9758703feaa09`，为 PR #50 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33588525870` 为 completed/success。
+- Current checkout: `codex/position-management-exit-v1`，从上述 clean merged main 创建；本分支正在实现 Position Management + Exit v1，replay artifacts 保持 ignored。
+- PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50` 已 `MERGED`；本轮新 Position Management/Exit PR 的最终 head 与 exact-head CI/shadow 以 GitHub closeout 为准，禁止自动 merge。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
-- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01 Decision/Risk v1 保持已合并；当前授权任务为 `SETUP_02_DECISION_RISK_V1`，停止节点为 `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
+- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 entry/Decision layers frozen；当前授权任务为 `POSITION_MANAGEMENT_EXIT_V1`，停止节点为 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - v5 protocol `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` 的 canonical SHA-256 为 `sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4`，状态为 `ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED`；40/40 frozen clean symbols 已完成结构性 qualification。
 - v5 qualification 的 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；结果为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，未选择 ATR threshold、未修改 production、未读取 Final OOS。
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: SETUP_02_DECISION_RISK_V1（几何修正完成，等待 Sol review）
+## Current Task: POSITION_MANAGEMENT_EXIT_V1（实现完成，等待 Sol review）
 
-- Sol approval=`APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`；PR #45 已 squash merged 为 `f679443d52d767841c0df3ff2e0179648b536fb0`，merge-after main CI `33494893693` success。
-- 分支：`codex/setup02-decision-risk-v1`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`；既有 Decision/Risk PR #50 已接收 geometry correction，source head=`848e4b92880922c6b079bee6f7d1414600fd3d30`；不新建 PR、不自动 merge。
-- 新增 `trading/setup02_decision.py`、`research/setup02_decision_funnel.py`、`scripts/run_setup02_decision_funnel.py`、`scripts/run_setup02_generic_operational_shadow.py`、对应测试与 `docs/SETUP_02_DECISION_RISK_V1.md`；未修改 `trading/setup02.py` structural lifecycle、SETUP_01、Wave Engine 或 SETUP_03。
+- Sol approval=`APPROVE_SETUP_02_DECISION_RISK_V2_MERGE_AND_PROCEED_POSITION_MANAGEMENT_EXIT_V1`；PR #50 已 squash merged 为 `07e267bdcae32e8fb4bbc8ee07f9758703feaa09`，merge-after main CI `33588525870` success。
+- 分支：`codex/position-management-exit-v1`，base=`main@07e267bdcae32e8fb4bbc8ee07f9758703feaa09`；本轮新建独立 Position Management/Exit PR，保持待 Sol review，不自动 merge。
+- 新增 `trading/position_management.py`、`trading/wave5_context.py`、`research/position_management_replay.py`、两个 runner、对应 tests、`research/protocols/position_management_exit_v1.json` 与 `docs/POSITION_MANAGEMENT_EXIT_V1.md`；既有 Setup/Wave entry semantics 保持不变。
 - pre-merge geometry defect 已记录并修正：旧 `structural_invalidation → HIGH3` continuation projection 与 minimum `RR=2` 数学不兼容；新 protocol identity 为 `SETUP-02-DECISION-RISK-2026-09-02-v2`，只使用 `LOW2 + (HIGH1-LOW0)*existing EXTENSION_RATIO`，source=`WAVE3_FIB_EXTENSION`。
 - 冻结语义：只消费首个 `CONFIRMED`（`event_type == CONFIRMED`、`is_new_confirmed_event_as_of == true`、event identity exactly-once）；T close 只形成 plan；Entry Zone=`[HIGH3, HIGH3+0.5*ATR14(T)]`；structural invalidation 直接复制 event；Execution Stop=`structural_invalidation-0.5*ATR14(T)`；targets first→R/R；exact T+1 session OPEN only。
 - Frozen `DEVELOPMENT_EXPOSED` v2 corrected funnel：213 CONFIRMED → 213 Decision；`ENTRY_ALLOWED=1`；gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102 / others 0`；T+1 attempts/executed=`1/0`，唯一 skip=`SKIP_GAP_BELOW_CONFIRMATION=1`；target candidates=`CONFIRMED_SWING_HIGH 771`、`WAVE3_FIB_EXTENSION 321`、1 merged dual-source；extension ratios=`1.272 61 / 1.618 75 / 2.0 84 / 2.618 102`；T1 source=`CONFIRMED_SWING_HIGH 44 / WAVE3_FIB_EXTENSION 59`；>5R=`0`；missing T+1=`0`。
 - Funnel invariants：CN/US first CONFIRMED=`74/139`；all 494 structural event identities unique/matched；first CONFIRMED exact-once=`213/213`；decision/entry/execution ledger conservation passed；`risk_capital` 未提供且不猜 NAV；production calendar 未实现。
 - Generic operational shadow synthetic-only passed exactly-once、terminal filtering、T→T+1 OPEN、gap/RR branches、fail-closed、reporting 与 ledger invariant。
 - 12 条原 `INVALID_STRUCTURE` 已逐一输出 LOW0/HIGH1/LOW2/HIGH3、structural_invalidation、T close 与 invariant reason；12/12 均为 `STALE_CONFIRMATION_GEOMETRY: structural_invalidation >= HIGH3`，未发现 upstream structural contract inconsistency。
-- 边界：不读取或计算 returns/forward returns、MFE、MAE、P&L、expectancy、profit factor、Final OOS；不访问 holdings/broker/account/Secrets；不启动 Position Management/Exit、Wave 5、SETUP_04；Decision/Risk PR 不自动 merge。
+- 当前 frozen replay（v2 dataset）：3 positions / 134 position-days；SETUP_01 `EXECUTED=3`、SETUP_02 `EXECUTED=0`，30 stop raises；exit=`EXIT_GAP_BELOW_STOP=1 / EXIT_STOP_TRIGGERED=1 / STRUCTURAL_EXIT_PENDING=1`；Wave5=`NO_WAVE5_CONTEXT=19 / WAVE4_PULLBACK_CONTEXT=19 / WAVE5_CANDIDATE=96`；causal/conservation/future-append invariants 全部通过。
+- replay machine report 已直接确认 `SETUP_01_structural_identity_invariance=true`、`SETUP_02_structural_identity_invariance=true`、`future_append_invariance=true`、`governance_consistency=true`；focused=`18/18`，full unittest=`492/492`，compileall 与 `git diff --check` 通过。
+- 边界：Position Management 只消费 `outcome == EXECUTED`，不重筛 entry、不生成新 entry；不读取或计算 win rate、aggregate P&L、expectancy、profit factor、Sharpe、optimized thresholds、Final OOS；不访问 holdings/broker/account/Secrets/Sheets；不自动 merge 新 PR。
+- Generic operational shadow 为 synthetic-only SUCCESS：1 position / 3 position-days；初始 1R 冻结、target 只追踪不自动退出、stop 不下移、causal day count 全通过；returns/P&L/broker/holdings/Sheets 均未访问。
+- Machine-readable protocol=`research/protocols/position_management_exit_v1.json`；中文协议=`docs/POSITION_MANAGEMENT_EXIT_V1.md`；停止节点为 `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW`，新 PR 保持 OPEN，禁止 merge。
 
 ## Previous Task: SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1（已 squash merged）
 

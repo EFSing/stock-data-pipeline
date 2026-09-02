@@ -1304,3 +1304,17 @@ without force-push or a new PR. Live GitHub verification reports
 `33584745217` and `SETUP_02 generic operational shadow` run `33584745207` both
 completed successfully. A later governance-only tip is not self-referenced;
 the final live PR head and exact-head checks remain authoritative.
+
+## 2026-09-02 — Position Management + Exit v1 authorization
+
+**Decision:** Following Sol's `APPROVE_SETUP_02_DECISION_RISK_V2_MERGE_AND_PROCEED_POSITION_MANAGEMENT_EXIT_V1`, PR #50 was squash merged and the latest clean `main` was pulled. The real merge commit is `07e267bdcae32e8fb4bbc8ee07f9758703feaa09`; merge-after `CI Test Gate` run `33588525870` succeeded. A new branch `codex/position-management-exit-v1` is authorized for Position Management + Exit v1 and must stop at `POSITION_MANAGEMENT_EXIT_V1_READY_FOR_SOL_REVIEW` without merging its new PR.
+
+**Frozen contract:** Position Management consumes only `EXECUTED` rows from the frozen SETUP_01/SETUP_02 source streams. Origin geometry, actual entry, initial stop, structural invalidation, targets, Wave anchors, and one-R are immutable. Daily CurrentR/MFE_R/MAE_R/MFE drawdown, confirmed-higher-low trailing, monotonic 2R/1R MFE floor, mechanical next-session stop/structural exits, target reach, Wave4/Wave5 context, and advisory action priority are causal and development-only. Wave5 cannot force a full exit or create a new entry.
+
+**Evidence boundary:** The replay may report position/day diagnostics, protective stops, pending/exits, contexts, target reach, action counts, conservation, causal invariance, and per-symbol ledgers. It must not calculate win rate, aggregate P&L, expectancy, profit factor, Sharpe, optimized thresholds, or Final OOS, and must not access holdings, broker/account data, production Sheets, or production execution.
+
+**Frozen v2 replay evidence:** On the local `DEVELOPMENT_EXPOSED` v2 dataset (`40/40` symbols, `84,284` bars, manifest `sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`), the current source stream contains SETUP_01 `EXECUTED=3` and SETUP_02 `EXECUTED=0`; Position Management produced `3` positions and `134` position-days, with `30` stop raises and exit reasons `EXIT_GAP_BELOW_STOP=1`, `EXIT_STOP_TRIGGERED=1`, `STRUCTURAL_EXIT_PENDING=1`. This is the current v2 dataset fact; the earlier SETUP_01 `745/4` evidence belongs to the prior `86,305`-bar holdout and is not silently substituted.
+
+**Correction continuity:** The merged SETUP_02 v2 funnel remains `213 CONFIRMED → 213 Decision`, `ENTRY_ALLOWED=1`, `T+1 attempts/executed=1/0`, and `SKIP_GAP_BELOW_CONFIRMATION=1`; gates are `ABOVE_ENTRY_ZONE=97`, `STALE_CONFIRMATION_GEOMETRY=12`, `NO_VALID_TARGET=1`, `RR_BELOW_MINIMUM=102`. All twelve old geometry rows remain explicitly audited as `STALE_CONFIRMATION_GEOMETRY: structural_invalidation >= HIGH3`; corrected target provenance remains `CONFIRMED_SWING_HIGH=771`, standalone `WAVE3_FIB_EXTENSION=321`, one merged dual-source, ratios `1.272=61 / 1.618=75 / 2.0=84 / 2.618=102`, and T1 sources `44/59`.
+
+**Verification:** Position Management focused tests and independent Wave5 context tests pass (`18/18`), full unittest passes (`492/492`), compileall and `git diff --check` pass, generic operational shadow is synthetic-only SUCCESS, and the frozen replay causal/conservation/future-append/identity/governance checks pass. The exact-head CI and generic shadow for the new PR remain pending until the final source commit is pushed; no merge is authorized.

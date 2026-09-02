@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from core import Quote
 from trading.fibonacci import fibonacci_levels, fibonacci_regions
@@ -21,7 +21,12 @@ from trading.models import (
     WaveScenarioFamily,
     validate_quote_series,
 )
-from trading.wave import WAVE_ENGINE_PROTOCOL_VERSION, evaluate_wave_scenario
+from trading.swing import find_swings
+from trading.wave import (
+    WAVE_ENGINE_PROTOCOL_VERSION,
+    aggregate_completed_weekly_quotes,
+    evaluate_wave_scenario,
+)
 
 
 SETUP02_TYPE = "SETUP_02"
@@ -68,6 +73,28 @@ class _Setup02Tracker:
     confirmed_date: date | None = None
     failed_index: int | None = None
     failed_date: date | None = None
+
+
+class _QuotePrefix(Sequence[Quote]):
+    """Zero-copy prefix view used by the cached historical replay."""
+
+    def __init__(self, quotes: Sequence[Quote], end_index: int) -> None:
+        self._quotes = quotes
+        self._length = end_index + 1
+
+    def __len__(self) -> int:
+        return self._length
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return tuple(self._quotes[: self._length])[index]
+        resolved = index if index >= 0 else self._length + index
+        if resolved < 0 or resolved >= self._length:
+            raise IndexError("quote prefix index out of range")
+        return self._quotes[resolved]
+
+    def __iter__(self):
+        yield from self._quotes[: self._length]
 
 
 @dataclass(frozen=True)
@@ -388,16 +415,29 @@ def evaluate_setup02_history(
     if not visible:
         raise ValueError("as_of_date 之前没有可用行情")
 
+    # Cached full-series projections remain causal because evaluate_wave_scenario
+    # admits only confirmed swings available at the current daily/weekly index.
+    daily_swings_all = tuple(find_swings(visible, lookback=daily_swing_lookback))
+    weekly_quotes_all = aggregate_completed_weekly_quotes(visible, visible[-1].trade_date)
+    weekly_swings_all = tuple(find_swings(weekly_quotes_all, lookback=weekly_swing_lookback))
+    weekly_quote_dates = tuple(quote.trade_date for quote in weekly_quotes_all)
+
     tracker: _Setup02Tracker | None = None
     snapshots: list[Setup02Evaluation] = []
     for index, quote in enumerate(visible):
         # The evaluator receives only this prefix.  Future confirmed swings can
         # therefore never be backfilled into an earlier SETUP_02 snapshot.
+        prefix = _QuotePrefix(visible, index)
         wave = evaluate_wave_scenario(
-            visible[: index + 1],
+            prefix,
             as_of_date=quote.trade_date,
             daily_swing_lookback=daily_swing_lookback,
             weekly_swing_lookback=weekly_swing_lookback,
+            _as_of_index=index,
+            _daily_swings_all=daily_swings_all,
+            _weekly_swings_all=weekly_swings_all,
+            _weekly_quote_dates=weekly_quote_dates,
+            _skip_validation=True,
         )
         candidate = _candidate_from_wave(wave, index)
 
