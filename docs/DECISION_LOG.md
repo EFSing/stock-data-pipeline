@@ -1405,3 +1405,182 @@ Restore instructions are in `docs/FROZEN_DATASET_RESTORE.md`; expected restore
 destination is `artifacts/development_strategy_stability_v2/`. Final state:
 `FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE` and
 `HANDOFF_CURRENT_AND_CONSISTENT`.
+
+## 2026-09-02 — Position Management + Exit v1 merge closeout
+
+**Decision:** Sol approved `APPROVE_POSITION_MANAGEMENT_EXIT_V1_MERGE_AND_PROCEED_PORTFOLIO_RISK_V1`.
+PR #51 was rechecked at exact head `2dbb7a751916921a29360b28467de92e150683e3`,
+base `main@07e267bdcae32e8fb4bbc8ee07f9758703feaa09`, and `OPEN / CLEAN /
+MERGEABLE`. Its final body records the corrected `25/25` focused and `499/499`
+full evidence, `FROZEN_REPLAY_CACHE_SEMANTIC_PARITY_CONFIRMED`,
+`first_mismatch=null`, 40 symbols / 84,284 bars, immutable PositionTarget
+provenance correction, synthetic Position Management shadow, 3 positions / 134
+position-days / 30 stop raises, and Wave5 context/action summary.
+
+**Merge:** PR #51 was squash merged. The real merge commit is
+`993d03e428b7eb11da791a608940c9d77a608f96`; local `main` was fast-forwarded to
+that exact commit. Merge-after main exact-head `CI Test Gate` run
+`33607481962` completed successfully. Governance state is
+`POSITION_MANAGEMENT_EXIT_V1_MERGED`.
+
+**Boundary:** The next independent branch is `codex/portfolio-risk-v1` from
+clean merged main. No Portfolio Risk rule is inserted into SETUP_01/SETUP_02;
+Entry, Wave, Swing, Target, minimum R/R, Position Management, Exit, and Wave5
+semantics remain frozen.
+
+## 2026-09-02 — Portfolio Risk V1 implementation and replay
+
+**Decision:** Implement only `PORTFOLIO-RISK-2026-09-02-v1` as a simple,
+conservative, fail-closed downstream capacity gate. It accepts only individual
+`ENTRY_ALLOWED` decisions and applies `BASE_RISK_FRACTION=0.005`,
+`MAX_TOTAL_OPEN_RISK_FRACTION=0.02`, and
+`MAX_RISK_PER_GROUP_FRACTION=0.01`. Development uses fixed normalized
+`reference_nav=1.0`; production requires reliable NAV and does not guess
+account value. The existing `position_size()` engine is reused for theoretical
+quantity; stop distance is never narrowed.
+
+**Identity and concentration:** One open long per canonical symbol is enforced
+with `BLOCK_EXISTING_POSITION_SAME_SYMBOL`. Risk groups are supplied only from
+reliable existing metadata; no correlation inference or external provider is
+used. `UNKNOWN` carries `RISK_GROUP_UNKNOWN` in development and fails closed
+for production new entry with `BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION`. CN/US risk
+and counts are diagnostics only, with no market hard cap.
+
+**Reservation and replay:** Same-session candidates use deterministic
+`HIGH_ASYMMETRY → HIGH_QUALITY → NORMAL`, planned T1 R/R descending, and
+canonical-symbol ascending order. Failed exact T+1 attempts release their
+reservations immediately; only `EXECUTED` creates an open portfolio position.
+Position Management's active protective stop supplies remaining downside risk;
+stop raises and exits release future capacity without changing upstream stops,
+MFE floor, exits, NAV, or Wave5 behavior.
+
+**Evidence:** Frozen v2 mechanical replay used 40/40 symbols and 84,284 bars.
+It produced 8 individual `ENTRY_ALLOWED` candidates, 8 proposals/reservations,
+8 approved reservations, 5 failed-T+1 releases, and 3 final executions. Maximum
+observed total open risk was `0.006810510087817472`; all 8 candidates had the
+development `RISK_GROUP_UNKNOWN` advisory. Position Management remained 3
+positions / 134 position-days / 30 stop raises with actions
+`EXIT=3 / HOLD=11 / NO_ADD=96 / PROFIT_PROTECTION=24` and Wave5 contexts
+`19 / 19 / 96`. Upstream invariance and cached semantic parity passed.
+
+**Synthetic boundary:** The synthetic Portfolio Risk shadow passed `17/17`
+cases, including exact risk boundaries, group/symbol blocks, UNKNOWN handling,
+stop-raise/exit release, failed-T+1 release, deterministic ordering, no future
+metric use, no geometry mutation, exact-once ledger, and future-append
+invariance. No broker, holdings, account/NAV secret, Sheets write, return,
+portfolio P&L, equity curve, drawdown, Sharpe, win rate, expectancy, profit
+factor, optimization, or Final OOS path was accessed.
+
+**Stop:** New PR for `codex/portfolio-risk-v1` must remain OPEN for Sol review;
+do not merge automatically. Final state is
+`PORTFOLIO_RISK_V1_READY_FOR_SOL_REVIEW`.
+
+**Review handoff / CI:** After PR #60 independently advanced `main` to
+`0789fdfb898b9edcf99ee5aaa3450f467889d67f` (merge-after `CI Test Gate`
+`33611436462` success), PR #59 was rebased onto that latest clean base. The
+validated rebased head is `71d17a0a9aa67d1897fc1f529d6d3b764f2a216b`; exact-head
+`CI Test Gate` pull-request run `33615646551` and Portfolio Risk generic shadow
+pull-request run `33615646521` both succeeded. Manual exact-head reruns
+`33615760944` and `33615767231` also succeeded. The
+prior pre-rebase head `653a8807427eb27c52e2c6e01e88c5db9b523eae` had
+`CI Test Gate`=`33610608158` and generic shadow=`33610608185`, both success.
+The clean-checkout gate ran 521 tests with `OK (skipped=3)` because the three
+full frozen-replay assertions require the ignored local development dataset;
+all 19 self-contained Portfolio Risk boundary tests ran, and the complete
+replay was separately verified locally against 40 symbols / 84,284 bars. The
+final governance-only tip is not self-referenced here; live GitHub
+head/checks remain authoritative. No merge is authorized.
+
+## 2026-09-02 — PREMERGE_PORTFOLIO_RISK_DEFINITION_CORRECTION
+
+**Decision:** PR #59 remains open and unmerged on `codex/portfolio-risk-v1`.
+This is a pre-merge mathematical/correctness correction, not outcome-driven
+tuning. The defect is recorded as `PREMERGE_REMAINING_RISK_DEFINITION_DEFECT`.
+
+**Corrected risk contract:** Portfolio Risk V1 manages remaining capital-loss
+risk, not mark-to-stop giveback risk. The single frozen formula is:
+
+```text
+remaining_loss_risk_per_share = max(actual_entry - active_protective_stop, 0)
+remaining_loss_risk_fraction = quantity * remaining_loss_risk_per_share / reference_nav
+```
+
+`current_price` is not an input to Portfolio Risk capacity. A stop at, above,
+or below entry is evaluated only against the frozen `actual_entry`; locked
+profit is floored at zero and cannot offset another position. MFE/MFE Drawdown
+continues to own profit giveback management.
+
+**Provenance:** `OpenPortfolioPosition` risk calculation fails closed when
+`actual_entry` is missing under
+`PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING`; it never
+falls back to current price. An `EXECUTED` T+1 settlement without an entry
+basis creates no position. Settlement otherwise still calls the existing
+`position_size(reference_nav*0.005, actual_entry, execution_stop)`, so initial
+remaining capital-loss risk is `0.005` within float tolerance and the stop is
+not narrowed.
+
+**Diagnostics:** Stop-raise before/after values now use the same entry-to-stop
+formula, with `after <= before` and `capacity_released=max(before-after, 0)`.
+Exit diagnostics set remaining portfolio risk after exit to zero. Gap/slippage
+tail loss is explicitly outside this framework:
+`GAP/SLIPPAGE TAIL RISK NOT MODELED IN PORTFOLIO_RISK_V1`.
+
+**Frozen v2 deterministic delta:** Manifest remains
+`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
+with 40 symbols / 84,284 bars. Corrected replay is `8 proposals / 8 approved /
+0 blocked / 5 failed-T+1 releases / 3 executed`; no candidate count or
+execution count changed. Across 131 observed open-risk sessions, maximum open
+risk changed from `0.010021099674141698` under the old formula to `0.005`.
+Stop-raise capacity release changed from `0.03216566733623613` to `0.01`;
+exit capacity release changed from `0.0004660670854315734` to `0.005`. The
+complete old→corrected ledger is retained in ignored local artifact
+`artifacts/portfolio_risk_definition_correction_delta.json` and contains no
+performance outcome fields.
+
+**Verification and invariance:** Portfolio Risk/replay focused tests pass
+`28/28` with the local frozen artifact; the generic synthetic shadow passes
+`17/17`. Position Management remains `3 positions / 134 position-days / 30
+stop raises`; action and Wave5 context counts are unchanged. SETUP_01,
+SETUP_02, Wave, Decision, Position Management, Exit, and Wave5 objects remain
+unmutated; cache semantic parity remains `SUCCESS` with
+`first_mismatch=null`. The three dataset-dependent integration assertions
+remain explicit `skipUnless(dataset available)` tests in clean checkout; all
+self-contained Portfolio Risk boundary tests and generic shadow remain
+unconditional.
+
+**Governance state:** `PORTFOLIO_RISK_V1` remains the current task. The required
+stop state is `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`.
+`HANDOFF_CURRENT_AND_CONSISTENT` must be re-confirmed after final exact-head
+CI and generic shadow checks. No merge is authorized.
+
+## 2026-09-02 — PORTFOLIO_RISK_V1 rebase verification closeout
+
+**Decision:** Rebase the existing PR #59 branch `codex/portfolio-risk-v1` onto
+the live latest `main@f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`. Rebase
+conflicts were limited to governance documents; no Portfolio Risk, SETUP,
+Wave, Position Management, Exit, or Wave5 semantic core conflict occurred.
+The latest substantive local source head is
+`96d3d52ef7baf6dacc0f464a07ca7a1c8b9ca1c0`.
+
+**Verification:** The restored Release archive and manifest remain byte/hash
+identical (`15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`
+and `93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`),
+with 40 symbols / 84,284 bars and 81/81 payload hashes matching. Corrected
+Portfolio Risk invariance passed: constants `0.005 / 0.02 / 0.01`, current
+price does not alter remaining capital-loss risk, stop raises are monotone,
+stop at/above entry gives zero, negative offsets are floored, and missing
+`actual_entry` fails closed. Local gates passed: Portfolio Risk/replay 27/27,
+generic synthetic shadow 17/17, Position Management 22/22, SETUP_01/02 57/57,
+cache parity 3/3, and full unittest 529/529; compileall and diff-check passed.
+
+**Boundary / next node:** The full replay was rerun after cache parity and
+dataset restoration; it remained causal/conservative and upstream identity
+invariant. Validation tip `e80c61bd72953754802290ee09e8171b5ffd447c` passed
+exact-head `CI Test Gate` run `33645523150` and Portfolio Risk generic shadow
+run `33645523141`. The live PR state was `OPEN / CLEAN / MERGEABLE /
+merged=false`. This final governance update is docs-only and does not
+self-reference; final PR tip/checks remain live GitHub evidence. The task
+remains downstream-only, with no holdings, broker, account, Secrets, Sheets,
+returns, or OOS access. Stop at
+`PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW` with
+`HANDOFF_CURRENT_AND_CONSISTENT`; do not merge.

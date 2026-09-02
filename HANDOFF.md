@@ -23,23 +23,25 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE`（已完成）。
-- **前置开发任务:** `VOLUME_VALIDATION_NOISE_FIX` 已完成并 squash merged；本归档不改变策略代码或 PR #59 scope。
-- **唯一目标:** 保持上述 frozen DEVELOPMENT_EXPOSED v2 bytes 不变，并通过私有 GitHub Release 提供可验证的跨设备恢复路径。
-- **实现范围:** Release archive、restore doc 和最小治理登记；不改 main code，不将 dataset commit 进 Git history，不取消 `.gitignore`，不使用 Git LFS。
-- **操作边界:** 不执行真实 holdings ADD/REENTER；不访问账户/券商/Secrets/Sheets；不启动 SETUP、行情抓取、normalize、replay 或 Final OOS。
-- **停止条件:** archive integrity、temporary restore hash verification、Release assets、治理文档和 restore destination 全部可核对；本任务已完成，不启动下一任务。
+- **当前 Phase / task:** `PORTFOLIO_RISK_V1`（独立 downstream capacity gate，等待 Sol review）。
+- **Sol approval / previous closeout:** `APPROVE_POSITION_MANAGEMENT_EXIT_V1_MERGE_AND_PROCEED_PORTFOLIO_RISK_V1`；PR #51 已 squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after main exact-head CI=`33607481962` success。
+- **唯一目标:** 从最新 clean merged main 实现独立 `PORTFOLIO-RISK-2026-09-02-v1`，只消费冻结 SETUP_01/SETUP_02 `ENTRY_ALLOWED`，完成 conservative/fail-closed portfolio reservation、T+1 settlement、synthetic boundary、frozen mechanical replay、回归与治理核验；创建 PR #59 供 Sol review，不 merge。
+- **实现范围:** `trading/portfolio_risk.py`、`research/portfolio_risk_replay.py`、synthetic shadow runner/workflow、tests、`research/protocols/portfolio_risk_v1.json` 与 `docs/PORTFOLIO_RISK_V1.md`；不改 Entry/Wave/Swing/Target/RR/Position Management/Exit/Wave5 semantics。
+- **当前 replay pin:** frozen `DEVELOPMENT_EXPOSED` dataset `SETUP_03-DEVELOPMENT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-28-v2`，40 symbols / 84,284 bars，manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`；仅作 development mechanical evidence，不是 formal validation 或 Final OOS。
+- **操作边界:** no broker/holdings/account/Secrets/Sheets access or writes; no performance metrics/OOS; no production execution wiring; no automatic merge of PR #59。
+- **SETUP_02 corrected funnel retained:** 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=1`；gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`；T+1 attempts/executed=`1/0`；所有上游 identity 与 cache semantic parity 保持通过。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、17/17 synthetic shadow、frozen replay causal/conservation/identity/governance checks、strict-vs-cached semantic parity、PR #59 final exact-head CI 与 generic shadow success 完成后，停止在 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`；禁止 merge 新 PR。
 
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`
 - **default/main branch:** `main`
-- **main/base SHA:** GitHub `main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`；PR #51 已 merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；本任务 PR #61 已 merged，当前 main exact-head CI=`33618759657` success。
-- **working checkout:** 当前 checkout 为 `main`，已从 `origin/main` fast-forward，工作树干净。
-- **open PR / governance:** PR #50/#51/#60/#61 已 merged；当前唯一 open PR #59 (`PORTFOLIO_RISK_V1`) 与本任务无关，不触碰；本任务无遗留 PR。
-- **base CI:** `main@9a6432ffbf4271942bbdf7e169a46fce29776ffe` merge-after exact-head `CI Test Gate` run=`33618759657` success。
+- **main/base SHA:** 真实 GitHub `main` 当前为 `f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`；PR #59 已在本地完成对齐。
+- **working checkout:** 当前 checkout 为 `codex/portfolio-risk-v1`，本地 rebase 后 substantive source head=`96d3d52ef7baf6dacc0f464a07ca7a1c8b9ca1c0`；冲突仅为治理文档，Portfolio Risk 核心代码未与最新 main 冲突；replay output 位于 ignored `artifacts/`。
+- **open PR / governance:** PR #59=`https://github.com/EFSing/stock-data-pipeline/pull/59` 当前为 OPEN / CLEAN / MERGEABLE / merged=false，不创建新 PR，不自动 merge。
+- **base CI:** latest main exact-head `CI Test Gate`=`33625526648` success；rebased validation tip=`e80c61bd72953754802290ee09e8171b5ffd447c` 的 `CI Test Gate`=`33645523150` 与 `Portfolio Risk generic operational shadow`=`33645523141` 均 success。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
-- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit semantics frozen；本任务仅调整 validation 对 volume mismatch/missing 的状态语义，未开启新的 production path，已完成 closeout。
+- **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_01/SETUP_02、Position Management/Exit/Wave5 semantics frozen；本轮只推进 Portfolio Risk downstream gate，未开启 production path。
 
 ## 3. Completed Work
 
@@ -318,37 +320,33 @@
 
 ## 10. Next Action
 
-1. [x] PR #51 closeout 已完成：head=`2dbb7a751916921a29360b28467de92e150683e3`，base=`main@07e267bdcae32e8fb4bbc8ee07f9758703feaa09`，squash merge=`993d03e428b7eb11da791a608940c9d77a608f96`。
-2. [x] merge-after main exact-head `CI Test Gate`=`33607481962` success；治理状态已刷新为 PR #51 已合并。
-3. [x] 已从 clean merged `main@993d03e428b7eb11da791a608940c9d77a608f96` 建立 `codex/hk-yfinance-ticker-normalization-fix`。
-4. [x] 修复 HK Yahoo ticker normalization：`00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`；非补位零代码保持不变，CN/US normalization 回归通过。
-5. [x] 本地 gates 通过：holdings/validation/governance focused=`91/91`，command-bus focused=`19/19`，full unittest=`500/500`，compileall 与 `git diff --check` 通过。
-6. [x] 已创建并完成 PR #60；merge 前 head=`c3398fbf38287bd7a438bcf59f32ab97c1949cfc`，live state=`OPEN / CLEAN / MERGEABLE`，exact-head `CI Test Gate`=`33611328193` success。
-7. [x] PR #60 已 squash merged，真实 merge commit=`0789fdfb898b9edcf99ee5aaa3450f467889d67f`；merge-after main exact-head `CI Test Gate`=`33611436462` success。
-8. [x] local `main` 已刷新为 `origin/main`；治理 closeout 提交与最终 main exact-head CI 均已完成。
+1. [x] PR #51 closeout 已完成：source head=`2dbb7a751916921a29360b28467de92e150683e3`，squash merge=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after CI=`33607481962` success。
+2. [x] PR #59 四个 implementation commits 已从远端恢复；frozen archive 81/81 hash/size 与 loader 的 40 symbols/84,284 bars 已验证。
+3. [x] 已完成本地 rebase 到真实最新 `main@f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`；冲突仅为治理文档，核心策略/risk 文件无冲突。
+4. [x] 完成 corrected formula、constants、upstream invariance、focused/full test、compileall 与 `git diff --check` gates。
+5. [x] 已安全推送并核对 PR #59 exact-head CI/generic shadow；不 merge PR #59。
+6. [ ] 等待 Sol review；不得自动 merge。
 
 ## 11. Handoff Checklist
 
-- [x] Current Objective 已更新为 volume validation noise bugfix
-- [x] governance conflict 已最小 reconciliation：PR #51 merged=`993d03e...`，真实 main=`6ed3234...`，main CI=`33617194589` success；历史 provenance 保持不变
-- [x] scope boundary 明确：只改现有 validation 语义与必要回归；不改 tolerance/provider/lifecycle/command bus/Position/SETUP/Wave/OOS
-- [x] volume mismatch/missing、scheduled latest、holdings ADD/REENTER、HK mapping 回归与 focused/full unittest、compileall、`git diff --check` 已完成：focused `104/104`、full `502/502`
-- [x] PR #61 head=`d3f5ccf89e7a4f5c912ffec7b70042324ef0f463` exact-head `CI Test Gate`=`33618647932` success、live `CLEAN / MERGEABLE`；已 squash merged 为 `9a6432ffbf4271942bbdf7e169a46fce29776ffe`
-- [x] merge 后 main exact-head `CI Test Gate`=`33618759657` success；local `main`=`origin/main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`
-- [x] 本任务不新增 DECISION_LOG 设计条目；历史 provenance 保持不变
+- [x] Current Objective 已更新为 Portfolio Risk V1 rebase/review closeout
+- [x] 真实远端 main/head/tag 与 PR #59 状态已核对
+- [x] frozen archive SHA、81/81 payload hashes/sizes、40 symbols/84,284 bars 已验证
+- [x] scope boundary 明确：不改 upstream strategy semantics，不访问 holdings/account/Secrets/Sheets，不运行 outcome/OOS
+- [x] rebase 仅遇治理文档冲突，未触碰 Portfolio Risk 或上游策略核心文件
+- [x] corrected semantic invariance、focused/full tests、compileall 与 `git diff --check` 已完成
+- [x] rebased validation tip 的 exact-head `CI Test Gate` 与 generic shadow 均 success；PR 保持 OPEN / CLEAN / MERGEABLE / merged=false
 
 ## 12. Last Verified
 
 - `last_updated_at`: `2026-09-02`
-- `verified_origin_main_sha`: `9a6432ffbf4271942bbdf7e169a46fce29776ffe`; PR #51 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`; main exact-head CI=`33618759657` success
-- `latest_substantive_implementation_sha`: `d3f5ccf89e7a4f5c912ffec7b70042324ef0f463` (PR #61 source head)
-- `merged_pr`: PR #61 `https://github.com/EFSing/stock-data-pipeline/pull/61`; source head=`d3f5ccf89e7a4f5c912ffec7b70042324ef0f463`; merge commit=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`; merge-after CI=`33618759657` success
-- `current_branch`: `main`; local `main`=`origin/main`=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`
-- `latest_hk_ticker_mapping`: verified; `00700.HK→0700.HK`、`09618.HK→9618.HK`、`03690.HK→3690.HK`、`09888.HK→9888.HK`、`00005.HK→0005.HK`，`12345.HK` unchanged
-- `latest_setup02_corrected_funnel`: 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`; T+1 attempts/executed=`1/0`; skip=`SKIP_GAP_BELOW_CONFIRMATION 1`; 12/12 old INVALID_STRUCTURE root causes are stale confirmation geometry
-- `latest_test_result`: focused=`104/104`; full unittest=`502/502`; compileall=`PASS`; `git diff --check`=`PASS`; merge-after main CI=`33618759657` success
-- `scope_boundary`: only existing `validate_quotes()` volume status semantics, tests, and minimal governance freshness; no holdings ADD/REENTER, lifecycle/schema/provider abstraction/SETUP/Wave/OOS changes
-- `live_ci`: PR #61 source head=`d3f5ccf89e7a4f5c912ffec7b70042324ef0f463`; exact-head `CI Test Gate`=`33618647932` success; merge main head=`9a6432ffbf4271942bbdf7e169a46fce29776ffe`; merge-after exact-head `CI Test Gate`=`33618759657` success
-- `next_action`: stop; do not start another task or execute holdings ADD/REENTER
+- `verified_origin_main_sha`: `f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24` (live GitHub)
+- `latest_substantive_implementation_sha`: `96d3d52ef7baf6dacc0f464a07ca7a1c8b9ca1c0`; remote pre-rebase head=`d1016f217eb34108776d8c73b317ce47ed077025`
+- `current_branch`: `codex/portfolio-risk-v1`; PR #59 remains OPEN and unmerged
+- `portfolio_risk_protocol`: `PORTFOLIO-RISK-2026-09-02-v1`; constants `0.005 / 0.02 / 0.01`; development NAV=`1.0`
+- `frozen_dataset`: 40 symbols / 84,284 bars; archive SHA=`sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
+- `latest_test_result`: full unittest `529/529 OK`; Portfolio Risk focused/replay `27/27 OK`; generic operational shadow `17/17 SUCCESS`; Position Management `22/22 OK`; SETUP_01/02 `57/57 OK`; cache parity `3/3 OK`; compileall and `git diff --check` pass; validation tip `e80c61bd72953754802290ee09e8171b5ffd447c` exact-head CI runs `33645523150` / `33645523141` success
+- `scope_boundary`: downstream Portfolio Risk only; no upstream strategy, holdings, broker, account, Secrets, Sheets, outcome, or OOS access
+- `next_action`: Sol review handoff; do not merge
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
