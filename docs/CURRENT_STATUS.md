@@ -12,7 +12,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；其 merge-after `CI Test Gate` run=`33494893693` 为 completed/success。
 - Current checkout: `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；本分支正在实现 Decision/Risk v1，replay artifacts 保持 ignored。
-- Decision/Risk PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`，保持 OPEN；pre-correction substantive head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` 的旧 exact-head CI 与 synthetic shadow 均 success，当前 corrected head/CI 待最终 push 后以 live GitHub closeout 为准。最终 docs-only tip 不自引用。
+- Decision/Risk PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`，当前 `OPEN / CLEAN / MERGEABLE`、`merged=false`；corrected source head=`848e4b92880922c6b079bee6f7d1414600fd3d30`，exact-head `CI Test Gate`=`33584745217`、synthetic shadow=`33584745207` 均 success。最终 docs-only tip 不自引用，live final head/CI 以 GitHub closeout 为准。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01 Decision/Risk v1 保持已合并；当前授权任务为 `SETUP_02_DECISION_RISK_V1`，停止节点为 `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
@@ -24,7 +24,7 @@ V0.2
 ## Current Task: SETUP_02_DECISION_RISK_V1（几何修正完成，等待 Sol review）
 
 - Sol approval=`APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`；PR #45 已 squash merged 为 `f679443d52d767841c0df3ff2e0179648b536fb0`，merge-after main CI `33494893693` success。
-- 分支：`codex/setup02-decision-risk-v1`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`；既有 Decision/Risk PR #50 正在接收 geometry correction，pre-correction implementation head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`；不新建 PR、不自动 merge。
+- 分支：`codex/setup02-decision-risk-v1`，base=`main@f679443d52d767841c0df3ff2e0179648b536fb0`；既有 Decision/Risk PR #50 已接收 geometry correction，source head=`848e4b92880922c6b079bee6f7d1414600fd3d30`；不新建 PR、不自动 merge。
 - 新增 `trading/setup02_decision.py`、`research/setup02_decision_funnel.py`、`scripts/run_setup02_decision_funnel.py`、`scripts/run_setup02_generic_operational_shadow.py`、对应测试与 `docs/SETUP_02_DECISION_RISK_V1.md`；未修改 `trading/setup02.py` structural lifecycle、SETUP_01、Wave Engine 或 SETUP_03。
 - pre-merge geometry defect 已记录并修正：旧 `structural_invalidation → HIGH3` continuation projection 与 minimum `RR=2` 数学不兼容；新 protocol identity 为 `SETUP-02-DECISION-RISK-2026-09-02-v2`，只使用 `LOW2 + (HIGH1-LOW0)*existing EXTENSION_RATIO`，source=`WAVE3_FIB_EXTENSION`。
 - 冻结语义：只消费首个 `CONFIRMED`（`event_type == CONFIRMED`、`is_new_confirmed_event_as_of == true`、event identity exactly-once）；T close 只形成 plan；Entry Zone=`[HIGH3, HIGH3+0.5*ATR14(T)]`；structural invalidation 直接复制 event；Execution Stop=`structural_invalidation-0.5*ATR14(T)`；targets first→R/R；exact T+1 session OPEN only。

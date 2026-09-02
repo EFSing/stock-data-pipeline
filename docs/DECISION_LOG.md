@@ -1294,3 +1294,13 @@ returns, MFE, MAE, P&L, expectancy, profit factor, or Final OOS path was used.
 **Stop:** Keep PR #50 OPEN for Sol review and stop at
 `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`; do not
 auto-merge and do not tune from the corrected funnel counts.
+
+**PR closeout at corrected source head:** Commit
+`848e4b92880922c6b079bee6f7d1414600fd3d30` was pushed to the existing PR #50
+without force-push or a new PR. Live GitHub verification reports
+`OPEN / CLEAN / MERGEABLE`, `merged=false`, base
+`main@f679443d52d767841c0df3ff2e0179648b536fb0`, and head
+`848e4b92880922c6b079bee6f7d1414600fd3d30`. Exact-head `CI Test Gate` run
+`33584745217` and `SETUP_02 generic operational shadow` run `33584745207` both
+completed successfully. A later governance-only tip is not self-referenced;
+the final live PR head and exact-head checks remain authoritative.

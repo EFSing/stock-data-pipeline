@@ -28,7 +28,7 @@
 - **main/base SHA:** GitHub `main` exact SHA=`f679443d52d767841c0df3ff2e0179648b536fb0`，为 PR #45 的真实 squash merge commit；merge-after `CI Test Gate` run=`33494893693` completed/success。
 - **working checkout:** 当前 checkout 为 `codex/setup02-decision-risk-v1`，从上述 clean merged main 创建；Decision/Risk implementation 与测试在本分支，replay output 位于 ignored `artifacts/`。
 - **open PR / governance:** PR #45 已 merged；Decision/Risk PR #50 已创建并保持 OPEN，不自动 merge。
-- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；PR #50 的 pre-correction substantive head=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` 与其旧 exact-head CI 均已成功；当前 geometry correction commit/head/CI 待最终 push 后以 live GitHub closeout 为准。最终 docs-only tip 不在本文件自引用。
+- **base CI:** `main@f679443d52d767841c0df3ff2e0179648b536fb0` merge-after exact-head CI run=`33494893693` success；PR #50 corrected source head=`848e4b92880922c6b079bee6f7d1414600fd3d30`，exact-head `CI Test Gate` run=`33584745217` 与 synthetic shadow run=`33584745207` 均 success，live PR=`OPEN / CLEAN / MERGEABLE`、`merged=false`。最终 docs-only tip 不在本文件自引用。
 - **working tree expected state:** 代码、测试和 protocol docs 进入本分支；ignored `artifacts/` 不进入 commit；不写 Sheets、不访问账户/券商/Secrets。
 - **current project/phase status:** SETUP_03 仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`；SETUP_02 structural lifecycle 已 merged/frozen；本轮只推进 SETUP_02 Decision/Risk，未开启任何 production path。
 
@@ -244,7 +244,7 @@
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
-| current task verification | corrected SETUP_02 code/tests/replay are locally complete; corrected PR #50 push and exact-head CI/mergeability recheck remain pending | push the same branch, verify final live head/CI, then stop for Sol review; do not merge | No |
+| current task verification | corrected SETUP_02 code/tests/replay are locally complete; PR #50 corrected source head and exact-head CI/mergeability are verified | keep PR #50 open for Sol review; do not merge | No |
 | development evidence boundary | replay uses frozen local DEVELOPMENT_EXPOSED v2 (40/40, 84,284 bars), not formal validation or Final OOS | keep all reports structure/decision/risk-only and retain dataset/manifest pins | Yes for any production/formal-validation claim |
 | artifact/data availability | second-holdout bundle is `FULLY_RECOVERABLE`; Google Drive object ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS` and recovered ZIP SHA-256 are recorded from external audit | do not repeat cloud network verification; use registry identity and existing loader evidence | No |
 | environment / verification | PR #43 merged at squash commit `3b300975e999a934533398a951e7ec34e80a17bd`; pre-merge exact-head CI `33402171900` and generic shadow `33402171991` success; merge-after main exact-head CI `33404615092` success | keep the post-merge main SHA and CI as live GitHub evidence; docs-only governance commit does not self-reference its own SHA | No |
@@ -315,7 +315,7 @@
 4. [x] corrected frozen v2 funnel 已完成：213 CONFIRMED → 213 Decision、`ENTRY_ALLOWED=1`、T+1 attempts/executed=`1/0`；CN/US=`74/139`；identity/ledger/conservation 全部通过。
 5. [x] 运行 focused/full unittest、compileall、`git diff --check`，并核对 SETUP_01 regression/invariance：focused=`36/36`、full=`474/474`。
 6. [x] 更新本交接与治理文档，commit=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`，push 分支并创建独立 Decision/Risk PR #50。
-7. [ ] corrected geometry implementation and governance docs are complete; after final push, rerun full tests and live-verify PR #50 exact head/CI/mergeability, then stop at `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`; do not merge automatically。
+7. [x] corrected geometry implementation commit=`848e4b92880922c6b079bee6f7d1414600fd3d30` 已 push 到既有 PR #50；exact-head CI=`33584745217`、generic shadow=`33584745207` success，PR=`OPEN / CLEAN / MERGEABLE`、`merged=false`；停止在 `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`，不自动 merge。
 
 ## 11. Handoff Checklist
 
@@ -333,13 +333,14 @@
 
 - `last_updated_at`: `2026-09-02`
 - `verified_origin_main_sha`: `f679443d52d767841c0df3ff2e0179648b536fb0`
-- `latest_substantive_implementation_sha`: pre-correction draft=`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45`; corrected geometry commit is pending final local commit/push (structural source merged as `f679443d52d767841c0df3ff2e0179648b536fb0`)
+- `latest_substantive_implementation_sha`: corrected geometry=`848e4b92880922c6b079bee6f7d1414600fd3d30` (structural source merged as `f679443d52d767841c0df3ff2e0179648b536fb0`)
 - `merged_pr`: #45 `https://github.com/EFSing/stock-data-pipeline/pull/45`; pre-merge head=`19c6e0eaa8841b757e6359e897ab559e31d39f65`; merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`; merge-after CI=`33494893693` success
-- `current_branch`: `codex/setup02-decision-risk-v1`; PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`, corrected head pending push, remains OPEN and must not be merged automatically
+- `current_branch`: `codex/setup02-decision-risk-v1`; PR #50=`https://github.com/EFSing/stock-data-pipeline/pull/50`, corrected source head=`848e4b92880922c6b079bee6f7d1414600fd3d30`, `OPEN / CLEAN / MERGEABLE`, `merged=false`; docs-only closeout tip is intentionally not self-referenced
 - `latest_structural_replay_result`: 40/40 symbols, 84,284 bars, 0 errors, 213 CONFIRMED events, 281 FAILED events, identity duplicates/mismatches=`0/0`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
 - `latest_decision_funnel_result`: corrected protocol `SETUP-02-DECISION-RISK-2026-09-02-v2`; 213 CONFIRMED → 213 Decision; `ENTRY_ALLOWED=1`; gate `ABOVE_ENTRY_ZONE=97`, `STALE_CONFIRMATION_GEOMETRY=12`, `NO_VALID_TARGET=1`, `RR_BELOW_MINIMUM=102`; T+1 attempts/executed=`1/0`, `SKIP_GAP_BELOW_CONFIRMATION=1`; CN/US=`74/139`; all exact-once/conservation/ledger checks passed
 - `latest_test_result`: focused Decision/Risk + generic shadow + SETUP_01 regression=`36/36`; full unittest=`474/474`; compileall and `git diff --check` passed
 - `scope_boundary`: no returns/forward returns/MFE/MAE/P&L/expectancy/profit factor/Final OOS; no holdings/broker/account/Secrets/Sheets/production calendar; SETUP_02 structural lifecycle, SETUP_01, Wave Engine and SETUP_03 not modified
-- `next_action`: rerun final tests, push corrected geometry to PR #50, reverify exact-head CI/mergeability, then hand off to Sol; do not merge automatically
+- `live_ci`: exact-head `CI Test Gate` run=`33584745217` success; `SETUP_02 generic operational shadow` run=`33584745207` success
+- `next_action`: hand off PR #50 to Sol for review; do not merge automatically
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
