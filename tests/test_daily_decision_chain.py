@@ -11,23 +11,33 @@ from trading.daily_decision_chain import (
     DailyChainEvaluators,
     DailyDecisionChain,
     DailySymbolInput,
+    DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION,
     InMemoryDecisionStateStore,
     OpenPositionState,
+    PORTFOLIO_EXISTING_POSITION_CONFLICT,
     POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT,
     PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED,
     T1ExecutionPhase,
 )
 from trading.models import DecisionAction, Setup01Evaluation, SetupState, Trend
+from trading.portfolio_risk import OpenPortfolioPosition
+from trading.position_management import PositionAnchor, PositionOrigin, PositionTarget
 from trading.setup01_replay import Setup01ReplayDay, Setup01ReplayEvent, Setup01ReplayReport
 
 
 START = date(2026, 1, 5)
 
 
-def _quote(day: date, close: float, opening: float | None = None) -> Quote:
+def _quote(
+    day: date,
+    close: float,
+    opening: float | None = None,
+    *,
+    symbol: str = "CHAIN.SYNTH",
+) -> Quote:
     opening = close if opening is None else opening
     return Quote(
-        symbol="CHAIN.SYNTH",
+        symbol=symbol,
         name="Daily chain synthetic",
         market="US",
         trade_date=day,
@@ -79,28 +89,35 @@ def _snapshot(day: date, state: SetupState) -> Setup01Evaluation:
     )
 
 
-def _fixture(*, confirmed: bool = True, t1: bool = False):
+def _fixture(*, confirmed: bool = True, t1: bool = False, symbol: str = "CHAIN.SYNTH"):
     t_day = START + timedelta(days=20)
-    history = tuple(_quote(START + timedelta(days=index), 100.0 + index * 0.1) for index in range(21))
+    history = tuple(
+        _quote(
+            START + timedelta(days=index),
+            100.0 + index * 0.1,
+            symbol=symbol,
+        )
+        for index in range(21)
+    )
     if t1:
-        history += (_quote(t_day + timedelta(days=1), 100.0, opening=100.0),)
+        history += (_quote(t_day + timedelta(days=1), 100.0, opening=100.0, symbol=symbol),)
     snapshot = _snapshot(t_day, SetupState.CONFIRMED if confirmed else SetupState.NONE)
     event = Setup01ReplayEvent(
-        event_identity=f"CHAIN.SYNTH|SETUP_01|{t_day.isoformat()}|CONFIRMED|lifecycle=1",
-        symbol="CHAIN.SYNTH",
+        event_identity=f"{symbol}|SETUP_01|{t_day.isoformat()}|CONFIRMED|lifecycle=1",
+        symbol=symbol,
         trade_date=t_day,
         event_type=SetupState.CONFIRMED,
         setup01=snapshot,
         market="US",
     )
     report = Setup01ReplayReport(
-        symbol="CHAIN.SYNTH",
+        symbol=symbol,
         market="US",
         days=(Setup01ReplayDay("CHAIN.SYNTH", t_day, snapshot),),
         events=(event,) if confirmed else (),
     )
     no_setup = Setup01ReplayReport(
-        symbol="CHAIN.SYNTH",
+        symbol=symbol,
         market="US",
         days=(Setup01ReplayDay("CHAIN.SYNTH", t_day, _snapshot(t_day, SetupState.NONE)),),
         events=(),
@@ -141,8 +158,9 @@ def _decision(event, *, action=DecisionAction.ENTRY_ALLOWED):
 
 
 def _input(history, day, *, quality=DATA_OK, exact=False, next_day=None, risk_group=None, position=None):
+    symbol = history[0].symbol if history else "CHAIN.SYNTH"
     return DailySymbolInput(
-        symbol="CHAIN.SYNTH",
+        symbol=symbol,
         market="US",
         as_of_date=day,
         qfq_history=history,
@@ -158,6 +176,84 @@ def _input(history, day, *, quality=DATA_OK, exact=False, next_day=None, risk_gr
         risk_group=risk_group,
         open_position_state=position,
     )
+
+
+def _position_origin(symbol: str = "CHAIN.SYNTH") -> PositionOrigin:
+    anchor = PositionAnchor(
+        name="LOW0",
+        kind="LOW",
+        price=90.0,
+        pivot_index=0,
+        pivot_date=START,
+        confirmed_index=0,
+        confirmed_date=START,
+    )
+    return PositionOrigin(
+        source_setup="SETUP_01",
+        source_event_identity=f"origin-{symbol}",
+        symbol=symbol,
+        market="US",
+        entry_date=START,
+        actual_entry=102.0,
+        initial_execution_stop=90.0,
+        initial_structural_invalidation=95.0,
+        targets=(PositionTarget(130.0, "SYNTHETIC", ("test",)),),
+        wave_anchors=(anchor,),
+        initial_risk_per_share=12.0,
+    )
+
+
+def _portfolio_position(
+    symbol: str = "CHAIN.SYNTH",
+    *,
+    source_event_identity: str = "held-event",
+    actual_entry: float = 102.0,
+    active_protective_stop: float = 90.0,
+    quantity: float = 1.0,
+) -> OpenPortfolioPosition:
+    return OpenPortfolioPosition(
+        source_event_identity=source_event_identity,
+        source_setup="SETUP_01",
+        symbol=symbol,
+        market="US",
+        entry_date=START,
+        quantity=quantity,
+        current_price=105.0,
+        active_protective_stop=active_protective_stop,
+        risk_group="GROUP_A",
+        actual_entry=actual_entry,
+    )
+
+
+class ProtocolOnlyDecisionStore:
+    """Protocol adapter intentionally exposing no InMemory concrete fields."""
+
+    def __init__(self) -> None:
+        self._delegate = InMemoryDecisionStateStore()
+
+    def get_published_event(self, identity):
+        return self._delegate.get_published_event(identity)
+
+    def record_published_event(self, identity, result):
+        self._delegate.record_published_event(identity, result)
+
+    def pending_for_symbol(self, symbol):
+        return self._delegate.pending_for_symbol(symbol)
+
+    def save_pending(self, pending):
+        self._delegate.save_pending(pending)
+
+    def settle_pending(self, identity, record):
+        self._delegate.settle_pending(identity, record)
+
+    def get_settlement(self, identity):
+        return self._delegate.get_settlement(identity)
+
+    def save_position_origin(self, origin):
+        self._delegate.save_position_origin(origin)
+
+    def record_daily_result(self, result):
+        self._delegate.record_daily_result(result)
 
 
 class DailyDecisionChainTests(unittest.TestCase):
@@ -230,21 +326,158 @@ class DailyDecisionChainTests(unittest.TestCase):
 
     def test_stale_data_never_runs_upstream_chain(self):
         history, t_day, _, evaluators = _fixture()
-        result = DailyDecisionChain(evaluators=evaluators).evaluate(
-            [_input(history, t_day, quality=DATA_BAD)], mode="PRODUCTION"
-        ).results[0]
+        position = OpenPositionState(
+            "CHAIN.SYNTH",
+            "US",
+            origin=_position_origin(),
+        )
+        with patch("trading.daily_decision_chain.replay_position") as replay:
+            result = DailyDecisionChain(evaluators=evaluators).evaluate(
+                [_input(history, t_day, quality=DATA_BAD, position=position)],
+                mode="PRODUCTION",
+            ).results[0]
+        replay.assert_not_called()
         self.assertEqual(result.final_status, "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED")
         self.assertIn("DATA_QUALITY_DATA_BAD", result.reasons)
+        self.assertIsNone(result.position_management)
+
+    def test_per_symbol_authoritative_position_blocks_same_symbol_without_global_input(self):
+        history, t_day, event, evaluators = _fixture()
+        position = _portfolio_position()
+        state = OpenPositionState("CHAIN.SYNTH", "US", portfolio_position=position)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(evaluators=evaluators).evaluate(
+                [_input(history, t_day, position=state)],
+                mode="DEVELOPMENT_EXPOSED",
+            ).results[0]
+        self.assertEqual(result.portfolio_result.reason, "BLOCK_EXISTING_POSITION_SAME_SYMBOL")
+        self.assertEqual(result.portfolio_result.total_risk_before, position.remaining_loss_risk(1.0))
+
+    def test_global_position_outside_strategy_inputs_still_consumes_risk(self):
+        history, t_day, event, evaluators = _fixture()
+        outside_position = _portfolio_position(symbol="OUTSIDE.SYNTH", quantity=0.001)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(evaluators=evaluators).evaluate(
+                [_input(history, t_day)],
+                mode="DEVELOPMENT_EXPOSED",
+                existing_positions=(outside_position,),
+            ).results[0]
+        self.assertEqual(result.portfolio_result.status, "PORTFOLIO_ALLOWED")
+        self.assertEqual(
+            result.portfolio_result.total_risk_before,
+            outside_position.remaining_loss_risk(1.0),
+        )
+
+    def test_global_and_per_symbol_same_position_is_counted_once(self):
+        history, t_day, event, evaluators = _fixture()
+        position = _portfolio_position()
+        state = OpenPositionState("CHAIN.SYNTH", "US", portfolio_position=position)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(evaluators=evaluators).evaluate(
+                [_input(history, t_day, position=state)],
+                mode="DEVELOPMENT_EXPOSED",
+                existing_positions=(position,),
+            ).results[0]
+        self.assertEqual(result.portfolio_result.reason, "BLOCK_EXISTING_POSITION_SAME_SYMBOL")
+        self.assertEqual(result.portfolio_result.total_risk_before, position.remaining_loss_risk(1.0))
+
+    def test_global_and_per_symbol_conflicting_position_fails_closed(self):
+        history, t_day, event, evaluators = _fixture()
+        global_position = _portfolio_position(source_event_identity="global-event")
+        per_symbol_position = _portfolio_position(
+            source_event_identity="per-symbol-event",
+            actual_entry=103.0,
+        )
+        state = OpenPositionState(
+            "CHAIN.SYNTH",
+            "US",
+            portfolio_position=per_symbol_position,
+        )
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(evaluators=evaluators).evaluate(
+                [_input(history, t_day, position=state)],
+                mode="DEVELOPMENT_EXPOSED",
+                existing_positions=(global_position,),
+            ).results[0]
+        self.assertEqual(result.portfolio_result.reason, PORTFOLIO_EXISTING_POSITION_CONFLICT)
+
+    def test_protocol_only_store_uses_get_settlement_for_exact_once(self):
+        history, t_day, event, evaluators = _fixture(t1=True)
+        t1 = t_day + timedelta(days=1)
+        store = ProtocolOnlyDecisionStore()
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            chain.evaluate([_input(history[:21], t_day, exact=True, next_day=t1)], mode="DEVELOPMENT_EXPOSED")
+            settled = chain.evaluate([_input(history, t1, exact=True)], mode="DEVELOPMENT_EXPOSED").results[0]
+            rerun = chain.evaluate([_input(history, t1, exact=True)], mode="DEVELOPMENT_EXPOSED").results[0]
+        self.assertEqual(settled.execution_phase, T1ExecutionPhase.T1_EXECUTION_OBSERVED)
+        self.assertEqual(len(store._delegate.settled), 1)
+        self.assertIsNone(rerun.execution_outcome)
+
+    def test_mixed_as_of_dates_fail_fast_before_report_generation(self):
+        history, t_day, _, evaluators = _fixture()
+        other_history = tuple(
+            _quote(START + timedelta(days=index + 1), 101.0 + index * 0.1, symbol="OTHER.SYNTH")
+            for index in range(21)
+        )
+        with self.assertRaisesRegex(ValueError, "share one as_of_date"):
+            DailyDecisionChain(evaluators=evaluators).evaluate(
+                [_input(history, t_day), _input(other_history, t_day + timedelta(days=1))],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+
+    def test_dual_new_confirmed_events_fail_closed_without_setup_priority(self):
+        history, t_day, event01, evaluators = _fixture()
+        setup02_snapshot = SimpleNamespace(
+            setup_type="SETUP_02",
+            state=SetupState.CONFIRMED,
+            is_new_confirmed_event_as_of=True,
+        )
+        event02 = SimpleNamespace(
+            event_identity=f"CHAIN.SYNTH|SETUP_02|{t_day.isoformat()}|CONFIRMED|lifecycle=1",
+            symbol="CHAIN.SYNTH",
+            trade_date=t_day,
+            event_type=SetupState.CONFIRMED,
+            setup02=setup02_snapshot,
+            market="US",
+        )
+        setup02_report = SimpleNamespace(current=setup02_snapshot, events=(event02,))
+        dual_evaluators = DailyChainEvaluators(
+            wave=evaluators.wave,
+            setup01=evaluators.setup01,
+            setup02=lambda *_args, **_kwargs: setup02_report,
+        )
+        store = InMemoryDecisionStateStore()
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event01)), \
+             patch("trading.daily_decision_chain.evaluate_setup02_decision", return_value=_decision(event02)):
+            result = DailyDecisionChain(store=store, evaluators=dual_evaluators).evaluate(
+                [_input(history, t_day)], mode="DEVELOPMENT_EXPOSED"
+            ).results[0]
+        self.assertIsNone(result.individual_decision)
+        self.assertIsNone(result.portfolio_result)
+        self.assertEqual(result.final_status, "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED")
+        self.assertIn(DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION, result.reasons[0])
+        self.assertEqual(
+            result.new_confirmed_event_identities,
+            (event01.event_identity, event02.event_identity),
+        )
+        self.assertEqual(set(store.published_events), {event01.event_identity, event02.event_identity})
+        self.assertEqual(store.pending, {})
 
     def test_missing_position_origin_fails_closed_without_fake_metrics(self):
         history, t_day, _, evaluators = _fixture(confirmed=False)
         position = OpenPositionState("CHAIN.SYNTH", "US")
-        result = DailyDecisionChain(evaluators=evaluators).evaluate(
+        report = DailyDecisionChain(evaluators=evaluators).evaluate(
             [_input(history, t_day, position=position)], mode="PRODUCTION"
-        ).results[0]
+        )
+        result = report.results[0]
         self.assertEqual(result.position_management.status, POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT)
         self.assertIsNone(result.position_management.current_r)
         self.assertIsNone(result.position_management.active_stop_at_open)
+        self.assertEqual(result.final_status, "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED")
+        payload = report.to_dict()
+        self.assertEqual(len(payload["sections"]["持仓管理"]), 0)
+        self.assertEqual(len(payload["sections"]["数据/生产前置条件异常"]), 1)
 
     def test_markdown_report_has_human_sections_and_machine_json_has_protocols(self):
         history, t_day, _, evaluators = _fixture(confirmed=False)

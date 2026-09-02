@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date, datetime
 from enum import Enum
+from itertools import chain
 import json
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
@@ -72,6 +73,11 @@ DATA_OK = "DATA_OK"
 DATA_STALE = "DATA_STALE"
 DATA_BAD = "DATA_BAD"
 DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
+DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION = (
+    "DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION"
+)
+PORTFOLIO_EXISTING_POSITION_CONFLICT = "PORTFOLIO_EXISTING_POSITION_CONFLICT"
+POSITION_MANAGEMENT_OBSERVED = "POSITION_MANAGEMENT_OBSERVED"
 
 
 class T1ExecutionPhase(str, Enum):
@@ -203,6 +209,7 @@ class DailyDecisionResult:
     setup01_event_identity: DailyDecisionEventIdentity | None
     setup02_event_identity: DailyDecisionEventIdentity | None
     new_confirmed_event_identity: DailyDecisionEventIdentity | None
+    new_confirmed_event_identities: tuple[DailyDecisionEventIdentity, ...]
     event_was_new: bool
     individual_decision: Setup01Decision | Setup02Decision | None
     individual_decision_candidates: tuple[Any, ...]
@@ -409,6 +416,8 @@ class DailyDecisionChain:
         identities = [item.symbol.upper() for item in values]
         if len(set(identities)) != len(identities):
             raise ValueError("Daily Decision Chain input symbols must be unique")
+        if len({item.as_of_date for item in values}) != 1:
+            raise ValueError("Daily Decision Chain inputs must share one as_of_date")
         values = tuple(sorted(values, key=lambda item: (item.market, item.symbol)))
         generated = generated_at or datetime.now().astimezone()
         nav = self._resolved_nav(mode, reference_nav)
@@ -449,12 +458,16 @@ class DailyDecisionChain:
         portfolio_by_identity: dict[str, Any] = {}
         if candidates:
             try:
-                if any(position.actual_entry is None for position in existing_positions):
+                canonical_positions = _merge_authoritative_positions(
+                    existing_positions,
+                    values,
+                )
+                if any(position.actual_entry is None for position in canonical_positions):
                     raise ValueError(PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING)
                 portfolio_engine = PortfolioRiskEngine(
                     mode=mode,
                     reference_nav=reference_nav,
-                    existing_positions=tuple(existing_positions),
+                    existing_positions=canonical_positions,
                 )
                 batch = portfolio_engine.reserve(candidate for _, candidate in candidates)
                 portfolio_by_identity = {
@@ -487,8 +500,9 @@ class DailyDecisionChain:
                 generated_at=generated,
             )
             results.append(result)
-            if result.event_was_new and result.new_confirmed_event_identity:
-                self.store.record_published_event(result.new_confirmed_event_identity, result)
+            if result.event_was_new and result.new_confirmed_event_identities:
+                for event_identity in result.new_confirmed_event_identities:
+                    self.store.record_published_event(event_identity, result)
                 reservation = portfolio_by_identity.get(result.new_confirmed_event_identity)
                 if isinstance(reservation, PortfolioReservation) and reservation.status is PortfolioReservationStatus.RESERVED:
                     event = row["selected_event"]
@@ -526,7 +540,6 @@ class DailyDecisionChain:
         nav: float | None,
         generated_at: datetime,
     ) -> dict[str, Any]:
-        position_management = self._position_management(item)
         base: dict[str, Any] = {
             "wave": None,
             "setup01": None,
@@ -535,9 +548,10 @@ class DailyDecisionChain:
             "individual_decision": None,
             "individual_decision_candidates": (),
             "event_was_new": False,
+            "new_confirmed_event_identities": (),
             "reasons": [],
             "blocking": [],
-            "position_management": position_management,
+            "position_management": None,
             "execution_phase": None,
             "execution_outcome": None,
         }
@@ -547,6 +561,7 @@ class DailyDecisionChain:
         if not item.qfq_history or item.qfq_history[-1].trade_date != item.as_of_date:
             base["reasons"].append("QFQ_HISTORY_MUST_REACH_COMPLETED_SESSION_T")
             return base
+        base["position_management"] = self._position_management(item)
 
         wave_fn = self.evaluators.wave or evaluate_wave_scenario
         setup01_fn = self.evaluators.setup01 or replay_setup01_history
@@ -578,10 +593,28 @@ class DailyDecisionChain:
                 base["reasons"].append(f"DECISION_EVALUATION_FAILED: {exc}")
                 continue
             decisions.append((event, decision))
+        new_events = tuple(
+            event
+            for event in (event01, event02)
+            if event is not None
+            and self.store.get_published_event(event.event_identity) is None
+        )
+        if len(new_events) > 1:
+            identities = tuple(event.event_identity for event in new_events)
+            base["reasons"].append(
+                f"{DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION}: {', '.join(identities)}"
+            )
+            base["blocking"].append(DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION)
+            base["individual_decision_candidates"] = tuple(
+                decision for _, decision in decisions if decision is not None
+            )
+            base["event_was_new"] = True
+            base["new_confirmed_event_identities"] = identities
+            return base
         if decisions:
             # An ENTRY_ALLOWED decision is the only candidate for Portfolio Risk.
-            # If both frozen setups confirm on one T, setup order is the stable
-            # orchestration tie-break; formulas and source decisions are unchanged.
+            # The frozen Wave/Setup contracts make two new CONFIRMED events on
+            # one symbol/T unreachable; the guard above fail-closes if observed.
             selected_event, selected_decision = sorted(
                 decisions,
                 key=lambda pair: (
@@ -667,7 +700,7 @@ class DailyDecisionChain:
             )
         day = replay.days[-1]
         return DailyPositionManagementResult(
-            status="POSITION_MANAGEMENT_OBSERVED",
+            status=POSITION_MANAGEMENT_OBSERVED,
             action=day.action.value,
             current_r=day.current_r,
             mfe_r=day.mfe_r,
@@ -692,8 +725,9 @@ class DailyDecisionChain:
             return None
         if item.as_of_date < expected:
             return None
-        if pending.event.event_identity in getattr(self.store, "settled", {}):
-            return self.store.get_settlement(pending.event.event_identity)
+        settled = self.store.get_settlement(pending.event.event_identity)
+        if settled is not None:
+            return settled
         sessions = {item.market: (pending.event.trade_date, expected)}
         if hasattr(pending.event, "setup01"):
             execution = execute_setup01_t1_open(pending.decision, item.qfq_history, market_session_dates=sessions)
@@ -771,7 +805,11 @@ class DailyDecisionChain:
             current01 = setup01.current.state if setup01 is not None else SetupState.NONE
             current02 = setup02.current.state if setup02 is not None else SetupState.NONE
             primary_action = DecisionAction.WAIT_CONFIRMATION.value if {current01, current02} & {SetupState.WATCH, SetupState.ARMED} else DecisionAction.NO_TRADE.value
-        if item.data_quality_status != DATA_OK:
+        if (
+            item.data_quality_status != DATA_OK
+            or _position_management_is_prerequisite_failure(row.get("position_management"))
+            or DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION in row.get("blocking", ())
+        ):
             final_status = "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED"
         elif decision is not None and decision.action is DecisionAction.ENTRY_ALLOWED:
             final_status = "PORTFOLIO_ALLOWED" if portfolio_result is not None and portfolio_result.status == PORTFOLIO_ALLOWED else "PORTFOLIO_BLOCKED"
@@ -792,6 +830,9 @@ class DailyDecisionChain:
             new_identity = selected_identity
         else:
             new_identity = None
+        new_identities = tuple(row.get("new_confirmed_event_identities", ()))
+        if not new_identities and new_identity is not None:
+            new_identities = (new_identity,)
         return DailyDecisionResult(
             symbol=item.symbol,
             market=item.market,
@@ -806,6 +847,7 @@ class DailyDecisionChain:
             setup01_event_identity=event01.event_identity if event01 is not None else None,
             setup02_event_identity=event02.event_identity if event02 is not None else None,
             new_confirmed_event_identity=new_identity,
+            new_confirmed_event_identities=new_identities,
             event_was_new=bool(row.get("event_was_new")),
             individual_decision=decision,
             individual_decision_candidates=tuple(row.get("individual_decision_candidates", ())),
@@ -897,6 +939,49 @@ def daily_decision_event_identity(event: Setup01ReplayEvent | Setup02ReplayEvent
     return event.event_identity
 
 
+def _merge_authoritative_positions(
+    global_positions: Sequence[OpenPortfolioPosition],
+    values: Sequence[DailySymbolInput],
+) -> tuple[OpenPortfolioPosition, ...]:
+    """Merge global and per-symbol authoritative positions exactly once."""
+    per_symbol_positions = tuple(
+        item.open_position_state.portfolio_position
+        for item in values
+        if item.open_position_state is not None
+        and item.open_position_state.portfolio_position is not None
+    )
+    merged: dict[str, OpenPortfolioPosition] = {}
+    for position in chain(tuple(global_positions), per_symbol_positions):
+        identity = position.canonical_symbol
+        prior = merged.get(identity)
+        if prior is None:
+            merged[identity] = position
+            continue
+        prior_facts = (
+            prior.source_event_identity,
+            prior.actual_entry,
+            prior.quantity,
+            prior.active_protective_stop,
+            prior.normalized_risk_group,
+        )
+        current_facts = (
+            position.source_event_identity,
+            position.actual_entry,
+            position.quantity,
+            position.active_protective_stop,
+            position.normalized_risk_group,
+        )
+        if prior_facts != current_facts:
+            raise ValueError(PORTFOLIO_EXISTING_POSITION_CONFLICT)
+    return tuple(merged.values())
+
+
+def _position_management_is_prerequisite_failure(
+    value: DailyPositionManagementResult | None,
+) -> bool:
+    return value is not None and value.status != POSITION_MANAGEMENT_OBSERVED
+
+
 def require_production_universe(provider: UniverseProvider | None) -> tuple[DailySymbolInput, ...]:
     if provider is None:
         raise ValueError(PRODUCTION_STRATEGY_UNIVERSE_REQUIRED)
@@ -915,7 +1000,11 @@ def daily_report_json(report: DailyTradingDecisionReport) -> str:
 
 
 def _report_section(result: DailyDecisionResult) -> str:
-    if result.data_status != DATA_OK:
+    if (
+        result.data_status != DATA_OK
+        or _position_management_is_prerequisite_failure(result.position_management)
+        or DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION in result.blocking_prerequisites
+    ):
         return "数据/生产前置条件异常"
     if result.position_management is not None:
         return "持仓管理"
@@ -975,6 +1064,7 @@ __all__ = [
     "DATA_STALE",
     "DATA_UNAVAILABLE",
     "DAILY_DECISION_CHAIN_PROTOCOL_VERSION",
+    "DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION",
     "DailyChainEvaluators",
     "DailyDecisionChain",
     "DailyDecisionEventIdentity",
@@ -990,6 +1080,8 @@ __all__ = [
     "PRODUCTION_STRATEGY_UNIVERSE_REQUIRED",
     "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED",
     "POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT",
+    "PORTFOLIO_EXISTING_POSITION_CONFLICT",
+    "POSITION_MANAGEMENT_OBSERVED",
     "StaticUniverseProvider",
     "T1ExecutionPhase",
     "daily_decision_event_identity",

@@ -1612,3 +1612,42 @@ individual Decision remains visible where safe. The current enabled
 those production facts. Choosing a new Sheets schema, GitHub state file,
 external database, account/NAV source, or exchange-calendar dependency would
 be a separate product decision and must not be hidden inside this phase.
+
+## 2026-09-03 — PR #64 Sol review correctness hardening
+
+**Decision:** Keep PR #64 open on its existing branch and apply only the
+smallest correctness hardening requested by Sol. Data quality now precedes
+Wave, Setup, Individual Decision, and Position Management replay; bad, stale,
+unavailable, or incomplete T data fails closed without synthetic Position
+Management metrics or actions. Position Management report classification is
+reserved for an actually observed authoritative replay; prerequisite failures
+remain in `数据/生产前置条件异常`.
+
+**Decision:** Portfolio Risk receives a canonical-symbol merge of global
+`existing_positions` and per-symbol authoritative
+`OpenPositionState.portfolio_position`. Identical key risk facts are counted
+once. A conflict in `source_event_identity`, `actual_entry`, `quantity`,
+`active_protective_stop`, or normalized `risk_group` fails closed with the
+single machine reason `PORTFOLIO_EXISTING_POSITION_CONFLICT`. Global positions
+remain supported so holdings outside the strategy universe can still consume
+risk capacity when supplied by an authoritative caller.
+
+**Decision:** The frozen Wave contract has one `primary_scenario`, and SETUP_01
+and SETUP_02 accept only their respective primary families. Therefore a dual
+same-symbol/T first-entry `CONFIRMED` is an upstream invariant violation, not
+a new trading-priority rule. The Daily Chain now fail-closes with
+`DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION`, creates no Portfolio candidate,
+and records both observed event identities with explicit disposition. No
+SETUP_01-over-SETUP_02 tie-break is retained.
+
+**Decision:** Settlement exact-once checks use only the existing
+`DecisionStateStore.get_settlement()` protocol method. `evaluate()` also
+rejects mixed `as_of_date` inputs before constructing a report. No persistence
+backend, strategy formula, Portfolio Risk constant, entry/target/RR rule,
+Position Management formula, Wave5 meaning, broker path, holdings mutation,
+or production universe decision changes in this hardening.
+
+**Reason:** These changes close orchestration boundary defects while preserving
+the frozen upstream Single Source of Truth. The dual-confirmed guard is
+contract protection and explicit event disposition, not an authorization to
+arbitrate between strategies.

@@ -95,3 +95,32 @@ synthetic cases and writes JSON/Markdown artifacts. The dedicated workflow is
 pull-request and `workflow_dispatch` only; it has no cron schedule and injects
 no credentials. The real-data shadow was not run because no formal production
 strategy universe is defined; holdings are not used as a substitute.
+
+## Sol review correctness hardening
+
+The chain now applies the data-quality gate before every downstream stage.
+`DATA_BAD`, stale, unavailable, or incomplete T data returns a fail-closed
+result without Wave, Setup, Individual Decision, or Position Management replay.
+An authoritative Position Management observation is the only result shown in
+the `持仓管理` report section; missing position origin, evaluation failure,
+entry-after-as-of, and no-visible-day results are classified under
+`数据/生产前置条件异常`.
+
+Portfolio Risk receives the canonical merge of global `existing_positions` and
+each supplied `OpenPositionState.portfolio_position`. Equal key risk facts are
+deduplicated by canonical symbol; a conflict in source event identity, actual
+entry, quantity, protective stop, or risk group fails closed with
+`PORTFOLIO_EXISTING_POSITION_CONFLICT`. This preserves open positions outside
+the strategy universe when they are supplied through the global input.
+
+The Wave contract emits one primary scenario, and SETUP_01/SETUP_02 each accept
+only their own primary family, so two new same-symbol/T first-entry
+`CONFIRMED` events are formally unreachable through the frozen upstream path.
+The chain nevertheless guards the boundary with
+`DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION`: it creates no Portfolio
+candidate, records both identities as explicitly disposed, and does not choose
+a Setup priority.
+
+Settlement checks use only the `DecisionStateStore.get_settlement()` protocol
+method. A report run rejects mixed `DailySymbolInput.as_of_date` values before
+any report is generated.
