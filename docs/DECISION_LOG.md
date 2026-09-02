@@ -1184,3 +1184,123 @@ separate and no event identity was reused.
 **PR closeout:** PR #45 targets the verified current `main` base
 `2f56cd0697592c5815dbfea84bf328abe6c4c8c7`, is `OPEN / CLEAN / MERGEABLE`,
 and its exact-head CI completed successfully. No merge was performed.
+
+## 2026-09-01 — SETUP_02 structural approval and Decision/Risk v1
+
+**Approval / merge:** Sol approved
+`APPROVE_SETUP_02_STRUCTURAL_V1_AND_PROCEED_TO_DECISION_RISK_V1`. PR #45 was
+rechecked as `OPEN / CLEAN / MERGEABLE` with pre-merge HEAD
+`19c6e0eaa8841b757e6359e897ab559e31d39f65`, base
+`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`, and exact-head CI run
+`33493027270` success. It was squash merged as
+`f679443d52d767841c0df3ff2e0179648b536fb0`; merge-after main exact-head CI
+run `33494893693` is success.
+
+**Historical pre-merge draft (withdrawn before freeze):** The independent
+Decision/Risk draft was implemented as
+`SETUP-02-DECISION-RISK-2026-09-01-v1`, but Sol did not approve it for merge.
+Its target geometry was subsequently found to be mathematically incompatible
+with the unchanged minimum R/R and is not a frozen formal protocol. The
+structural lifecycle in `trading/setup02.py` remains unchanged, and SETUP_01
+is not refactored.
+
+**Rules:** Decision consumes only first-entry `CONFIRMED` events with
+`event_type == CONFIRMED`, `is_new_confirmed_event_as_of == true`, and exact
+event identity once. T close forms the plan; same-bar execution is forbidden.
+`confirmation_level=HIGH3`, `planned_entry=T close`, Entry Zone is
+`[HIGH3, HIGH3+0.5*ATR14(T)]`, structural invalidation is copied directly from
+the event, and Execution Stop is
+`structural_invalidation-0.5*ATR14(T)`. The withdrawn draft generated targets
+first from T-known confirmed swing highs and the incorrect
+`structural_invalidation → HIGH3` continuation leg using canonical
+`EXTENSION_RATIOS`; this is historical audit context only. `fib_retracement_ratio`
+remains descriptive only. Missing `risk_capital` produces an explicit required
+input and never guesses NAV.
+
+**Development evidence:** On the same frozen `DEVELOPMENT_EXPOSED` v2 input,
+213 first-entry CONFIRMED events produced 213 Decision rows. The funnel result
+was `ENTRY_ALLOWED=0`; gates were `ABOVE_ENTRY_ZONE=97`,
+`INVALID_STRUCTURE=12`, `RR_BELOW_MINIMUM=104`, with all other gates zero.
+T+1 attempts/executed were `0/0`; CN/US first-confirmed split was `74/139`.
+All 494 structural event identities were unique and matched, first-confirmed
+exact-once, target provenance, conservation, and execution-ledger invariants
+passed. Target candidates included 771 confirmed-swing candidates and 414
+continuation-Fib candidates (one merged dual-source price); extension ratio
+counts were `1.272=103`, `1.618=104`, `2.0=104`, `2.618=104`. The >5R count and
+missing T+1 count were both zero.
+
+**Boundary of the withdrawn draft:** This evidence does not read or calculate returns/forward returns,
+MFE, MAE, P&L, expectancy, profit factor, or Final OOS. No holdings, account,
+broker, Secrets, Sheets, production calendar, Position Management, Exit, Wave
+5, SETUP_04, or automatic merge is permitted. Decision/Risk stops at
+`SETUP_02_DECISION_RISK_V1_READY_FOR_SOL_REVIEW`; the draft was rejected for
+pre-merge geometry remediation.
+
+**PR handoff:** Independent Decision/Risk implementation commit
+`4d038d1e4f3d6d30a8c64e43dbb44db0649abc45` was pushed as PR #50:
+`https://github.com/EFSing/stock-data-pipeline/pull/50`, targeting
+`main@f679443d52d767841c0df3ff2e0179648b536fb0`. Its exact-head `CI Test Gate`
+run `33498226860` and `SETUP_02 generic operational shadow` run
+`33498226908` both completed successfully. The PR remains open for Sol review;
+it is not to be merged automatically. A subsequent governance-only commit is
+intentionally not self-referenced here; its final PR head and exact-head CI
+were rechecked live at closeout.
+
+## 2026-09-02 — PR #50 pre-merge geometry remediation
+
+**Decision:** Reject the pre-merge SETUP_02 Decision/Risk geometry for
+`PREMERGE_TARGET_GEOMETRY_DEFECT`; do not lower minimum `RR=2`, widen the Entry
+Zone, tighten the stop, or inspect outcome data. The corrected protocol is
+`SETUP-02-DECISION-RISK-2026-09-02-v2` and remains in the existing PR #50 for
+Sol review. It is not merged.
+
+**Mathematical correction:** The withdrawn draft used
+`structural_invalidation → HIGH3`, which with `planned_entry > HIGH3` and
+`execution_stop < structural_invalidation` implies `RR < r-1`; even the
+canonical maximum `r=2.618` cannot reach `2R`. The corrected Wave3 identity is
+`wave1_length = HIGH1-LOW0 > 0` and
+`target = LOW2 + (HIGH1-LOW0)*existing EXTENSION_RATIO`, source
+`WAVE3_FIB_EXTENSION`. Provenance includes LOW0, HIGH1, LOW2, ratio, and
+`LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO`. Remaining targets are
+filtered to `target > planned_entry`, sorted, and assigned T1/T2/T3 before R/R;
+no farther target may replace a nearer sub-2R target.
+
+**Stale geometry audit:** All twelve pre-correction `INVALID_STRUCTURE` rows
+were independently audited using only the causal T prefix. Every row has
+`structural_invalidation >= HIGH3` and is classified
+`STALE_CONFIRMATION_GEOMETRY`; no upstream structural contract inconsistency
+was found. The upstream SETUP_02 structural lifecycle, Wave Engine, Swing,
+canonical ratios, and SETUP_01 remain unchanged.
+
+**Corrected funnel:** On the same frozen v2 dataset and the same 213 first-entry
+CONFIRMED events: 213 Decision rows, `ABOVE_ENTRY_ZONE=97`,
+`STALE_CONFIRMATION_GEOMETRY=12`, `NO_VALID_TARGET=1`,
+`RR_BELOW_MINIMUM=102`, `ENTRY_ALLOWED=1`; T+1 attempts/executed=`1/0`, with
+`SKIP_GAP_BELOW_CONFIRMATION=1`. T1 sources are confirmed swing high `44` and
+`WAVE3_FIB_EXTENSION=59`; corrected all-candidate ratios are
+`1.272=61`, `1.618=75`, `2.0=84`, `2.618=102`. Exact-once, conservation,
+execution-ledger, >5R and missing-T+1 audits pass. Old→corrected deltas are
+geometry/gate/target/T+1 classifications only; no forward-performance metric
+is read or calculated.
+
+**Verification boundary:** SETUP_02 structural replay remains 40/40 symbols,
+84,284 bars, 213 CONFIRMED / 281 FAILED, 494 unique identities, 0 errors;
+focused SETUP_02 Decision/generic plus SETUP_01 regression is `36/36`, full
+unittest is `474/474`, and compileall/`git diff --check` pass. Synthetic-only
+generic shadow remains successful. No holdings, broker, account, Secrets,
+Sheets, production calendar, Position Management, Exit, Wave 5, SETUP_04,
+returns, MFE, MAE, P&L, expectancy, profit factor, or Final OOS path was used.
+
+**Stop:** Keep PR #50 OPEN for Sol review and stop at
+`SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`; do not
+auto-merge and do not tune from the corrected funnel counts.
+
+**PR closeout at corrected source head:** Commit
+`848e4b92880922c6b079bee6f7d1414600fd3d30` was pushed to the existing PR #50
+without force-push or a new PR. Live GitHub verification reports
+`OPEN / CLEAN / MERGEABLE`, `merged=false`, base
+`main@f679443d52d767841c0df3ff2e0179648b536fb0`, and head
+`848e4b92880922c6b079bee6f7d1414600fd3d30`. Exact-head `CI Test Gate` run
+`33584745217` and `SETUP_02 generic operational shadow` run `33584745207` both
+completed successfully. A later governance-only tip is not self-referenced;
+the final live PR head and exact-head checks remain authoritative.

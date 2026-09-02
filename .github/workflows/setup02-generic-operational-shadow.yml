@@ -1,0 +1,43 @@
+name: SETUP_02 generic operational shadow
+
+on:
+  pull_request:
+    paths:
+      - "trading/setup02_decision.py"
+      - "trading/setup02_replay.py"
+      - "trading/fibonacci.py"
+      - "scripts/run_setup02_generic_operational_shadow.py"
+      - "tests/test_setup02_decision.py"
+      - "tests/test_setup02_generic_operational_shadow.py"
+      - "docs/SETUP_02_DECISION_RISK_V1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generic-shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run synthetic-only operational shadow
+        run: |
+          python -m scripts.run_setup02_generic_operational_shadow \
+            --output-dir artifacts/setup02_generic_operational_shadow | tee generic-shadow-summary.txt
+      - name: Publish generic shadow summary
+        if: always()
+        run: |
+          {
+            echo "## SETUP_02 generic operational shadow (synthetic-only)"
+            if [ -f generic-shadow-summary.txt ]; then cat generic-shadow-summary.txt; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: setup02-generic-operational-shadow
+          path: artifacts/setup02_generic_operational_shadow/
