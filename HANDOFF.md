@@ -13,8 +13,8 @@
 ## 0. Latest Governance Event — PORTFOLIO_RISK_V1_MERGED_AND_DAILY_CHAIN_V1
 
 - Portfolio Risk V1 PR #59 已按用户授权完成 exact-head squash merge：真实 merge commit=`dc03631b80c6118e0ef088739de277ab50f17220`；merge-after main `CI Test Gate` run=`33647739171` success。
-- 新任务 branch=`codex/prospective-daily-decision-chain-v1`，base=`main@dc03631b80c6118e0ef088739de277ab50f17220`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64` 已创建，implementation tip=`5f2d95f3ce6db7b46ccc7da9ee672c270733107a`，保持 OPEN，不自动 merge。
-- Daily Chain focused=`9/9`、generic operational shadow=`17/17`、full unittest=`538/538`、compileall 与 `git diff --check` 均通过；当前状态=`PROSPECTIVE_DAILY_DECISION_CHAIN_V1_READY_FOR_SOL_REVIEW`；该 tip 的 exact-head CI Test Gate=`33650883375`、Daily Chain generic shadow=`33650883156`、Portfolio Risk generic shadow=`33650883142` 均 success。
+- 新任务 branch=`codex/prospective-daily-decision-chain-v1`，base=`main@dc03631b80c6118e0ef088739de277ab50f17220`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64` 已创建，correctness hardening source tip=`0ce6bdd`，保持 OPEN，不自动 merge。
+- 本轮本地 gates：Daily Chain focused=`16/16`、Portfolio Risk=`24/24`、Position Management=`18/18`、generic operational shadow=`17/17`、full unittest=`545/545`、targeted compileall 与 `git diff --check` 均通过；新 tip 的 remote exact-head checks 待 push 后核验。
 - 生产状态仍为 read-only prospective only：未访问 broker/account/holdings/Secrets/Sheets，未自动交易；real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
 - 当前任务明确不重启 SETUP_03、不实现 SETUP_04、不做 Final OOS、不做 outcome-driven tuning；目标停止节点为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_READY_FOR_SOL_REVIEW`。
 
@@ -35,8 +35,8 @@
 - **唯一目标:** 将冻结 Wave、SETUP_01/SETUP_02 Decision/Risk、Portfolio Risk、Position Management、Wave5 contracts 组合为可审阅的 Daily Decision Chain V1；只消费 `data <= T`，只接受同日首次 `is_new_confirmed_event_as_of=true` 的 `CONFIRMED` event，T+1 只在 exact calendar identity 可用时观察 settlement。
 - **实现边界:** 使用 `DecisionStateStore`/`InMemoryDecisionStateStore` 与 injection-based `UniverseProvider`；Portfolio Risk 复用 frozen constants/formula；缺失 production universe、NAV、risk group、authoritative position origin、exact calendar、persistent state backend 时 fail closed；不把当前 watchlist、weekday guard、legacy SETUP_03 Sheet 当作正式 SSOT。
 - **交付范围:** `trading/daily_decision_chain.py`、tests、synthetic generic shadow runner/workflow、`docs/PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md` 与 `docs/DECISION_LOG.md`；不修改既有 upstream semantics，不接 broker/order，不写 Sheets strategy rows。
-- **本地 gates:** focused=`9/9`、generic shadow=`17/17`、full unittest=`538/538`、compileall 与 `git diff --check` 已通过；real-data shadow=`NOT_RUN_PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
-- **停止条件:** 已 push 新分支、创建 PR、验证 implementation tip 的 final remote checks；本次 docs-only governance closeout 后保持 PR OPEN，等待 Sol review；禁止 merge 新 PR。
+- **本地 gates:** Daily Chain=`16/16`、Portfolio Risk=`24/24`、Position Management=`18/18`、generic shadow=`17/17`、full unittest=`545/545`、targeted compileall 与 `git diff --check` 已通过；real-data shadow=`NOT_RUN_PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
+- **停止条件:** 已 push 新分支、创建 PR、验证 correctness-hardening tip 的 final remote checks；保持 PR OPEN，等待 Sol review；禁止 merge 新 PR。
 
 ## 1A. Previous Objective — PORTFOLIO_RISK_V1
 
@@ -379,25 +379,26 @@
 ## 10B. Current Next Action — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
 
 1. [x] PR #59 Portfolio Risk V1 已完成授权 closeout：squash merge=`dc03631b80c6118e0ef088739de277ab50f17220`；merge-after `CI Test Gate`=`33647739171` success。
-2. [x] 已从真实 merged main 创建 `codex/prospective-daily-decision-chain-v1`，完成 Daily Chain V1 implementation、focused/full tests、compileall、diff-check 与 17-case generic shadow。
-3. [x] commit/push 新分支并创建 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1` PR #64。
-4. [x] implementation tip=`5f2d95f3ce6db7b46ccc7da9ee672c270733107a` 的 exact-head CI Test Gate=`33650883375`、Daily Chain generic shadow=`33650883156`、Portfolio Risk generic shadow=`33650883142` 均 success。
-5. [x] 停止在 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_READY_FOR_SOL_REVIEW`，等待 Sol review；不得 merge 新 PR。
+2. [x] 已从真实 merged main 创建 `codex/prospective-daily-decision-chain-v1`，完成 Daily Chain V1 implementation、Sol finding hardening、focused/full tests、compileall、diff-check 与 17-case generic shadow。
+3. [x] 本地 source commit=`0ce6bdd`；尚待 push existing branch 并获取新 tip 的 exact-head checks。
+4. [ ] push 后核对 PR #64 live state、final remote HEAD 与 exact-head CI Test Gate / Daily Chain shadow / Portfolio Risk shadow。
+5. [ ] 完成核验后停止在 `PR_FULLY_READY_FOR_SOL_REVIEW`，等待 Sol review；不得 merge PR #64。
 
 ## 11B. Current Handoff Checklist
 
 - [x] Current Objective 已切换为 Prospective Daily Decision Chain V1。
 - [x] 真实 merged main、Portfolio Risk PR #59 merge SHA 与 merge-after CI 已核对。
 - [x] Daily Chain contract 明确 T 日 `data <= T`、same-day new CONFIRMED、exact identity、T/T+1 phase、Portfolio Risk constants 与 fail-closed prerequisites。
+- [x] Sol hardening 已覆盖 data-before-PM、canonical open-position merge/conflict、dual-CONFIRMED invariant guard、protocol-only settlement、mixed as-of 与 prerequisite report classification；未改冻结策略语义。
 - [x] 生产 audit 已完成：strategy universe、NAV、risk group、position origin、exact calendar、persistent store 均没有现成 authoritative SSOT；未用 watchlist/holdings/weekday guard 偷换。
 - [x] focused/full unittest、17/17 synthetic shadow、compileall 与 `git diff --check` 已完成；未访问 broker/holdings/Secrets/Sheets，未做 real-data shadow。
 - [x] 新 PR #64 已创建；implementation tip 的 final exact-head CI/shadow 已 success；docs-only governance closeout 不自引用其自身 SHA。
 
 ## 12B. Current Last Verified
 
-- `last_updated_at`: `2026-09-02`
+- `last_updated_at`: `2026-09-03`
 - `verified_origin_main_sha`: `dc03631b80c6118e0ef088739de277ab50f17220` (live GitHub)
-- `current_branch`: `codex/prospective-daily-decision-chain-v1`; PR #64 OPEN / MERGEABLE / merged=false; implementation tip=`5f2d95f3ce6db7b46ccc7da9ee672c270733107a`
+- `current_branch`: `codex/prospective-daily-decision-chain-v1`; local hardening tip=`0ce6bdd`; PR #64 remote push/exact-head verification pending
 - `final_remote_head_and_exact_checks`: final PR tip and its exact-head checks are verified live on GitHub; the latest substantive implementation tip is `5f2d95f3ce6db7b46ccc7da9ee672c270733107a`, with CI=`33650883375`, Daily Chain shadow=`33650883156`, and Portfolio Risk shadow=`33650883142`; the later governance-only tip is intentionally not self-referenced.
 - `portfolio_risk_merge`: PR #59 -> `dc03631b80c6118e0ef088739de277ab50f17220`; merge-after CI=`33647739171` success
 - `daily_chain_protocol`: `PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-02-v1`
