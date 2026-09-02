@@ -398,6 +398,7 @@
 - `last_updated_at`: `2026-09-02`
 - `verified_origin_main_sha`: `dc03631b80c6118e0ef088739de277ab50f17220` (live GitHub)
 - `current_branch`: `codex/prospective-daily-decision-chain-v1`; PR #64 OPEN / MERGEABLE / merged=false; implementation tip=`5f2d95f3ce6db7b46ccc7da9ee672c270733107a`
+- `final_remote_head_and_exact_checks`: final PR tip and its exact-head checks are verified live on GitHub; the latest substantive implementation tip is `5f2d95f3ce6db7b46ccc7da9ee672c270733107a`, with CI=`33650883375`, Daily Chain shadow=`33650883156`, and Portfolio Risk shadow=`33650883142`; the later governance-only tip is intentionally not self-referenced.
 - `portfolio_risk_merge`: PR #59 -> `dc03631b80c6118e0ef088739de277ab50f17220`; merge-after CI=`33647739171` success
 - `daily_chain_protocol`: `PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-02-v1`
 - `latest_test_result`: daily chain focused `9/9 OK`; full unittest `538/538 OK`; generic operational shadow `17/17 SUCCESS`; compileall and `git diff --check` pass; exact-head CI=`33650883375`, Daily Chain shadow=`33650883156`, Portfolio Risk shadow=`33650883142` success

@@ -28,7 +28,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`dc03631b80c6118e0ef088739de277ab50f17220`，为 Portfolio Risk V1 PR #59 的真实 squash merge commit；merge-after `CI Test Gate` run=`33647739171` success。
 - Current checkout: `codex/prospective-daily-decision-chain-v1`，从上述 clean main 创建；prospective chain implementation、tests、shadow、workflow 与 docs 已在本地完成，replay output 保持在 ignored `artifacts/`。
-- PR #50/#51/#59/#60/#61 已 `MERGED`；Daily Decision Chain 新 PR 尚待 push/create，未自动 merge。
+- PR #50/#51/#59/#60/#61 已 `MERGED`；Daily Decision Chain PR #64 已 `OPEN / MERGEABLE / merged=false`，未自动 merge。
 - PR #45 已成功 squash merged，PR #38 也已正式 MERGED；其历史 exact-head 证据保留不变。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit/Wave5 semantics frozen；Portfolio Risk V1 已 merged；当前授权任务为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1`，停止节点为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
