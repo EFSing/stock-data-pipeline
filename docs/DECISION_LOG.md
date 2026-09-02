@@ -1405,3 +1405,72 @@ Restore instructions are in `docs/FROZEN_DATASET_RESTORE.md`; expected restore
 destination is `artifacts/development_strategy_stability_v2/`. Final state:
 `FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE` and
 `HANDOFF_CURRENT_AND_CONSISTENT`.
+
+## 2026-09-02 — Position Management + Exit v1 merge closeout
+
+**Decision:** Sol approved `APPROVE_POSITION_MANAGEMENT_EXIT_V1_MERGE_AND_PROCEED_PORTFOLIO_RISK_V1`.
+PR #51 was rechecked at exact head `2dbb7a751916921a29360b28467de92e150683e3`,
+base `main@07e267bdcae32e8fb4bbc8ee07f9758703feaa09`, and `OPEN / CLEAN /
+MERGEABLE`. Its final body records the corrected `25/25` focused and `499/499`
+full evidence, `FROZEN_REPLAY_CACHE_SEMANTIC_PARITY_CONFIRMED`,
+`first_mismatch=null`, 40 symbols / 84,284 bars, immutable PositionTarget
+provenance correction, synthetic Position Management shadow, 3 positions / 134
+position-days / 30 stop raises, and Wave5 context/action summary.
+
+**Merge:** PR #51 was squash merged. The real merge commit is
+`993d03e428b7eb11da791a608940c9d77a608f96`; local `main` was fast-forwarded to
+that exact commit. Merge-after main exact-head `CI Test Gate` run
+`33607481962` completed successfully. Governance state is
+`POSITION_MANAGEMENT_EXIT_V1_MERGED`.
+
+**Boundary:** The next independent branch is `codex/portfolio-risk-v1` from
+clean merged main. No Portfolio Risk rule is inserted into SETUP_01/SETUP_02;
+Entry, Wave, Swing, Target, minimum R/R, Position Management, Exit, and Wave5
+semantics remain frozen.
+
+## 2026-09-02 — Portfolio Risk V1 implementation and replay
+
+**Decision:** Implement only `PORTFOLIO-RISK-2026-09-02-v1` as a simple,
+conservative, fail-closed downstream capacity gate. It accepts only individual
+`ENTRY_ALLOWED` decisions and applies `BASE_RISK_FRACTION=0.005`,
+`MAX_TOTAL_OPEN_RISK_FRACTION=0.02`, and
+`MAX_RISK_PER_GROUP_FRACTION=0.01`. Development uses fixed normalized
+`reference_nav=1.0`; production requires reliable NAV and does not guess
+account value. The existing `position_size()` engine is reused for theoretical
+quantity; stop distance is never narrowed.
+
+**Identity and concentration:** One open long per canonical symbol is enforced
+with `BLOCK_EXISTING_POSITION_SAME_SYMBOL`. Risk groups are supplied only from
+reliable existing metadata; no correlation inference or external provider is
+used. `UNKNOWN` carries `RISK_GROUP_UNKNOWN` in development and fails closed
+for production new entry with `BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION`. CN/US risk
+and counts are diagnostics only, with no market hard cap.
+
+**Reservation and replay:** Same-session candidates use deterministic
+`HIGH_ASYMMETRY → HIGH_QUALITY → NORMAL`, planned T1 R/R descending, and
+canonical-symbol ascending order. Failed exact T+1 attempts release their
+reservations immediately; only `EXECUTED` creates an open portfolio position.
+Position Management's active protective stop supplies remaining downside risk;
+stop raises and exits release future capacity without changing upstream stops,
+MFE floor, exits, NAV, or Wave5 behavior.
+
+**Evidence:** Frozen v2 mechanical replay used 40/40 symbols and 84,284 bars.
+It produced 8 individual `ENTRY_ALLOWED` candidates, 8 proposals/reservations,
+8 approved reservations, 5 failed-T+1 releases, and 3 final executions. Maximum
+observed total open risk was `0.006810510087817472`; all 8 candidates had the
+development `RISK_GROUP_UNKNOWN` advisory. Position Management remained 3
+positions / 134 position-days / 30 stop raises with actions
+`EXIT=3 / HOLD=11 / NO_ADD=96 / PROFIT_PROTECTION=24` and Wave5 contexts
+`19 / 19 / 96`. Upstream invariance and cached semantic parity passed.
+
+**Synthetic boundary:** The synthetic Portfolio Risk shadow passed `17/17`
+cases, including exact risk boundaries, group/symbol blocks, UNKNOWN handling,
+stop-raise/exit release, failed-T+1 release, deterministic ordering, no future
+metric use, no geometry mutation, exact-once ledger, and future-append
+invariance. No broker, holdings, account/NAV secret, Sheets write, return,
+portfolio P&L, equity curve, drawdown, Sharpe, win rate, expectancy, profit
+factor, optimization, or Final OOS path was accessed.
+
+**Stop:** New PR for `codex/portfolio-risk-v1` must remain OPEN for Sol review;
+do not merge automatically. Final state is
+`PORTFOLIO_RISK_V1_READY_FOR_SOL_REVIEW`.

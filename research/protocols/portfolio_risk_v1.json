@@ -1,0 +1,155 @@
+{
+  "schema_version": "portfolio-risk-protocol-v1",
+  "protocol_version": "PORTFOLIO-RISK-2026-09-02-v1",
+  "status": "PORTFOLIO_RISK_V1_READY_FOR_SOL_REVIEW",
+  "scope": "DOWNSTREAM_PORTFOLIO_CAPACITY_GATE_ONLY",
+  "upstream_contract": {
+    "accepted_individual_action": "ENTRY_ALLOWED",
+    "source_setups": ["SETUP_01", "SETUP_02"],
+    "entry_geometry_mutated": false,
+    "stop_mutated": false,
+    "target_mutated": false,
+    "new_entry_generated": false,
+    "position_management_and_exit_mutated": false,
+    "wave5_strategy_created": false
+  },
+  "risk_unit": {
+    "base_risk_fraction": 0.005,
+    "risk_per_trade": "0.5% NAV",
+    "planned_risk_capital": "reference_nav * 0.005",
+    "quantity": "risk_capital / abs(entry - execution_stop)",
+    "position_size_engine": "trading.risk.position_size",
+    "quantity_rounding": "NONE_IN_V1_THEORETICAL_ONLY"
+  },
+  "reference_nav": {
+    "development_mode": "DEVELOPMENT_EXPOSED",
+    "development_reference_nav": 1.0,
+    "development_nav_is_fixed": true,
+    "historical_gain_loss_updates_nav": false,
+    "production_missing_input": "PORTFOLIO_NAV_REQUIRED",
+    "production_prerequisite": "PRODUCTION_PORTFOLIO_NAV_INPUT_REQUIRED"
+  },
+  "aggregate_risk": {
+    "max_total_open_risk_fraction": 0.02,
+    "max_risk_per_group_fraction": 0.01,
+    "remaining_risk": "max(quantity * max(current_price - active_protective_stop, 0) / reference_nav, 0)",
+    "stop_at_or_above_actual_entry": "remaining_loss_risk = 0",
+    "locked_profit_negative_offset": false,
+    "total_gate": "portfolio_open_risk + proposed_initial_risk <= 0.02",
+    "group_gate": "known_group_open_risk + proposed_initial_risk <= 0.01",
+    "total_block_reason": "BLOCK_TOTAL_RISK_BUDGET",
+    "group_block_reason": "BLOCK_RISK_GROUP_CONCENTRATION"
+  },
+  "identity": {
+    "same_symbol_policy": "ONE_OPEN_LONG_POSITION_PER_CANONICAL_SYMBOL",
+    "same_symbol_block_reason": "BLOCK_EXISTING_POSITION_SAME_SYMBOL",
+    "canonicalization": "TRIM_AND_UPPERCASE_ONLY_NO_EXCHANGE_GUESS"
+  },
+  "risk_group": {
+    "metadata_source": "SUPPLIED_RELIABLE_SECTOR_METADATA_ONLY",
+    "historical_correlation_inference": false,
+    "external_provider": false,
+    "unknown_value": "UNKNOWN",
+    "development_unknown_behavior": "ALLOW_WITH_RISK_GROUP_UNKNOWN_ADVISORY",
+    "production_unknown_behavior": "BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION",
+    "production_prerequisite": "PRODUCTION_RISK_GROUP_METADATA_REQUIRED_FOR_NEW_ENTRY"
+  },
+  "market_diagnostics": {
+    "fields": [
+      "CN_open_risk",
+      "US_open_risk",
+      "CN_position_count",
+      "US_position_count"
+    ],
+    "hard_cap": false,
+    "no_threshold_from_replay": true
+  },
+  "simultaneous_ordering": [
+    "HIGH_ASYMMETRY before HIGH_QUALITY before NORMAL",
+    "T1 planned RR descending within quality",
+    "canonical symbol ascending tie-break"
+  ],
+  "t_plus_1": {
+    "sequence": "Individual Decision ENTRY_ALLOWED -> Portfolio Risk reservation -> T+1 OPEN execution gate",
+    "failed_attempt_releases_reservation": true,
+    "release_reason": "RESERVATION_RELEASED_ON_FAILED_T1",
+    "open_position_created_only_for": "EXECUTED"
+  },
+  "position_management_interaction": {
+    "active_stop_source": "Position Management active_protective_stop",
+    "stop_raise_releases_future_capacity": true,
+    "stop_is_not_changed": true,
+    "mfe_floor_is_not_changed": true,
+    "exit_is_not_triggered": true,
+    "unrealized_profit_in_nav": false,
+    "negative_risk_offset": false,
+    "no_add_action_blocks_same_symbol": true,
+    "exit_removes_position_next_session": true
+  },
+  "replay_contract": {
+    "dataset_mode": "DEVELOPMENT_EXPOSED",
+    "dataset_identity": "FROZEN_DATASET_MARKET_SESSION_SET",
+    "source_layers": [
+      "frozen SETUP_01 Decision/Execution stream",
+      "frozen corrected SETUP_02 Decision/Execution stream",
+      "frozen Position Management v1 output"
+    ],
+    "allowed_outputs": [
+      "individual_ENTRY_ALLOWED_count",
+      "portfolio_proposals",
+      "reservations",
+      "approved_rejected_counts",
+      "block_reasons",
+      "risk_before_after",
+      "risk_group_exposure",
+      "market_exposure",
+      "simultaneous_ordering",
+      "failed_T1_reservation_release",
+      "final_EXECUTED_positions",
+      "stop_raise_and_exit_capacity_release",
+      "per_session_risk_ledger",
+      "conservation_exact_once",
+      "source_invariance",
+      "cache_semantic_parity"
+    ],
+    "forbidden_outputs": [
+      "return",
+      "portfolio_P_and_L",
+      "equity_curve",
+      "drawdown",
+      "Sharpe",
+      "win_rate",
+      "expectancy",
+      "profit_factor",
+      "optimization",
+      "Final_OOS"
+    ]
+  },
+  "synthetic_boundaries": [
+    "single 0.5% position allowed",
+    "exact 2.0% total risk allowed",
+    "above 2.0% total risk blocked",
+    "same symbol blocked",
+    "known group first and second allowed within 1%",
+    "third full-risk same group blocked",
+    "UNKNOWN development advisory",
+    "UNKNOWN production fail closed",
+    "stop above entry reduces remaining risk to zero",
+    "negative risk never offsets",
+    "position exit releases risk",
+    "failed T+1 releases reservation",
+    "deterministic RR ordering",
+    "no future metric in ordering",
+    "no entry/stop/target mutation",
+    "exact-once ledger",
+    "future append invariance"
+  ],
+  "governance": {
+    "production_execution": false,
+    "broker_access": false,
+    "holdings_access": false,
+    "sheets_write": false,
+    "new_pr_merge": false,
+    "stop_state": "PORTFOLIO_RISK_V1_READY_FOR_SOL_REVIEW"
+  }
+}
