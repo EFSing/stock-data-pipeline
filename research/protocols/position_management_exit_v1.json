@@ -1,0 +1,137 @@
+{
+  "schema_version": "position-management-exit-protocol-v1",
+  "protocol_version": "POSITION-MANAGEMENT-EXIT-2026-09-02-v1",
+  "status": "POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW",
+  "scope": "DEVELOPMENT_EXPOSED_MECHANICAL_REPLAY_ONLY",
+  "input_contract": {
+    "source_setups": ["SETUP_01", "SETUP_02"],
+    "accepted_execution_outcome": "EXECUTED",
+    "non_executed_rows": "ignored",
+    "entry_rescreening": false,
+    "new_entry_generation": false,
+    "immutable_origin_fields": [
+      "source_setup",
+      "source_event_identity",
+      "symbol",
+      "market",
+      "entry_date",
+      "actual_entry",
+      "initial_execution_stop",
+      "initial_structural_invalidation",
+      "targets_T1_T2_T3",
+      "original_wave_anchors",
+      "initial_risk_per_share"
+    ],
+    "one_r": "actual_entry - initial_execution_stop",
+    "one_r_constraint": "> 0 and never redefined"
+  },
+  "causal_daily_replay": {
+    "current_r": "(close - actual_entry) / one_r",
+    "mfe_r": "(max(entry_high, highs_through_t) - actual_entry) / one_r",
+    "mae_r": "(min(entry_low, lows_through_t) - actual_entry) / one_r",
+    "mfe_drawdown_r": "mfe_r - current_r",
+    "future_data": false,
+    "new_stops_active": "next market session only"
+  },
+  "stop_and_exit_rules": {
+    "initial_stop": "active from the first position session",
+    "stop_direction": "active stop may only increase",
+    "structural_trailing": {
+      "source": "causally confirmed higher-low",
+      "candidate": "confirmed_higher_low - 0.5 * ATR14",
+      "constraints": ["candidate > active_stop_at_open", "candidate < T close"],
+      "activation": "next session only"
+    },
+    "mfe_floor": {
+      "trigger": "first MFE_R >= 2R",
+      "maximum_giveback": "1R",
+      "floor": "actual_entry + (MFE_R - 1R) * one_r",
+      "monotonic": true,
+      "activation": "next session only",
+      "close_below_floor": "PROFIT_PROTECTION_EXIT_PENDING; earliest next OPEN",
+      "replay_tuning": false
+    },
+    "mechanical_stop_execution": [
+      "next-session OPEN <= active stop -> EXIT_GAP_BELOW_STOP at OPEN",
+      "otherwise LOW <= active stop -> EXIT_STOP_TRIGGERED at active stop"
+    ],
+    "structural_exit": "close clearly below current structural invalidation/protected higher-low -> STRUCTURAL_EXIT_PENDING; earliest next OPEN",
+    "pending_exit_priority": "structural pending before MFE pending when both are present"
+  },
+  "targets": {
+    "tracking": ["NOT_REACHED", "T1_REACHED", "T2_REACHED", "T3_REACHED"],
+    "source": "HIGH only",
+    "origin_target_type": "immutable PositionTarget(price, source, provenance)",
+    "provenance_policy": "copy first three Decision target candidates exactly; no target re-computation",
+    "automatic_sell": false
+  },
+  "wave5_context": {
+    "protocol_version": "WAVE-5-CONTEXT-2026-09-02-v1",
+    "states": ["NO_WAVE5_CONTEXT", "WAVE4_PULLBACK_CONTEXT", "WAVE5_CANDIDATE"],
+    "sequence": "confirmed HIGH3 -> confirmed LOW4",
+    "low4_constraint": "LOW4 > original Wave2 low",
+    "candidate_constraint": "strict T close > HIGH3",
+    "evidence": ["supporting_evidence", "counter_evidence", "invalidation", "swing_provenance"],
+    "position_scope": "still-open 3-wave positions only",
+    "risk_effect": ["NO_ADD", "advisory PROFIT_PROTECTION"],
+    "force_exit": false
+  },
+  "risk_flags": [
+    "WAVE5_CANDIDATE",
+    "FIB_TARGET_PROXIMITY",
+    "FIB_TARGET_REACHED",
+    "CONFIRMED_SWING_TARGET_PROXIMITY",
+    "CONFIRMED_SWING_TARGET_REACHED",
+    "ABNORMAL_HIGH_VOLUME",
+    "PRICE_STALL",
+    "LONG_UPPER_WICK",
+    "MOMENTUM_DIVERGENCE"
+  ],
+  "action_priority": [
+    "confirmed exit execution -> EXIT",
+    "pending structural/MFE exit -> PROFIT_PROTECTION",
+    "WAVE5_CANDIDATE -> NO_ADD",
+    "stop raised or high-risk flag -> PROFIT_PROTECTION",
+    "otherwise -> HOLD"
+  ],
+  "replay_contract": {
+    "dataset_mode": "DEVELOPMENT_EXPOSED",
+    "dataset_identity": "FROZEN_DATASET_MARKET_SESSION_SET",
+    "source_layers": "frozen SETUP_01 executed ledger and corrected SETUP_02 ledger",
+    "outcome_re_screen": false,
+    "allowed_outputs": [
+      "positions_opened",
+      "position_days",
+      "CurrentR",
+      "MFE_R",
+      "MAE_R",
+      "MFE_drawdown_R",
+      "stop_raises",
+      "pending_and_exit_counts",
+      "Wave4_Wave5_context",
+      "target_reach",
+      "action_counts",
+      "cache_semantic_parity",
+      "causal_and_conservation_checks",
+      "per_symbol_ledger"
+    ],
+    "forbidden_outputs": [
+      "win_rate",
+      "aggregate_P_and_L",
+      "expectancy",
+      "profit_factor",
+      "Sharpe",
+      "optimized_thresholds",
+      "Final_OOS"
+    ]
+  },
+  "governance": {
+    "synthetic_generic_shadow": true,
+    "production_execution": false,
+    "broker_access": false,
+    "holdings_access": false,
+    "sheets_write": false,
+    "new_pr_merge": false,
+    "stop_state": "POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW"
+  }
+}

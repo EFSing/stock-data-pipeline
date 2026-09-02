@@ -13,9 +13,10 @@
 """
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections import defaultdict
 from datetime import date, timedelta
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from core import Quote
 from trading.fibonacci import fibonacci_levels, fibonacci_regions
@@ -246,6 +247,12 @@ def evaluate_wave_scenario(
     as_of_date: date | None = None,
     daily_swing_lookback: int = 5,
     weekly_swing_lookback: int = 5,
+    *,
+    _as_of_index: int | None = None,
+    _daily_swings_all: Sequence[SwingPoint] | None = None,
+    _weekly_swings_all: Sequence[SwingPoint] | None = None,
+    _weekly_quote_dates: Sequence[date] | None = None,
+    _skip_validation: bool = False,
 ) -> WaveScenarioEvaluation:
     """Evaluate a Wave Scenario using only bars available at ``as_of_date``.
 
@@ -253,27 +260,56 @@ def evaluate_wave_scenario(
     historical comparisons callers should pass it explicitly; this makes the
     future-bar append invariant observable and testable.
     """
-    validate_quote_series(quotes)
+    if not _skip_validation:
+        validate_quote_series(quotes)
     if daily_swing_lookback < 1 or weekly_swing_lookback < 1:
         raise ValueError("Wave Swing lookback 必须 >= 1")
-    resolved_as_of = as_of_date or quotes[-1].trade_date
-    bounded = [quote for quote in quotes if quote.trade_date <= resolved_as_of]
-    if not bounded:
-        raise ValueError("as_of_date 之前没有可用行情")
+    if _as_of_index is not None:
+        if _as_of_index < 0 or _as_of_index >= len(quotes):
+            raise IndexError("_as_of_index 超出 quotes 范围")
+        resolved_as_of = quotes[_as_of_index].trade_date
+        current_close = float(quotes[_as_of_index].close)
+        if _daily_swings_all is None or _weekly_swings_all is None or _weekly_quote_dates is None:
+            raise ValueError("fast as-of evaluation requires cached daily/weekly swings")
+        daily_swings_all = tuple(_daily_swings_all)
+        daily_as_of_index = _as_of_index
+    else:
+        resolved_as_of = as_of_date or quotes[-1].trade_date
+        bounded = [quote for quote in quotes if quote.trade_date <= resolved_as_of]
+        if not bounded:
+            raise ValueError("as_of_date 之前没有可用行情")
+        current_close = float(bounded[-1].close)
+        daily_swings_all = (
+            list(_daily_swings_all)
+            if _daily_swings_all is not None
+            else find_swings(bounded, lookback=daily_swing_lookback)
+        )
+        daily_as_of_index = len(bounded) - 1
 
-    daily_swings_all = find_swings(bounded, lookback=daily_swing_lookback)
-    daily_swings = _confirmed_swings(daily_swings_all, len(bounded) - 1)
+    daily_swings = _confirmed_swings(daily_swings_all, daily_as_of_index)
     daily_structure = market_structure(list(daily_swings))
 
-    weekly_quotes = aggregate_completed_weekly_quotes(bounded, resolved_as_of)
-    weekly_swings_all = (
-        find_swings(weekly_quotes, lookback=weekly_swing_lookback)
-        if weekly_quotes
-        else []
-    )
-    weekly_swings = _confirmed_swings(
-        weekly_swings_all, len(weekly_quotes) - 1
-    ) if weekly_quotes else ()
+    if _as_of_index is not None:
+        weekly_dates = tuple(_weekly_quote_dates)
+        weekly_count = bisect_right(weekly_dates, resolved_as_of)
+        if (
+            weekly_count
+            and _week_key(weekly_dates[weekly_count - 1]) == _week_key(resolved_as_of)
+            and resolved_as_of.weekday() < 4
+        ):
+            weekly_count -= 1
+        weekly_swings_all = tuple(_weekly_swings_all)
+        weekly_swings = _confirmed_swings(weekly_swings_all, weekly_count - 1)
+    else:
+        weekly_quotes = aggregate_completed_weekly_quotes(bounded, resolved_as_of)
+        weekly_swings_all = (
+            find_swings(weekly_quotes, lookback=weekly_swing_lookback)
+            if weekly_quotes
+            else []
+        )
+        weekly_swings = _confirmed_swings(
+            weekly_swings_all, len(weekly_quotes) - 1
+        ) if weekly_quotes else ()
     weekly_structure = market_structure(list(weekly_swings))
 
     abc = _latest_abc(daily_swings)
@@ -309,7 +345,7 @@ def evaluate_wave_scenario(
                 "confirmed LOW→HIGH→LOW sequence exists",
                 "candidate impulse high is above its origin",
             ]
-            if bounded[-1].close <= origin.price:
+            if current_close <= origin.price:
                 w2_candidate = _scenario(
                     WaveScenarioFamily.UPTREND_UNKNOWN_WAVE,
                     evidence=(
@@ -332,7 +368,7 @@ def evaluate_wave_scenario(
             else:
                 if weekly_structure.trend is not Trend.DOWNTREND:
                     base_evidence.append("weekly parent context does not explicitly conflict with long structure")
-                if bounded[-1].close > peak.price:
+                if current_close > peak.price:
                     base_evidence.append("as-of close is above the impulse peak; Wave 3 is only a candidate")
                 else:
                     base_evidence.append("as-of close has not exceeded the impulse peak; Wave 2 remains WATCH-like")
@@ -372,7 +408,7 @@ def evaluate_wave_scenario(
     ):
         low0, high1, low2, high3 = expansion
         last_confirmed_low = daily_structure.lows[-1] if daily_structure.lows else low2
-        holds_structure = bounded[-1].close > last_confirmed_low.price
+        holds_structure = current_close > last_confirmed_low.price
         continuation_evidence = [
             "confirmed higher-high/higher-low expansion sequence exists",
             "daily market structure is UPTREND",
@@ -383,7 +419,7 @@ def evaluate_wave_scenario(
         continuation_counter = [
             "single EMA, RSI, or Fibonacci hit cannot establish continuation",
         ]
-        if bounded[-1].close <= high3.price:
+        if current_close <= high3.price:
             continuation_counter.append("as-of close has not broken the latest confirmed impulse high")
         continuation_candidate = _scenario(
             WaveScenarioFamily.WAVE_3_CONTINUATION_CANDIDATE,
@@ -407,7 +443,7 @@ def evaluate_wave_scenario(
         ):
             abc_impulse = _leg(origin, peak)
             abc_retracement = _leg(peak, c_low)
-            if bounded[-1].close <= origin.price:
+            if current_close <= origin.price:
                 abc_candidate = _scenario(
                     WaveScenarioFamily.UPTREND_UNKNOWN_WAVE,
                     evidence=(
@@ -521,7 +557,7 @@ def evaluate_wave_scenario(
     return WaveScenarioEvaluation(
         protocol_version=WAVE_ENGINE_PROTOCOL_VERSION,
         as_of_date=resolved_as_of,
-        as_of_close=bounded[-1].close,
+        as_of_close=current_close,
         weekly_state=weekly_structure.trend,
         daily_state=daily_structure.trend,
         weekly_swings=weekly_swings,
