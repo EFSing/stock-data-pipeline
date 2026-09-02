@@ -1358,6 +1358,10 @@ Position Management generic shadow and SETUP_02 generic shadow both returned
 access. The full unittest gate is `499/499`; the hardening/parity/PM focused
 set is `25/25`; compileall and `git diff --check` pass.
 
-**Governance:** PR #51 remains the only target, must remain OPEN and unmerged,
-and the final exact-head CI, generic shadow, and `OPEN / CLEAN / MERGEABLE`
-state must be verified after the final push. No merge is authorized.
+**Governance:** PR #51 remains the only target, is OPEN and unmerged, and the
+verified hardening head `7c02ca08abab467f8fe0bc6bd43ff158196992d8` is
+`OPEN / CLEAN / MERGEABLE`. Its exact-head `CI Test Gate` run is
+`33604216629` and its manually dispatched SETUP_02 generic shadow run is
+`33604268141`; both succeeded. A later governance-only documentation tip is
+not self-referenced here; the final live head/checks remain authoritative. No
+merge is authorized.
