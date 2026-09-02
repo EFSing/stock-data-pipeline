@@ -1575,8 +1575,12 @@ cache parity 3/3, and full unittest 529/529; compileall and diff-check passed.
 
 **Boundary / next node:** The full replay was rerun after cache parity and
 dataset restoration; it remained causal/conservative and upstream identity
-invariant. The task remains downstream-only, with no holdings, broker,
-account, Secrets, Sheets, returns, or OOS access. Push the rebased branch,
-live-verify PR #59 exact-head CI and generic shadow, then stop at
+invariant. Validation tip `e80c61bd72953754802290ee09e8171b5ffd447c` passed
+exact-head `CI Test Gate` run `33645523150` and Portfolio Risk generic shadow
+run `33645523141`. The live PR state was `OPEN / CLEAN / MERGEABLE /
+merged=false`. This final governance update is docs-only and does not
+self-reference; final PR tip/checks remain live GitHub evidence. The task
+remains downstream-only, with no holdings, broker, account, Secrets, Sheets,
+returns, or OOS access. Stop at
 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW` with
 `HANDOFF_CURRENT_AND_CONSISTENT`; do not merge.

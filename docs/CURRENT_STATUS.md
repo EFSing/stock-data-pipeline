@@ -21,7 +21,7 @@ V0.2
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`，为当前真实最新 main；该基线包含 Asia schedule、volume-validation non-blocking warning 与 frozen dataset archive/governance 更新。
 - Current checkout: `codex/portfolio-risk-v1`，已完成本地 rebase 到上述 main；replay output 保持在 ignored `artifacts/`。
-- PR #50/#51/#60/#61 已 `MERGED`；PR #59=`https://github.com/EFSing/stock-data-pipeline/pull/59` 为唯一目标，rebase 后 exact-head 与 CI 待推送核验，保持 OPEN / merged=false。
+- PR #50/#51/#60/#61 已 `MERGED`；PR #59=`https://github.com/EFSing/stock-data-pipeline/pull/59` 为唯一目标，rebase 后 validation tip=`e80c61bd72953754802290ee09e8171b5ffd447c` 的 exact-head CI 与 generic shadow 均 success，PR 保持 OPEN / CLEAN / MERGEABLE / merged=false。
 - PR #45 已成功 squash merged，PR #38 也已正式 MERGED；其历史 exact-head 证据保留不变。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit/Wave5 semantics frozen；当前授权任务为 `PORTFOLIO_RISK_V1`，停止节点为 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
@@ -36,7 +36,7 @@ V0.2
 
 - Sol approval=`APPROVE_POSITION_MANAGEMENT_EXIT_V1_MERGE_AND_PROCEED_PORTFOLIO_RISK_V1`；PR #51 source head=`2dbb7a751916921a29360b28467de92e150683e3` 已 squash merged 为 `993d03e428b7eb11da791a608940c9d77a608f96`，merge-after main CI `33607481962` success；治理状态=`POSITION_MANAGEMENT_EXIT_V1_MERGED`。
 - 分支：`codex/portfolio-risk-v1`，base=`main@f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`；本轮实现独立 Portfolio Risk PR，保持待 Sol review，不自动 merge。
-- PR #59 的本地 rebase 后 substantive source head=`96d3d52ef7baf6dacc0f464a07ca7a1c8b9ca1c0`；远端 exact-head CI/generic shadow 待推送后重新核验；治理文档的后续 docs-only tip 不自引用，live GitHub head/checks 为最终事实。
+- PR #59 的本地 rebase 后 substantive source head=`96d3d52ef7baf6dacc0f464a07ca7a1c8b9ca1c0`；validation tip=`e80c61bd72953754802290ee09e8171b5ffd447c`，exact-head `CI Test Gate`=`33645523150`、generic shadow=`33645523141` 均 success；后续 docs-only tip 不自引用，live GitHub head/checks 为最终事实。
 - 新增 `trading/portfolio_risk.py`、`research/portfolio_risk_replay.py`、synthetic shadow runner/workflow、对应 tests、`research/protocols/portfolio_risk_v1.json` 与 `docs/PORTFOLIO_RISK_V1.md`；既有 Setup/Wave/Decision/Position Management/Exit semantics 保持不变。
 - 冻结 risk unit：`BASE_RISK_FRACTION=0.005`；development `reference_nav=1.0`；total cap=`0.02`；known risk-group cap=`0.01`；production missing NAV=`PORTFOLIO_NAV_REQUIRED`，production UNKNOWN group=`BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION`。
 - frozen v2 replay（corrected）：40/40 symbols、84,284 bars；individual `ENTRY_ALLOWED=8`，portfolio proposals/reservations=`8`，approved=`8`，blocked=`0`，failed T+1 released=`5`，final `EXECUTED=3`；maximum observed open capital-loss risk=`0.005`；UNKNOWN advisory=`8`。
