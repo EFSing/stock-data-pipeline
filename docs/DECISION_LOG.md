@@ -1584,3 +1584,136 @@ remains downstream-only, with no holdings, broker, account, Secrets, Sheets,
 returns, or OOS access. Stop at
 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW` with
 `HANDOFF_CURRENT_AND_CONSISTENT`; do not merge.
+
+## 2026-09-02 — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+
+**Decision:** Build the prospective Daily Decision Chain as a read-only
+orchestration layer over the frozen Wave, SETUP_01/SETUP_02 Decision/Risk,
+Portfolio Risk, Position Management, and Wave5 contracts. SETUP_03 remains
+`STOP_SETUP_03_STRUCTURAL_DEVELOPMENT` and SETUP_04 remains unimplemented.
+The chain may emit a T-day prospective Decision, but it must not submit broker
+orders or claim that a mechanical T+1 ledger observation is a broker
+execution.
+
+**Reason:** The next product boundary is daily decision support on production
+data, not automatic trading. Keeping orchestration separate preserves the
+Single Source of Truth for Entry, Target, invalidation, stop, R/R, and T+1
+semantics while making missing production inputs explicit.
+
+**Decision:** Require production injection of a formal strategy universe,
+reliable NAV, accepted risk-group metadata, authoritative position origin, an
+exact exchange-calendar session identity, and a persistent DecisionStateStore.
+Missing prerequisites fail closed with machine-readable reasons while the
+individual Decision remains visible where safe. The current enabled
+`自选清单`, holdings view, ordinary weekday guard, and legacy SETUP_03
+`交易决策` Sheet are not silently promoted to those roles.
+
+**Reason:** The repository audit found no existing authoritative contract for
+those production facts. Choosing a new Sheets schema, GitHub state file,
+external database, account/NAV source, or exchange-calendar dependency would
+be a separate product decision and must not be hidden inside this phase.
+
+## 2026-09-03 — PR #64 Sol review correctness hardening
+
+**Decision:** Keep PR #64 open on its existing branch and apply only the
+smallest correctness hardening requested by Sol. Data quality now precedes
+Wave, Setup, Individual Decision, and Position Management replay; bad, stale,
+unavailable, or incomplete T data fails closed without synthetic Position
+Management metrics or actions. Position Management report classification is
+reserved for an actually observed authoritative replay; prerequisite failures
+remain in `数据/生产前置条件异常`.
+
+**Decision:** Portfolio Risk receives a canonical-symbol merge of global
+`existing_positions` and per-symbol authoritative
+`OpenPositionState.portfolio_position`. Identical key risk facts are counted
+once. A conflict in `source_event_identity`, `actual_entry`, `quantity`,
+`active_protective_stop`, or normalized `risk_group` fails closed with the
+single machine reason `PORTFOLIO_EXISTING_POSITION_CONFLICT`. Global positions
+remain supported so holdings outside the strategy universe can still consume
+risk capacity when supplied by an authoritative caller.
+
+**Decision:** The frozen Wave contract has one `primary_scenario`, and SETUP_01
+and SETUP_02 accept only their respective primary families. Therefore a dual
+same-symbol/T first-entry `CONFIRMED` is an upstream invariant violation, not
+a new trading-priority rule. The Daily Chain now fail-closes with
+`DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION`, creates no Portfolio candidate,
+and records both observed event identities with explicit disposition. No
+SETUP_01-over-SETUP_02 tie-break is retained.
+
+**Decision:** Settlement exact-once checks use only the existing
+`DecisionStateStore.get_settlement()` protocol method. `evaluate()` also
+rejects mixed `as_of_date` inputs before constructing a report. No persistence
+backend, strategy formula, Portfolio Risk constant, entry/target/RR rule,
+Position Management formula, Wave5 meaning, broker path, holdings mutation,
+or production universe decision changes in this hardening.
+
+**Reason:** These changes close orchestration boundary defects while preserving
+the frozen upstream Single Source of Truth. The dual-confirmed guard is
+contract protection and explicit event disposition, not an authorization to
+arbitrate between strategies.
+
+## 2026-09-03 — PR #64 final closeout: T+1 data gate and open-position risk-state gate
+
+**Decision:** Keep PR #64 open on its existing branch and add only the two
+requested orchestration closeouts. A due T+1 observation must have
+`data_quality_status == DATA_OK` and exactly one qfq bar at the exact
+`expected_execution_date` before the chain calls either frozen T+1 executor or
+`PortfolioRiskEngine.settle`. `DATA_BAD`, `DATA_STALE`, `DATA_UNAVAILABLE`,
+and a missing/ambiguous expected bar fail closed with
+`T1_EXECUTION_DATA_REQUIRED`; pending reservations remain pending, with no
+`EXECUTED`, strategy `SKIP` settlement, release, or `PositionOrigin`.
+
+**Decision:** Treat a non-null `OpenPositionState` as an existing-position
+claim even when its `portfolio_position` is absent. A new `ENTRY_ALLOWED` for
+that symbol is blocked with
+`PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED`. No quantity, actual entry,
+protective stop, or risk group is inferred from PositionOrigin, current price,
+holdings average cost, or chart history. Existing global/per-symbol
+authoritative position merge, deduplication, and conflict behavior is
+unchanged.
+
+**Verification:** Substantive source head
+`f3793ee0a887e4d313d61b6077c2a7a062ba7106` passed Daily Chain `19/19`,
+Portfolio Risk `24/24`, Position Management `18/18`, Daily Chain generic
+shadow `17/17`, Portfolio Risk generic shadow `18/18 checks`, full unittest
+`548/548`, compileall, and `git diff --check`. Exact-head GitHub checks for
+that source head are CI Test Gate `33707727452`, Daily Decision Chain shadow
+`33707727482`, and Portfolio Risk shadow `33707727516`; all succeeded.
+
+**Boundary:** No SETUP_01/02, Wave, Entry Zone, Target/RR, T+1 trading rule,
+Portfolio Risk formula/constant, Position Management, Wave5, broker/order,
+holdings, Sheets, cron, real-data shadow, parameter, or OOS semantics were
+changed. PR #64 remains `OPEN / MERGEABLE / merged=false`, with
+`HANDOFF_CURRENT_AND_CONSISTENT`; do not merge and stop for Sol review.
+
+## 2026-09-03 — PR #64 multi-symbol Portfolio blocker preservation
+
+**Decision:** Keep PR #64 open on its existing branch and apply only the
+narrow orchestration fix requested by Sol. When a known open position lacks
+`portfolio_position`, the existing per-identity fail-closed result remains in
+`portfolio_by_identity` while normal reservations from other symbols are
+merged into that mapping. Normal reservation identity remains
+`reservation.reservation_id == candidate.event_identity`.
+
+**Regression:** The same-as-of-date multi-symbol case now preserves
+`SYMBOL_A` as `PORTFOLIO_BLOCKED` with the exact reason
+`PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED`, with no reservation or pending
+T+1 risk. `SYMBOL_B` continues through the existing Portfolio Risk batch and
+receives its own normal reservation/result; the two identities do not
+overwrite one another.
+
+**Verification:** Substantive source head
+`90dffa5c311a24abeadbd472a35e77f40b754828` passed Daily Chain `20/20`,
+Portfolio Risk `24/24`, Position Management `18/18`, Daily Chain generic
+shadow `17/17`, Portfolio Risk generic shadow `18/18 checks`, full unittest
+`549/549`, compileall, and `git diff --check`. Exact-head GitHub checks for
+that source head are CI Test Gate `33708806893`, Daily Decision Chain shadow
+`33708806921`, and Portfolio Risk shadow `33708806939`; all succeeded.
+
+**Boundary:** No SETUP_01/02, Wave, Entry Zone, Target/RR, T+1 trading rule,
+Portfolio Risk formula/constant, Position Management, Wave5, broker/order,
+holdings, Sheets, cron, real-data shadow, parameter, OOS, or frozen strategy
+semantics were changed. The final governance-only docs commit may advance the
+remote tip without recursively self-referencing its own SHA in these records.
+PR #64 remains `OPEN / MERGEABLE / merged=false`; do not merge and stop for
+Sol review.

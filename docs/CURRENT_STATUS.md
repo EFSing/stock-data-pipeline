@@ -7,7 +7,19 @@ Version:
 V0.2
 ```
 
-## Latest Governance Event
+## Latest Governance Event — PR64_SOL_REVIEW_CORRECTNESS_HARDENING
+
+- Portfolio Risk V1 PR #59 已按授权完成 exact-head squash merge：真实 merge commit=`dc03631b80c6118e0ef088739de277ab50f17220`；merge-after `CI Test Gate` run=`33647739171` success；未执行任何 broker/order/holdings/Sheets strategy write。
+- 当前任务为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1`：基于上述 clean merged main 创建新分支，新增 T 日 prospective read-only Daily Decision Chain；只消费冻结 Wave、SETUP_01/SETUP_02 Decision/Risk、Portfolio Risk、Position Management、Wave5 contracts；不重启 SETUP_03，不实现 SETUP_04，不接 broker，不自动交易。
+- 新链路本地验证已通过：Daily Chain focused=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、Daily Chain generic shadow=`17/17`、Portfolio Risk generic shadow=`18/18 checks`、full unittest=`549/549`、compileall、`git diff --check`；生产 real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
+- 当前新分支为 `codex/prospective-daily-decision-chain-v1`，base=`main@dc03631b80c6118e0ef088739de277ab50f17220`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64` 当前 `OPEN / MERGEABLE / merged=false`，latest substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`，治理状态为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+- 本轮 Sol correctness hardening 已完成本地实现：Data Quality 先于 Wave/Setup/Individual Decision/Position Management；global 与 per-symbol authoritative positions canonical merge + conflict fail-closed；双 first-entry `CONFIRMED` upstream invariant guard；protocol-only settlement；mixed as-of fail-fast；Position Management prerequisite errors 归入数据/生产前置条件异常。
+- 双 `CONFIRMED` 经正式 contract 审计为当前不可达：Wave 只有一个 primary scenario，SETUP_01/02 只接受各自 primary family；本轮未增加交易优先级或修改冻结策略语义。
+- T+1 closeout：`DATA_BAD` / `DATA_STALE` / `DATA_UNAVAILABLE` 或 expected T+1 bar 缺失时，Daily Chain 不调用 execution / Portfolio Risk settlement，不生成 `EXECUTED` 或策略 `SKIP`，不 release reservation，不创建 PositionOrigin；`DATA_OK` 且 exact bar 存在时沿用原 settlement 语义。
+- Portfolio Risk closeout：已知 `OpenPositionState.has_position=true` 但 `portfolio_position=None` 时，新的 `ENTRY_ALLOWED` fail closed，reason=`PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED`；不从 PositionOrigin、current price、holdings average cost 或 chart history 猜测 risk state。
+- 多标的 batch closeout：SYMBOL_A 的上述 blocker 与 SYMBOL_B 的正常 reservation mapping 同时保留；SYMBOL_A 不产生 reservation/pending，SYMBOL_B 正常走原 Portfolio Risk batch。
+
+## Prior Latest Governance Event — FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE
 
 - `FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE` 已完成：私有 GitHub Release tag=`frozen-development-dataset-2026-08-28-v2`，URL=<https://github.com/EFSing/stock-data-pipeline/releases/tag/frozen-development-dataset-2026-08-28-v2>。
 - Archive=`stock-data-pipeline-frozen-development-v2.zip`，5,900,672 bytes，SHA-256=`sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`；独立 sums 与 metadata 同时作为 Release assets 上传。
@@ -19,11 +31,11 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` exact HEAD=`f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`，为当前真实最新 main；该基线包含 Asia schedule、volume-validation non-blocking warning 与 frozen dataset archive/governance 更新。
-- Current checkout: `codex/portfolio-risk-v1`，已完成本地 rebase 到上述 main；replay output 保持在 ignored `artifacts/`。
-- PR #50/#51/#60/#61 已 `MERGED`；PR #59=`https://github.com/EFSing/stock-data-pipeline/pull/59` 为唯一目标，rebase 后 validation tip=`e80c61bd72953754802290ee09e8171b5ffd447c` 的 exact-head CI 与 generic shadow 均 success，PR 保持 OPEN / CLEAN / MERGEABLE / merged=false。
+- GitHub `main` exact HEAD=`dc03631b80c6118e0ef088739de277ab50f17220`，为 Portfolio Risk V1 PR #59 的真实 squash merge commit；merge-after `CI Test Gate` run=`33647739171` success。
+- Current checkout: `codex/prospective-daily-decision-chain-v1`，从上述 clean main 创建；prospective chain implementation、tests、shadow、workflow 与 docs 已在本地完成，replay output 保持在 ignored `artifacts/`。
+- PR #50/#51/#59/#60/#61 已 `MERGED`；Daily Decision Chain PR #64 已 `OPEN / MERGEABLE / merged=false`，未自动 merge。
 - PR #45 已成功 squash merged，PR #38 也已正式 MERGED；其历史 exact-head 证据保留不变。
-- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit/Wave5 semantics frozen；当前授权任务为 `PORTFOLIO_RISK_V1`，停止节点为 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
+- 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit/Wave5 semantics frozen；Portfolio Risk V1 已 merged；当前授权任务为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1`，停止节点为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
 - PR #38 已正式 MERGED（merged=true），真实 merge commit 为 `e21935d17392a37ee9795e32a562e875dd741bfb`；合并前 tip `6abc8ebcde5635d4bf05b085e331fa15eb9b3f48` 的 exact-head CI `33355893831` success，merge 后 main exact-head CI `33362271501` success。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 Decision 与 Position Management/Exit/Wave5 layers frozen；`POSITION_MANAGEMENT_EXIT_V1_MERGED`；当前授权任务为 `PORTFOLIO_RISK_V1`，停止节点为 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
@@ -32,7 +44,17 @@ V0.2
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: PORTFOLIO_RISK_V1（等待 Sol review）
+## Current Task: PROSPECTIVE_DAILY_DECISION_CHAIN_V1（PR #64 hardening，等待 Sol review）
+
+- 分支：`codex/prospective-daily-decision-chain-v1`；base=`main@dc03631b80c6118e0ef088739de277ab50f17220`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64`，latest substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`，保持 OPEN，不自动 merge。
+- 新增 `trading/daily_decision_chain.py`、`tests/test_daily_decision_chain.py`、`scripts/run_daily_decision_chain_generic_operational_shadow.py`、`.github/workflows/daily-decision-chain-generic-operational-shadow.yml` 与 `docs/PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md`；`docs/DECISION_LOG.md` 已记录范围与 production prerequisite decisions。
+- T 日链路只消费 `data <= T` 的 immutable inputs；只接受同日、首次、明确标记 `is_new_confirmed_event_as_of=true` 的 SETUP_01/SETUP_02 `CONFIRMED` event；event identity 沿用现有 deterministic identity；T close 只形成 Decision/plan，T+1 execution 只在 exact exchange-calendar session identity 可用时进行观察性 settlement。
+- `DecisionStateStore`/`InMemoryDecisionStateStore`、injected `UniverseProvider`、Portfolio Risk frozen constants `0.005 / 0.02 / 0.01`、缺失 NAV/risk group/position origin/calendar/persistence 的 fail-closed reason 与六段中文优先报告已实现；无 broker/order/Sheets strategy write。
+- 实际 production strategy universe、可靠 NAV、accepted risk-group metadata、authoritative position origin、exact calendar 和 persistent store 尚无正式 SSOT；因此 real-data shadow=`NOT_RUN_PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`，不能用当前 watchlist 或真实 holdings 替代。
+- 本地验证：Daily Chain=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、Daily Chain generic shadow=`17/17`、Portfolio Risk generic shadow=`18/18 checks`、full unittest=`549/549`、compileall 与 `git diff --check` 通过；remote verification tip=`90dffa5c311a24abeadbd472a35e77f40b754828` 的 exact-head CI Test Gate=`33708806893`、Daily Chain shadow=`33708806921`、Portfolio Risk shadow=`33708806939` 均 success。
+- 本轮新增 Daily Chain regression=`20/20`（multi-symbol blocker preservation；既有 T+1 data guard、missing expected bar、known open position risk-state 与其他 hardening cases 保持绿色）；目标状态为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+
+## Previous Task: PORTFOLIO_RISK_V1（已 squash merged）
 
 - Sol approval=`APPROVE_POSITION_MANAGEMENT_EXIT_V1_MERGE_AND_PROCEED_PORTFOLIO_RISK_V1`；PR #51 source head=`2dbb7a751916921a29360b28467de92e150683e3` 已 squash merged 为 `993d03e428b7eb11da791a608940c9d77a608f96`，merge-after main CI `33607481962` success；治理状态=`POSITION_MANAGEMENT_EXIT_V1_MERGED`。
 - 分支：`codex/portfolio-risk-v1`，base=`main@f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`；本轮实现独立 Portfolio Risk PR，保持待 Sol review，不自动 merge。
@@ -57,7 +79,7 @@ V0.2
 - PR #51 的 hardening source=`e289281c7860615ca44bd402db6051756d56b357` 已随文档 closeout 推至 exact head=`7c02ca08abab467f8fe0bc6bd43ff158196992d8`；该 head 的 `CI Test Gate` run=`33604216629` 与 `SETUP_02 generic operational shadow` run=`33604268141` 均 success，PR live state=`OPEN / CLEAN / MERGEABLE`、`merged=false`。
 - Machine-readable protocol=`research/protocols/position_management_exit_v1.json`；中文协议=`docs/POSITION_MANAGEMENT_EXIT_V1.md`；停止节点为 `POSITION_MANAGEMENT_EXIT_V1_PREMERGE_HARDENED_READY_FOR_SOL_REVIEW`，PR #51 保持 OPEN，禁止 merge。
 
-## Current Task Correction: PREMERGE_PORTFOLIO_RISK_DEFINITION_CORRECTION
+## Previous Task Correction: PREMERGE_PORTFOLIO_RISK_DEFINITION_CORRECTION
 
 - Defect recorded as `PREMERGE_REMAINING_RISK_DEFINITION_DEFECT`：旧 `current_price - active_stop` 同时混合 mark-to-stop giveback 与 capital-loss risk，已从正式 Portfolio Risk contract 移除。
 - Frozen SSOT：`remaining_loss_risk_per_share = max(actual_entry - active_protective_stop, 0)`；`remaining_loss_risk_fraction = quantity * remaining_loss_risk_per_share / reference_nav`。Current price 不参与 capacity；MFE/MFE Drawdown 仍由 Position Management 管理。
