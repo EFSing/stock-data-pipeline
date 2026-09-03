@@ -8,6 +8,8 @@ from trading.daily_decision_chain import (
     CompletedSessionIdentity,
     DATA_BAD,
     DATA_OK,
+    DATA_STALE,
+    DATA_UNAVAILABLE,
     DailyChainEvaluators,
     DailyDecisionChain,
     DailySymbolInput,
@@ -15,8 +17,10 @@ from trading.daily_decision_chain import (
     InMemoryDecisionStateStore,
     OpenPositionState,
     PORTFOLIO_EXISTING_POSITION_CONFLICT,
+    PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED,
     POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT,
     PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED,
+    T1_EXECUTION_DATA_REQUIRED,
     T1ExecutionPhase,
 )
 from trading.models import DecisionAction, Setup01Evaluation, SetupState, Trend
@@ -324,6 +328,56 @@ class DailyDecisionChainTests(unittest.TestCase):
         self.assertEqual(len(store.settled), 1)
         self.assertIsNone(rerun.execution_outcome)
 
+    def test_non_ok_t1_data_keeps_pending_without_execution_settlement_or_origin(self):
+        history, t_day, event, evaluators = _fixture(t1=True)
+        t1 = t_day + timedelta(days=1)
+        for quality in (DATA_BAD, DATA_STALE, DATA_UNAVAILABLE):
+            with self.subTest(quality=quality):
+                store = InMemoryDecisionStateStore()
+                chain = DailyDecisionChain(store=store, evaluators=evaluators)
+                with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+                    chain.evaluate(
+                        [_input(history[:21], t_day, exact=True, next_day=t1)],
+                        mode="DEVELOPMENT_EXPOSED",
+                    )
+                    with patch(
+                        "trading.daily_decision_chain.execute_setup01_t1_open",
+                        side_effect=AssertionError("non-OK T+1 data must not execute"),
+                    ):
+                        result = chain.evaluate(
+                            [_input(history, t1, exact=True, quality=quality)],
+                            mode="DEVELOPMENT_EXPOSED",
+                        ).results[0]
+                self.assertIn(T1_EXECUTION_DATA_REQUIRED, result.blocking_prerequisites)
+                self.assertEqual(result.final_status, "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED")
+                self.assertEqual(set(store.pending), {event.event_identity})
+                self.assertEqual(store.settled, {})
+                self.assertEqual(store.position_origins, {})
+
+    def test_missing_expected_t1_bar_keeps_pending_without_strategy_skip_settlement(self):
+        history, t_day, event, evaluators = _fixture(t1=True)
+        t1 = t_day + timedelta(days=1)
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            chain.evaluate(
+                [_input(history[:21], t_day, exact=True, next_day=t1)],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+            with patch(
+                "trading.daily_decision_chain.execute_setup01_t1_open",
+                side_effect=AssertionError("missing expected T+1 bar must not execute"),
+            ):
+                result = chain.evaluate(
+                    [_input(history[:21], t1, exact=True)],
+                    mode="DEVELOPMENT_EXPOSED",
+                ).results[0]
+        self.assertIn(T1_EXECUTION_DATA_REQUIRED, result.blocking_prerequisites)
+        self.assertEqual(result.final_status, "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED")
+        self.assertEqual(set(store.pending), {event.event_identity})
+        self.assertEqual(store.settled, {})
+        self.assertEqual(store.position_origins, {})
+
     def test_stale_data_never_runs_upstream_chain(self):
         history, t_day, _, evaluators = _fixture()
         position = OpenPositionState(
@@ -400,6 +454,25 @@ class DailyDecisionChainTests(unittest.TestCase):
                 existing_positions=(global_position,),
             ).results[0]
         self.assertEqual(result.portfolio_result.reason, PORTFOLIO_EXISTING_POSITION_CONFLICT)
+
+    def test_known_open_position_without_portfolio_risk_state_blocks_new_entry(self):
+        history, t_day, event, evaluators = _fixture()
+        state = OpenPositionState(
+            "CHAIN.SYNTH",
+            "US",
+            origin=_position_origin(),
+            portfolio_position=None,
+        )
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(evaluators=evaluators).evaluate(
+                [_input(history, t_day, position=state)],
+                mode="DEVELOPMENT_EXPOSED",
+            ).results[0]
+        self.assertEqual(result.individual_decision.action, DecisionAction.ENTRY_ALLOWED)
+        self.assertIsNotNone(result.position_management)
+        self.assertEqual(result.portfolio_result.status, "PORTFOLIO_BLOCKED")
+        self.assertEqual(result.portfolio_result.reason, PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED)
+        self.assertNotEqual(result.final_status, "PORTFOLIO_ALLOWED")
 
     def test_protocol_only_store_uses_get_settlement_for_exact_once(self):
         history, t_day, event, evaluators = _fixture(t1=True)

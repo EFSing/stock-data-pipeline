@@ -69,6 +69,7 @@ PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED = (
     "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
 )
 POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT = "POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT"
+T1_EXECUTION_DATA_REQUIRED = "T1_EXECUTION_DATA_REQUIRED"
 DATA_OK = "DATA_OK"
 DATA_STALE = "DATA_STALE"
 DATA_BAD = "DATA_BAD"
@@ -77,6 +78,7 @@ DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION = (
     "DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION"
 )
 PORTFOLIO_EXISTING_POSITION_CONFLICT = "PORTFOLIO_EXISTING_POSITION_CONFLICT"
+PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED = "PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED"
 POSITION_MANAGEMENT_OBSERVED = "POSITION_MANAGEMENT_OBSERVED"
 
 
@@ -422,16 +424,25 @@ class DailyDecisionChain:
         generated = generated_at or datetime.now().astimezone()
         nav = self._resolved_nav(mode, reference_nav)
         settlement_context: dict[str, SettlementRecord] = {}
+        settlement_blockers: dict[str, list[str]] = {}
         for item in values:
             for pending in self.store.pending_for_symbol(item.symbol):
+                blocker = _pending_t1_data_blocker(item, pending)
+                if blocker is not None:
+                    settlement_blockers.setdefault(item.symbol.upper(), []).append(blocker)
+                    continue
                 settled = self._try_settle_pending(item, pending, mode, reference_nav)
                 if settled is not None:
                     settlement_context[pending.event.event_identity] = settled
 
         prepared: list[dict[str, Any]] = []
         candidates: list[tuple[str, PortfolioCandidate]] = []
+        portfolio_by_identity: dict[str, Any] = {}
         for item in values:
             row = self._evaluate_symbol(item, mode=mode, nav=nav, generated_at=generated)
+            for blocker in settlement_blockers.get(item.symbol.upper(), ()):
+                if blocker not in row["blocking"]:
+                    row["blocking"].append(blocker)
             prepared.append(row)
             decision = row.get("individual_decision")
             event = row.get("selected_event")
@@ -441,6 +452,11 @@ class DailyDecisionChain:
                 and decision is not None
                 and decision.action is DecisionAction.ENTRY_ALLOWED
             ):
+                if _known_open_position_without_portfolio_risk_state(item):
+                    portfolio_by_identity[event.event_identity] = ValueError(
+                        PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED
+                    )
+                    continue
                 try:
                     candidates.append((event.event_identity, candidate_from_decision(
                         decision,
@@ -455,7 +471,6 @@ class DailyDecisionChain:
                 except ValueError as exc:
                     row["portfolio_error"] = str(exc)
 
-        portfolio_by_identity: dict[str, Any] = {}
         if candidates:
             try:
                 canonical_positions = _merge_authoritative_positions(
@@ -725,6 +740,8 @@ class DailyDecisionChain:
             return None
         if item.as_of_date < expected:
             return None
+        if _pending_t1_data_blocker(item, pending) is not None:
+            return None
         settled = self.store.get_settlement(pending.event.event_identity)
         if settled is not None:
             return settled
@@ -809,6 +826,7 @@ class DailyDecisionChain:
             item.data_quality_status != DATA_OK
             or _position_management_is_prerequisite_failure(row.get("position_management"))
             or DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION in row.get("blocking", ())
+            or T1_EXECUTION_DATA_REQUIRED in row.get("blocking", ())
         ):
             final_status = "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED"
         elif decision is not None and decision.action is DecisionAction.ENTRY_ALLOWED:
@@ -976,6 +994,32 @@ def _merge_authoritative_positions(
     return tuple(merged.values())
 
 
+def _known_open_position_without_portfolio_risk_state(item: DailySymbolInput) -> bool:
+    state = item.open_position_state
+    return state is not None and state.has_position and state.portfolio_position is None
+
+
+def _pending_t1_data_blocker(
+    item: DailySymbolInput,
+    pending: PendingT1Decision,
+) -> str | None:
+    expected = pending.expected_execution_date
+    if expected is None or item.as_of_date < expected:
+        return None
+    if item.data_quality_status != DATA_OK:
+        return T1_EXECUTION_DATA_REQUIRED
+    expected_bars = tuple(
+        quote
+        for quote in item.qfq_history
+        if quote.trade_date == expected
+        and quote.symbol.upper() == item.symbol.upper()
+        and quote.market.upper() == item.market.upper()
+    )
+    if len(expected_bars) != 1:
+        return T1_EXECUTION_DATA_REQUIRED
+    return None
+
+
 def _position_management_is_prerequisite_failure(
     value: DailyPositionManagementResult | None,
 ) -> bool:
@@ -1004,6 +1048,7 @@ def _report_section(result: DailyDecisionResult) -> str:
         result.data_status != DATA_OK
         or _position_management_is_prerequisite_failure(result.position_management)
         or DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION in result.blocking_prerequisites
+        or T1_EXECUTION_DATA_REQUIRED in result.blocking_prerequisites
     ):
         return "数据/生产前置条件异常"
     if result.position_management is not None:
@@ -1081,8 +1126,10 @@ __all__ = [
     "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED",
     "POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT",
     "PORTFOLIO_EXISTING_POSITION_CONFLICT",
+    "PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED",
     "POSITION_MANAGEMENT_OBSERVED",
     "StaticUniverseProvider",
+    "T1_EXECUTION_DATA_REQUIRED",
     "T1ExecutionPhase",
     "daily_decision_event_identity",
     "daily_decision_result_to_dict",
