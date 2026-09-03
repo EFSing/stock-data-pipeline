@@ -7,7 +7,7 @@ backend; it never writes strategy input worksheets or calls a broker.
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, datetime
 import json
 from pathlib import Path
 import sys
@@ -37,8 +37,9 @@ def run_production_daily_decision(
     as_of_date: date,
     preflight: bool = True,
     write_state: bool = False,
+    now: datetime | None = None,
 ):
-    adapter = ProductionInputAdapter(client, as_of_date=as_of_date)
+    adapter = ProductionInputAdapter(client, as_of_date=as_of_date, now=now)
     snapshot = adapter.snapshot()
     if preflight:
         return snapshot.preflight
@@ -47,9 +48,13 @@ def run_production_daily_decision(
     if not write_state:
         raise ProductionPrerequisiteError("stateful run requires explicit write_state=True")
     reports = []
+    known_account_ids = tuple(item.account_id for item in snapshot.preflight.accounts)
     for account_run in snapshot.account_runs:
         store = SheetsDecisionStateStore(
-            client, write_enabled=True, account_id=account_run.account.account_id
+            client,
+            write_enabled=True,
+            account_id=account_run.account.account_id,
+            known_account_ids=known_account_ids,
         )
         report = DailyDecisionChain(store=store).evaluate(
             account_run.inputs,

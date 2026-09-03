@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, datetime, timezone
 import json
 import unittest
@@ -23,9 +24,11 @@ from trading.production_prerequisites import (
     DATA_BAD,
     DATA_OK,
     DATA_STALE,
-    DATA_UNAVAILABLE,
     DECISION_STATE_HEADERS,
     ExactExchangeCalendarProvider,
+    PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE,
+    PERSISTED_STATE_INCOMPLETE,
+    PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED,
     ProductionInputAdapter,
     ProductionPrerequisiteError,
     PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH,
@@ -46,6 +49,7 @@ from trading.setup01_decision import (
 
 
 T_DAY = date(2026, 9, 3)
+AFTER_CLOSE = datetime(2026, 9, 3, 21, 0, tzinfo=timezone.utc)
 
 
 class FakeSheetsClient:
@@ -147,6 +151,18 @@ def _result(symbol="AAPL"):
     )
 
 
+def _decision_for_state(event):
+    provenance = Setup01TargetProvenance("SYNTHETIC", pivot_date=T_DAY, confirmed_date=T_DAY)
+    candidate = Setup01TargetCandidate(130.0, "SYNTHETIC", "test", (provenance,))
+    return Setup01Decision(
+        "SETUP-01-DECISION-RISK-TEST", event.event_identity, event.symbol, event.market,
+        T_DAY, SetupState.CONFIRMED, True, DecisionAction.ENTRY_ALLOWED,
+        "ENTRY_ALLOWED", "test", 1.0, 90.0, 100.0, 100.0, 100.0, 105.0,
+        95.0, 95.0, 90.0, (candidate,), (130.0,), False, None,
+        RiskReward(100.0, 90.0, 10.0, (130.0,), (3.0,), "NORMAL"), None, None,
+    )
+
+
 class ProductionPrerequisiteTests(unittest.TestCase):
     def test_calendar_provider_skips_weekend_and_exchange_holiday(self):
         provider = ExactExchangeCalendarProvider()
@@ -156,6 +172,33 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         self.assertEqual(identity.next_session_date, date(2026, 7, 6))
         self.assertTrue(identity.exact_exchange_calendar)
         self.assertEqual(identity.identity, "exchange_calendars:XNYS:2026-07-02")
+
+    def test_calendar_requires_completed_xnys_and_xshg_session(self):
+        provider = ExactExchangeCalendarProvider()
+        with self.assertRaisesRegex(ValueError, "COMPLETED_SESSION_REQUIRED"):
+            provider.completed_session("US", T_DAY, now=datetime(2026, 9, 3, 19, 59, tzinfo=timezone.utc))
+        with self.assertRaisesRegex(ValueError, "COMPLETED_SESSION_REQUIRED"):
+            provider.completed_session("CN", T_DAY, now=datetime(2026, 9, 3, 6, 59, tzinfo=timezone.utc))
+        self.assertEqual(
+            provider.completed_session("US", T_DAY, now=AFTER_CLOSE).next_session_date,
+            date(2026, 9, 4),
+        )
+        self.assertEqual(
+            provider.completed_session("CN", T_DAY, now=AFTER_CLOSE).next_session_date,
+            date(2026, 9, 4),
+        )
+        with self.assertRaisesRegex(ValueError, "CALENDAR_REQUIRED"):
+            provider.completed_session("US", date(2026, 7, 4), now=AFTER_CLOSE)
+
+    def test_snapshot_passes_injected_clock_to_calendar(self):
+        before_close = build_production_snapshot(
+            _rows(), as_of_date=T_DAY,
+            now=datetime(2026, 9, 3, 19, 59, tzinfo=timezone.utc),
+        ).preflight
+        us_before = next(item for item in before_close.accounts if item.account_id == "US-1")
+        self.assertIn("COMPLETED_SESSION_REQUIRED", us_before.calendar_status)
+        after_close = build_production_snapshot(_rows(), as_of_date=T_DAY, now=AFTER_CLOSE).preflight
+        self.assertTrue(after_close.ready)
 
     def test_accounts_require_same_day_nav_and_known_currency(self):
         with self.assertRaisesRegex(ValueError, "PORTFOLIO_NAV_REQUIRED"):
@@ -169,26 +212,29 @@ class ProductionPrerequisiteTests(unittest.TestCase):
                 "参考净值": "100", "净值日期": "2026-09-02", "备注": "",
             }], as_of_date=T_DAY)
         client = _rows(cn_currency="USD")
-        report = build_production_snapshot(client, as_of_date=T_DAY).preflight
+        report = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight
         self.assertTrue(any(PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH in item for item in report.errors))
 
     def test_accounts_are_isolated_and_duplicate_symbol_is_fail_closed(self):
         client = _rows()
-        snapshot = build_production_snapshot(client, as_of_date=T_DAY)
+        snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
         self.assertTrue(snapshot.preflight.ready)
         runs = {item.account.account_id: item for item in snapshot.account_runs}
         self.assertEqual(len(runs["CN-1"].inputs), 1)
         self.assertEqual(len(runs["US-1"].inputs), 1)
         self.assertEqual(runs["CN-1"].reference_nav, 100000.0)
         self.assertEqual(runs["US-1"].reference_nav, 200000.0)
-        duplicate = build_production_snapshot(_rows(same_symbol=True), as_of_date=T_DAY).preflight
+        self.assertEqual(getattr(runs["CN-1"].state_store, "account_id"), "CN-1")
+        self.assertEqual(getattr(runs["US-1"].state_store, "account_id"), "US-1")
+        self.assertIsNot(runs["CN-1"].state_store, runs["US-1"].state_store)
+        duplicate = build_production_snapshot(_rows(same_symbol=True), as_of_date=T_DAY, now=AFTER_CLOSE).preflight
         self.assertTrue(any(STRATEGY_SYMBOL_MULTIPLE_ACCOUNTS in item for item in duplicate.errors))
 
     def test_data_quality_mapping_is_conservative(self):
         client = _rows()
         client.rows["最新行情"][0]["交易日期"] = "2026-09-02"
         client.rows["历史行情_前复权"][0]["交易日期"] = "2026-09-02"
-        snapshot = build_production_snapshot(client, as_of_date=T_DAY)
+        snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
         summary = next(item for item in snapshot.preflight.accounts if item.account_id == "CN-1")
         self.assertEqual(summary.data_bad_stale_unavailable_count, 1)
         self.assertEqual(summary.data_ok_count, 0)
@@ -196,36 +242,124 @@ class ProductionPrerequisiteTests(unittest.TestCase):
 
         client = _rows()
         client.rows["最新行情"][0]["校验状态"] = "待复核"
-        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY).preflight.accounts if item.account_id == "CN-1")
+        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
         self.assertIn(DATA_BAD, " ".join(summary.errors))
 
         client = _rows()
         client.rows["历史行情_前复权"] = [item for item in client.rows["历史行情_前复权"] if item["统一代码"] != "600000"]
-        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY).preflight.accounts if item.account_id == "CN-1")
-        self.assertIn(DATA_UNAVAILABLE, " ".join(summary.errors))
+        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
+        self.assertIn(DATA_BAD, " ".join(summary.errors))
+
+        client = _rows()
+        client.rows["最新行情"][0]["币种"] = ""
+        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
+        self.assertIn(DATA_BAD, " ".join(summary.errors))
+
+        client = _rows()
+        client.rows["历史行情_前复权"][0]["币种"] = ""
+        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
+        self.assertIn(DATA_BAD, " ".join(summary.errors))
 
     def test_missing_group_and_position_origin_are_reported(self):
         client = _rows(missing_group=True, position=True)
-        snapshot = build_production_snapshot(client, as_of_date=T_DAY)
+        snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
         cn = next(item for item in snapshot.preflight.accounts if item.account_id == "CN-1")
         us = next(item for item in snapshot.preflight.accounts if item.account_id == "US-1")
         self.assertEqual(cn.missing_risk_groups, ("600000",))
         self.assertEqual(us.missing_position_origins, ("AAPL",))
+        self.assertFalse(any("POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT" in error for error in us.errors))
         self.assertFalse(snapshot.preflight.ready)
+
+        origin_only = build_production_snapshot(_rows(position=True), as_of_date=T_DAY, now=AFTER_CLOSE)
+        origin_summary = next(item for item in origin_only.preflight.accounts if item.account_id == "US-1")
+        self.assertEqual(origin_summary.production_readiness, "READY")
+        self.assertTrue(origin_only.preflight.ready)
 
     def test_manual_position_uses_actual_entry_for_risk(self):
         client = _rows(position=True)
-        snapshot = build_production_snapshot(client, as_of_date=T_DAY)
+        snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
         us = next(item for item in snapshot.account_runs if item.account.account_id == "US-1")
         self.assertEqual(len(us.existing_positions), 1)
         position = us.existing_positions[0]
         self.assertEqual(position.actual_entry, 100.0)
         self.assertEqual(position.current_price, 102.0)
         self.assertEqual(position.remaining_loss_risk(us.reference_nav), 10 * 10 / 200000)
+        self.assertIsNone(us.inputs[0].open_position_state.origin)
+
+    def test_wrong_position_origin_identity_or_date_remains_hard_failure(self):
+        for malformed in (
+            replace(_origin(), market="CN"),
+            replace(_origin(), entry_date=T_DAY + date.resolution),
+        ):
+            with self.subTest(malformed=malformed):
+                client = _rows(position=True)
+                store = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1")
+                store.save_position_origin(malformed)
+                snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
+                summary = next(item for item in snapshot.preflight.accounts if item.account_id == "US-1")
+                self.assertFalse(snapshot.preflight.ready)
+                self.assertTrue(any("POSITION_ORIGIN_IDENTITY_MISMATCH" in error for error in summary.errors))
+
+    def test_empty_enabled_account_fails_closed_without_empty_chain_run(self):
+        client = _rows()
+        client.rows["策略股票池"][0]["启用"] = "FALSE"
+        snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
+        cn = next(item for item in snapshot.preflight.accounts if item.account_id == "CN-1")
+        self.assertIn(PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED, cn.errors)
+        self.assertFalse(snapshot.preflight.ready)
+        self.assertNotIn("CN-1", {item.account.account_id for item in snapshot.account_runs})
+
+    def test_state_store_is_account_scoped_and_rejects_mismatch(self):
+        client = _rows()
+        known = ("CN-1", "US-1")
+        cn_store = SheetsDecisionStateStore(client, write_enabled=True, account_id="CN-1", known_account_ids=known)
+        us_store = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1", known_account_ids=known)
+        cn_store.record_published_event("same-primary", _result(symbol="CN-1"))
+        us_store.record_published_event("same-primary", _result(symbol="AAPL"))
+        cn_reloaded = SheetsDecisionStateStore(client, account_id="CN-1", known_account_ids=known)
+        us_reloaded = SheetsDecisionStateStore(client, account_id="US-1", known_account_ids=known)
+        self.assertEqual(cn_reloaded.get_published_event("same-primary").symbol, "CN-1")
+        self.assertEqual(us_reloaded.get_published_event("same-primary").symbol, "AAPL")
+        with self.assertRaisesRegex(ValueError, "account-mismatched"):
+            SheetsDecisionStateStore(client, account_id="CN-1")
+
+    def test_pending_state_outside_enabled_strategy_universe_blocks_preflight(self):
+        from tests.test_daily_decision_chain import _fixture
+        _, _, event, _ = _fixture(t1=True)
+        client = _rows()
+        store = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1", known_account_ids=("CN-1", "US-1"))
+        store.record_published_event(event.event_identity, _result())
+        reservation = PortfolioRiskEngine(mode="DEVELOPMENT_EXPOSED").reserve([
+            PortfolioCandidate(event.event_identity, "SETUP_01", event.symbol, "US", T_DAY, 100, 90, 2.5, "TECH")
+        ]).approved[0]
+        pending = PendingT1Decision(event, _decision_for_state(event), reservation, date(2026, 9, 4))
+        store.save_pending(pending)
+        summary = next(
+            item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts
+            if item.account_id == "US-1"
+        )
+        self.assertTrue(any(PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE in error for error in summary.errors))
+
+    def test_published_allowed_pending_phase_without_followup_state_fails_closed(self):
+        result = replace(
+            _result(),
+            portfolio_result=DailyPortfolioResult(
+                "PORTFOLIO_ALLOWED", "", "event-1", (), 0.0, 0.01, 0.0, 0.01, 0.01, 1.0
+            ),
+            execution_phase=T1ExecutionPhase.PENDING_T1_EXECUTION_CHECK,
+        )
+        client = _rows()
+        client.rows["策略决策状态"] = [{
+            "记录类型": "PUBLISHED_EVENT", "主键": "event-1", "账户ID": "US-1", "市场": "US",
+            "统一代码": "AAPL", "交易日期": T_DAY.isoformat(), "状态": "PUBLISHED",
+            "PayloadJSON": encode_payload(result), "更新时间": AFTER_CLOSE.isoformat(),
+        }]
+        with self.assertRaisesRegex(ValueError, PERSISTED_STATE_INCOMPLETE):
+            SheetsDecisionStateStore(client, account_id="US-1", known_account_ids=("CN-1", "US-1"))
 
     def test_preflight_is_read_only(self):
         client = _rows()
-        report = ProductionInputAdapter(client, as_of_date=T_DAY).preflight()
+        report = ProductionInputAdapter(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight()
         self.assertFalse(report.writes_performed)
         self.assertEqual(client.writes, [])
         self.assertTrue(report.to_dict()["NO STATE WRITE"])
@@ -263,9 +397,10 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         reservation = PortfolioRiskEngine(mode="DEVELOPMENT_EXPOSED").reserve([portfolio_candidate]).approved[0]
         pending = PendingT1Decision(event, decision, reservation, date(2026, 9, 4))
         client = _rows()
-        store = SheetsDecisionStateStore(client, write_enabled=True)
+        store = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1")
+        store.record_published_event(event.event_identity, _result())
         store.save_pending(pending)
-        restarted = SheetsDecisionStateStore(client, write_enabled=True)
+        restarted = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1")
         self.assertEqual(restarted.pending_for_symbol(event.symbol)[0], pending)
         execution = Setup01Execution(
             event.event_identity, event.symbol, "US", T_DAY, date(2026, 9, 4), 100.0,
@@ -275,9 +410,14 @@ class ProductionPrerequisiteTests(unittest.TestCase):
             reservation, outcome="EXECUTED", execution_date=date(2026, 9, 4), actual_entry=100.0
         )
         restarted.settle_pending(event.event_identity, SettlementRecord(pending, execution, settlement, None))
-        reloaded = SheetsDecisionStateStore(client, write_enabled=False)
+        reloaded = SheetsDecisionStateStore(client, write_enabled=False, account_id="US-1")
         self.assertIsNotNone(reloaded.get_settlement(event.event_identity))
         self.assertEqual(reloaded.pending_for_symbol(event.symbol), ())
+        client.rows["策略决策状态"] = [
+            row for row in client.rows["策略决策状态"] if row["记录类型"] != "PUBLISHED_EVENT"
+        ]
+        with self.assertRaisesRegex(ValueError, PERSISTED_STATE_INCOMPLETE):
+            SheetsDecisionStateStore(client, account_id="US-1")
 
     def test_corrupt_and_duplicate_state_fail_closed(self):
         base = _rows()
@@ -287,11 +427,16 @@ class ProductionPrerequisiteTests(unittest.TestCase):
             "PayloadJSON": "{bad", "更新时间": "now",
         }]
         with self.assertRaises(ProductionPrerequisiteError):
-            SheetsDecisionStateStore(base)
+            SheetsDecisionStateStore(base, account_id="US-1")
         base.rows["策略决策状态"][0]["PayloadJSON"] = encode_payload(_result())
         base.rows["策略决策状态"].append(dict(base.rows["策略决策状态"][0]))
         with self.assertRaises(ProductionPrerequisiteError):
-            SheetsDecisionStateStore(base)
+            SheetsDecisionStateStore(base, account_id="US-1")
+
+        unknown = _rows()
+        unknown.rows["策略决策状态"] = [dict(base.rows["策略决策状态"][0], **{"账户ID": "UNKNOWN"})]
+        with self.assertRaisesRegex(ValueError, "unknown persisted account"):
+            SheetsDecisionStateStore(unknown, account_id="US-1", known_account_ids=("CN-1", "US-1"))
 
     def test_inmemory_origin_accessor_is_additive(self):
         store = InMemoryDecisionStateStore()

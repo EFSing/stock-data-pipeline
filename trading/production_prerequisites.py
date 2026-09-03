@@ -8,11 +8,11 @@ call a broker.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, is_dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 import json
 import math
-from typing import Any, Iterable, Mapping, Protocol, Sequence
+from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 from core import Quote
 from trading.daily_decision_chain import (
@@ -113,6 +113,10 @@ PRODUCTION_ACCOUNT_REQUIRED = "PRODUCTION_ACCOUNT_REQUIRED"
 PRODUCTION_SCHEMA_REQUIRED = "PRODUCTION_SCHEMA_REQUIRED"
 PRODUCTION_DATA_QUALITY_REQUIRED = "PRODUCTION_DATA_QUALITY_REQUIRED"
 PRODUCTION_STATE_STORE_REQUIRED = "PRODUCTION_STATE_STORE_REQUIRED"
+PRODUCTION_STATE_ACCOUNT_REQUIRED = "PRODUCTION_STATE_ACCOUNT_REQUIRED"
+PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED = "PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED"
+PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE = "PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE"
+PERSISTED_STATE_INCOMPLETE = "PERSISTED_STATE_INCOMPLETE"
 STATE_STORE_READ_ONLY = "STATE_STORE_READ_ONLY"
 
 PUBLISHED_EVENT = "PUBLISHED_EVENT"
@@ -525,6 +529,9 @@ def _quote_from_row(
     }
     if any(value is None for value in values.values()):
         raise ProductionPrerequisiteError("行情OHLC字段不完整")
+    row_currency = _text(row, "币种")
+    if not row_currency:
+        raise ProductionPrerequisiteError("行情币种 required")
     return Quote(
         symbol=symbol, name=name or _text(row, "名称"), market=market,
         trade_date=trade_date, source=_text(row, "数据源") or _text(row, "主数据源") or "Sheets",
@@ -534,7 +541,7 @@ def _quote_from_row(
         volume=_number_from_row(row, "成交量", "Volume"),
         amount=_number_from_row(row, "成交额", "Amount"),
         turnover_rate=_number_from_row(row, "换手率", "TurnoverRate"),
-        currency=_text(row, "币种") or currency,
+        currency=row_currency,
     )
 
 
@@ -582,7 +589,8 @@ def _data_for_symbol(
         except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
             status, detail = DATA_BAD, str(exc)
     if not matching_history:
-        status, detail = DATA_UNAVAILABLE, "qfq missing" if status == DATA_OK else detail
+        if status == DATA_OK:
+            status, detail = DATA_BAD, "qfq missing"
     else:
         try:
             parsed_history = [
@@ -639,9 +647,9 @@ class ExactExchangeCalendarProvider:
                     "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
                 )
             if now is not None:
+                if now.tzinfo is None or now.utcoffset() is None:
+                    raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
                 current = pd.Timestamp(now)
-                if current.tzinfo is None:
-                    current = current.tz_localize("UTC")
                 if current < calendar.session_close(session):
                     raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
             next_session = calendar.next_session(session).date()
@@ -772,26 +780,46 @@ class SheetsDecisionStateStore:
         client: SheetsRecordsClient,
         *,
         write_enabled: bool = False,
-        account_id: str = "",
+        account_id: str | None = None,
+        known_account_ids: Iterable[str] | None = None,
         sheet_name: str = DECISION_STATE_SHEET,
     ) -> None:
         self.client = client
         self.write_enabled = write_enabled
-        self.account_id = account_id
+        self.account_id = str(account_id or "").strip()
+        if not self.account_id:
+            raise ProductionPrerequisiteError(PRODUCTION_STATE_ACCOUNT_REQUIRED)
+        self.known_account_ids = frozenset(
+            str(value).strip() for value in (known_account_ids or ()) if str(value).strip()
+        )
+        if self.known_account_ids and self.account_id not in self.known_account_ids:
+            raise ProductionPrerequisiteError(f"unknown persisted account: {self.account_id}")
         self.sheet_name = sheet_name
-        self._records: dict[tuple[str, str], dict[str, Any]] = {}
+        self._records: dict[tuple[str, str, str], dict[str, Any]] = {}
         self.published_events: dict[str, DailyDecisionResult] = {}
         self.pending: dict[str, PendingT1Decision] = {}
         self.settled: dict[str, SettlementRecord] = {}
         self.position_origins: dict[str, PositionOrigin] = {}
         self.daily_history: list[DailyDecisionResult] = []
+        loaded: dict[tuple[str, str], Any] = {}
         rows = list(client.records(sheet_name))
         for row in rows:
+            row_account_id = _text(row, "账户ID")
+            if not row_account_id:
+                raise ProductionPrerequisiteError("corrupted persisted state: account")
+            if self.known_account_ids and row_account_id not in self.known_account_ids:
+                raise ProductionPrerequisiteError(f"unknown persisted account: {row_account_id}")
+            if row_account_id != self.account_id:
+                if not self.known_account_ids:
+                    raise ProductionPrerequisiteError(
+                        f"account-mismatched persisted state: {row_account_id}"
+                    )
+                continue
             record_type = _text(row, "记录类型")
             primary_key = _text(row, "主键")
             if record_type not in _STATE_RECORD_TYPES or not primary_key:
                 raise ProductionPrerequisiteError("corrupted persisted state: identity")
-            identity = (record_type, primary_key)
+            identity = (row_account_id, record_type, primary_key)
             if identity in self._records:
                 raise ProductionPrerequisiteError(f"duplicate persisted primary key: {record_type}|{primary_key}")
             payload = row.get("PayloadJSON")
@@ -802,34 +830,84 @@ class SheetsDecisionStateStore:
             except (TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
                 raise ProductionPrerequisiteError("corrupted persisted state: PayloadJSON") from exc
             self._records[identity] = dict(row)
-            self._load_value(record_type, primary_key, value)
+            loaded[(record_type, primary_key)] = value
+        self._load_values(loaded)
+
+    def _load_values(self, loaded: Mapping[tuple[str, str], Any]) -> None:
+        for (record_type, primary_key), value in loaded.items():
+            if record_type == PUBLISHED_EVENT:
+                if not isinstance(value, DailyDecisionResult):
+                    raise ProductionPrerequisiteError("corrupted published event payload")
+                self.published_events[primary_key] = value
+            elif record_type == PENDING_T1:
+                if not isinstance(value, PendingT1Decision):
+                    raise ProductionPrerequisiteError("corrupted pending payload")
+                if value.event.event_identity != primary_key:
+                    raise ProductionPrerequisiteError(f"corrupted pending lineage: {primary_key}")
+                self.pending[primary_key] = value
+            elif record_type == SETTLEMENT:
+                if not isinstance(value, SettlementRecord):
+                    raise ProductionPrerequisiteError("corrupted settlement payload")
+                if value.pending.event.event_identity != primary_key:
+                    raise ProductionPrerequisiteError(f"corrupted settlement lineage: {primary_key}")
+                self.settled[primary_key] = value
+            elif record_type == POSITION_ORIGIN_RECORD:
+                if not isinstance(value, PositionOrigin):
+                    raise ProductionPrerequisiteError("corrupted position origin payload")
+                if value.source_event_identity != primary_key:
+                    raise ProductionPrerequisiteError(f"corrupted position origin lineage: {primary_key}")
+                self.position_origins[primary_key] = value
+            elif record_type == DAILY_RESULT:
+                if not isinstance(value, DailyDecisionResult):
+                    raise ProductionPrerequisiteError("corrupted daily result payload")
+                self.daily_history.append(value)
+
+        for identity, pending in self.pending.items():
+            if identity not in self.published_events:
+                raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:pending_without_published:{identity}")
+        for identity, settlement in self.settled.items():
+            pending = self.pending.get(identity)
+            if identity not in self.published_events or pending is None or pending != settlement.pending:
+                raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:settlement_lineage:{identity}")
+        for identity in self.settled:
+            self.pending.pop(identity, None)
+        for identity, result in self.published_events.items():
+            portfolio = result.portfolio_result
+            execution_phase = getattr(result.execution_phase, "value", result.execution_phase)
+            if (
+                portfolio is not None
+                and portfolio.status == "PORTFOLIO_ALLOWED"
+                and execution_phase == "PENDING_T1_EXECUTION_CHECK"
+                and identity not in self.pending
+                and identity not in self.settled
+            ):
+                raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:published_without_t1_state:{identity}")
+            published_identities = set(result.new_confirmed_event_identities)
+            if result.new_confirmed_event_identity:
+                published_identities.add(result.new_confirmed_event_identity)
+            if result.event_was_new:
+                published_identities.add(identity)
+            if published_identities and not any(
+                identity in set(item.new_confirmed_event_identities)
+                or identity == item.new_confirmed_event_identity
+                for item in self.daily_history
+            ):
+                raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:published_without_daily_result:{identity}")
+        for result in self.daily_history:
+            daily_identities = set(result.new_confirmed_event_identities)
+            if result.new_confirmed_event_identity:
+                daily_identities.add(result.new_confirmed_event_identity)
+            if result.event_was_new:
+                daily_identities.add(result.new_confirmed_event_identity or "")
+            if any(identity not in self.published_events for identity in daily_identities if identity):
+                raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:daily_without_published")
 
     def _load_value(self, record_type: str, primary_key: str, value: Any) -> None:
-        if record_type == PUBLISHED_EVENT:
-            if not isinstance(value, DailyDecisionResult):
-                raise ProductionPrerequisiteError("corrupted published event payload")
-            self.published_events[primary_key] = value
-        elif record_type == PENDING_T1:
-            if not isinstance(value, PendingT1Decision):
-                raise ProductionPrerequisiteError("corrupted pending payload")
-            if primary_key not in self.settled:
-                self.pending[primary_key] = value
-        elif record_type == SETTLEMENT:
-            if not isinstance(value, SettlementRecord):
-                raise ProductionPrerequisiteError("corrupted settlement payload")
-            self.settled[primary_key] = value
-            self.pending.pop(primary_key, None)
-        elif record_type == POSITION_ORIGIN_RECORD:
-            if not isinstance(value, PositionOrigin):
-                raise ProductionPrerequisiteError("corrupted position origin payload")
-            self.position_origins[primary_key] = value
-        elif record_type == DAILY_RESULT:
-            if not isinstance(value, DailyDecisionResult):
-                raise ProductionPrerequisiteError("corrupted daily result payload")
-            self.daily_history.append(value)
+        """Compatibility helper for callers that used the old private hook."""
+        self._load_values({(record_type, primary_key): value})
 
     def _append(self, record_type: str, primary_key: str, value: Any, *, status: str, item: Any = None) -> None:
-        identity = (record_type, primary_key)
+        identity = (self.account_id, record_type, primary_key)
         if identity in self._records:
             raise ProductionPrerequisiteError(f"duplicate persisted primary key: {record_type}|{primary_key}")
         if not self.write_enabled:
@@ -843,7 +921,7 @@ class SheetsDecisionStateStore:
         )
         symbol = getattr(item, "symbol", "")
         market = getattr(item, "market", "")
-        now = datetime.now().astimezone().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         row = {
             "记录类型": record_type, "主键": primary_key, "账户ID": self.account_id,
             "市场": market, "统一代码": symbol,
@@ -865,6 +943,8 @@ class SheetsDecisionStateStore:
 
     def save_pending(self, pending: PendingT1Decision) -> None:
         identity = pending.event.event_identity
+        if identity not in self.published_events:
+            raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:pending_without_published:{identity}")
         if identity in self.pending or identity in self.settled:
             raise ProductionPrerequisiteError(f"T+1 decision already persisted: {identity}")
         self._append(PENDING_T1, identity, pending, status="PENDING", item=pending.event)
@@ -909,12 +989,22 @@ class ProductionInputAdapter:
         as_of_date: date,
         calendar_provider: ExactExchangeCalendarProvider | None = None,
         state_store: DecisionStateStore | None = None,
+        now: datetime | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.client = client
         self.as_of_date = as_of_date
         self.calendar_provider = calendar_provider or ExactExchangeCalendarProvider()
         self.state_store = state_store
+        self.now = now
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._snapshot: ProductionSnapshot | None = None
+
+    def _current_now(self) -> datetime:
+        value = self.now if self.now is not None else self.clock()
+        if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+            raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
+        return value
 
     def _read_all(self) -> tuple[dict[str, list[dict]], list[str]]:
         contracts = {
@@ -943,14 +1033,7 @@ class ProductionInputAdapter:
         if self._snapshot is not None:
             return self._snapshot
         records, errors = self._read_all()
-        state_store: DecisionStateStore | None = self.state_store
         state_status = "OK"
-        if state_store is None:
-            try:
-                state_store = SheetsDecisionStateStore(self.client, write_enabled=False)
-            except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
-                state_status = f"ERROR:{exc}"
-                errors.append(PRODUCTION_STATE_STORE_REQUIRED)
         try:
             accounts = parse_strategy_accounts(records.get(STRATEGY_ACCOUNT_SHEET, []), as_of_date=self.as_of_date)
             universe = parse_strategy_universe(records.get(STRATEGY_UNIVERSE_SHEET, []))
@@ -959,9 +1042,42 @@ class ProductionInputAdapter:
         except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
             errors.append(str(exc))
             accounts, universe, risk_groups, positions = (), (), {}, ()
+        enabled_accounts = {item.account_id: item for item in accounts if item.enabled}
+        state_stores: dict[str, DecisionStateStore] = {}
+        known_account_ids = tuple(item.account_id for item in accounts)
+        if self.state_store is not None:
+            injected_account_id = str(getattr(self.state_store, "account_id", "") or "").strip()
+            if injected_account_id:
+                if injected_account_id in enabled_accounts:
+                    state_stores[injected_account_id] = self.state_store
+                else:
+                    state_status = f"ERROR:unknown persisted account: {injected_account_id}"
+                    errors.append(PRODUCTION_STATE_STORE_REQUIRED)
+            elif len(enabled_accounts) == 1:
+                state_stores[next(iter(enabled_accounts))] = self.state_store
+            else:
+                state_status = f"ERROR:{PRODUCTION_STATE_ACCOUNT_REQUIRED}"
+                errors.append(PRODUCTION_STATE_STORE_REQUIRED)
+        else:
+            try:
+                for account_id in known_account_ids:
+                    store = SheetsDecisionStateStore(
+                        self.client,
+                        write_enabled=False,
+                        account_id=account_id,
+                        known_account_ids=known_account_ids,
+                    )
+                    if account_id in enabled_accounts:
+                        state_stores[account_id] = store
+            except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
+                state_status = f"ERROR:{exc}"
+                errors.append(PRODUCTION_STATE_STORE_REQUIRED)
+        missing_scoped_accounts = tuple(sorted(set(enabled_accounts) - set(state_stores)))
+        if missing_scoped_accounts:
+            state_status = f"ERROR:{PRODUCTION_STATE_ACCOUNT_REQUIRED}:{','.join(missing_scoped_accounts)}"
+            errors.append(PRODUCTION_STATE_STORE_REQUIRED)
         if not universe:
             errors.append("PRODUCTION_STRATEGY_UNIVERSE_REQUIRED")
-        enabled_accounts = {item.account_id: item for item in accounts if item.enabled}
         by_symbol_accounts: dict[tuple[str, str], set[str]] = {}
         for item in universe:
             by_symbol_accounts.setdefault(item.key, set()).add(item.account_id)
@@ -990,7 +1106,11 @@ class ProductionInputAdapter:
         summaries: list[AccountPreflightSummary] = []
         for account in enabled_accounts.values():
             account_errors: list[str] = []
-            if account.account_id in {item.account_id for item in universe} and account.reference_nav is None:
+            account_universe = tuple(item for item in universe if item.account_id == account.account_id)
+            account_positions = tuple(item for item in positions if item.account_id == account.account_id)
+            if not account_universe:
+                account_errors.append(PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED)
+            if account_universe and account.reference_nav is None:
                 account_errors.append("PORTFOLIO_NAV_REQUIRED")
             nav_status = "OK"
             if account.reference_nav is None:
@@ -999,14 +1119,15 @@ class ProductionInputAdapter:
                 nav_status = "PRODUCTION_NAV_DATE_REQUIRED"
                 account_errors.append(nav_status)
             try:
-                calendar_identity = self.calendar_provider.completed_session(account.market, self.as_of_date)
+                current_now = self._current_now()
+                calendar_identity = self.calendar_provider.completed_session(
+                    account.market, self.as_of_date, now=current_now
+                )
                 calendar_status = f"OK:{calendar_identity.identity}->{calendar_identity.next_session_date.isoformat()}"
             except ProductionPrerequisiteError as exc:
                 calendar_identity = None
                 calendar_status = f"ERROR:{exc}"
                 account_errors.append(str(exc))
-            account_universe = tuple(item for item in universe if item.account_id == account.account_id)
-            account_positions = tuple(item for item in positions if item.account_id == account.account_id)
             latest_rows = records.get(LATEST_SHEET, [])
             history_rows = records.get(QFQ_HISTORY_SHEET, [])
             inputs: list[DailySymbolInput] = []
@@ -1036,15 +1157,16 @@ class ProductionInputAdapter:
                     if position_fact is not None:
                         origin = None
                         if position_fact.source_event_id:
-                            origin = _position_origin_from_store(state_store, position_fact.source_event_id)
+                            origin = _position_origin_from_store(
+                                state_stores.get(account.account_id), position_fact.source_event_id
+                            )
                             if origin is None:
                                 missing_origins.append(item.symbol)
-                                account_errors.append(f"POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT:{item.symbol}")
                         else:
                             missing_origins.append(item.symbol)
-                            account_errors.append(f"POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT:{item.symbol}")
                         if origin is not None and (
-                            origin.symbol.upper() != item.symbol.upper()
+                            origin.source_event_identity != position_fact.source_event_id
+                            or origin.symbol.upper() != item.symbol.upper()
                             or origin.market.upper() != item.market.upper()
                             or origin.entry_date > self.as_of_date
                         ):
@@ -1076,15 +1198,27 @@ class ProductionInputAdapter:
             for position in account_positions:
                 if position.key not in {item.key for item in account_universe}:
                     account_errors.append(f"PRODUCTION_OPEN_POSITION_OUTSIDE_UNIVERSE:{position.symbol}")
+            scoped_store = state_stores.get(account.account_id)
+            pending_values = tuple(getattr(scoped_store, "pending", {}).values())
+            universe_keys = {item.key for item in account_universe}
+            for pending in pending_values:
+                pending_key = (
+                    str(getattr(pending.event, "market", "")).upper(),
+                    str(getattr(pending.event, "symbol", "")).upper(),
+                )
+                if pending_key not in universe_keys:
+                    account_errors.append(
+                        f"{PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE}:{pending.event.symbol}"
+                    )
             data_ok = sum(status == DATA_OK for status in statuses)
             data_bad = len(statuses) - data_ok
             readiness = "READY"
             if account_errors or state_status != "OK":
                 readiness = "NOT_READY"
-            store_for_run = state_store
+            store_for_run = scoped_store
             if store_for_run is None:
                 readiness = "NOT_READY"
-            if calendar_identity is not None:
+            if calendar_identity is not None and account_universe and store_for_run is not None:
                 runs.append(ProductionAccountRun(account, tuple(inputs), tuple(existing_positions), store_for_run))
             summaries.append(AccountPreflightSummary(
                 account_id=account.account_id, market=account.market, currency=account.currency,
@@ -1141,10 +1275,13 @@ def build_production_snapshot(
     as_of_date: date,
     calendar_provider: ExactExchangeCalendarProvider | None = None,
     state_store: DecisionStateStore | None = None,
+    now: datetime | None = None,
+    clock: Callable[[], datetime] | None = None,
 ) -> ProductionSnapshot:
     return ProductionInputAdapter(
         client, as_of_date=as_of_date,
         calendar_provider=calendar_provider, state_store=state_store,
+        now=now, clock=clock,
     ).snapshot()
 
 
@@ -1153,6 +1290,8 @@ __all__ = [
     "DATA_BAD", "DATA_OK", "DATA_STALE", "DATA_UNAVAILABLE",
     "ExactExchangeCalendarProvider", "ProductionAccountRun", "ProductionInputAdapter",
     "ProductionPreflightReport", "ProductionPrerequisiteError", "ProductionSnapshot",
+    "PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED", "PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE",
+    "PERSISTED_STATE_INCOMPLETE", "PRODUCTION_STATE_ACCOUNT_REQUIRED",
     "PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH", "STRATEGY_SYMBOL_MULTIPLE_ACCOUNTS",
     "LATEST_REQUIRED_HEADERS", "QFQ_HISTORY_REQUIRED_HEADERS",
     "SheetsDecisionStateStore", "StrategyAccount", "StrategyPositionFact",

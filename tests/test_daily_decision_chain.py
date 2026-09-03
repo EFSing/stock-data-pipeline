@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 import unittest
@@ -18,6 +19,7 @@ from trading.daily_decision_chain import (
     OpenPositionState,
     PORTFOLIO_EXISTING_POSITION_CONFLICT,
     PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED,
+    PORTFOLIO_PENDING_RESERVATION_UNRESOLVED,
     POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT,
     PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED,
     T1_EXECUTION_DATA_REQUIRED,
@@ -516,6 +518,123 @@ class DailyDecisionChainTests(unittest.TestCase):
         self.assertEqual(result_b.portfolio_result.reservation_id, event_b.event_identity)
         self.assertEqual(set(store.pending), {event_b.event_identity})
         self.assertNotIn(event_a.event_identity, store.pending)
+
+    def test_missing_origin_blocks_pm_but_keeps_authoritative_risk_for_other_symbol(self):
+        history_a, t_day, event_a, evaluators_a = _fixture(symbol="SYMBOL_A")
+        history_b, _, event_b, evaluators_b = _fixture(symbol="SYMBOL_B")
+        held_a = _portfolio_position(symbol="SYMBOL_A", source_event_identity="held-a", quantity=0.001)
+        state_a = OpenPositionState("SYMBOL_A", "US", portfolio_position=held_a)
+
+        def setup01(history, **kwargs):
+            evaluator = evaluators_a.setup01 if history[0].symbol == "SYMBOL_A" else evaluators_b.setup01
+            return evaluator(history, **kwargs)
+
+        evaluators = DailyChainEvaluators(
+            wave=evaluators_a.wave,
+            setup01=setup01,
+            setup02=evaluators_a.setup02,
+        )
+        with patch(
+            "trading.daily_decision_chain.evaluate_setup01_decision",
+            side_effect=lambda event, *_args, **_kwargs: _decision(event),
+        ):
+            report = DailyDecisionChain(evaluators=evaluators).evaluate(
+                [
+                    _input(history_a, t_day, position=state_a),
+                    _input(history_b, t_day, risk_group="GROUP_B"),
+                ],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+        results = {result.symbol: result for result in report.results}
+        self.assertEqual(results["SYMBOL_A"].position_management.status, POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT)
+        self.assertEqual(results["SYMBOL_A"].portfolio_result.reason, "BLOCK_EXISTING_POSITION_SAME_SYMBOL")
+        self.assertEqual(results["SYMBOL_B"].portfolio_result.status, "PORTFOLIO_ALLOWED")
+        self.assertEqual(
+            results["SYMBOL_B"].portfolio_result.total_risk_before,
+            held_a.remaining_loss_risk(1.0),
+        )
+
+    def test_settlement_position_is_counted_before_same_run_new_reservation(self):
+        history_a, t_day, event_a, evaluators_a = _fixture(t1=True, symbol="SYMBOL_A")
+        history_b, _, event_b, evaluators_b = _fixture(symbol="SYMBOL_B")
+        t1 = t_day + timedelta(days=1)
+        history_b_t1 = history_b + (_quote(t1, 100.0, symbol="SYMBOL_B"),)
+        event_b_t1 = replace(event_b, event_identity=f"SYMBOL_B|SETUP_01|{t1.isoformat()}|CONFIRMED|lifecycle=1", trade_date=t1)
+        report_b_t1 = Setup01ReplayReport(
+            symbol="SYMBOL_B", market="US",
+            days=(Setup01ReplayDay("SYMBOL_B", t1, event_b_t1.setup01),),
+            events=(event_b_t1,),
+        )
+
+        store = InMemoryDecisionStateStore()
+        initial_chain = DailyDecisionChain(store=store, evaluators=evaluators_a)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", side_effect=lambda event, *_args, **_kwargs: _decision(event)):
+            initial_chain.evaluate(
+                [_input(history_a[:21], t_day, exact=True, next_day=t1)],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+        self.assertIn(event_a.event_identity, store.pending)
+
+        def setup01(history, **kwargs):
+            return report_b_t1 if history[0].symbol == "SYMBOL_B" else evaluators_a.setup01(history, **kwargs)
+
+        evaluators = DailyChainEvaluators(wave=evaluators_a.wave, setup01=setup01, setup02=evaluators_a.setup02)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", side_effect=lambda event, *_args, **_kwargs: _decision(event)):
+            report = DailyDecisionChain(store=store, evaluators=evaluators).evaluate(
+                [
+                    _input(history_a, t1, exact=True, next_day=t1 + timedelta(days=1)),
+                    _input(history_b_t1, t1, exact=True, next_day=t1 + timedelta(days=1), risk_group="GROUP_B"),
+                ],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+        results = {result.symbol: result for result in report.results}
+        settled_position = store.settled[event_a.event_identity].settlement.position
+        self.assertIsNotNone(settled_position)
+        self.assertEqual(results["SYMBOL_A"].execution_outcome, "EXECUTED")
+        self.assertEqual(results["SYMBOL_B"].portfolio_result.status, "PORTFOLIO_ALLOWED")
+        self.assertEqual(
+            results["SYMBOL_B"].portfolio_result.total_risk_before,
+            settled_position.remaining_loss_risk(1.0),
+        )
+        self.assertIn(event_b_t1.event_identity, store.pending)
+
+    def test_unresolved_pending_reservation_blocks_new_symbol_without_reservation(self):
+        history_a, t_day, event_a, evaluators_a = _fixture(t1=True, symbol="SYMBOL_A")
+        history_b, _, event_b, evaluators_b = _fixture(symbol="SYMBOL_B")
+        t1 = t_day + timedelta(days=1)
+        history_b_t1 = history_b + (_quote(t1, 100.0, symbol="SYMBOL_B"),)
+        event_b_t1 = replace(event_b, event_identity=f"SYMBOL_B|SETUP_01|{t1.isoformat()}|CONFIRMED|lifecycle=1", trade_date=t1)
+        report_b_t1 = Setup01ReplayReport(
+            symbol="SYMBOL_B", market="US",
+            days=(Setup01ReplayDay("SYMBOL_B", t1, event_b_t1.setup01),),
+            events=(event_b_t1,),
+        )
+        store = InMemoryDecisionStateStore()
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", side_effect=lambda event, *_args, **_kwargs: _decision(event)):
+            DailyDecisionChain(store=store, evaluators=evaluators_a).evaluate(
+                [_input(history_a[:21], t_day, exact=True, next_day=t1)],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+
+        def setup01(history, **kwargs):
+            return report_b_t1 if history[0].symbol == "SYMBOL_B" else evaluators_a.setup01(history, **kwargs)
+
+        evaluators = DailyChainEvaluators(wave=evaluators_a.wave, setup01=setup01, setup02=evaluators_a.setup02)
+        with patch("trading.daily_decision_chain.execute_setup01_t1_open", side_effect=AssertionError("missing bar must not execute")), \
+             patch("trading.daily_decision_chain.evaluate_setup01_decision", side_effect=lambda event, *_args, **_kwargs: _decision(event)):
+            report = DailyDecisionChain(store=store, evaluators=evaluators).evaluate(
+                [
+                    _input(history_a[:21], t1, exact=True, next_day=t1 + timedelta(days=1)),
+                    _input(history_b_t1, t1, exact=True, next_day=t1 + timedelta(days=1), risk_group="GROUP_B"),
+                ],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+        results = {result.symbol: result for result in report.results}
+        self.assertIn(event_a.event_identity, store.pending)
+        self.assertIn(T1_EXECUTION_DATA_REQUIRED, results["SYMBOL_A"].blocking_prerequisites)
+        self.assertEqual(results["SYMBOL_B"].portfolio_result.reason, PORTFOLIO_PENDING_RESERVATION_UNRESOLVED)
+        self.assertEqual(results["SYMBOL_B"].portfolio_result.reservation_id, None)
+        self.assertNotIn(event_b_t1.event_identity, store.pending)
 
     def test_protocol_only_store_uses_get_settlement_for_exact_once(self):
         history, t_day, event, evaluators = _fixture(t1=True)
