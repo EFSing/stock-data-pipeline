@@ -7,12 +7,15 @@ Version:
 V0.2
 ```
 
-## Latest Governance Event — PR64_SOL_REVIEW_CORRECTNESS_HARDENING
+## Latest Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 
 - Portfolio Risk V1 PR #59 已按授权完成 exact-head squash merge：真实 merge commit=`dc03631b80c6118e0ef088739de277ab50f17220`；merge-after `CI Test Gate` run=`33647739171` success；未执行任何 broker/order/holdings/Sheets strategy write。
-- 当前任务为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1`：基于上述 clean merged main 创建新分支，新增 T 日 prospective read-only Daily Decision Chain；只消费冻结 Wave、SETUP_01/SETUP_02 Decision/Risk、Portfolio Risk、Position Management、Wave5 contracts；不重启 SETUP_03，不实现 SETUP_04，不接 broker，不自动交易。
+- PR #64 已获 Sol 正式批准 `APPROVE_PR_64_MERGE`，批准的 exact PR head=`58dfb1448fa73efd50856d989c42801664eb9419` 已完成 squash merge；真实 squash merge commit=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`。
+- merge-after `main` exact HEAD=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`，`CI Test Gate` run=`33711976436`，result=`success`；Daily Chain V1 已进入 merged engineering baseline。
+- Daily Chain V1 仍为 prospective read-only；production prerequisites 仍未解决，real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。不启动 production wiring，不实现 strategy universe / NAV / risk-group metadata / exact calendar / persistent store / authoritative position-origin backend。
+- 当前任务为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`：只完成 merge-after 核验与最小治理同步，不重启 SETUP_03，不实现 SETUP_04，不启动新 Phase。
 - 新链路本地验证已通过：Daily Chain focused=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、Daily Chain generic shadow=`17/17`、Portfolio Risk generic shadow=`18/18 checks`、full unittest=`549/549`、compileall、`git diff --check`；生产 real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
-- 当前新分支为 `codex/prospective-daily-decision-chain-v1`，base=`main@dc03631b80c6118e0ef088739de277ab50f17220`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64` 当前 `OPEN / MERGEABLE / merged=false`，latest substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`，治理状态为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+- 当前 checkout 为 `main`，本地与 `origin/main` 均为 `74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64` 已 `MERGED / merged=true`，approved head=`58dfb1448fa73efd50856d989c42801664eb9419`，substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`，治理状态为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`。
 - 本轮 Sol correctness hardening 已完成本地实现：Data Quality 先于 Wave/Setup/Individual Decision/Position Management；global 与 per-symbol authoritative positions canonical merge + conflict fail-closed；双 first-entry `CONFIRMED` upstream invariant guard；protocol-only settlement；mixed as-of fail-fast；Position Management prerequisite errors 归入数据/生产前置条件异常。
 - 双 `CONFIRMED` 经正式 contract 审计为当前不可达：Wave 只有一个 primary scenario，SETUP_01/02 只接受各自 primary family；本轮未增加交易优先级或修改冻结策略语义。
 - T+1 closeout：`DATA_BAD` / `DATA_STALE` / `DATA_UNAVAILABLE` 或 expected T+1 bar 缺失时，Daily Chain 不调用 execution / Portfolio Risk settlement，不生成 `EXECUTED` 或策略 `SKIP`，不 release reservation，不创建 PositionOrigin；`DATA_OK` 且 exact bar 存在时沿用原 settlement 语义。
@@ -31,9 +34,9 @@ V0.2
 ## Current Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
-- GitHub `main` exact HEAD=`dc03631b80c6118e0ef088739de277ab50f17220`，为 Portfolio Risk V1 PR #59 的真实 squash merge commit；merge-after `CI Test Gate` run=`33647739171` success。
-- Current checkout: `codex/prospective-daily-decision-chain-v1`，从上述 clean main 创建；prospective chain implementation、tests、shadow、workflow 与 docs 已在本地完成，replay output 保持在 ignored `artifacts/`。
-- PR #50/#51/#59/#60/#61 已 `MERGED`；Daily Decision Chain PR #64 已 `OPEN / MERGEABLE / merged=false`，未自动 merge。
+- GitHub `main` exact HEAD=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`，为 PR #64 的真实 squash merge commit；merge-after `CI Test Gate` run=`33711976436` success。
+- Current checkout: `main`，本地与 `origin/main` 一致；prospective chain implementation、tests、shadow、workflow 与 docs 已进入 merged engineering baseline，replay output 保持在 ignored `artifacts/`。
+- PR #50/#51/#59/#60/#61/#64 已 `MERGED`；PR #64 的批准 head 与 merge-after main 状态已完成交叉核验。
 - PR #45 已成功 squash merged，PR #38 也已正式 MERGED；其历史 exact-head 证据保留不变。
 - 当前项目正式状态：SETUP_03 仍为 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_01/SETUP_02 与 Position Management/Exit/Wave5 semantics frozen；Portfolio Risk V1 已 merged；当前授权任务为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1`，停止节点为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_READY_FOR_SOL_REVIEW`。总体策略身份与路线以 `docs/TRADING_SYSTEM_SPEC.md` 为准。
 - PR #45 已成功 squash merged：pre-merge HEAD=`19c6e0eaa8841b757e6359e897ab559e31d39f65`、base=`2f56cd0697592c5815dbfea84bf328abe6c4c8c7`、exact-head CI=`33493027270` success；merge state 为 CLEAN/MERGEABLE。
@@ -44,15 +47,16 @@ V0.2
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: PROSPECTIVE_DAILY_DECISION_CHAIN_V1（PR #64 hardening，等待 Sol review）
+## Current Task: PROSPECTIVE_DAILY_DECISION_CHAIN_V1（已 merged，停止在 engineering baseline）
 
-- 分支：`codex/prospective-daily-decision-chain-v1`；base=`main@dc03631b80c6118e0ef088739de277ab50f17220`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64`，latest substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`，保持 OPEN，不自动 merge。
+- 分支：`codex/prospective-daily-decision-chain-v1` 已 squash merged 到 `main`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64`，approved exact head=`58dfb1448fa73efd50856d989c42801664eb9419`，merge commit=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`，状态=`MERGED / merged=true`。
 - 新增 `trading/daily_decision_chain.py`、`tests/test_daily_decision_chain.py`、`scripts/run_daily_decision_chain_generic_operational_shadow.py`、`.github/workflows/daily-decision-chain-generic-operational-shadow.yml` 与 `docs/PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md`；`docs/DECISION_LOG.md` 已记录范围与 production prerequisite decisions。
 - T 日链路只消费 `data <= T` 的 immutable inputs；只接受同日、首次、明确标记 `is_new_confirmed_event_as_of=true` 的 SETUP_01/SETUP_02 `CONFIRMED` event；event identity 沿用现有 deterministic identity；T close 只形成 Decision/plan，T+1 execution 只在 exact exchange-calendar session identity 可用时进行观察性 settlement。
 - `DecisionStateStore`/`InMemoryDecisionStateStore`、injected `UniverseProvider`、Portfolio Risk frozen constants `0.005 / 0.02 / 0.01`、缺失 NAV/risk group/position origin/calendar/persistence 的 fail-closed reason 与六段中文优先报告已实现；无 broker/order/Sheets strategy write。
 - 实际 production strategy universe、可靠 NAV、accepted risk-group metadata、authoritative position origin、exact calendar 和 persistent store 尚无正式 SSOT；因此 real-data shadow=`NOT_RUN_PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`，不能用当前 watchlist 或真实 holdings 替代。
-- 本地验证：Daily Chain=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、Daily Chain generic shadow=`17/17`、Portfolio Risk generic shadow=`18/18 checks`、full unittest=`549/549`、compileall 与 `git diff --check` 通过；remote verification tip=`90dffa5c311a24abeadbd472a35e77f40b754828` 的 exact-head CI Test Gate=`33708806893`、Daily Chain shadow=`33708806921`、Portfolio Risk shadow=`33708806939` 均 success。
-- 本轮新增 Daily Chain regression=`20/20`（multi-symbol blocker preservation；既有 T+1 data guard、missing expected bar、known open position risk-state 与其他 hardening cases 保持绿色）；目标状态为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+- 本地验证：Daily Chain=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、Daily Chain generic shadow=`17/17`、Portfolio Risk generic shadow=`18/18 checks`、full unittest=`549/549`、compileall 与 `git diff --check` 通过；approved exact-head=`58dfb1448fa73efd50856d989c42801664eb9419` 的 CI Test Gate=`33709065926`、Daily Chain shadow=`33709065929`、Portfolio Risk shadow=`33709065934` 均 success；merge-after main CI=`33711976436 SUCCESS`。
+- 本轮新增 Daily Chain regression=`20/20`（multi-symbol blocker preservation；既有 T+1 data guard、missing expected bar、known open position risk-state 与其他 hardening cases 保持绿色）；目标状态为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`。
+- 合并后不重跑 frozen research replay；不启动 production wiring 或下一阶段架构决策。
 
 ## Previous Task: PORTFOLIO_RISK_V1（已 squash merged）
 
