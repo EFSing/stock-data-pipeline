@@ -7,7 +7,19 @@ Version:
 V0.2
 ```
 
-## Latest Governance Event — PRODUCTION_PREREQUISITES_V1
+## Latest Operational Event — PRODUCTION_SHEETS_BOOTSTRAP_AND_PREFLIGHT_V1
+
+- milestone status=`PRODUCTION_SHEETS_BOOTSTRAPPED`；本节覆盖当前 live workbook objective facts；旧 `REAL_SHEETS_NOT_CREATED` 仅属于历史治理事件。
+- Repo baseline verified：`main`/`origin/main`=`85f5aad40c300a5446a3610ce4daccfbc08c75bf`；PR #66=`MERGED / merged=true`；latest main `CI Test Gate` run=`33745503856` success。当前 checkout=`codex/production-prerequisites-governance-closeout`。
+- 目标 workbook 已验证：ID=`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`，title=`持仓股股票行情数据中台`，time zone=`Asia/Shanghai`。
+- 已在真实 workbook 创建并核验 5 个 exact-contract worksheet：`策略账户`、`策略股票池`、`策略风险分组`、`策略持仓`、`策略决策状态`；旧 `自选清单`、`最新行情`、`历史行情_前复权`、`参数设置`、`交易决策` 未修改。
+- `策略账户`=`2` 行 disabled scaffold（`CN_MAIN/CNY`、`US_MAIN/USD`，NAV/date 空）；`策略股票池`=`6` 行 disabled candidate bootstrap（CN 3、US 3）；`策略风险分组`=`0`；`策略持仓`=`0`；`策略决策状态`=`0`。
+- 候选来自 live `自选清单` 中 `启用=TRUE` 且市场为 CN/US 的 6 行；HK/SE 未加入 production strategy universe。`自选清单` 不等同于 `策略股票池`。
+- 真实 read-only preflight（无 `--run`、无 `--write-state`）=`NOT_READY`；blockers=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`、`PRODUCTION_ACCOUNT_REQUIRED`。preflight 前后 state rows=`0 → 0`，输出确认 `READ_ONLY`、`NO STATE WRITE=true`、`NO Sheets mutation=true`。
+- 当前状态：`READY_FOR_DECISION_REAL_PRODUCTION_CONFIG`；待用户决定正式 universe、拟启用账户 NAV/date、risk groups，以及确实纳入系统管理的 existing positions。`REAL_PRODUCTION_STATE_NOT_ENABLED`、`BROKER_NOT_CONNECTED`；无 FX、orders、cron。
+- 本轮没有新的长期架构决策，`docs/DECISION_LOG.md` 不变。治理同步完成目标：`HANDOFF_CURRENT_AND_CONSISTENT`。
+
+## Prior Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
 - substantive/validation head=`4548563249ad8f61656f09d5bca2c3f7761cc718`；PR #66 final live head=`ca21bd7ea2925d30d101550cb5d088b848ebff4d`，已 squash merged 为 `11f78c88a2e43ae1a136ffd2bd31246e4a6823ef`。后续 governance-only docs commit 不把自身或前一个 docs commit冒充 source validation head。
@@ -36,7 +48,7 @@ V0.2
 - Release target 为真实 `main@12a9e2aa175a90c5ff1db8556190c6db23d2bb64`；PR #59 已完成 `d1016f2` push 但保持 `OPEN / merged=false`，未 merge，策略代码未改变。Restore instructions=`docs/FROZEN_DATASET_RESTORE.md`。
 - Git remains source-code SSOT；Release asset 是 frozen binary/data archive；manifest/hash 是 dataset identity SSOT。预期恢复目录：`artifacts/development_strategy_stability_v2/`。
 
-## Current Verified Repository State
+## Historical Verified Repository State
 
 - Repository: `EFSing/stock-data-pipeline`; default branch: `main`。
 - GitHub `main` exact HEAD=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`，为 PR #64 的真实 squash merge commit；merge-after `CI Test Gate` run=`33711976436` success。
@@ -52,7 +64,7 @@ V0.2
 - 当前 worktree 的 frozen backup ZIP 已本地生成并通过字节 hash 验证；Google Drive persistent backup 与独立 cloud reread 由外部 ChatGPT 审计完成，状态为 `FULLY_RECOVERABLE`。raw/normalized/replay payload 仍位于 ignored `artifacts/`，未修改其 bytes。
 - 本文件中的治理初始化保留了已有 backup staging 记录；初始检查时观察到的 `.hotfix-worktree/` 在 post-commit 检查时已不再存在，本任务未执行删除且未纳入 commit。
 
-## Current Task: PROSPECTIVE_DAILY_DECISION_CHAIN_V1（已 merged，停止在 engineering baseline）
+## Historical Task: PROSPECTIVE_DAILY_DECISION_CHAIN_V1（已 merged，停止在 engineering baseline）
 
 - 分支：`codex/prospective-daily-decision-chain-v1` 已 squash merged 到 `main`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64`，approved exact head=`58dfb1448fa73efd50856d989c42801664eb9419`，merge commit=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`，状态=`MERGED / merged=true`。
 - 新增 `trading/daily_decision_chain.py`、`tests/test_daily_decision_chain.py`、`scripts/run_daily_decision_chain_generic_operational_shadow.py`、`.github/workflows/daily-decision-chain-generic-operational-shadow.yml` 与 `docs/PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md`；`docs/DECISION_LOG.md` 已记录范围与 production prerequisite decisions。
@@ -231,3 +243,4 @@ V0.2
 - PR #45 `https://github.com/EFSing/stock-data-pipeline/pull/45` 已创建，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`；当前为 `OPEN / CLEAN / MERGEABLE`，exact-head CI 已成功。最终 live head/CI 以 GitHub closeout 核对为准；不 merge。
 - overlap 审计已完成：同一 v2 输入上 SETUP_01/SETUP_02 的终态日期交集为 11 个 symbol-date、同类型交集为 0，candidate state-day 交集为 0；primary Wave context 84,284/84,284 日一致。
 - 该历史 structural task 已停止并合并；当前 Decision/Risk task 仍不进入 production/holdings/position-management/exit/outcome/OOS 路径。
+
