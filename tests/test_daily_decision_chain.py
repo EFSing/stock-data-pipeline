@@ -474,6 +474,49 @@ class DailyDecisionChainTests(unittest.TestCase):
         self.assertEqual(result.portfolio_result.reason, PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED)
         self.assertNotEqual(result.final_status, "PORTFOLIO_ALLOWED")
 
+    def test_multi_symbol_portfolio_mapping_preserves_blocker_and_reservation(self):
+        history_a, t_day, event_a, evaluators_a = _fixture(symbol="SYMBOL_A")
+        history_b, _, event_b, evaluators_b = _fixture(symbol="SYMBOL_B")
+        known_position = OpenPositionState(
+            "SYMBOL_A",
+            "US",
+            origin=_position_origin("SYMBOL_A"),
+            portfolio_position=None,
+        )
+
+        def setup01(history, **kwargs):
+            evaluator = evaluators_a.setup01 if history[0].symbol == "SYMBOL_A" else evaluators_b.setup01
+            return evaluator(history, **kwargs)
+
+        evaluators = DailyChainEvaluators(
+            wave=evaluators_a.wave,
+            setup01=setup01,
+            setup02=evaluators_a.setup02,
+        )
+        store = InMemoryDecisionStateStore()
+        with patch(
+            "trading.daily_decision_chain.evaluate_setup01_decision",
+            side_effect=lambda event, *_args, **_kwargs: _decision(event),
+        ):
+            report = DailyDecisionChain(store=store, evaluators=evaluators).evaluate(
+                [
+                    _input(history_a, t_day, position=known_position),
+                    _input(history_b, t_day, risk_group="GROUP_B"),
+                ],
+                mode="DEVELOPMENT_EXPOSED",
+            )
+
+        results = {result.symbol: result for result in report.results}
+        result_a = results["SYMBOL_A"]
+        result_b = results["SYMBOL_B"]
+        self.assertEqual(result_a.portfolio_result.status, "PORTFOLIO_BLOCKED")
+        self.assertEqual(result_a.portfolio_result.reason, PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED)
+        self.assertIsNone(result_a.portfolio_result.reservation_id)
+        self.assertEqual(result_b.portfolio_result.status, "PORTFOLIO_ALLOWED")
+        self.assertEqual(result_b.portfolio_result.reservation_id, event_b.event_identity)
+        self.assertEqual(set(store.pending), {event_b.event_identity})
+        self.assertNotIn(event_a.event_identity, store.pending)
+
     def test_protocol_only_store_uses_get_settlement_for_exact_once(self):
         history, t_day, event, evaluators = _fixture(t1=True)
         t1 = t_day + timedelta(days=1)

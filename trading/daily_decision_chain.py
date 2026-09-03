@@ -485,10 +485,10 @@ class DailyDecisionChain:
                     existing_positions=canonical_positions,
                 )
                 batch = portfolio_engine.reserve(candidate for _, candidate in candidates)
-                portfolio_by_identity = {
+                portfolio_by_identity.update({
                     reservation.reservation_id: reservation
                     for reservation in batch.reservations
-                }
+                })
             except (TypeError, ValueError) as exc:
                 for identity, _ in candidates:
                     portfolio_by_identity[identity] = exc
