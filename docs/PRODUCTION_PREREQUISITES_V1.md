@@ -84,7 +84,7 @@ or missing mapping fails closed with
 `DATA_OK` requires all of the following: latest row exists, `正式收盘=true`,
 `校验状态=已验证`, latest `交易日期 == T`, non-empty QFQ history, QFQ final
 date `== T`, and calendar confirmation that T is a completed session.
-Missing latest data maps to `DATA_UNAVAILABLE`; missing QFQ, empty currency,
+Missing latest or QFQ data maps to `DATA_UNAVAILABLE`; empty currency,
 unverified, malformed, future or identity-conflicting data maps to `DATA_BAD`;
 an older final date maps to `DATA_STALE`. Market-data currency is required on
 each latest/QFQ row and is never filled from account currency. Non-OK data
@@ -110,7 +110,10 @@ store per enabled account. It preserves:
 Reload validates the compound lineage. A published `PORTFOLIO_ALLOWED` result
 in `PENDING_T1_EXECUTION_CHECK` must have its pending or settlement record;
 every settlement must have both its published event and expected pending
-lineage; and a new published event must have its daily result. Incomplete
+lineage; every system-owned `POSITION_ORIGIN` must have its corresponding
+`SETTLEMENT`; and a new published event must have its daily result. An origin
+persisted without settlement fails closed with
+`PERSISTED_STATE_INCOMPLETE:origin_without_settlement:<identity>`. Incomplete
 independent appends fail closed with `PERSISTED_STATE_INCOMPLETE`.
 
 The store defaults to read-only. `--preflight` never passes write authority.

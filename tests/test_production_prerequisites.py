@@ -24,6 +24,7 @@ from trading.production_prerequisites import (
     DATA_BAD,
     DATA_OK,
     DATA_STALE,
+    DATA_UNAVAILABLE,
     DECISION_STATE_HEADERS,
     ExactExchangeCalendarProvider,
     PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE,
@@ -248,7 +249,7 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         client = _rows()
         client.rows["历史行情_前复权"] = [item for item in client.rows["历史行情_前复权"] if item["统一代码"] != "600000"]
         summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
-        self.assertIn(DATA_BAD, " ".join(summary.errors))
+        self.assertIn(DATA_UNAVAILABLE, " ".join(summary.errors))
 
         client = _rows()
         client.rows["最新行情"][0]["币种"] = ""
@@ -286,7 +287,7 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         self.assertEqual(position.remaining_loss_risk(us.reference_nav), 10 * 10 / 200000)
         self.assertIsNone(us.inputs[0].open_position_state.origin)
 
-    def test_wrong_position_origin_identity_or_date_remains_hard_failure(self):
+    def test_invalid_position_origin_state_fails_closed(self):
         for malformed in (
             replace(_origin(), market="CN"),
             replace(_origin(), entry_date=T_DAY + date.resolution),
@@ -296,9 +297,8 @@ class ProductionPrerequisiteTests(unittest.TestCase):
                 store = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1")
                 store.save_position_origin(malformed)
                 snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
-                summary = next(item for item in snapshot.preflight.accounts if item.account_id == "US-1")
                 self.assertFalse(snapshot.preflight.ready)
-                self.assertTrue(any("POSITION_ORIGIN_IDENTITY_MISMATCH" in error for error in summary.errors))
+                self.assertIn("PRODUCTION_STATE_STORE_REQUIRED", snapshot.preflight.errors)
 
     def test_empty_enabled_account_fails_closed_without_empty_chain_run(self):
         client = _rows()
@@ -365,7 +365,7 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         self.assertTrue(report.to_dict()["NO STATE WRITE"])
         self.assertTrue(report.to_dict()["NO Sheets mutation"])
 
-    def test_persistent_state_reloads_published_and_origin_exactly_once(self):
+    def test_persistent_state_reloads_published_exactly_once(self):
         client = _rows()
         store = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1")
         result = _result()
@@ -375,11 +375,6 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         self.assertEqual(restarted.get_published_event("event-1"), result)
         with self.assertRaises(ValueError):
             restarted.record_published_event("event-1", result)
-
-        origin = _origin()
-        restarted.save_position_origin(origin)
-        reloaded = SheetsDecisionStateStore(client, write_enabled=False, account_id="US-1")
-        self.assertEqual(reloaded.get_position_origin(origin.source_event_identity), origin)
 
     def test_pending_and_settlement_reload_once(self):
         from tests.test_daily_decision_chain import _fixture
@@ -418,6 +413,52 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(ValueError, PERSISTED_STATE_INCOMPLETE):
             SheetsDecisionStateStore(client, account_id="US-1")
+
+    def test_position_origin_without_settlement_fails_closed_and_normal_reload_is_exact_once(self):
+        from tests.test_daily_decision_chain import _fixture
+        _, _, event, _ = _fixture(t1=True)
+        provenance = Setup01TargetProvenance("SYNTHETIC", pivot_date=T_DAY, confirmed_date=T_DAY)
+        candidate = Setup01TargetCandidate(130.0, "SYNTHETIC", "test", (provenance,))
+        decision = Setup01Decision(
+            "SETUP-01-DECISION-RISK-TEST", event.event_identity, event.symbol, event.market,
+            T_DAY, SetupState.CONFIRMED, True, DecisionAction.ENTRY_ALLOWED,
+            "ENTRY_ALLOWED", "test", 1.0, 90.0, 100.0, 100.0, 100.0, 105.0,
+            95.0, 95.0, 90.0, (candidate,), (130.0,), False, None,
+            RiskReward(100.0, 90.0, 10.0, (130.0,), (3.0,), "NORMAL"), None, None,
+        )
+        portfolio_candidate = PortfolioCandidate(
+            event.event_identity, "SETUP_01", event.symbol, "US", T_DAY, 100, 90, 2.5, "NORMAL"
+        )
+        reservation = PortfolioRiskEngine(mode="DEVELOPMENT_EXPOSED").reserve([portfolio_candidate]).approved[0]
+        pending = PendingT1Decision(event, decision, reservation, date(2026, 9, 4))
+        origin = replace(_origin(), source_event_identity=event.event_identity, symbol=event.symbol)
+        client = _rows()
+        store = SheetsDecisionStateStore(client, write_enabled=True, account_id="US-1")
+        store.record_published_event(event.event_identity, _result(symbol=event.symbol))
+        store.save_pending(pending)
+        store.save_position_origin(origin)
+        with self.assertRaisesRegex(
+            ValueError,
+            rf"{PERSISTED_STATE_INCOMPLETE}:origin_without_settlement:{event.event_identity}",
+        ):
+            SheetsDecisionStateStore(client, account_id="US-1")
+
+        execution = Setup01Execution(
+            event.event_identity, event.symbol, "US", T_DAY, date(2026, 9, 4), 100.0,
+            True, "EXECUTED", 100.0,
+        )
+        settlement = PortfolioRiskEngine(mode="DEVELOPMENT_EXPOSED").settle(
+            reservation, outcome="EXECUTED", execution_date=date(2026, 9, 4), actual_entry=100.0
+        )
+        record = SettlementRecord(pending, execution, settlement, origin)
+        store.settle_pending(event.event_identity, record)
+        store.record_daily_result(_result(symbol=event.symbol))
+        reloaded = SheetsDecisionStateStore(client, account_id="US-1")
+        self.assertEqual(reloaded.get_settlement(event.event_identity), record)
+        self.assertEqual(reloaded.get_position_origin(event.event_identity), origin)
+        self.assertEqual(reloaded.pending_for_symbol(event.symbol), ())
+        with self.assertRaises(ValueError):
+            reloaded.settle_pending(event.event_identity, record)
 
     def test_corrupt_and_duplicate_state_fail_closed(self):
         base = _rows()

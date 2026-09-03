@@ -590,7 +590,7 @@ def _data_for_symbol(
             status, detail = DATA_BAD, str(exc)
     if not matching_history:
         if status == DATA_OK:
-            status, detail = DATA_BAD, "qfq missing"
+            status, detail = DATA_UNAVAILABLE, "qfq missing"
     else:
         try:
             parsed_history = [
@@ -875,6 +875,11 @@ class SheetsDecisionStateStore:
             pending = self.pending.get(identity)
             if identity not in self.published_events or pending is None or pending != settlement.pending:
                 raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:settlement_lineage:{identity}")
+        for identity in self.position_origins:
+            if identity not in self.settled:
+                raise ProductionPrerequisiteError(
+                    f"{PERSISTED_STATE_INCOMPLETE}:origin_without_settlement:{identity}"
+                )
         for identity in self.settled:
             self.pending.pop(identity, None)
         for identity, result in self.published_events.items():
