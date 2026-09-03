@@ -13,10 +13,11 @@
 ## 0. Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
-- 当前分支=`codex/production-prerequisites-v1`，远端最终 source head=`05c4e1a49701b50c7f8fd6a891876f8016d184a0`。
+- 当前分支=`codex/production-prerequisites-v1`；最新 substantive/validation head=`00f3ca01fc4210ab3a8db547d4e2a3d5a2dda199`。最终治理 docs commit 可能只推进 PR live tip，不把自身或前一个 docs commit冒充 source validation head。
 - 新 PR #66=`https://github.com/EFSing/stock-data-pipeline/pull/66`，base=`main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`，state=`OPEN / merged=false / CLEAN / MERGEABLE`，不 merge。
-- PR #66 exact-head CI：`test` run=`33724625244` success；两个 `generic-shadow` runs=`33724625231`、`33724625297` success。
-- 本阶段实现五个 production Sheet contracts、account-isolated adapter、`SheetsDecisionStateStore`、exact exchange calendar 和只读 `--preflight`；本地 full unittest=`560/560`，focused production prerequisites=`11/11`。
+- substantive head exact-head CI：`CI Test Gate` run=`33730271239` success；Daily Chain generic shadow run=`33730271247` success；Portfolio Risk generic shadow run=`33730271273` success。
+- 本阶段实现并 harden 五个 production Sheet contracts、account-isolated adapter、`SheetsDecisionStateStore`、exact exchange calendar 和只读 `--preflight`：缺 PositionOrigin 仅阻断 PM；同轮 settlement exposure、未决 reservation、compound state 与显式行情币种均 fail closed；空 enabled account 无正式 strategy universe 时 fail closed。
+- 本地验证：full unittest=`570/570`；production prerequisites=`18/18`；Daily Chain=`23/23`；Portfolio Risk=`24/24`；Position Management=`18/18`；compileall 与 `git diff --check` 通过。
 - Portfolio Risk 继续复用 frozen constants/formula；CN/US 为独立 CNY/USD risk books；不实现 FX，不访问 broker/IBKR，不修改真实 Sheets。
 - 最终状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不 merge。
 

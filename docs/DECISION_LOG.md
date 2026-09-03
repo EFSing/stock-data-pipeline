@@ -1758,3 +1758,62 @@ Fibonacci, Entry Zone, Target, R/R, Portfolio Risk constants/formula,
 Position Management, Wave5 or T+1 trading semantics. It adds no cron, workflow
 schedule, broker path, holdings mutation, FX conversion or live worksheet
 creation. Real Sheets state was not written during implementation or tests.
+
+## 2026-09-03 — PRODUCTION_PREREQUISITES_V1 correctness hardening
+
+**Decision:** Continue PR #66 on its existing branch with only production
+correctness hardening. Missing `PositionOrigin` is a Position Management-only
+blocker: the adapter retains `missing_position_origins`, builds
+`OpenPositionState(origin=None, portfolio_position=...)`, and leaves the
+authoritative actual-entry/quantity/stop/risk-group facts available to
+Portfolio Risk. Wrong origin identity/market, origin entry date after T and
+corrupt origin state remain hard failures.
+
+**Decision:** Make `SheetsDecisionStateStore` account-scoped. Its persistence
+identity is `(account_id, record_type, primary_key)` while the frozen event
+identity remains unchanged. State rows require non-empty known account
+ownership; a production adapter creates a distinct read-only scoped store for
+each enabled account. Same primary text in different accounts is isolated.
+
+**Decision:** Make session completion an explicit production proof. The
+adapter/build path accepts injectable `now`/clock and passes a timezone-aware
+current time to `exchange_calendars` (`CN → XSHG`, `US → XNYS`). A current
+session before close returns `COMPLETED_SESSION_REQUIRED`; weekends/holidays
+and unsupported sessions remain fail-closed.
+
+**Decision:** Include any settlement-created `OpenPortfolioPosition` in the
+same-run authoritative Portfolio Risk merge before new candidates reserve.
+Unresolved `PENDING_T1` reservations conservatively block new reservations
+with `PORTFOLIO_PENDING_RESERVATION_UNRESOLVED`; persisted pending symbols
+outside the enabled strategy universe fail preflight with
+`PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE`.
+
+**Decision:** Treat the system-owned state worksheet as an append-only compound
+protocol, not independent loose rows. Reload rejects a published allowed
+pending-phase result without pending/settlement, a settlement without
+published-and-pending lineage, a new published event without its daily result,
+and malformed account ownership with `PERSISTED_STATE_INCOMPLETE` or the
+corresponding production prerequisite error.
+
+**Decision:** Latest and QFQ market-data rows must each carry explicit currency;
+account currency is never used as a fallback. Missing QFQ is `DATA_BAD`, and
+an enabled account with no enabled formal strategy symbol fails closed with
+`PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED` without an empty Daily Chain
+evaluation.
+
+**Verification:** Latest substantive/validation head is
+`00f3ca01fc4210ab3a8db547d4e2a3d5a2dda199`. It passed local production
+prerequisites `18/18`, Daily Chain `23/23`, Portfolio Risk `24/24`, Position
+Management `18/18`, full unittest `570/570`, compileall and `git diff --check`.
+Its exact-head GitHub checks are CI Test Gate run `33730271239`, Daily Chain
+generic shadow run `33730271247`, and Portfolio Risk generic shadow run
+`33730271273`; all succeeded. These are substantive/validation facts. The
+final governance-only docs commit may advance the PR's live tip and is not
+treated as a new source-validation head or self-referenced here.
+
+**Boundary:** No SETUP_01/02, Wave, Swing, Fibonacci, Entry Zone, Target/RR,
+T+1 trading rule, Portfolio Risk formula/constants, Position Management,
+Wave5, broker/order, holdings, FX, real Sheets, cron, parameter, Final OOS or
+frozen research replay semantics were changed. No real Sheets, broker or FX
+path was used. PR #66 remains `OPEN / merged=false / CLEAN / MERGEABLE`; do
+not merge and stop for Sol review.

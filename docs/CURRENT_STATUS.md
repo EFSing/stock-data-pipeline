@@ -10,10 +10,11 @@ V0.2
 ## Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
-- 当前分支=`codex/production-prerequisites-v1`，远端最终 source head=`05c4e1a49701b50c7f8fd6a891876f8016d184a0`。
+- 当前分支=`codex/production-prerequisites-v1`；最新 substantive/validation head=`00f3ca01fc4210ab3a8db547d4e2a3d5a2dda199`。最终治理 docs commit 可能只推进 PR live tip，不把自身或前一个 docs commit冒充 source validation head。
 - 新 PR #66=`https://github.com/EFSing/stock-data-pipeline/pull/66`，base=`main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`，state=`OPEN / merged=false / CLEAN / MERGEABLE`，不 merge。
-- PR #66 exact-head CI：`test` run=`33724625244` success；两个 `generic-shadow` runs=`33724625231`、`33724625297` success。
-- 本阶段新增 production prerequisites contract：五个策略 Sheet schema、account-isolated production adapter、`SheetsDecisionStateStore`、`exchange_calendars` CN/XSHG 与 US/XNYS provider、`scripts/run_production_daily_decision.py --preflight`；本地 full unittest=`560/560`，focused production prerequisites=`11/11`。
+- substantive head exact-head CI：`CI Test Gate` run=`33730271239` success；Daily Chain generic shadow run=`33730271247` success；Portfolio Risk generic shadow run=`33730271273` success。
+- 本阶段新增 production prerequisites correctness hardening：缺 PositionOrigin 仅阻断 PM；state identity 为 `(account_id, record_type, primary_key)` 且 adapter 为每个 enabled account 提供只读 scoped store；T 完成由可注入、带时区 clock 证明；settlement position 在同轮风险前合并；未决 PENDING_T1 reservation 保守阻断新 reservation；published/pending/settlement/daily compound state reload 断裂 fail closed；latest/QFQ 币种必须显式；空 enabled account 无正式 strategy universe 时 fail closed。
+- 本地验证：full unittest=`570/570`；production prerequisites=`18/18`；Daily Chain=`23/23`；Portfolio Risk=`24/24`；Position Management=`18/18`；compileall 与 `git diff --check` 通过。
 - `--preflight` 只读；真实 Sheets、broker/IBKR、订单、FX 和 cron 均未触及。冻结的 SETUP、Wave、Risk、Position Management、Wave5、T+1 语义未修改。
 - 最终状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不 merge。
 
