@@ -10,7 +10,7 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0. Latest Governance Event — PRODUCTION_PREREQUISITES_V1
+## 0. Prior Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
 - substantive/validation head=`4548563249ad8f61656f09d5bca2c3f7761cc718`；PR #66 final live head=`ca21bd7ea2925d30d101550cb5d088b848ebff4d`，已 squash merged 为 `11f78c88a2e43ae1a136ffd2bd31246e4a6823ef`。后续 governance-only docs commit 不把自身或前一个 docs commit冒充 source validation head。
@@ -22,6 +22,21 @@
 - merge-after main `CI Test Gate` run=`33745503856` success。
 - 五个 production Sheet contracts、account-isolated risk books、persistent state / exact calendar / production adapter 已进入正式 engineering baseline；`REAL_SHEETS_NOT_CREATED`、`REAL_PRODUCTION_STATE_NOT_ENABLED`、`BROKER_NOT_CONNECTED`。
 - 最终状态=`PRODUCTION_PREREQUISITES_V1_MERGED`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不再执行本阶段工作。
+
+## 0B. Latest Operational Milestone — PRODUCTION_SHEETS_BOOTSTRAP_AND_PREFLIGHT_V1
+
+- 目标 workbook 已通过 live identity guard：ID=`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`，title=`持仓股股票行情数据中台`，time zone=`Asia/Shanghai`。
+- 真实 workbook 原有 `自选清单`、`最新行情`、`历史行情_前复权`、`参数设置`、`交易决策`；5 个目标 worksheet 原先不存在，已创建且未删除或覆盖任何旧 worksheet。
+- 已创建并核验 exact headers：`策略账户`、`策略股票池`、`策略风险分组`、`策略持仓`、`策略决策状态`；sheetId 依次为 `880646742`、`1476125198`、`1355912165`、`2087824484`、`1675295518`。
+- `策略账户` 现有 2 行 disabled scaffold：`CN_MAIN/CN/CNY`、`US_MAIN/US/USD`；参考净值与净值日期均留空，未推算 NAV。
+- `策略股票池` 现有 6 行 disabled candidate bootstrap：CN=`000725.SZ` 京东方A、`002156.SZ` 通富微电、`512400.SH` 南方中证申万有色金属ETF；US=`BABA` 阿里巴巴、`DRAM` Roundhill Memory ETF、`RKLB` Rocket Lab USA。备注均为候选 bootstrap，未批准进入正式策略股票池。
+- `策略风险分组` row count=`0`；`策略持仓` row count=`0`；`策略决策状态` row count=`0`，未写入任何 `PUBLISHED_EVENT`、`PENDING_T1`、`SETTLEMENT`、`POSITION_ORIGIN` 或 `DAILY_RESULT`。
+- live read-only preflight（`--preflight`，无 `--run`、无 `--write-state`）结果=`NOT_READY`；runner/adapter 输出 blocker=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`、`PRODUCTION_ACCOUNT_REQUIRED`，并确认 `READ_ONLY`、`NO STATE WRITE=true`、`NO Sheets mutation=true`。由于所有账户和候选仍 disabled，这是预期结果。
+- preflight 前后 `策略决策状态` row count=`0 → 0`；旧 market-data/config/decision worksheet 的 sheetId 与 header verification 保持不变，outside target tabs changed=`NO`。
+- 本地 shell 未注入 `GOOGLE_SERVICE_ACCOUNT_JSON`，因此 preflight 使用刚从目标 workbook 读取的 live records 经 merged runner/adapter 注入路径执行；未读取、记录或输出任何 secret/credential。后续若需本地原生 `SheetsClient` CLI 进程，需在运行环境注入现有凭证。
+- 当前真正需要用户决定/填写：正式策略股票池（6 个候选逐项纳入与否）、拟启用账户的 reference NAV/NAV date、拟启用 symbol 的 risk group，以及确实要纳入管理的现有持仓事实（quantity、actual entry、protective stop、entry date、source event ID 可为空）。不伪造 PositionOrigin。
+- `DECISION_LOG.md` 未修改：本轮只是执行已批准的 production contract，不是新的长期架构决策。治理同步目标为 `HANDOFF_CURRENT_AND_CONSISTENT`；当前状态=`READY_FOR_DECISION_REAL_PRODUCTION_CONFIG`；`REAL_PRODUCTION_STATE_NOT_ENABLED`、`BROKER_NOT_CONNECTED`。
+- repo verification：`main` exact HEAD=`85f5aad40c300a5446a3610ce4daccfbc08c75bf`，`origin/main` 同 SHA；当前 checkout=`codex/production-prerequisites-governance-closeout`，working tree 在本次 docs sync 前 clean；PR #66=`MERGED / merged=true`；latest main `CI Test Gate` run=`33745503856` success。
 
 ## 0A. Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 
@@ -36,7 +51,7 @@
 - 不重新抓取、normalize、生成或 replay；不包含 secrets、credentials、account/broker data、Sheets credentials、personal holdings、`.env` 或 Git credential files。
 - 最终状态：`FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE`；`HANDOFF_CURRENT_AND_CONSISTENT`。
 
-## 1. Current Objective — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+## 1. Historical Objective — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
 
 - **当前 Phase / task:** `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`（独立 T 日 prospective read-only orchestration 已完成并进入 merged engineering baseline）。
 - **唯一目标:** 将冻结 Wave、SETUP_01/SETUP_02 Decision/Risk、Portfolio Risk、Position Management、Wave5 contracts 组合为可审阅的 Daily Decision Chain V1；只消费 `data <= T`，只接受同日首次 `is_new_confirmed_event_as_of=true` 的 `CONFIRMED` event，T+1 只在 exact calendar identity 可用时观察 settlement。
@@ -56,7 +71,7 @@
 - **SETUP_02 corrected funnel retained:** 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=1`；gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`；T+1 attempts/executed=`1/0`；所有上游 identity 与 cache semantic parity 保持通过。
 - **停止条件:** focused/full unittest、compileall、`git diff --check`、17/17 synthetic shadow、frozen replay causal/conservation/identity/governance checks、strict-vs-cached semantic parity、PR #59 final exact-head CI 与 generic shadow success 完成后，停止在 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`；禁止 merge 新 PR。
 
-## 2. Current Repository State — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+## 2. Historical Repository State — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
 
 - **repository:** `EFSing/stock-data-pipeline`; **main exact SHA:** `74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4` (live GitHub, PR #64 squash merge)。
 - **working checkout:** `main`，当前 HEAD 与 `origin/main` 一致；merged source branch 为 `codex/prospective-daily-decision-chain-v1`，ignored `artifacts/` 不入 Git。
@@ -77,7 +92,7 @@
 
 ## 3. Completed Work
 
-### Current SETUP_02 structural implementation
+### Completed SETUP_02 structural implementation
 
 - Added an independent immutable SETUP_02 evaluator and strict-prefix replay layer. The evaluator consumes only the existing Wave Engine primary `WAVE_3_CONTINUATION_CANDIDATE` with `setup02_context_eligible=true`; it does not alter Wave Engine semantics.
 - Context eligibility is causal `LOW0 → HIGH1 → LOW2 → HIGH3`, with `HIGH3 > HIGH1`, `LOW2 > LOW0`, confirmed daily/weekly `UPTREND`, and the Wave Engine's existing latest confirmed higher-low `structural_invalidation`. `continuation_high=HIGH3`.
@@ -139,7 +154,7 @@
 - 最终 production smoke：Asia `33265877563` 与 US `33265875055` 均为 workflow_dispatch/latest、成功，summary 分别为 `3/3 verified` 与 `6 verified + 1 single-source current/pending`，两者 `history_rows_written=0`、`decision_rows_written=0`。真实 Sheet 中 10/10 启用持仓交易日期均为 `2026-08-28`，SIVE 的 Friday 行来自 bounded Yahoo Chart；日期列为 DATE、运行时间列为北京时间 DATE_TIME。
 - 最终状态：`PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；SIVE 保留单源待复核，未伪造双源验证。`HANDOFF_CURRENT_AND_CONSISTENT`。
 
-## 4. Pending Work
+## 4. Historical Pending Work
 
 ### Required Next
 
@@ -283,7 +298,7 @@
 - v5 qualification: candidates `1.0/1.5/2.0/2.5` all candidate-level PASS；adjacent/lifecycle gates leave `qualified_candidates=[]`，selected candidate `null`，parity/repro PASS；final status `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。Capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`。
 - Production date invariants: `交易日期 = chosen quote 的市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`。US 交易日期保持 US local session date，不因北京时间跨日加一天；A股交易日期保持 A股市场日期；两者不得互相替代。
 
-## 8. Known Issues / Blockers
+## 8. Historical Known Issues / Blockers
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
@@ -350,7 +365,7 @@
 
 **Permanent prevention rule:** branch name 只能作为线索；正式任务必须由 HANDOFF/CURRENT_STATUS、用户本轮授权、protocol、PR/commit 和客观 artifact evidence 共同确认。
 
-## 10. Next Action — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+## 10. Historical Next Action — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
 
 1. [x] PR #51 closeout 已完成：source head=`2dbb7a751916921a29360b28467de92e150683e3`，squash merge=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after CI=`33607481962` success。
 2. [x] PR #59 四个 implementation commits 已从远端恢复；frozen archive 81/81 hash/size 与 loader 的 40 symbols/84,284 bars 已验证。
@@ -383,7 +398,7 @@
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
-## 10B. Current Next Action — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+## 10B. Historical Next Action — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
 
 1. [x] PR #59 Portfolio Risk V1 已完成授权 closeout：squash merge=`dc03631b80c6118e0ef088739de277ab50f17220`；merge-after `CI Test Gate`=`33647739171` success。
 2. [x] 已从真实 merged main 创建 `codex/prospective-daily-decision-chain-v1`，完成 Daily Chain V1 implementation、Sol finding hardening、focused/full tests、compileall、diff-check 与 17-case generic shadow。
@@ -393,7 +408,7 @@
 6. [x] 已 fetch / switch main 并确认本地 `main` 与 `origin/main` 均为 `74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`，且 merge commit 已包含在远端 main；不重跑 frozen research replay。
 7. [ ] 在 main protection 允许的最小范围内完成本治理同步；不夹带代码/新功能，不启动 production wiring 或新 Phase。
 
-## 11B. Current Handoff Checklist
+## 11B. Historical Handoff Checklist
 
 - [x] Current Objective 已切换为 Prospective Daily Decision Chain V1。
 - [x] 真实 merged main、Portfolio Risk PR #59 merge SHA 与 merge-after CI 已核对。
@@ -407,7 +422,7 @@
 - [x] 已知 `OpenPositionState` 缺少 `portfolio_position` 时，新的 `ENTRY_ALLOWED` 被 `PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED` 阻断，不把它视为无持仓。
 - [x] 多标的 batch 中，预先保存的 blocker 与其他 symbol 的正常 reservation mapping 同时保留；SYMBOL_A 无 reservation/pending，SYMBOL_B 正常获得自身 reservation。
 
-## 12B. Current Last Verified
+## 12B. Historical Last Verified
 
 - `last_updated_at`: `2026-09-03`
 - `verified_origin_main_sha`: `74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4` (live GitHub)
@@ -426,3 +441,4 @@
 - `next_action`: governance sync only, then stop; `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`; no strategy development or production wiring
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
+
