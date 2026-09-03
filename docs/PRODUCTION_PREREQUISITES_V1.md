@@ -1,6 +1,6 @@
 # PRODUCTION_PREREQUISITES_V1
 
-Status: `PRODUCTION_PREREQUISITES_V1_READY_FOR_SOL_REVIEW`
+Status: `PR_FULLY_READY_FOR_SOL_REVIEW`
 
 This phase adds the production-data contract and construction boundary for the
 existing prospective Daily Decision Chain. It does not redesign or modify the

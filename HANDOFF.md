@@ -13,10 +13,12 @@
 ## 0. Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
-- 远端核验显示 PR #64、#65 均已关闭，当前没有 open PR；本阶段不继续旧 PR，不 merge 新 PR。
-- 当前分支=`codex/production-prerequisites-v1`。本阶段实现五个 production Sheet contracts、account-isolated adapter、`SheetsDecisionStateStore`、exact exchange calendar 和只读 `--preflight`。
+- 当前分支=`codex/production-prerequisites-v1`，远端最终 source head=`79aae22497b93aec08af6fa6012feefb8d74c86b1`。
+- 新 PR #66=`https://github.com/EFSing/stock-data-pipeline/pull/66`，base=`main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`，state=`OPEN / merged=false / CLEAN / MERGEABLE`，不 merge。
+- PR #66 exact-head CI：`CI Test Gate` run=`33724387211` success；两个 `generic-shadow` runs=`33724387272`、`33724387306` success。
+- 本阶段实现五个 production Sheet contracts、account-isolated adapter、`SheetsDecisionStateStore`、exact exchange calendar 和只读 `--preflight`；本地 full unittest=`560/560`，focused production prerequisites=`11/11`。
 - Portfolio Risk 继续复用 frozen constants/formula；CN/US 为独立 CNY/USD risk books；不实现 FX，不访问 broker/IBKR，不修改真实 Sheets。
-- `HANDOFF_CURRENT_AND_CONSISTENT` 将在最终 PR exact head、exact-head CI 和 mergeability 核验完成后确认；停止节点=`PR_FULLY_READY_FOR_SOL_REVIEW`，不 merge。
+- 最终状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不 merge。
 
 ## 0A. Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 

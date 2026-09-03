@@ -10,10 +10,12 @@ V0.2
 ## Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
-- 远端核验：PR #64、#65 均已关闭，当前没有 open PR；本阶段新建分支=`codex/production-prerequisites-v1`，不继续旧 PR、不 merge。
-- 本阶段新增 production prerequisites contract：五个策略 Sheet schema、account-isolated production adapter、`SheetsDecisionStateStore`、`exchange_calendars` CN/XSHG 与 US/XNYS provider、`scripts/run_production_daily_decision.py --preflight`。
+- 当前分支=`codex/production-prerequisites-v1`，远端最终 source head=`79aae22497b93aec08af6fa6012feefb8d74c86b1`。
+- 新 PR #66=`https://github.com/EFSing/stock-data-pipeline/pull/66`，base=`main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`，state=`OPEN / merged=false / CLEAN / MERGEABLE`，不 merge。
+- PR #66 exact-head CI：`CI Test Gate` run=`33724387211` success；两个 `generic-shadow` runs=`33724387272`、`33724387306` success。
+- 本阶段新增 production prerequisites contract：五个策略 Sheet schema、account-isolated production adapter、`SheetsDecisionStateStore`、`exchange_calendars` CN/XSHG 与 US/XNYS provider、`scripts/run_production_daily_decision.py --preflight`；本地 full unittest=`560/560`，focused production prerequisites=`11/11`。
 - `--preflight` 只读；真实 Sheets、broker/IBKR、订单、FX 和 cron 均未触及。冻结的 SETUP、Wave、Risk、Position Management、Wave5、T+1 语义未修改。
-- 当前阶段状态为 `PRODUCTION_PREREQUISITES_V1_IN_PROGRESS`；完成最终 exact-head CI 与 PR mergeability 核验后更新为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+- 最终状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不 merge。
 
 ## Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 - 本轮 Sol correctness hardening 已完成本地实现：Data Quality 先于 Wave/Setup/Individual Decision/Position Management；global 与 per-symbol authoritative positions canonical merge + conflict fail-closed；双 first-entry `CONFIRMED` upstream invariant guard；protocol-only settlement；mixed as-of fail-fast；Position Management prerequisite errors 归入数据/生产前置条件异常。
