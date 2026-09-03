@@ -1802,12 +1802,12 @@ an enabled account with no enabled formal strategy symbol fails closed with
 evaluation.
 
 **Verification:** Latest substantive/validation head is
-`00f3ca01fc4210ab3a8db547d4e2a3d5a2dda199`. It passed local production
+`314660777d7d73c2769d269f26ab8e307495440b`. It passed local production
 prerequisites `18/18`, Daily Chain `23/23`, Portfolio Risk `24/24`, Position
 Management `18/18`, full unittest `570/570`, compileall and `git diff --check`.
-Its exact-head GitHub checks are CI Test Gate run `33730271239`, Daily Chain
-generic shadow run `33730271247`, and Portfolio Risk generic shadow run
-`33730271273`; all succeeded. These are substantive/validation facts. The
+Its exact-head GitHub checks are CI Test Gate run `33731238281`, Daily Chain
+generic shadow run `33731238207`, and Portfolio Risk generic shadow run
+`33731238166`; all succeeded. These are substantive/validation facts. The
 final governance-only docs commit may advance the PR's live tip and is not
 treated as a new source-validation head or self-referenced here.
 
