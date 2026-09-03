@@ -10,13 +10,15 @@ V0.2
 ## Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
-- 当前分支=`codex/production-prerequisites-v1`；最新 substantive/validation head=`4548563249ad8f61656f09d5bca2c3f7761cc718`。最终治理 docs commit 可能只推进 PR live tip，不把自身或前一个 docs commit冒充 source validation head。
-- 新 PR #66=`https://github.com/EFSing/stock-data-pipeline/pull/66`，base=`main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`，state=`OPEN / merged=false / CLEAN / MERGEABLE`，不 merge。
+- substantive/validation head=`4548563249ad8f61656f09d5bca2c3f7761cc718`；PR #66 final live head=`ca21bd7ea2925d30d101550cb5d088b848ebff4d`，已 squash merged 为 `11f78c88a2e43ae1a136ffd2bd31246e4a6823ef`。后续 governance-only docs commit 不把自身或前一个 docs commit冒充 source validation head。
+- PR #66=`https://github.com/EFSing/stock-data-pipeline/pull/66`，base=`main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`，state=`MERGED / merged=true`；merge-after `main`=`11f78c88a2e43ae1a136ffd2bd31246e4a6823ef`。
 - substantive head exact-head CI：`CI Test Gate` run=`33739123688` success；Daily Chain generic shadow run=`33739123690` success；Portfolio Risk generic shadow run=`33739123721` success。
 - 本阶段新增 production prerequisites correctness hardening：缺 PositionOrigin 仅阻断 PM；state identity 为 `(account_id, record_type, primary_key)` 且 adapter 为每个 enabled account 提供只读 scoped store；T 完成由可注入、带时区 clock 证明；settlement position 在同轮风险前合并；未决 PENDING_T1 reservation 保守阻断新 reservation；published/pending/settlement/daily compound state reload 断裂 fail closed；system-owned `POSITION_ORIGIN` 无对应 `SETTLEMENT` 时以 `PERSISTED_STATE_INCOMPLETE:origin_without_settlement:<identity>` fail closed；latest/QFQ 币种必须显式；QFQ 缺失为 `DATA_UNAVAILABLE`；空 enabled account 无正式 strategy universe 时 fail closed。
 - 本地验证：full unittest=`571/571`；production prerequisites=`19/19`；Daily Chain=`23/23`；Portfolio Risk=`24/24`；Position Management=`18/18`；Daily generic shadow=`17/17 SUCCESS`；Portfolio generic shadow=`17/17 SUCCESS`；compileall 与 `git diff --check` 通过。
 - `--preflight` 只读；真实 Sheets、broker/IBKR、订单、FX 和 cron 均未触及。冻结的 SETUP、Wave、Risk、Position Management、Wave5、T+1 语义未修改。
-- 最终状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不 merge。
+- merge-after main `CI Test Gate` run=`33745503856` success。
+- 五个 production Sheet contracts、account-isolated risk books、persistent state / exact calendar / production adapter 已进入正式 engineering baseline；`REAL_SHEETS_NOT_CREATED`、`REAL_PRODUCTION_STATE_NOT_ENABLED`、`BROKER_NOT_CONNECTED`。
+- 最终状态=`PRODUCTION_PREREQUISITES_V1_MERGED`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不再执行本阶段工作。
 
 ## Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 - 本轮 Sol correctness hardening 已完成本地实现：Data Quality 先于 Wave/Setup/Individual Decision/Position Management；global 与 per-symbol authoritative positions canonical merge + conflict fail-closed；双 first-entry `CONFIRMED` upstream invariant guard；protocol-only settlement；mixed as-of fail-fast；Position Management prerequisite errors 归入数据/生产前置条件异常。

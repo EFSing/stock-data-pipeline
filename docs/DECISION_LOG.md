@@ -1796,24 +1796,44 @@ and malformed account ownership with `PERSISTED_STATE_INCOMPLETE` or the
 corresponding production prerequisite error.
 
 **Decision:** Latest and QFQ market-data rows must each carry explicit currency;
-account currency is never used as a fallback. Missing QFQ is `DATA_BAD`, and
+account currency is never used as a fallback. Missing QFQ is
+`DATA_UNAVAILABLE`, and
 an enabled account with no enabled formal strategy symbol fails closed with
 `PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED` without an empty Daily Chain
 evaluation.
 
 **Verification:** Latest substantive/validation head is
-`314660777d7d73c2769d269f26ab8e307495440b`. It passed local production
-prerequisites `18/18`, Daily Chain `23/23`, Portfolio Risk `24/24`, Position
-Management `18/18`, full unittest `570/570`, compileall and `git diff --check`.
-Its exact-head GitHub checks are CI Test Gate run `33731238281`, Daily Chain
-generic shadow run `33731238207`, and Portfolio Risk generic shadow run
-`33731238166`; all succeeded. These are substantive/validation facts. The
-final governance-only docs commit may advance the PR's live tip and is not
-treated as a new source-validation head or self-referenced here.
+`4548563249ad8f61656f09d5bca2c3f7761cc718`. It passed local production
+prerequisites `19/19`, Daily Chain `23/23`, Portfolio Risk `24/24`, Position
+Management `18/18`, full unittest `571/571`, compileall and
+`git diff --check`. Its exact-head GitHub checks are CI Test Gate run
+`33739123688`, Daily Chain generic shadow run `33739123690`, and Portfolio
+Risk generic shadow run `33739123721`; all succeeded. These are
+substantive/validation facts. The final live docs tip was
+`ca21bd7ea2925d30d101550cb5d088b848ebff4d` and is not treated as a new
+source-validation head.
 
 **Boundary:** No SETUP_01/02, Wave, Swing, Fibonacci, Entry Zone, Target/RR,
 T+1 trading rule, Portfolio Risk formula/constants, Position Management,
 Wave5, broker/order, holdings, FX, real Sheets, cron, parameter, Final OOS or
 frozen research replay semantics were changed. No real Sheets, broker or FX
-path was used. PR #66 remains `OPEN / merged=false / CLEAN / MERGEABLE`; do
-not merge and stop for Sol review.
+path was used. PR #66 remained open until the separately authorized merge
+closeout below.
+
+## 2026-09-03 — PRODUCTION_PREREQUISITES_V1 merge closeout
+
+**Decision:** Sol approved `APPROVE_PR_66_MERGE`. The live PR head was
+verified as the exact approved `ca21bd7ea2925d30d101550cb5d088b848ebff4d`
+before merge, then PR #66 was squash merged. The real squash merge commit is
+`11f78c88a2e43ae1a136ffd2bd31246e4a6823ef`.
+
+**Verification:** PR #66 is `merged=true`; merge-after `main` HEAD is
+`11f78c88a2e43ae1a136ffd2bd31246e4a6823ef`; merge-after `CI Test Gate` run
+`33745503856` succeeded. The five production Sheet contracts,
+account-isolated risk books, persistent state, exact calendar and production
+adapter are now part of the formal engineering baseline.
+
+**Operational status:** `REAL_SHEETS_NOT_CREATED`,
+`REAL_PRODUCTION_STATE_NOT_ENABLED`, `BROKER_NOT_CONNECTED`. No FX or cron
+was added; no production state write path was enabled; frozen strategy
+semantics were unchanged.
