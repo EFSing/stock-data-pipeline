@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 16776)
-Total output lines: 445
-
 # CURRENT OPERATIONAL HANDOFF SNAPSHOT
 
 > 本文件是下一台设备 / 下一次开发会话的可执行交接快照，不是完整历史流水账。新会话第一步读取本文件，然后读取 `docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md`，再核对真实 Git / PR / CI / artifact 状态。
@@ -55,7 +52,7 @@ Total output lines: 445
 - 不重新抓取、normalize、生成或 replay；不包含 secrets、credentials、account/broker data、Sheets credentials、personal holdings、`.env` 或 Git credential files。
 - 最终状态：`FROZEN_DEVELOPMENT_DATASET_CLOUD_ARCHIVED_AND_PORTABLE`；`HANDOFF_CURRENT_AND_CONSISTENT`。
 
-## 1. Historical Objective — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+## 1. Current Objective
 
 - **当前 Phase / task:** `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`（独立 T 日 prospective read-only orchestration 已完成并进入 merged engineering baseline）。
 - **唯一目标:** 将冻结 Wave、SETUP_01/SETUP_02 Decision/Risk、Portfolio Risk、Position Management、Wave5 contracts 组合为可审阅的 Daily Decision Chain V1；只消费 `data <= T`，只接受同日首次 `is_new_confirmed_event_as_of=true` 的 `CONFIRMED` event，T+1 只在 exact calendar identity 可用时观察 settlement。
@@ -75,7 +72,7 @@ Total output lines: 445
 - **SETUP_02 corrected funnel retained:** 213 first-entry CONFIRMED → 213 Decision；`ENTRY_ALLOWED=1`；gate=`ABOVE_ENTRY_ZONE 97 / STALE_CONFIRMATION_GEOMETRY 12 / NO_VALID_TARGET 1 / RR_BELOW_MINIMUM 102`；T+1 attempts/executed=`1/0`；所有上游 identity 与 cache semantic parity 保持通过。
 - **停止条件:** focused/full unittest、compileall、`git diff --check`、17/17 synthetic shadow、frozen replay causal/conservation/identity/governance checks、strict-vs-cached semantic parity、PR #59 final exact-head CI 与 generic shadow success 完成后，停止在 `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`；禁止 merge 新 PR。
 
-## 2. Historical Repository State — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`; **main exact SHA:** `74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4` (live GitHub, PR #64 squash merge)。
 - **working checkout:** `main`，当前 HEAD 与 `origin/main` 一致；merged source branch 为 `codex/prospective-daily-decision-chain-v1`，ignored `artifacts/` 不入 Git。
@@ -132,7 +129,135 @@ Total output lines: 445
 - Issue #42 production command evidence：`ADD 512400` / `CN` / `dry_run=false` / `512400.SH` / `SUCCESS` / `enabled=true` / `history_rows_written=480`。该事实已取自 GitHub machine-readable result comment；不访问真实账户或 Secrets。
 - PR #43 merge closeout：Sol approval=`APPROVE_SETUP_01_DECISION_RISK_V1_RECONCILIATION`；squash merge commit=`3b300975e999a934533398a951e7ec34e80a17bd`；merge-after main exact-head CI `33404615092=success`；未添加 GitHub self-approval review。
 
-- PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `…4776 tokens truncated…est_wave.py` / `docs/WAVE_SCENARIO_ENGINE_V1.md` | Wave Engine regression contract and protocol documentation | v1 semantics / governance |
+- PR #35 已从最新 main squash merge 为 `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`，main CI `33298510168` success；PR #31 已关闭并记录 `superseded by #34`。
+- Wave Scenario Engine v1 已实现：严格 `data <= as_of_date`、完整周边界、weekly parent → daily context、confirmed Swing、现有 Fibonacci regions、primary/alternate、证据/反证/规则计分、结构失效、context eligibility 与 fail-closed UNKNOWN/NO_VALID families。
+- Wave Engine v1 测试覆盖 canonical/synthetic 场景、future append invariance、不完整当前周、weekly/daily state、confirmed/provisional、Fib region、primary/alternate coexistence 与 read-only shadow；focused `tests.test_wave` 为 `12/12` 通过。
+- PR #36 previous review head `ca9ec6e93518e7e47c13f8f41a7f5751c9fd24d0` 的 exact-head CI `33300273163` 与只读 shadow `33300273180` success；当前 substantive head 为 `eed768bec92365615b05b0a8314cf555e44b22ac`，必须重新完成相同检查。previous shadow 对真实 10 个启用持仓生成 JSON/CSV artifact，未写 Sheets、历史、Decision 或交易字段。
+- Final shadow summary：`symbols_requested=10`、`evaluated=9`、`errors=1`、`unknown_primary=5`、`unknown_primary_ratio=0.5`；primary counts 为 `DOWNTREND_OR_INVALID_FOR_LONG=3`、`WAVE_2_TO_3_CANDIDATE=1`、`UPTREND_UNKNOWN_WAVE=4`、`ABC_CORRECTION_CANDIDATE=1`、`NO_VALID_SCENARIO=1`；状态 `PARTIAL_DATA_QUALITY`。MU 的 `历史数据源` 为空，按 fail-closed 记录错误。
+- SETUP_01 v1 已完成：独立 immutable model/evaluator、固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED` lifecycle、primary-only Wave Engine context、ABC/downtrend counter-scenario blocks、两类独立 invalidation、canonical Fib diagnostics、strict prefix replay 与 deterministic CONFIRMED/FAILED event identity。Wave 2 low 额外要求低于 Wave 1 peak，避免非 retracement 误判。
+- Development structural replay 已完成：40/40 symbols、86,305 days、0 errors、1,404 events（745 CONFIRMED / 659 FAILED）；CN event distribution 299/313，US 446/346；唯一未终结 development candidate 为 STX/US ARMED。
+- Real holdings shadow 已完成：10 requested / 8 evaluated / 2 errors；SETUP_01 states FAILED=5、WATCH=1、CONFIRMED=2；000725.SZ/CN 为当前 WATCH candidate；SIVE.SE freshness stale、MU empty historical source 均 fail-closed。
+- Correctness closeout shadow summary：`symbols_requested=10`、`evaluated=8`、`errors=2`；8 个成功行的 qfq `history_last_date` 均与 `latest_completed_session` 对齐，5 个 US 标的均到 `2026-08-28`；SIVE.SE 因 `2026-08-27 < 2026-08-28` 为 `DATA_STALE`，MU 因空 `历史数据源` fail-closed；`returns_accessed=false`、`oos_accessed=false`、`sheets_written=false`。
+- Phase 5J-v3 protocol、independent universe、holdout dataset、structure-only replay/parity 与 qualification 已完成并由 PR #30 合并；exact identities 见第 7 节和 `docs/CURRENT_STATUS.md`。
+- loader 已修复 dataset → replay wrapper 的 provisional-hash cross-binding 顺序问题；现有 frozen identities 与研究结果不变，tracked wrapper integrity 为 `sha256:6746fa0914ef20916ec9006492f2043ed9d35fc65b74995e1cab903837890148`。
+- 本地 recovery bundle 已生成：`artifacts/frozen_backups/SETUP_03_DEVELOPMENT_HOLDOUT_2026-08-29_v1_FROZEN_BACKUP.zip`，3,086,881 bytes，ZIP SHA-256 `sha256:4f7de4a64bd6b020cd1b93a8bcc392db8d19b69a3b430b85b14b8e548e13f599`；bundle 含 5 个文件，成员 hash 见 registry/recovery manifest。
+- 外部 ChatGPT 审计已将 exact ZIP bytes 上传 Google Drive `交易系统/Frozen Artifacts/stock-data-pipeline/2026-08-29-v1/`，file ID `119X2DoBlA_vqSzt62GfTi3ZDiCktVBvS`；独立重新读取后的 recovered ZIP SHA-256 与上传前完全一致。该 session 不重复访问 Google Drive。
+- 本次治理初始化与本轮 cloud recovery correction：新增/更新治理文件与 governance test；不改变业务逻辑和 frozen artifact bytes。治理修正 commit 的 SHA 以 Git/PR 最终核对为准。
+- Phase 5J-v4 exact Sol specification 已落为 machine-readable protocol、中文说明、hash-pinned loader 与 protocol regression tests；canonical protocol SHA-256 为 `sha256:babece4e00837fd5b47fca6746255982bc362544d4072c5dc7a1b8d17f837cbe`。本独立 freeze task 未运行真实 holdout attribution。
+- Phase 5J-v4 在 40 symbols / 86,305 bars 上生成 258,915 trace rows、1,031 lifecycles、177 real first-divergence episodes；对 `origin/main@142b7345…` 完成 120 cells / 258,915 Setup bar comparisons / 1,028 terminal-event comparisons，Setup/event mismatches 均为 0。capsule file SHA-256 `sha256:a779960f1267331788d69c5f087dd7ec8896a90989679d750eb491154e53501f`，deterministic trace SHA-256 `sha256:f27a1fd15b0aa0468140f319b70ef725ace7c0581b3654748e694b3cd44e18b4`；tracked provenance hashes 使用 Git-normalized LF bytes，跨 Windows/Linux 稳定。
+- v5 clean holdout acquisition：冻结 universe 的 40/40 symbols 均 `VALID_ACCEPTED`，CN 42,355 + US 45,720 = 88,075 bars；dataset manifest `sha256:9940f0e496e3c5ead4216d33d28bd23b023801007bf46d63051237bd7b8a1b29`，normalized aggregate `sha256:a98cbbb0065b29f77d237dd43365746a41d08462f1ec2bbc112030e0231ce038`，replay aggregate `sha256:37c269ca1044fcb611650a83e670b12b41353ddcf9b912514222c9218ca70a76`；provider/QC exceptions=0，未使用 formal B1/IBKR。
+- v5 ATR structure-only qualification：4 candidates 的 124-row matrix 中 candidate-level gates 全部通过，但 adjacent/lifecycle gates 使 `qualified_candidates=[]`、`selected_candidate_atr=null`；parity 为 280 cells / 616,525 bars / 3,253 terminal-event comparisons / 0 mismatches，deterministic repeat `PASS`。capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`，最终状态 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
+- `trading/setup.py` 的 `ATR_NORMALIZED_BOUNDARY_MODE` 保留用于研究复现，并明确标记为 `RESEARCH_ONLY` / `NOT_PRODUCTION_AUTHORIZED` / `FAILED_STRUCTURAL_CANDIDATE_FAMILY`；`main.py`、Sheets 参数解析、workflow 与 Decision 入口均不选择该 mode，percentage production default 与既有交易行为不变。
+- PR #33 已完成远端 squash merge，merge commit 为 `b27f6c9052fe44bcec3d7ea4c3a05ac2efcb6d11`，main exact-head CI `33264260330` success；未启动 Wave Engine。
+- PR #31 全部 diff 已审计：旧治理文件基于 `main@142b7345a5640b1e87932e41f3dc9311172bf54c`，不直接移植；本分支只重新实现 latest/full 隔离、source-date freshness、ordinary-calendar guard、future-date rejection 和时区归一化。
+- 已完成生产根因链审计：`main.run()` 构造 latest row 时的 `交易日期` 只允许来自 `chosen.trade_date`，`抓取时间` 只来自北京时间 `fetched_at`；真实 Sheet 元数据与 `自选清单`/`最新行情` 已只读核对，目标表为「持仓股股票行情数据中台」。
+- 已完成最终验证：全量 unittest `343/343`、focused validation/latest `64/64`、compile、`git diff --check` 与 PR #34 exact-head CI `33265845873` 均成功；实现 head 为 `a9a7a06d546412d4de390029baaa5ff4d44ee263`。
+- 最终 production smoke：Asia `33265877563` 与 US `33265875055` 均为 workflow_dispatch/latest、成功，summary 分别为 `3/3 verified` 与 `6 verified + 1 single-source current/pending`，两者 `history_rows_written=0`、`decision_rows_written=0`。真实 Sheet 中 10/10 启用持仓交易日期均为 `2026-08-28`，SIVE 的 Friday 行来自 bounded Yahoo Chart；日期列为 DATE、运行时间列为北京时间 DATE_TIME。
+- 最终状态：`PRODUCTION_HOLDINGS_DATE_BUG_FIXED_AND_LIVE_VERIFIED`；SIVE 保留单源待复核，未伪造双源验证。`HANDOFF_CURRENT_AND_CONSISTENT`。
+
+## 4. Pending Work
+
+### Required Next
+
+- [x] 从现场核对的 clean `main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7` 建立 `codex/setup02-wave3-continuation-v1`，并确认启动前无 open PR。
+- [x] 实现独立 SETUP_02 structural evaluator/replay；只接受 primary `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`，不修改 Wave Engine 或 SETUP_01。
+- [x] 固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED`、严格高点确认、Wave Engine structural invalidation、weekly/daily/primary failure blocks、terminal once-only event identity 与 future append invariance。
+- [x] 完成冻结 DEVELOPMENT_EXPOSED structure-only replay：40/40 symbols、84,284 days、494 terminal events、0 errors、identity audit exactly-once。
+- [x] 更新 protocol/status/decision docs，完成 focused/full unittest、compileall、`git diff --check`，并提交本地 source commit `ac63bd7`。
+- [x] 创建 PR #45，base=`main@2f56cd0697592c5815dbfea84bf328abe6c4c8c7`，等待 exact-head CI，核对 `OPEN / CLEAN / MERGEABLE`；不 merge。
+
+### Deferred
+
+- SETUP_02 Entry/Exit/holdings/production integration、任何 outcome/backtest/OOS 与 production calendar 仍须等待后续明确授权；当前 Decision/Risk development 仅限本快照所述的 development-only、structure/decision/risk evidence。
+- SETUP_01 production integration 与任何 SETUP_01 语义修改不属于本任务。
+- 如需继续 SETUP_03，等待新的明确研究决策并注册新 protocol/version；当前结果不授权任何 threshold 或 production 选择。
+- Final OOS、formal Phase 5K-B1、IBKR readiness 和任何 production parameter/strategy change。
+
+### Prohibited For Now
+
+- 不实现 SETUP_02 Entry、Exit、holdings、production 或 outcome research；不进入 Final OOS。当前获授权的 Decision/Risk v1 仍不得扩展到这些路径。
+- 不修改现有 Wave Engine、SETUP_01、Fibonacci canonical definitions、SETUP_01 Decision/Risk、SETUP_03 或 production calendars。
+- 不危险 rebase 旧 PR；本任务只能创建本分支的单一 SETUP_02 PR，不自动 merge。
+- 不读取真实持仓、账户数量、成本、NAV、盈亏、broker、Google Secrets 或 holdings-derived private data；不运行 private holdings shadow。
+- 不改变 Google Sheets schema 或 holdings manager/command bus 业务逻辑。
+- `CLOSE` 物理删除历史行情、校验记录、数据源映射或证券身份；任何 provider/history/QC 失败时错误启用标的。
+
+## 5. Key Decisions And Rationale
+
+### Decision
+
+- 以 `HANDOFF.md` 管当前快照、`CURRENT_STATUS.md` 管正式状态、`DECISION_LOG.md` 管长期理由；artifact 的可恢复性单独由 policy + registry 管理。
+- 重要 bytes 未进 Git 时，只有 `LOCAL_PRESENT`、`HASH_VERIFIED`、`PERSISTENT_BACKUP_PRESENT`、`RECOVERY_VERIFIED` 全部满足，才允许 `FULLY_RECOVERABLE`。
+- Phase 5J-v3 当前结果保持 development-only / structure-only；没有新的授权前，不将其解释为生产参数决定。
+- 持仓数据管理采用薄 Skill + 可测试 Python 编排；沿用 `自选清单.启用` 和现有历史/provider/QC/schema，不新增 registry；CLOSE 永久禁止删除历史，失败时 fail closed。
+
+### Why
+
+这样能把“下一步怎么接手”“正式状态是什么”“为什么这么决定”和“frozen bytes 怎么恢复”分开；旧聊天、本地目录或临时 CI artifact 都不能单独承担 correctness-critical provenance。
+
+### Rejected Alternatives
+
+- 仅复制完整 Git history 或继续依赖聊天记录：不能提供当前 exact PR/CI/artifact 对账。
+- 把 ignored 大文件重新生成一份“相同逻辑”的文件：不能证明 exact bytes，违反 frozen identity。
+- 仅记录 local ZIP：不能证明跨设备持久化和独立恢复。
+
+### Revisit Condition
+
+只有出现客观的新 Git/PR/CI/artifact evidence、approved storage policy 变化或明确授权扩大 research/production scope，才允许重审；identity 变化必须新建版本并保留旧版本。
+
+## 6. Important Files Changed
+
+| path | purpose | semantic impact / nature |
+|---|---|---|
+| `trading/setup02.py` | SETUP_02 Wave 3 continuation structural evaluator | independent structural lifecycle; no Decision/Risk or production behavior |
+| `trading/setup02_replay.py` | strict-prefix replay and terminal event projection | deterministic structural evidence; no outcome fields |
+| `scripts/run_setup02_structural_replay.py` | frozen DEVELOPMENT_EXPOSED replay runner | structure-only Sol review report; ignored derived artifacts |
+| `tests/test_setup02.py` | lifecycle, causal, block, terminal-once and invariance regressions | SETUP_02 correctness coverage |
+| `docs/SETUP_02_WAVE3_CONTINUATION_STRUCTURAL_V1.md` | SETUP_02 protocol and review boundary | protocol / governance |
+| `trading/setup02_decision.py` | independent SETUP_02 Decision/Risk, target provenance, exact T+1 OPEN classification | T-day plan + read-only execution feasibility; no production path |
+| `research/setup02_decision_funnel.py` | structure-only Decision/Risk conservation, provenance, quality and identity reporting | DEVELOPMENT_EXPOSED funnel; no outcome/OOS |
+| `scripts/run_setup02_decision_funnel.py` | frozen v2 Decision/Risk funnel runner | 213 CONFIRMED development evidence; ignored derived artifacts |
+| `scripts/run_setup02_generic_operational_shadow.py` | controlled synthetic-only operational validation | exactly-once/terminal/gap/open/RR/fail-closed/ledger gate |
+| `.github/workflows/setup02-generic-operational-shadow.yml` | PR/manual synthetic-only operational gate | no credentials, holdings or Sheets |
+| `tests/test_setup02_decision.py` / `tests/test_setup02_generic_operational_shadow.py` | Decision/Risk, provenance, exact-session, open-only and generic gate regressions | SETUP_02 Decision/Risk correctness coverage |
+| `docs/SETUP_02_DECISION_RISK_V1.md` | Decision/Risk v1 protocol, frozen formulas and scope boundary | protocol / governance |
+| `HANDOFF.md` | 当前操作交接快照 | governance；下一次会话的第一入口 |
+| `AGENTS.md` | 新会话启动、冲突和更新 gate | governance；不改变交易规则 |
+| `README.md` | 公开发现入口，链接治理文件 | documentation / governance |
+| `holdings_data_manager.py` | 单标的身份规范化、ADD/REENTER/CLOSE/SYNC、历史缺口与审计编排 | 新持仓数据能力；不进入策略/账户路径 |
+| `skills/holdings-data-manager/SKILL.md` | 上层自然语言 Skill specification、contract、示例与禁止动作 | 薄编排入口；不承载业务实现 |
+| `docs/HOLDINGS_DATA_MANAGER.md` | 持仓生命周期、历史分离、schema 与 fail-closed 说明 | capability documentation |
+| `tests/test_holdings_data_manager.py` | 持仓生命周期、自然语言、provider/QC、日期幂等和 unknown column regression | 新能力回归 |
+| `holdings_command_bus.py` | v1 command schema、Issue envelope guard、result schema 和安全回执渲染 | transport contract；不承载 holdings 业务 |
+| `scripts/holdings_command_bridge.py` | 从 `GITHUB_EVENT_PATH` 读取 event，执行 schema/identity guard，并委托现有 manager | dry-run/live gate bridge；不复制业务逻辑 |
+| `.github/workflows/holdings-command.yml` | `issues.opened` command bus、最小权限、conditional live Secrets、串行门控、comment/label/close relay | live enablement；真实写入等待 Sol review |
+| `tests/test_holdings_command_bus.py` | schema/actor guard、dry-run no-Sheets、live ADD delegation、FAILED/idempotency/secret/workflow contract | command bus/live-write regression |
+| `docs/HOLDINGS_COMMAND_BUS.md` | architecture、schema、权限、fail-closed、conditional credentials、幂等和 review stop | protocol / governance |
+| `sheets_client.py` | 增加保留未知列的单行 `自选清单` upsert | additive Sheet adapter；无 schema 变化 |
+| `docs/CURRENT_STATUS.md` | 正式状态、PR/CI 对账和下一步 | governance/status；修正已核实的 stale PR labels |
+| `docs/DECISION_LOG.md` | 记录本次治理设计的长期理由 | governance / decision history |
+| `docs/FROZEN_ARTIFACT_POLICY.md` | artifact 恢复与状态规则 | governance / protocol |
+| `docs/FROZEN_ARTIFACT_REGISTRY.json` | 当前重要 artifact 的机器可读 identity/status | governance / registry |
+| `research/protocols/setup03_phase5j_v4_lifecycle_attribution_protocol.json` | Phase 5J-v4 machine-readable frozen protocol | research protocol；真实 attribution 前冻结 |
+| `research/protocols/setup03_phase5j_v4_lifecycle_attribution_protocol.md` | Phase 5J-v4 中文协议说明 | research protocol documentation |
+| `research/phase5j_v4_protocol.py` | version/hash/invariant loader | research-only integrity gate |
+| `tests/test_phase5j_v4_protocol.py` | protocol immutability regression | research protocol tests |
+| `trading/setup.py` | additive read-only lifecycle operands | production Setup/event outputs unchanged by exact-main parity |
+| `research/phase5j_v4_lifecycle_attribution.py` | trace, FIRST_DIVERGENCE_BAR, root/propagation/lineage/counterfactual | research-only |
+| `research/phase5j_v4_evidence.py` | mechanical aggregation, parity, concordance, hashes/report | research-only |
+| `scripts/run_phase5j_v4_lifecycle_attribution.py` | frozen end-to-end runner | no provider/outcome/OOS path |
+| `research/development/phase5j_v4_*` | capsule/report/per-symbol/root/cascade/counterfactual/concordance artifacts | tracked development-only evidence |
+| `research/atr_boundary_protocol.py` / `research/protocols/setup03_atr_boundary_structural_qualification_protocol.json` | v5 ATR boundary protocol/hash gate | research-only frozen contract |
+| `research/atr_boundary_universe.py` / `research/atr_boundary_universe_manifest.json` | metadata-only final clean roster | selection before OHLCV; result-independent |
+| `research/atr_boundary_dataset.py` / `research/atr_boundary_clean_holdout/*` | new clean-holdout acquisition and tracked manifests | BaoStock/yfinance development data identity |
+| `research/atr_boundary_qualification.py` / `research/atr_boundary_qualification/*` | structure-only candidate/adjacent/lifecycle matrix, parity and repeat | no Decision/outcome/OOS path |
+| `scripts/acquire_atr_boundary_holdout.py` / `scripts/run_atr_boundary_qualification.py` | bounded acquisition and qualification runners | explicit stop-state output |
+| `core.py` / `providers.py` / `main.py` | production latest quote date, source freshness and execution-mode isolation | P0 hotfix; trade behavior unchanged |
+| `.github/workflows/asia-close.yml` / `.github/workflows/us-close.yml` | scheduled latest-only and manual full mode routing | production workflow boundary |
+| `tests/test_validation.py` / `tests/test_decision_sheet.py` / `tests/test_governance.py` | market-local date, source mismatch, future-date and latest-only regression | regression coverage |
+| `trading/models.py` / `trading/fibonacci.py` / `trading/wave.py` | Wave Scenario Engine v1 models, Fibonacci regions and strict causal evaluator | additive read-only structural context |
+| `scripts/run_wave_shadow.py` | private/local real-holdings JSON/CSV shadow capability | not invoked; no GitHub Actions workflow; no holdings-derived output |
+| `tests/test_wave.py` / `docs/WAVE_SCENARIO_ENGINE_V1.md` | Wave Engine regression contract and protocol documentation | v1 semantics / governance |
 | `trading/setup01.py` / `trading/setup01_replay.py` | SETUP_01 immutable lifecycle evaluator, strict prefix replay and terminal event identity | separate SETUP_01 structural layer; no SETUP_03 behavior change |
 | `trading/setup01_decision.py` / `research/setup01_decision_funnel.py` | independent SETUP_01 Decision/Risk v1 and DEVELOPMENT_EXPOSED funnel | T-day plan + exact T+1 OPEN; no outcome/OOS |
 | `scripts/run_setup01_decision_funnel.py` / `scripts/run_setup01_generic_operational_shadow.py` | development funnel and synthetic-only generic operational shadow | generic gate; no real holdings, Secrets or Sheets |
@@ -174,7 +299,7 @@ Total output lines: 445
 - v5 qualification: candidates `1.0/1.5/2.0/2.5` all candidate-level PASS；adjacent/lifecycle gates leave `qualified_candidates=[]`，selected candidate `null`，parity/repro PASS；final status `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。Capsule canonical payload `sha256:5c799f5f9b2d2655c0dd1ff4fd773af32e3e05d805175d696791c80fe767a42b`。
 - Production date invariants: `交易日期 = chosen quote 的市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`。US 交易日期保持 US local session date，不因北京时间跨日加一天；A股交易日期保持 A股市场日期；两者不得互相替代。
 
-## 8. Historical Known Issues / Blockers
+## 8. Known Issues / Blockers
 
 | category | status / impact | workaround | blocks continuation? |
 |---|---|---|---|
@@ -241,7 +366,7 @@ Total output lines: 445
 
 **Permanent prevention rule:** branch name 只能作为线索；正式任务必须由 HANDOFF/CURRENT_STATUS、用户本轮授权、protocol、PR/commit 和客观 artifact evidence 共同确认。
 
-## 10. Historical Next Action — PROSPECTIVE_DAILY_DECISION_CHAIN_V1
+## 10. Next Action
 
 1. [x] PR #51 closeout 已完成：source head=`2dbb7a751916921a29360b28467de92e150683e3`，squash merge=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after CI=`33607481962` success。
 2. [x] PR #59 四个 implementation commits 已从远端恢复；frozen archive 81/81 hash/size 与 loader 的 40 symbols/84,284 bars 已验证。
