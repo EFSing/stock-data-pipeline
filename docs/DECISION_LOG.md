@@ -1685,3 +1685,35 @@ Portfolio Risk formula/constant, Position Management, Wave5, broker/order,
 holdings, Sheets, cron, real-data shadow, parameter, or OOS semantics were
 changed. PR #64 remains `OPEN / MERGEABLE / merged=false`, with
 `HANDOFF_CURRENT_AND_CONSISTENT`; do not merge and stop for Sol review.
+
+## 2026-09-03 — PR #64 multi-symbol Portfolio blocker preservation
+
+**Decision:** Keep PR #64 open on its existing branch and apply only the
+narrow orchestration fix requested by Sol. When a known open position lacks
+`portfolio_position`, the existing per-identity fail-closed result remains in
+`portfolio_by_identity` while normal reservations from other symbols are
+merged into that mapping. Normal reservation identity remains
+`reservation.reservation_id == candidate.event_identity`.
+
+**Regression:** The same-as-of-date multi-symbol case now preserves
+`SYMBOL_A` as `PORTFOLIO_BLOCKED` with the exact reason
+`PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED`, with no reservation or pending
+T+1 risk. `SYMBOL_B` continues through the existing Portfolio Risk batch and
+receives its own normal reservation/result; the two identities do not
+overwrite one another.
+
+**Verification:** Substantive source head
+`90dffa5c311a24abeadbd472a35e77f40b754828` passed Daily Chain `20/20`,
+Portfolio Risk `24/24`, Position Management `18/18`, Daily Chain generic
+shadow `17/17`, Portfolio Risk generic shadow `18/18 checks`, full unittest
+`549/549`, compileall, and `git diff --check`. Exact-head GitHub checks for
+that source head are CI Test Gate `33708806893`, Daily Decision Chain shadow
+`33708806921`, and Portfolio Risk shadow `33708806939`; all succeeded.
+
+**Boundary:** No SETUP_01/02, Wave, Entry Zone, Target/RR, T+1 trading rule,
+Portfolio Risk formula/constant, Position Management, Wave5, broker/order,
+holdings, Sheets, cron, real-data shadow, parameter, OOS, or frozen strategy
+semantics were changed. The final governance-only docs commit may advance the
+remote tip without recursively self-referencing its own SHA in these records.
+PR #64 remains `OPEN / MERGEABLE / merged=false`; do not merge and stop for
+Sol review.
