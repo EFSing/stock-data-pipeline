@@ -314,6 +314,7 @@ class DecisionStateStore(Protocol):
     def settle_pending(self, identity: str, record: "SettlementRecord") -> None: ...
     def get_settlement(self, identity: str) -> "SettlementRecord | None": ...
     def save_position_origin(self, origin: PositionOrigin) -> None: ...
+    def get_position_origin(self, identity: str) -> PositionOrigin | None: ...
     def record_daily_result(self, result: DailyDecisionResult) -> None: ...
 
 
@@ -379,6 +380,9 @@ class InMemoryDecisionStateStore:
         if origin.source_event_identity in self.position_origins:
             raise ValueError(f"position origin already exists: {origin.source_event_identity}")
         self.position_origins[origin.source_event_identity] = origin
+
+    def get_position_origin(self, identity: str) -> PositionOrigin | None:
+        return self.position_origins.get(identity)
 
     def record_daily_result(self, result: DailyDecisionResult) -> None:
         self.daily_history.append(result)

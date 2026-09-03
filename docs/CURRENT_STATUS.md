@@ -7,15 +7,15 @@ Version:
 V0.2
 ```
 
-## Latest Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
+## Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
-- Portfolio Risk V1 PR #59 已按授权完成 exact-head squash merge：真实 merge commit=`dc03631b80c6118e0ef088739de277ab50f17220`；merge-after `CI Test Gate` run=`33647739171` success；未执行任何 broker/order/holdings/Sheets strategy write。
-- PR #64 已获 Sol 正式批准 `APPROVE_PR_64_MERGE`，批准的 exact PR head=`58dfb1448fa73efd50856d989c42801664eb9419` 已完成 squash merge；真实 squash merge commit=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`。
-- merge-after `main` exact HEAD=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`，`CI Test Gate` run=`33711976436`，result=`success`；Daily Chain V1 已进入 merged engineering baseline。
-- Daily Chain V1 仍为 prospective read-only；production prerequisites 仍未解决，real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。不启动 production wiring，不实现 strategy universe / NAV / risk-group metadata / exact calendar / persistent store / authoritative position-origin backend。
-- 当前任务为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`：只完成 merge-after 核验与最小治理同步，不重启 SETUP_03，不实现 SETUP_04，不启动新 Phase。
-- 新链路本地验证已通过：Daily Chain focused=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、Daily Chain generic shadow=`17/17`、Portfolio Risk generic shadow=`18/18 checks`、full unittest=`549/549`、compileall、`git diff --check`；生产 real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
-- 当前 checkout 为 `main`，本地与 `origin/main` 均为 `74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`；PR #64=`https://github.com/EFSing/stock-data-pipeline/pull/64` 已 `MERGED / merged=true`，approved head=`58dfb1448fa73efd50856d989c42801664eb9419`，substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`，治理状态为 `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`。
+- 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
+- 远端核验：PR #64、#65 均已关闭，当前没有 open PR；本阶段新建分支=`codex/production-prerequisites-v1`，不继续旧 PR、不 merge。
+- 本阶段新增 production prerequisites contract：五个策略 Sheet schema、account-isolated production adapter、`SheetsDecisionStateStore`、`exchange_calendars` CN/XSHG 与 US/XNYS provider、`scripts/run_production_daily_decision.py --preflight`。
+- `--preflight` 只读；真实 Sheets、broker/IBKR、订单、FX 和 cron 均未触及。冻结的 SETUP、Wave、Risk、Position Management、Wave5、T+1 语义未修改。
+- 当前阶段状态为 `PRODUCTION_PREREQUISITES_V1_IN_PROGRESS`；完成最终 exact-head CI 与 PR mergeability 核验后更新为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+
+## Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 - 本轮 Sol correctness hardening 已完成本地实现：Data Quality 先于 Wave/Setup/Individual Decision/Position Management；global 与 per-symbol authoritative positions canonical merge + conflict fail-closed；双 first-entry `CONFIRMED` upstream invariant guard；protocol-only settlement；mixed as-of fail-fast；Position Management prerequisite errors 归入数据/生产前置条件异常。
 - 双 `CONFIRMED` 经正式 contract 审计为当前不可达：Wave 只有一个 primary scenario，SETUP_01/02 只接受各自 primary family；本轮未增加交易优先级或修改冻结策略语义。
 - T+1 closeout：`DATA_BAD` / `DATA_STALE` / `DATA_UNAVAILABLE` 或 expected T+1 bar 缺失时，Daily Chain 不调用 execution / Portfolio Risk settlement，不生成 `EXECUTED` 或策略 `SKIP`，不 release reservation，不创建 PositionOrigin；`DATA_OK` 且 exact bar 存在时沿用原 settlement 语义。

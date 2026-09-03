@@ -37,6 +37,14 @@ class SheetsClient:
     def records(self, sheet_name: str) -> list[dict]:
         return self.book.worksheet(sheet_name).get_all_records(default_blank="")
 
+    def headers(self, sheet_name: str) -> list[str]:
+        """Read one worksheet's header row without introducing another client."""
+        return [
+            str(value).strip()
+            for value in self.book.worksheet(sheet_name).row_values(1)
+            if str(value).strip()
+        ]
+
     def config(self) -> dict:
         return {str(row["参数"]): row["值"] for row in self.records("参数设置") if row.get("参数")}
 

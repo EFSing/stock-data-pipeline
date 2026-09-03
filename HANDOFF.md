@@ -10,14 +10,15 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0. Latest Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
+## 0. Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
-- PR #64 已在 Sol 明确批准 `APPROVE_PR_64_MERGE` 后，按批准 exact PR head=`58dfb1448fa73efd50856d989c42801664eb9419` 完成 squash merge；真实 squash merge commit=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`。
-- merge-after `main` exact HEAD=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`；`CI Test Gate` run=`33711976436`，event=`push`，result=`success`。
-- Daily Chain V1 已进入 merged engineering baseline，仍为 prospective read-only；production prerequisites 仍未解决，real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
-- merged source branch=`codex/prospective-daily-decision-chain-v1`；substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`；最终 docs-only closeout tip=`58dfb1448fa73efd50856d989c42801664eb9419`。
-- Sol-approved validation remains: Daily Chain focused=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、full unittest=`549/549`、Daily Chain generic shadow=`17/17 SUCCESS`、Portfolio Risk generic shadow=`18/18 checks SUCCESS`、compileall 与 `git diff --check` 均通过；exact-head runs=`33709065926 / 33709065929 / 33709065934` 均 success。
-- 本阶段已完成；不重启 SETUP_03、不实现 SETUP_04、不做 Final OOS、不做 outcome-driven tuning，不启动 production wiring 或新 Phase。
+- 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
+- 远端核验显示 PR #64、#65 均已关闭，当前没有 open PR；本阶段不继续旧 PR，不 merge 新 PR。
+- 当前分支=`codex/production-prerequisites-v1`。本阶段实现五个 production Sheet contracts、account-isolated adapter、`SheetsDecisionStateStore`、exact exchange calendar 和只读 `--preflight`。
+- Portfolio Risk 继续复用 frozen constants/formula；CN/US 为独立 CNY/USD risk books；不实现 FX，不访问 broker/IBKR，不修改真实 Sheets。
+- `HANDOFF_CURRENT_AND_CONSISTENT` 将在最终 PR exact head、exact-head CI 和 mergeability 核验完成后确认；停止节点=`PR_FULLY_READY_FOR_SOL_REVIEW`，不 merge。
+
+## 0A. Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 
 ## 0A. Prior Governance Event — FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE
 

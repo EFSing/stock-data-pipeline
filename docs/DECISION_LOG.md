@@ -1717,3 +1717,44 @@ semantics were changed. The final governance-only docs commit may advance the
 remote tip without recursively self-referencing its own SHA in these records.
 PR #64 remains `OPEN / MERGEABLE / merged=false`; do not merge and stop for
 Sol review.
+
+## 2026-09-03 — PRODUCTION_PREREQUISITES_V1
+
+**Decision:** The V1 production boundary uses five explicit Google Sheets
+contracts: `策略账户`, `策略股票池`, `策略风险分组`, `策略持仓` and the
+system-owned `策略决策状态`. `策略股票池` is the formal strategy universe;
+`自选清单` remains market-data coverage only. Risk-group metadata is an
+independent explicit SSOT and is never inferred from names or an external
+industry database.
+
+**Decision:** Portfolio Risk V1 runs as account-isolated same-currency risk
+books. Each enabled account has exactly one market, one currency and one
+same-day reference NAV. CN maps to CNY and US maps to USD; no FX normalization
+is implemented. Cross-account `(market, symbol)` membership, account/market/
+currency mismatch, missing/stale NAV, missing risk group and open-position
+contract violations fail closed.
+
+**Decision:** Google Sheets is the V1 persistent `DecisionStateStore` backend.
+`SheetsDecisionStateStore` persists published events, pending T+1 decisions,
+settlements, PositionOrigins and daily results as typed canonical JSON. The
+existing protocol is preserved with only additive `get_position_origin`.
+Duplicate keys, settled-as-pending recovery and corrupted payloads are
+fail-closed. The store defaults to read-only; preflight never writes.
+
+**Decision:** Production T+1 uses `exchange_calendars>=4.13,<5` with
+`CN → XSHG` and `US → XNYS`. Weekends and exchange holidays resolve to the
+exact next real session; unsupported or unmapped markets fail closed. Broker,
+IBKR and actual order submission remain deferred.
+
+**Decision:** The production adapter composes one Daily Decision Chain per
+enabled account from the five Sheets contracts, existing latest/QFQ market
+surfaces and exact calendar identity. `DATA_OK` requires formal close,
+verified validation, exact T latest/QFQ coverage and completed-session proof;
+missing, stale and bad data remain `DATA_UNAVAILABLE`, `DATA_STALE` and
+`DATA_BAD` and cannot enter T+1 settlement.
+
+**Boundary:** This phase does not modify frozen SETUP_01/02, Wave, Swing,
+Fibonacci, Entry Zone, Target, R/R, Portfolio Risk constants/formula,
+Position Management, Wave5 or T+1 trading semantics. It adds no cron, workflow
+schedule, broker path, holdings mutation, FX conversion or live worksheet
+creation. Real Sheets state was not written during implementation or tests.
