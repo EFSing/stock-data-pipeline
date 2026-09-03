@@ -1651,3 +1651,37 @@ or production universe decision changes in this hardening.
 the frozen upstream Single Source of Truth. The dual-confirmed guard is
 contract protection and explicit event disposition, not an authorization to
 arbitrate between strategies.
+
+## 2026-09-03 — PR #64 final closeout: T+1 data gate and open-position risk-state gate
+
+**Decision:** Keep PR #64 open on its existing branch and add only the two
+requested orchestration closeouts. A due T+1 observation must have
+`data_quality_status == DATA_OK` and exactly one qfq bar at the exact
+`expected_execution_date` before the chain calls either frozen T+1 executor or
+`PortfolioRiskEngine.settle`. `DATA_BAD`, `DATA_STALE`, `DATA_UNAVAILABLE`,
+and a missing/ambiguous expected bar fail closed with
+`T1_EXECUTION_DATA_REQUIRED`; pending reservations remain pending, with no
+`EXECUTED`, strategy `SKIP` settlement, release, or `PositionOrigin`.
+
+**Decision:** Treat a non-null `OpenPositionState` as an existing-position
+claim even when its `portfolio_position` is absent. A new `ENTRY_ALLOWED` for
+that symbol is blocked with
+`PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED`. No quantity, actual entry,
+protective stop, or risk group is inferred from PositionOrigin, current price,
+holdings average cost, or chart history. Existing global/per-symbol
+authoritative position merge, deduplication, and conflict behavior is
+unchanged.
+
+**Verification:** Substantive source head
+`f3793ee0a887e4d313d61b6077c2a7a062ba7106` passed Daily Chain `19/19`,
+Portfolio Risk `24/24`, Position Management `18/18`, Daily Chain generic
+shadow `17/17`, Portfolio Risk generic shadow `18/18 checks`, full unittest
+`548/548`, compileall, and `git diff --check`. Exact-head GitHub checks for
+that source head are CI Test Gate `33707727452`, Daily Decision Chain shadow
+`33707727482`, and Portfolio Risk shadow `33707727516`; all succeeded.
+
+**Boundary:** No SETUP_01/02, Wave, Entry Zone, Target/RR, T+1 trading rule,
+Portfolio Risk formula/constant, Position Management, Wave5, broker/order,
+holdings, Sheets, cron, real-data shadow, parameter, or OOS semantics were
+changed. PR #64 remains `OPEN / MERGEABLE / merged=false`, with
+`HANDOFF_CURRENT_AND_CONSISTENT`; do not merge and stop for Sol review.

@@ -124,3 +124,20 @@ a Setup priority.
 Settlement checks use only the `DecisionStateStore.get_settlement()` protocol
 method. A report run rejects mixed `DailySymbolInput.as_of_date` values before
 any report is generated.
+
+For any due T+1 observation, the orchestration layer requires
+`data_quality_status == DATA_OK` and exactly one qfq bar on the exact
+`expected_execution_date` before calling either frozen T+1 executor or
+`PortfolioRiskEngine.settle`. `DATA_BAD`, `DATA_STALE`,
+`DATA_UNAVAILABLE`, and a missing/ambiguous expected bar return the single
+machine-readable blocker `T1_EXECUTION_DATA_REQUIRED`; the pending reservation
+remains pending, with no `EXECUTED`, strategy `SKIP` settlement, release, or
+`PositionOrigin`.
+
+An `OpenPositionState` is an authoritative claim that a symbol is already
+held. If it has no `portfolio_position`, a new `ENTRY_ALLOWED` is blocked with
+`PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED`. The chain never infers
+quantity, actual entry, protective stop, or risk group from PositionOrigin,
+current price, holdings average cost, or chart history. The existing global
+and per-symbol authoritative position merge/deduplication/conflict behavior is
+otherwise unchanged.
