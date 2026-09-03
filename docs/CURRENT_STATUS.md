@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 16848)
-Total output lines: 246
-
 # CURRENT_STATUS.md — 项目当前进展
 
 > 保持简短，用于告诉下一个 AI：项目现在到底开发到了哪里。每次开发结束都更新。
@@ -121,7 +118,95 @@ V0.2
 - lifecycle 固定 `NONE/WATCH/ARMED/CONFIRMED/FAILED`；recovery=`invalidation + 0.5*(HIGH3-invalidation)`；`close == HIGH3` 不确认，首个 `close > HIGH3` 才确认；终态事件仅首次进入发出一次。
 - replay 严格按历史 prefix，禁止未来 confirmed Swing 泄漏；Fib 仅描述性；报告只含 structural state/event/failure/CN-US/per-symbol/primary-wave/candidate/identity 统计，不含 outcome/returns/MFE/MAE/P&L/expectancy/OOS。
 - 同一 v2 输入上的 overlap 审计：SETUP_01 有 1,389 个终态事件、SETUP_02 有 494 个；相同 symbol+date 的终态日期交集为 11（9 个 symbols），相同 symbol+date+event type 为 0；candidate state-day 交集为 0（SETUP_01 5,195 天、SETUP_02 2,689 天）；两者 primary Wave context 在 84,284/84,284 日一致。
-- frozen `DEVELOPMENT_EXPOSED` v2：40/40 …4848 tokens truncated…`200 → 4 ENTRY_ALLOWED → 0 EXECUTED`。frozen run `32829662164` 从首轮 artifact 重放成功：9/9 `IDENTICAL`，aggregate/frozen bytes/六份核心报告 hash 与 funnel 全部一致，验证 same input + same config/code 可重复
+- frozen `DEVELOPMENT_EXPOSED` v2：40/40 symbols、84,284 bars、manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`、replay aggregate SHA=`sha256:9271560e6662b910b02d8eb6a76ddb3476e5b724466bb102443064e8c9d7fe18`；0 errors、213 CONFIRMED、281 FAILED、identity duplicate/mismatch=`0/0`。
+- 当前 replay state-day：`NONE=20,433`、`WATCH=1,288`、`ARMED=1,401`、`CONFIRMED=10,930`、`FAILED=50,232`；唯一当前候选为 US `AMAT` / `WATCH` / `2026-08-26` / Fib `0.618-0.786`。
+- PR #45 已在 Sol approval 后 squash merged；真实 merge commit=`f679443d52d767841c0df3ff2e0179648b536fb0`，merge-after main exact-head CI run=`33494893693` success。
+- structural lifecycle、replay 与 213 CONFIRMED 事件身份保持冻结；本轮 Decision/Risk 仅消费该结构层的 first-entry CONFIRMED。
+
+## Previous Task: HOLDINGS_DATA_MANAGER_LIFECYCLE_CLOSURE_V2（已完成并 squash merged）
+
+- 生命周期实现 source head=`25c89056ba3f3d38df62b7f4c990c2127e2ae10c`；共享 `latest_snapshot.py` evaluator/row projection 已接入 scheduled latest 与 holdings manager。
+- PR #44：`https://github.com/EFSing/stock-data-pipeline/pull/44`，base=`main@dde70661ae0848fda4aad2361dc4f9ef9375bf9c`，已 squash merged；真实 merge commit=`a64102a9f222029a3079bd231790c842e074f372`。merge 后 main exact-head `CI Test Gate` run=`33485998503` / `test` check=`99786090755` success；文档不自引用自身 SHA。
+- ADD/REENTER 已实现 normalization → 最近已完成 session latest snapshot → 同一 completed trade_date 的 raw/qfq history QC → latest upsert → validation append → enable-last；current single-source/pending 语义与 scheduled latest 保持一致。重试按 history/latest/validation component-wise repair，只有 identity absent/disabled 才最后 enable；全部组件完整且已启用才幂等。
+- 新增回归覆盖：watchlist enable 失败后 ADD retry 只补身份；disabled 且完整的 REENTER 不重复 validation；validation append 失败后 retry 只补 validation + final enable。既有 repeated ADD/CLOSE/SYNC 与 scheduled latest parity 保持通过。
+- WatchlistTable 新行通过真实 spreadsheet metadata 动态扩展到所有表头/新行（含正式 P 列 `历史数据源`），复制既有格式且保留未知列；不硬编码 sheet/table/range，不创建额外 banding。
+- 本任务边界：只做 holdings lifecycle closure；未执行真实 ADD/CLOSE/REENTER/SYNC，未写 production Sheet，未读取账户/券商，不启动 SETUP_02/03、Wave/Decision/Final OOS 或 outcome 研究。
+
+## Previous Completed Task: repository-local holdings-data-manager Skill
+
+本任务为单一标的持仓数据生命周期能力，不改变总体策略身份或任何 SETUP/Wave/Decision/Risk/Position/Exit/研究协议。
+
+- Skill specification：`skills/holdings-data-manager/SKILL.md`；业务实现：`holdings_data_manager.py`。
+- 核心接口：确定性 `ADD`、`REENTER`、`CLOSE`、`SYNC`；支持 “添加 MU”“我买了 512400”“重新买回 INTC”“NOK 已清仓”等自然语言输入；停用身份收到 ADD 自动按 REENTER 语义补缺口后恢复。
+- 当前持仓事实源继续是 `自选清单.启用`；证券身份/数据源映射仍在同一行；raw/qfq 历史及审计与当前持仓视图分离。
+- 新身份先规范化并用现有 latest provider 确定最近已完成市场交易日，再用现有 history provider 只写 raw/qfq 缺口；coverage 只使用 observed session dates，raw/qfq 日期集必须一致、无重复、至少 180 bars、末日到达目标、起点最多落后 7 天且异常 observed gap 不超过 14 天；两套历史和质量门控成功后才启用。REENTER 完整覆盖时不重抓一年；CLOSE 永不删除历史；重复操作幂等。
+- provider、历史日期/OHLCV 质量、身份/市场歧义或覆盖不足均 fail closed；不创建第二套 registry，不读取账户信息，不访问真实券商，不调用完整 `full` pipeline。
+- 本地 focused holdings `22/22`、full unittest `393/393`、compileall、`git diff --check` 和 Skill validator 已通过；PR #38 merge 后 main exact-head CI `33362271501` success；本轮不再有待 merge 动作。
+- Read-only live provider smoke：`512400.SH` raw/qfq 各 `242` bars（`2025-08-27..2026-08-27`），duplicates `0`，date-set difference `0`，coverage/QC passed；provider 落后 freshness guard `2026-08-28`，故 lifecycle readiness=false。`MU` raw/qfq 各 `252` bars（`2025-08-28..2026-08-28`），同样无重复/日期差异，coverage/QC 与 lifecycle readiness passed；两者均 `sheets_written=false`。
+- 当前 holdings task 状态：`HOLDINGS_DATA_MANAGER_SKILL_V1_MERGED`；Issue #42 已完成首条真实 production command：`ADD 512400`、`market=CN`、`dry_run=false`、normalized=`512400.SH`、`status=SUCCESS`、`enabled=true`、`history_rows_written=480`。该事实来自 GitHub machine-readable result comment；不改变 manager/command bus/Sheets 业务逻辑。
+
+## Previous Completed Task: LIVE_WRITE_ENABLEMENT_V1
+
+- 该任务已完成并 merge：实现严格 dry/live routing、conditional GitHub Secrets、workflow concurrency 与现有 manager delegation；随后 Issue #42 已完成一次真实 production `ADD` 成功，结果见上方当前 holdings 事实。
+- command title 必须精确为 `[HOLDINGS_COMMAND]`；body 是严格 JSON v1，仅允许 `version`、`operation`、`symbol`、`request_id`、`dry_run` 与可选 `market`，operation 仅 `ADD`/`REENTER`/`CLOSE`/`SYNC`，单 command 仅一个 symbol。
+- `.github/workflows/holdings-command.yml` 仅由 `issues.opened` 触发；job-level 先 fail closed 校验 governed repository、non-PR、`github.actor == 'EFSing'`、event sender login 和 Issue user login 均为 `EFSing`，Python 再执行 authoritative allowlist/title/schema/event guard；Issue body 只由 bridge 从 `GITHUB_EVENT_PATH` 读取，不插入 shell/Python 字符串。
+- `holdings_command_bus.py` 负责协议/回执；`scripts/holdings_command_bridge.py` 负责 event → schema → 既有 identity normalization → result receipt，并只在显式 live gate 与 credential presence gate 同时满足时调用 `HoldingsDataManager.execute(...)`；不复制 holdings 业务逻辑。
+- workflow 先运行无 Secret route step；`dry_run=true` 或 invalid route 进入 gate-disabled、无 Google credentials 的步骤，保持 `DRY_RUN_COMMAND_BUS_HAS_NO_GOOGLE_SECRETS`；仅严格校验通过的 `dry_run=false` route 进入 live step，并只从既有 GitHub Secrets 注入凭证。workflow-level `concurrency` 串行 command jobs，bridge 默认 gate 仍 fail closed。
+- 回执包含 `request_id`、operation、normalized symbol、market、status、enabled、`history_rows_written`、message，并由 workflow 写 comment、加结果 label、关闭 Issue；不输出账户数量、成本、NAV、P&L 或 broker 信息。
+- command-bus focused tests 为 `19/19`，holdings lifecycle focused tests 既有 `24/24`，full unittest 为 `414/414`；changed-file compileall 与 `git diff --check` 通过。此前 closeout 未执行真实 command；Issue #42 是之后已核实的首条真实 command。
+- live regression 覆盖 live ADD delegation、dry-run no-client、unauthorized/malformed fail closed、manager FAILED receipt、rerun/idempotency propagation、conditional Secrets、concurrency 与 secret non-disclosure；FAILED receipt 的 `enabled` 被防御性归一为 `null`。
+
+## Previous Completed Task: SETUP_01 Decision/Risk v1 reconciliation
+
+- 当前节点：`SETUP_01_DECISION_RISK_V1_MERGED`。Sol approval=`APPROVE_SETUP_01_DECISION_RISK_V1_RECONCILIATION`；PR #43 已 squash merged，merge commit=`3b300975e999a934533398a951e7ec34e80a17bd`；原 PR #37 因旧 base `CONFLICTING/DIRTY` 已关闭且未合并，关闭说明明确指向 #43。
+- 只移植 PR #37 尚未进入当前 main 的 Decision/Risk implementation、protocol、generic synthetic shadow 与 regression；不修改 holdings manager/command bus/Sheets 逻辑，不改变 Wave Engine、canonical Fibonacci、SETUP_03 或既有 strategy semantics。
+- 冻结语义：首个 T 日 `CONFIRMED` identity exactly-once、T close 只形成 plan、最早 T+1 exact session `OPEN`、fixed Entry Zone/entry/stop、structural invalidations、target-before-RR、历史 terminal no-redecision、WATCH/ARMED context-only、OPEN-only execution。
+- `actual_entry != None iff outcome == EXECUTED`；`t1_open` 是观察价格，RR skip 保留 `t1_open`/`actual_rr` 但 `actual_entry=None`。Development session identity 为 `DEVELOPMENT_SESSION_IDENTITY = FROZEN_DATASET_MARKET_SESSION_SET`；production prerequisite 为 `PRODUCTION_EXCHANGE_CALENDAR_INTEGRATION_REQUIRED_BEFORE_PRODUCTION_EXECUTION`，本轮不接第三方 calendar。
+- 预期 DEVELOPMENT_EXPOSED baseline：745 CONFIRMED / 745 Decision / 5 ENTRY_ALLOWED / 5 T+1 attempts / 4 EXECUTED / 1 `SKIP_GAP_BELOW_CONFIRMATION`；Decision gates `ABOVE_ENTRY_ZONE=464`、`RR_BELOW_MINIMUM=276`、`ENTRY_ALLOWED=5`、其余为 0；execution `SKIP_RR_BELOW_MINIMUM_AT_OPEN=0`。Target provenance 预期 5/5 既有 `WAVE3_FIB_EXTENSION / 1.272`、historical swing-high T1=0、>5R=0、geometry pass。
+
+### Project Strategy Identity (unchanged; historical context)
+
+总体策略以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一正式事实源，主线为 `Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit`。第一版四类 Setup 为：`SETUP_01`（Wave 2 → Wave 3）、`SETUP_02`（Wave 3 Continuation）、`SETUP_03`（Platform Breakout）、`SETUP_04`（Extreme Fear Reversal）。`SETUP_03` 只是一个子策略；当前工作实现 Wave Scenario context，不改变总体策略路线。
+
+- PR #35 已 squash merge，merge commit `2d48d90bdc3a48ef96b2a802d5c8c448de5ba6b6`；main exact-head CI `33298510168` success。其 Wave Engine v1 semantics 未修改，研究结论仍保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
+- PR #31 已关闭并记录 `superseded by #34`；没有直接 merge/rebase 旧 base diff。
+- 当前生产根因已定位：旧 `main.run()` 用 wall-clock `expected_latest_trade_date()` 作为最新性判断，且 scheduled path 与 full history/qfq/SETUP_03/Decision 共用编排；虽然 `最新行情.交易日期` 当前由 `chosen.trade_date` 映射，日期选择、延迟周末、未来日期和 US session-date 边界缺少独立 fail-closed 保护。
+- 当前修复已加入 source-date evidence、ordinary-calendar freshness guard、future-date rejection、market-local timestamp normalization，以及显式 `latest/full` 隔离。长期不变量：`交易日期 = 市场真实 session trade_date`；`运行时间 = 北京时间 fetched_at`；二者不得互相替代。
+- 首次真实 latest-only smoke 发现 `SIVE.ST` 的 yfinance `period=5d` 尾行存在 OHLC `close=null`；已改为显式 bounded 日期窗口并逐日回退至 bounded Yahoo Chart，禁止填补或伪造价格。
+- 最终真实 latest-only smoke：Asia run `33265877563` 成功（3/3 verified）；US run `33265875055` 成功（6 verified、SIVE 1 single-source current/pending）。10/10 启用持仓的 `最新行情.交易日期` 均为市场真实 `2026-08-28`；SIVE 的 `2026-08-28` 来自 bounded Yahoo Chart，未再落后到 8/27。所有 `抓取时间` 为北京时间 `2026-08-30 01:28:31` 或 `01:32:25`，Sheet 格式分别为 DATE 与 DATE_TIME；两次 workflow 均 `history_rows_written=0`、`decision_rows_written=0`。
+- 上述 SETUP_01 structural closeout 是历史上下文；其协议与 lifecycle semantics 保持冻结。本轮新增的 Decision/Risk 只消费其 first-entry event，不重算 structural event。
+- SETUP_01 development structural replay：40/40 symbols、86,305 replay days、0 errors、1,404 lifecycle events（745 `CONFIRMED` / 659 `FAILED`）；CN event distribution 299/313，US 446/346。primary Wave family counts 为 `WAVE_2_TO_3_CANDIDATE=21,439`、`UPTREND_UNKNOWN_WAVE=28,644`、`ABC_CORRECTION_CANDIDATE=3,644`、`DOWNTREND_OR_INVALID_FOR_LONG=21,137`、`NO_VALID_SCENARIO=2,128`、`WAVE_3_CONTINUATION_CANDIDATE=9,313`。
+- development 当前未终结候选只有 US `STX` (`ARMED`，as-of `2026-08-26`，Fib `0.618-0.786`)；real holdings shadow 当前候选为 CN `000725.SZ` (`WATCH`，as-of `2026-08-28`，Fib `0.5-0.618`)。Real shadow 10 requested / 8 evaluated / 2 errors，SETUP_01 states `FAILED=5`、`WATCH=1`、`CONFIRMED=2`；SIVE.SE freshness stale、MU 历史源为空，均 fail-closed。报告输出 `primary_wave`/`alternate_wave`、SETUP_01 legs/Fib/levels/reason、freshness/error。
+- merge 后 closeout 不启动 SETUP_02、不重新打开 SETUP_03、不访问 real holdings/private Secrets，不读取 returns/MFE/MAE/P&L/Final OOS，不写 production Sheets，不开始 production execution/calendar implementation，不创建新的开发 PR；generic shadow 仅为 synthetic public fixture。
+
+- Merge verification：PR #43 合并前 head=`f63617d70a2bd498f7fd2777221f162fb4264417`、base=`e5d967d3936ba7731c8bd3b0bb8212833733f2bd`，状态 `OPEN / CLEAN / MERGEABLE`；exact-head CI `33402171900` 与 generic shadow `33402171991` 均 success。合并后 main exact-head CI `33404615092` 以 head=`3b300975e999a934533398a951e7ec34e80a17bd` success。
+
+## Completed
+
+- 多市场行情抓取（A股/港股/美股/日股/瑞典股）
+- 数据源回退链（yfinance → YahooChart / BaoStock → Tencent/Sina 快照）
+- 双源校验（日期、收盘价、成交量容差）
+- 行情来源质量选择：同日主源 OHLCV 异常、校验源正常时，整根行情采用校验源，并同步替换未复权历史末根 K 线；两源均异常时继续待复核
+- Google Sheets 写入（最新行情 / 历史行情_未复权 / 历史行情_前复权 / 校验记录 / 运行日志）
+- GitHub Actions 定时任务（亚洲 / 欧美两个工作流）
+- CI Test Gate：`.github/workflows/ci.yml`，PR 与 main push 自动跑 unittest
+- Trading Core Phase 1（`trading/` 包，已合并到 main）：models（数据模型 + 输入校验）/ indicators（Wilder ATR·RSI·EMA）/ swing（causal pivot 状态机 + PROVISIONAL·CONFIRMED）/ structure（Market Structure）/ fibonacci / risk（R&R + Position Size）
+- Phase 1 hardening + repaint 修复（已合并）：补测试缺口 + swing 状态机修复 confirmed repaint，全量 83/83 通过
+- Phase 2 SETUP_03 Platform Breakout（已合并到 main）：`setup.py` 状态机（NONE/WATCH⇄ARMED/CONFIRMED/FAILED）+ `Setup` 数据模型，平台边界一致性 + terminal lock + 直接突破；全量 93/93 通过
+- Phase 3 Decision Engine（SETUP_03 最小闭环，PR #9 已合并到 main）：Entry → Structural Invalidation → Execution Stop → Target → R/R → Position Size → Decision Action；future Setup 防泄漏 + 真实 ENTRY_ALLOWED 回归案例；全量 104/104 通过
+- Phase 4 第一批：SETUP_03 Decision 只读投影到 `交易决策` 表；正式收盘 + qfq 日期双门控、显式历史源、参数透传与单标的异常隔离；全量 116/116 通过
+- Phase 5A：SETUP_03 Historical Replay & Diagnostics（只读）：`trading/replay.py` 按历史交易日前缀 `quotes[:i+1]` 严格 as-of 回放，复用现有 Setup / Decision Engine，明确区分状态日与 CONFIRMED/FAILED 事件，仅在 CONFIRMED 事件日运行 Decision；新增 workflow_dispatch-only 真实前复权回放 workflow（只读 artifact，不写生产 Sheet）；全量 122/122 通过
+- SETUP_03 审计整改：生产与回放共用 `trading/events.py` 终态事件语义；`交易决策` 改为仅发布新 CONFIRMED 事件并以已有事件键阻止同日重算；补齐真实多生命周期回放、数据质量门控、calculable/enabled 覆盖率失败条件、只读事件明细 artifact 及 replay/生产一致性测试；全量 136/136 通过
+- SETUP_03 审计整改 PR #12 已合并；带真实 Secrets 的 3 年只读 replay 在生产参数 `platform_tolerance_pct=0` 下客观为 `events=0`
+- Phase 5B SETUP_03 Research Backtest & Parameter Diagnostics（PR #13 已合并）：直接消费统一 CONFIRMED 事件流水；T 日生产 Decision gate 后，仅 `ENTRY_ALLOWED` 在 T+1 Open 尝试三分支执行。真实 Core → ReplayEvent → EXECUTED 集成测试、CONFIRMED → Decision → T+1 守恒漏斗、退出 bar 保守 MFE/MAE 与实际 `observation_days` 口径均已冻结；真实 3 年只读 workflow `32747728644`（9 标的/6037 bars）：生产参数 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；固定 54 组累计 `206 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，计数守恒且不排名、不优化、不改生产参数
+- Development Strategy Stability Evidence（当前 development branch）：以 A1 v2 保存的官方 source snapshots 为唯一候选来源，先排除全部 120 个 A1 formal identities，再按新的固定 SHA-256 非信号规则冻结 CN/US 各 20 个 development symbols；universe manifest `sha256:0dde6a822ae57a7f048aa7b5097a69624138e3b8566602ad1fba25ee3b473046`、symbol list `sha256:03f9d0973340d27c04e9d53c86722100c0b0e6c42d7249147409781a73e904d5`，计算交集为空。未使用 IBKR、final OOS 或 formal Phase 5K 数据。
+
+## Completed / Recorded Research Outcomes
+
+> Remote PR reconciliation at initialization: PRs #14–#22, #25–#27 and #29–#30 are merged; PRs #23, #24 and #28 are closed without merge; PR #31 remains an old-base independent hotfix and current PR #34 is the active production date hotfix. Individual bullets below preserve research outcomes and are not a substitute for current PR state.
+
+- Phase 5C SETUP_03 Decision Gate Diagnostics（PR #14 已合并）：Decision 同一次生产计算返回原 `Decision` 与只读 `DecisionDiagnostics`，ReplayEvent 原样携带 diagnostics，research 固定 54 组只投影、不重算交易条件；新增逐事件/逐参数组合 CSV，并强制 reason 守恒；全量 164/164 通过。真实 3 年只读 workflow `32821290764` 成功（9/9 标的、6032 bars、skipped=0）：生产参数仍为 `0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`；54 组为 `197 CONFIRMED → 4 ENTRY_ALLOWED → 3 SKIP_GAP_BELOW + 1 SKIP_GAP_ABOVE + 0 EXECUTED`，27 组有 CONFIRMED、3 组有 ENTRY_ALLOWED。Decision gate 为 `139 ABOVE_ENTRY_ZONE + 54 RR_BELOW_MINIMUM + 4 ENTRY_ALLOWED`，其余 reason（含 OTHER/invalid context）均为 0；不排名、不选 best、不修改生产参数或交易行为
+- Phase 5D Replay Input Reproducibility（PR #15 已合并，基于 PR #14 的堆叠开发）：对实际进入 replay 的完整 Quote 生成逐 symbol/全数据集 SHA-256 manifest；支持六类显式 manifest diff、确定性 frozen input、跳过 live fetch 的 frozen replay 与 artifact 间自动比较。任何 frozen 内容与嵌入 manifest 不一致时 fail fast；`artifacts/` 已加入 gitignore。全量 172/172 通过。真实 live runs `32826696259` / `32828129539` 均成功：均为 9 symbols / 6032 bars、bar count 与日期范围相同，但 aggregate hash 由 `sha256:2b8203…c54703` 变为 `sha256:8166e1…09e36`，6 symbols 为 `CONTENT_CHANGED_WITH_SAME_BAR_COUNT`，grid funnel 由 `207 CONFIRMED → 4 ENTRY_ALLOWED → 0 EXECUTED` 变为 `200 → 4 ENTRY_ALLOWED → 0 EXECUTED`。frozen run `32829662164` 从首轮 artifact 重放成功：9/9 `IDENTICAL`，aggregate/frozen bytes/六份核心报告 hash 与 funnel 全部一致，验证 same input + same config/code 可重复
 - Phase 5E Frozen Dataset Validation（PR #16，基于 PR #15 的堆叠开发）：固定 Phase 5D 首轮 run `32826696259`（9 标的/6032 bars，dataset hash `sha256:2b8203468ee22c46bce446ae0aed695fab73c36ae6feab045b19c889f2c54703`）及生产参数版本 `sha256:abe4d3026892`；Phase 5E 入口禁止 live history，任何 dataset/参数漂移 fail fast，并跳过 54 组参数网格。只读输出中文漏斗、Decision reason、标的/市场/年份/季度、集中度及信号后 5/10/20D forward return/MFE/MAE；全量 176/176 与 PR CI 通过。真实 frozen workflow `32853329965` 成功且 9/9 manifest `IDENTICAL`：`0 CONFIRMED → 0 ENTRY_ALLOWED → 0 EXECUTED`，6032 个状态日全部为 NONE，因此收益、MAE/MFE、集中度与初步 Edge 均不可评估；不优化参数，不启动最终样本外验证
 - Phase 5F SETUP_03 Confirmation Gate Diagnostics（PR #17，基于 PR #16 的堆叠开发）：production Setup 同一次计算返回原 `Setup` 与只读 `SetupDiagnostics`，兼容 API 和交易行为不变；Replay 只携带 diagnostics，research 仅投影互斥守恒 terminal reason、逐 gate 漏斗、辅助多重失败与 near-miss 分布。全量 179/179 与 PR CI `32855313853` 通过；真实 frozen workflow `32855822844` 成功，9 标的/6032 bars 且 dataset hash 仍为 `sha256:2b8203468ee22c46bce446ae0aed695fab73c36ae6feab045b19c889f2c54703`。terminal reason 守恒为 `438 NO_NEW_CONFIRMED_SWING + 3474 INSUFFICIENT_HIGH_SWINGS + 837 INSUFFICIENT_LOW_SWINGS + 823 STRUCTURE_NOT_RANGE_OR_TRANSITION + 460 HIGH_SPAN_EXCEEDS_TOLERANCE = 6032`；顺序漏斗中最后 460/460 在零容差 high-span gate 全部淘汰，因此无任何平台被识别，后续 WATCH/ARMED/CONFIRMED 全为 0。不改生产参数/规则，不优化，不启动 OOS。
 - Phase 5G Platform Tolerance Sensitivity Study（PR #18，基于 PR #17 的堆叠开发）：锁定同一 9 标的/6032 bars frozen dataset（`sha256:2b8203468ee22c46bce446ae0aed695fab73c36ae6feab045b19c889f2c54703`）与 production 参数版本，仅按固定顺序改变 `platform_tolerance_pct`（0% 至 10% 共 9 档）；全量 181/181 与 PR CI `32858220007` 通过，最终 frozen workflow `32858348894` 成功。平台识别/WATCH/CONFIRMED/ENTRY_ALLOWED/EXECUTED 依次为：0%=0/0/0/0/0，0.5%=0/0/0/0/0，1%=1/0/1/0/0，1.5%=4/35/1/0/0，2%=5/41/2/0/0，3%=8/58/5/0/0，5%=19/119/12/0/0，7.5%=29/199/18/1/0，10%=39/354/22/2/1；全部 ARMED=0。CONFIRMED 的 Decision reason 仅有 `ABOVE_ENTRY_ZONE`、`RR_BELOW_MINIMUM`、`ENTRY_ALLOWED` 且逐档守恒。绝对数量未见爆炸，但 high/low span 随 tolerance 扩大而上升，10% 的 high-span 中位/P90 已达 5.13%/8.53%、low-span 中位/P90 为 3.28%/8.28%，结构边界明显变宽；3%~5% 首次形成跨多个标的/市场/年份的非单点样本，可作为下一阶段“结构定义与稳定性”研究区域，但不是候选生产参数或收益排名结论。不改 production、不启动 OOS。
