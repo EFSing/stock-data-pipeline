@@ -842,19 +842,25 @@ class SheetsDecisionStateStore:
             elif record_type == PENDING_T1:
                 if not isinstance(value, PendingT1Decision):
                     raise ProductionPrerequisiteError("corrupted pending payload")
-                if value.event.event_identity != primary_key:
+                event = getattr(value, "event", None)
+                if not isinstance(event, (Setup01ReplayEvent, Setup02ReplayEvent)):
+                    raise ProductionPrerequisiteError("corrupted pending event payload")
+                if event.event_identity != primary_key:
                     raise ProductionPrerequisiteError(f"corrupted pending lineage: {primary_key}")
                 self.pending[primary_key] = value
             elif record_type == SETTLEMENT:
                 if not isinstance(value, SettlementRecord):
                     raise ProductionPrerequisiteError("corrupted settlement payload")
-                if value.pending.event.event_identity != primary_key:
+                settlement_pending = getattr(value, "pending", None)
+                if not isinstance(settlement_pending, PendingT1Decision):
+                    raise ProductionPrerequisiteError("corrupted settlement pending payload")
+                if getattr(settlement_pending.event, "event_identity", None) != primary_key:
                     raise ProductionPrerequisiteError(f"corrupted settlement lineage: {primary_key}")
                 self.settled[primary_key] = value
             elif record_type == POSITION_ORIGIN_RECORD:
                 if not isinstance(value, PositionOrigin):
                     raise ProductionPrerequisiteError("corrupted position origin payload")
-                if value.source_event_identity != primary_key:
+                if getattr(value, "source_event_identity", None) != primary_key:
                     raise ProductionPrerequisiteError(f"corrupted position origin lineage: {primary_key}")
                 self.position_origins[primary_key] = value
             elif record_type == DAILY_RESULT:
@@ -872,8 +878,12 @@ class SheetsDecisionStateStore:
         for identity in self.settled:
             self.pending.pop(identity, None)
         for identity, result in self.published_events.items():
-            portfolio = result.portfolio_result
-            execution_phase = getattr(result.execution_phase, "value", result.execution_phase)
+            portfolio = getattr(result, "portfolio_result", None)
+            execution_phase = getattr(
+                getattr(result, "execution_phase", None),
+                "value",
+                getattr(result, "execution_phase", None),
+            )
             if (
                 portfolio is not None
                 and portfolio.status == "PORTFOLIO_ALLOWED"
@@ -882,10 +892,13 @@ class SheetsDecisionStateStore:
                 and identity not in self.settled
             ):
                 raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:published_without_t1_state:{identity}")
-            published_identities = set(result.new_confirmed_event_identities)
-            if result.new_confirmed_event_identity:
+            event_identities = getattr(result, "new_confirmed_event_identities", ()) or ()
+            if not isinstance(event_identities, (tuple, list)):
+                raise ProductionPrerequisiteError("corrupted published event identity payload")
+            published_identities = set(event_identities)
+            if getattr(result, "new_confirmed_event_identity", None):
                 published_identities.add(result.new_confirmed_event_identity)
-            if result.event_was_new:
+            if getattr(result, "event_was_new", False):
                 published_identities.add(identity)
             if published_identities and not any(
                 identity in set(item.new_confirmed_event_identities)
@@ -894,11 +907,14 @@ class SheetsDecisionStateStore:
             ):
                 raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:published_without_daily_result:{identity}")
         for result in self.daily_history:
-            daily_identities = set(result.new_confirmed_event_identities)
-            if result.new_confirmed_event_identity:
+            event_identities = getattr(result, "new_confirmed_event_identities", ()) or ()
+            if not isinstance(event_identities, (tuple, list)):
+                raise ProductionPrerequisiteError("corrupted daily result identity payload")
+            daily_identities = set(event_identities)
+            if getattr(result, "new_confirmed_event_identity", None):
                 daily_identities.add(result.new_confirmed_event_identity)
-            if result.event_was_new:
-                daily_identities.add(result.new_confirmed_event_identity or "")
+            if getattr(result, "event_was_new", False):
+                daily_identities.add(getattr(result, "new_confirmed_event_identity", None) or "")
             if any(identity not in self.published_events for identity in daily_identities if identity):
                 raise ProductionPrerequisiteError(f"{PERSISTED_STATE_INCOMPLETE}:daily_without_published")
 
