@@ -79,6 +79,7 @@ DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION = (
 )
 PORTFOLIO_EXISTING_POSITION_CONFLICT = "PORTFOLIO_EXISTING_POSITION_CONFLICT"
 PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED = "PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED"
+PORTFOLIO_PENDING_RESERVATION_UNRESOLVED = "PORTFOLIO_PENDING_RESERVATION_UNRESOLVED"
 POSITION_MANAGEMENT_OBSERVED = "POSITION_MANAGEMENT_OBSERVED"
 
 
@@ -314,6 +315,7 @@ class DecisionStateStore(Protocol):
     def settle_pending(self, identity: str, record: "SettlementRecord") -> None: ...
     def get_settlement(self, identity: str) -> "SettlementRecord | None": ...
     def save_position_origin(self, origin: PositionOrigin) -> None: ...
+    def get_position_origin(self, identity: str) -> PositionOrigin | None: ...
     def record_daily_result(self, result: DailyDecisionResult) -> None: ...
 
 
@@ -380,6 +382,9 @@ class InMemoryDecisionStateStore:
             raise ValueError(f"position origin already exists: {origin.source_event_identity}")
         self.position_origins[origin.source_event_identity] = origin
 
+    def get_position_origin(self, identity: str) -> PositionOrigin | None:
+        return self.position_origins.get(identity)
+
     def record_daily_result(self, result: DailyDecisionResult) -> None:
         self.daily_history.append(result)
 
@@ -425,15 +430,22 @@ class DailyDecisionChain:
         nav = self._resolved_nav(mode, reference_nav)
         settlement_context: dict[str, SettlementRecord] = {}
         settlement_blockers: dict[str, list[str]] = {}
+        settlement_positions: list[OpenPortfolioPosition] = []
+        unresolved_pending: list[PendingT1Decision] = []
         for item in values:
             for pending in self.store.pending_for_symbol(item.symbol):
                 blocker = _pending_t1_data_blocker(item, pending)
                 if blocker is not None:
                     settlement_blockers.setdefault(item.symbol.upper(), []).append(blocker)
+                    unresolved_pending.append(pending)
                     continue
                 settled = self._try_settle_pending(item, pending, mode, reference_nav)
                 if settled is not None:
                     settlement_context[pending.event.event_identity] = settled
+                    if settled.settlement.position is not None:
+                        settlement_positions.append(settled.settlement.position)
+                elif self.store.get_settlement(pending.event.event_identity) is None:
+                    unresolved_pending.append(pending)
 
         prepared: list[dict[str, Any]] = []
         candidates: list[tuple[str, PortfolioCandidate]] = []
@@ -452,6 +464,11 @@ class DailyDecisionChain:
                 and decision is not None
                 and decision.action is DecisionAction.ENTRY_ALLOWED
             ):
+                if unresolved_pending:
+                    portfolio_by_identity[event.event_identity] = ValueError(
+                        PORTFOLIO_PENDING_RESERVATION_UNRESOLVED
+                    )
+                    continue
                 if _known_open_position_without_portfolio_risk_state(item):
                     portfolio_by_identity[event.event_identity] = ValueError(
                         PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED
@@ -474,7 +491,7 @@ class DailyDecisionChain:
         if candidates:
             try:
                 canonical_positions = _merge_authoritative_positions(
-                    existing_positions,
+                    tuple(existing_positions) + tuple(settlement_positions),
                     values,
                 )
                 if any(position.actual_entry is None for position in canonical_positions):
@@ -1127,6 +1144,7 @@ __all__ = [
     "POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT",
     "PORTFOLIO_EXISTING_POSITION_CONFLICT",
     "PORTFOLIO_OPEN_POSITION_RISK_STATE_REQUIRED",
+    "PORTFOLIO_PENDING_RESERVATION_UNRESOLVED",
     "POSITION_MANAGEMENT_OBSERVED",
     "StaticUniverseProvider",
     "T1_EXECUTION_DATA_REQUIRED",

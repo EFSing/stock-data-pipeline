@@ -10,14 +10,18 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0. Latest Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
+## 0. Latest Governance Event — PRODUCTION_PREREQUISITES_V1
 
-- PR #64 已在 Sol 明确批准 `APPROVE_PR_64_MERGE` 后，按批准 exact PR head=`58dfb1448fa73efd50856d989c42801664eb9419` 完成 squash merge；真实 squash merge commit=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`。
-- merge-after `main` exact HEAD=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`；`CI Test Gate` run=`33711976436`，event=`push`，result=`success`。
-- Daily Chain V1 已进入 merged engineering baseline，仍为 prospective read-only；production prerequisites 仍未解决，real-data shadow 未运行，原因=`PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
-- merged source branch=`codex/prospective-daily-decision-chain-v1`；substantive source head=`90dffa5c311a24abeadbd472a35e77f40b754828`；最终 docs-only closeout tip=`58dfb1448fa73efd50856d989c42801664eb9419`。
-- Sol-approved validation remains: Daily Chain focused=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、full unittest=`549/549`、Daily Chain generic shadow=`17/17 SUCCESS`、Portfolio Risk generic shadow=`18/18 checks SUCCESS`、compileall 与 `git diff --check` 均通过；exact-head runs=`33709065926 / 33709065929 / 33709065934` 均 success。
-- 本阶段已完成；不重启 SETUP_03、不实现 SETUP_04、不做 Final OOS、不做 outcome-driven tuning，不启动 production wiring 或新 Phase。
+- 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
+- 当前分支=`codex/production-prerequisites-v1`；最新 substantive/validation head=`4548563249ad8f61656f09d5bca2c3f7761cc718`。最终治理 docs commit 可能只推进 PR live tip，不把自身或前一个 docs commit冒充 source validation head。
+- 新 PR #66=`https://github.com/EFSing/stock-data-pipeline/pull/66`，base=`main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`，state=`OPEN / merged=false / CLEAN / MERGEABLE`，不 merge。
+- substantive head exact-head CI：`CI Test Gate` run=`33739123688` success；Daily Chain generic shadow run=`33739123690` success；Portfolio Risk generic shadow run=`33739123721` success。
+- 本阶段实现并 harden 五个 production Sheet contracts、account-isolated adapter、`SheetsDecisionStateStore`、exact exchange calendar 和只读 `--preflight`：缺 PositionOrigin 仅阻断 PM；同轮 settlement exposure、未决 reservation、compound state 与显式行情币种均 fail closed；system-owned `POSITION_ORIGIN` 无对应 `SETTLEMENT` 时以 `PERSISTED_STATE_INCOMPLETE:origin_without_settlement:<identity>` fail closed；QFQ 缺失恢复为 `DATA_UNAVAILABLE`；空 enabled account 无正式 strategy universe 时 fail closed。
+- 本地验证：full unittest=`571/571`；production prerequisites=`19/19`；Daily Chain=`23/23`；Portfolio Risk=`24/24`；Position Management=`18/18`；Daily generic shadow=`17/17 SUCCESS`；Portfolio generic shadow=`17/17 SUCCESS`；compileall 与 `git diff --check` 通过。
+- Portfolio Risk 继续复用 frozen constants/formula；CN/US 为独立 CNY/USD risk books；不实现 FX，不访问 broker/IBKR，不修改真实 Sheets。
+- 最终状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不 merge。
+
+## 0A. Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
 
 ## 0A. Prior Governance Event — FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE
 
