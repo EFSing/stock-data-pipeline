@@ -32,7 +32,7 @@
 - mutation boundary=`历史行情_前复权` only；不写 `策略账户`、`策略股票池`、`策略风险分组`、`策略持仓`、`策略决策状态`、`交易决策`、`最新行情`、`自选清单` 或 `历史行情_未复权`，不创建新 workflow/cron，不改策略语义。
 - Asia/US scheduled workflow 保持 cron 不变，并在 `main.py --mode latest` 成功后按 `RUN_MODE == latest` 调用 refresher；manual `full` 不调用 refresher。refresher 失败或任何 formal symbol stale/missing 时 fail closed，禁止 partial stale success，并输出 `PRODUCTION_QFQ_SUMMARY`。
 - 当前 live workbook 仍是真实已激活配置；现有 read-only preflight 的 QFQ stale blockers 仍有效。本分支新代码尚未 merge，也未对真实 Sheets 执行 refresher；state writes、broker/orders、FX 均未启用。
-- 当前 checkout=`codex/production-qfq-daily-refresh-v1`，基线=`main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；validated source/test head=`b9102b3a8734fa254c88a2fdcc0ea25338a91f92`；focused refresher tests=`16/16`、full unittest=`587/587`、compileall 与 `git diff --check` 均通过；该 head 的 CI Test Gate=`33836497215`、Daily Decision Chain generic shadow=`33836497252`、Portfolio Risk generic shadow=`33836497204` 均 success；随后仅做 docs-only handoff sync，PR #68 保持 `OPEN / CLEAN / MERGEABLE / merged=false`；停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
+- 当前 checkout=`codex/production-qfq-daily-refresh-v1`，基线=`main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；validated source/test head=`b9102b3a8734fa254c88a2fdcc0ea25338a91f92`；focused refresher tests=`16/16`、full unittest=`587/587`、compileall 与 `git diff --check` 均通过；该 head 的 CI Test Gate=`33836497215`、Daily Decision Chain generic shadow=`33836497252`、Portfolio Risk generic shadow=`33836497204` 均 success；随后仅做 docs-only handoff sync，PR #68 保持 `OPEN / CLEAN / MERGEABLE / merged=false`；停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_REVISED_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
 ## 0. Prior Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
@@ -79,7 +79,7 @@
 - **唯一目标:** 在不进入 legacy `full`/SETUP_03/Decision 的前提下，按正式 production universe 与已写入 `最新行情.交易日期` 刷新 CN/US 前复权历史，并保持 existing history/provider/quote contract；target QFQ series 必须是 scoped replacement。
 - **实现边界:** 只读 `策略账户`、`策略股票池`、`自选清单`、`最新行情`、`参数设置`；只允许写 `历史行情_前复权`；不读取或写入 strategy state/holdings/decision，不接 broker/order，不改 frozen strategy semantics。
 - **交付范围:** `scripts/refresh_production_qfq.py`、`sheets_client.py`、focused regression tests 与本 milestone governance closeout；现有 Asia/US workflow wiring、cron 与 manual `full` 均 unchanged，no live refresher run before merge。
-- **停止条件:** focused/full unittest、compileall、`git diff --check`、PR Test Gate/Daily Chain generic shadow/Portfolio Risk generic shadow 均通过后，创建 PR 并停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，不自动 merge。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、PR Test Gate/Daily Chain generic shadow/Portfolio Risk generic shadow 均通过后，创建 PR 并停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_REVISED_READY_FOR_SOL_REVIEW`，不自动 merge。
 
 ## 1A. Historical Objective — PORTFOLIO_RISK_V1
 
