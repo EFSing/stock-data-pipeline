@@ -32,7 +32,7 @@
 - mutation boundary=`历史行情_前复权` only；不写 `策略账户`、`策略股票池`、`策略风险分组`、`策略持仓`、`策略决策状态`、`交易决策`、`最新行情`、`自选清单` 或 `历史行情_未复权`，不创建新 workflow/cron，不改策略语义。
 - Asia/US scheduled workflow 保持 cron 不变，并在 `main.py --mode latest` 成功后按 `RUN_MODE == latest` 调用 refresher；manual `full` 不调用 refresher。refresher 失败或任何 formal symbol stale/missing 时 fail closed，禁止 partial stale success，并输出 `PRODUCTION_QFQ_SUMMARY`。
 - 当前 live workbook 仍是真实已激活配置；现有 read-only preflight 的 QFQ stale blockers 仍有效。本分支新代码尚未 merge，也未对真实 Sheets 执行 refresher；state writes、broker/orders、FX 均未启用。
-- 当前 checkout=`codex/production-qfq-daily-refresh-v1`，基线=`main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；focused refresher tests=`15/15`，尚待 full unittest/compileall/PR CI 与 Sol review。
+- 当前 checkout=`codex/production-qfq-daily-refresh-v1`，基线=`main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；focused refresher tests=`15/15`、full unittest=`586/586`、compileall 与 `git diff --check` 均通过；PR #68（head=`f0c1ed0`）保持 `OPEN / CLEAN / MERGEABLE / merged=false`。CI Test Gate run=`33832424960`、Daily Decision Chain generic shadow run=`33832424964`、Portfolio Risk generic shadow run=`33832424961` 均 success；停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
 ## 0. Prior Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。

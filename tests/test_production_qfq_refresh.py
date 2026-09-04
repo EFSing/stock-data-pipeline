@@ -325,6 +325,8 @@ class ProductionQfqRefreshTests(unittest.TestCase):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn(f"python scripts/refresh_production_qfq.py --group {group}", source)
             self.assertIn('if [ "$RUN_MODE" = "latest" ]; then', source)
+            self.assertIn('main_status=${PIPESTATUS[0]}', source)
+            self.assertIn('if [ "$main_status" -ne 0 ]; then', source)
             self.assertLess(
                 source.index('python main.py --group'),
                 source.index(f"python scripts/refresh_production_qfq.py --group {group}"),
