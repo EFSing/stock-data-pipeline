@@ -10,6 +10,29 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
+## 0C. Latest Operational Milestone — PRODUCTION_CONFIG_ACTIVATION_AND_READ_ONLY_PREFLIGHT_V1
+
+- milestone status=`PRODUCTION_CONFIG_ACTIVATED`；live workbook ID=`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`，title=`持仓股股票行情数据中台`，time zone=`Asia/Shanghai`；live GitHub `main` / baseline=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`。
+- PR #66 / #67=`MERGED / merged=true`；latest main `CI Test Gate` run=`33767187219` success。当前 checkout=`codex/production-prerequisites-governance-closeout`，其本地开发基线尚未快进到 live main；本节中的 workbook 与 live GitHub facts 以实时核验为准。
+- `策略账户` final rows：`TRUE | CN_MAIN | CN | CNY | 75000 | 2026-09-03`；`TRUE | US_MAIN | US | USD | 4500 | 2026-09-03`；备注为用户确认的 V1 启动参考净值，明确不表示券商自动同步。
+- `策略股票池` final enabled rows：`000725.SZ`、`002156.SZ`、`512400.SH` under `CN_MAIN`；`BABA`、`RKLB` under `US_MAIN`。`DRAM` remains `FALSE | US_MAIN | US | DRAM | Roundhill Memory ETF`，备注明确保留为 disabled candidate；enabled total=`5`。
+- `策略风险分组` final explicit mappings：`CN/000725.SZ→DISPLAY_TECH`、`CN/002156.SZ→SEMICONDUCTOR`、`CN/512400.SH→METALS`、`US/BABA→CHINA_INTERNET`、`US/RKLB→SPACE_AEROSPACE`；无 DRAM risk row。
+- `EXISTING_POSITIONS_MANAGED=NO`；`策略持仓` row count=`0`。`策略决策状态` row count before→after=`0→0`；未写入 system-owned state records。
+- exact preflight T=`2026-09-03`，result=`NOT_READY`；CN calendar=`XSHG`、US calendar=`XNYS` 均完成 exact session proof，next session=`2026-09-04`；静态配置核验全部通过。live market data：CN latest/QFQ 至 `2026-09-02`；US latest 至 `2026-09-03`，但 QFQ 至 `2026-08-28`。
+- exact data blockers：`PRODUCTION_DATA_QUALITY_REQUIRED:000725.SZ:DATA_STALE:qfq last date < T`；`PRODUCTION_DATA_QUALITY_REQUIRED:002156.SZ:DATA_STALE:qfq last date < T`；`PRODUCTION_DATA_QUALITY_REQUIRED:512400.SH:DATA_STALE:qfq last date < T`；`PRODUCTION_DATA_QUALITY_REQUIRED:BABA:DATA_STALE:qfq last date < T`；`PRODUCTION_DATA_QUALITY_REQUIRED:RKLB:DATA_STALE:qfq last date < T`。
+- preflight 为 read-only；state-store status=`OK`；`NO STATE WRITE=true`；`NO Sheets mutation=true`。已执行 `--preflight --date 2026-09-03` 的同一 runner；本地原生 CLI 环境缺 `gspread`，最终报告使用 live connector records 经 adapter injection 完成，未写入任何状态或 Sheet。
+- outside target tabs changed=`NO`；strategy positions/state writes=`NO`；`BROKER_NOT_CONNECTED`；`PRODUCTION_STATE_WRITES_NOT_ENABLED`；`ORDERS_NOT_ENABLED`；`FX_NOT_IMPLEMENTED`；`cron=NO`。
+- final stop state=`PRODUCTION_CONFIG_ACTIVATED / READ_ONLY_PREFLIGHT_NOT_READY_DATA_STALE`；不自动写生产状态，不修改 T、NAV date、假收盘或 weekday guard。
+- `DECISION_LOG.md` 未修改：本轮执行已批准的 production config，不是新的长期架构决策。`HANDOFF_CURRENT_AND_CONSISTENT`。
+
+## 0D. Latest Engineering Milestone — PRODUCTION_QFQ_DAILY_REFRESH_V1
+
+- 根因已确认并保留 machine-readable marker=`PRODUCTION_QFQ_NOT_REFRESHED_BY_SCHEDULED_LATEST_MODE`：scheduled `main.py --mode latest` 只更新 latest/validation/log，既有 QFQ upsert 位于 `mode == "full"`，而 `full` 会进入 legacy SETUP_03/Decision path。
+- 新增窄入口 `scripts/refresh_production_qfq.py`：formal enabled `策略股票池` 仅通过 enabled linked `策略账户` 进入；严格按 `(市场,统一代码)` 唯一匹配 `自选清单` source config 与 `最新行情` target `交易日期`；只允许 `BaoStock`/`yfinance` QFQ；复用 `history_days`、existing retry/provider、`quote_row` 与 `SheetsClient.upsert_history`。
+- mutation boundary=`历史行情_前复权` only；不写 `策略账户`、`策略股票池`、`策略风险分组`、`策略持仓`、`策略决策状态`、`交易决策`、`最新行情`、`自选清单` 或 `历史行情_未复权`，不创建新 workflow/cron，不改策略语义。
+- Asia/US scheduled workflow 保持 cron 不变，并在 `main.py --mode latest` 成功后按 `RUN_MODE == latest` 调用 refresher；manual `full` 不调用 refresher。refresher 失败或任何 formal symbol stale/missing 时 fail closed，禁止 partial stale success，并输出 `PRODUCTION_QFQ_SUMMARY`。
+- 当前 live workbook 仍是真实已激活配置；现有 read-only preflight 的 QFQ stale blockers 仍有效。本分支新代码尚未 merge，也未对真实 Sheets 执行 refresher；state writes、broker/orders、FX 均未启用。
+- 当前 checkout=`codex/production-qfq-daily-refresh-v1`，基线=`main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；focused refresher tests=`15/15`，尚待 full unittest/compileall/PR CI 与 Sol review。
 ## 0. Prior Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
@@ -23,7 +46,7 @@
 - 五个 production Sheet contracts、account-isolated risk books、persistent state / exact calendar / production adapter 已进入正式 engineering baseline；`REAL_SHEETS_NOT_CREATED`、`REAL_PRODUCTION_STATE_NOT_ENABLED`、`BROKER_NOT_CONNECTED`。
 - 最终状态=`PRODUCTION_PREREQUISITES_V1_MERGED`；`HANDOFF_CURRENT_AND_CONSISTENT`；停止，不再执行本阶段工作。
 
-## 0B. Latest Operational Milestone — PRODUCTION_SHEETS_BOOTSTRAP_AND_PREFLIGHT_V1
+## 0B. Prior Operational Milestone — PRODUCTION_SHEETS_BOOTSTRAP_AND_PREFLIGHT_V1
 
 - milestone status=`PRODUCTION_SHEETS_BOOTSTRAPPED`；本节为当前 live workbook objective facts 的治理事实源；旧 `REAL_SHEETS_NOT_CREATED` 仅保留在历史事件中。
 - 目标 workbook 已通过 live identity guard：ID=`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`，title=`持仓股股票行情数据中台`，time zone=`Asia/Shanghai`。
@@ -39,8 +62,6 @@
 - `DECISION_LOG.md` 未修改：本轮只是执行已批准的 production contract，不是新的长期架构决策。治理同步目标为 `HANDOFF_CURRENT_AND_CONSISTENT`；当前状态=`READY_FOR_DECISION_REAL_PRODUCTION_CONFIG`；`REAL_PRODUCTION_STATE_NOT_ENABLED`、`BROKER_NOT_CONNECTED`。
 - repo verification：`main` exact HEAD=`85f5aad40c300a5446a3610ce4daccfbc08c75bf`，`origin/main` 同 SHA；当前 checkout=`codex/production-prerequisites-governance-closeout`，working tree 在本次 docs sync 前 clean；PR #66=`MERGED / merged=true`；latest main `CI Test Gate` run=`33745503856` success。
 
-## 0A. Historical Governance Event — PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED
-
 ## 0A. Prior Governance Event — FROZEN_DEVELOPMENT_DATASET_PORTABLE_ARCHIVE
 
 - 已完成已授权的 `d1016f2` fast-forward push 到现有 PR #59 分支；PR #59 仍为 `OPEN / merged=false`，未 merge。
@@ -54,12 +75,11 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`（独立 T 日 prospective read-only orchestration 已完成并进入 merged engineering baseline）。
-- **唯一目标:** 将冻结 Wave、SETUP_01/SETUP_02 Decision/Risk、Portfolio Risk、Position Management、Wave5 contracts 组合为可审阅的 Daily Decision Chain V1；只消费 `data <= T`，只接受同日首次 `is_new_confirmed_event_as_of=true` 的 `CONFIRMED` event，T+1 只在 exact calendar identity 可用时观察 settlement。
-- **实现边界:** 使用 `DecisionStateStore`/`InMemoryDecisionStateStore` 与 injection-based `UniverseProvider`；Portfolio Risk 复用 frozen constants/formula；缺失 production universe、NAV、risk group、authoritative position origin、exact calendar、persistent state backend 时 fail closed；不把当前 watchlist、weekday guard、legacy SETUP_03 Sheet 当作正式 SSOT。
-- **交付范围:** `trading/daily_decision_chain.py`、tests、synthetic generic shadow runner/workflow、`docs/PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md` 与 `docs/DECISION_LOG.md`；不修改既有 upstream semantics，不接 broker/order，不写 Sheets strategy rows。
-- **本地 gates:** Daily Chain=`20/20`、Portfolio Risk=`24/24`、Position Management=`18/18`、Daily Chain generic shadow=`17/17`、Portfolio Risk generic shadow=`18/18 checks`、full unittest=`549/549`、compileall 与 `git diff --check` 已通过；real-data shadow=`NOT_RUN_PRODUCTION_STRATEGY_UNIVERSE_REQUIRED`。
-- **停止条件:** Sol-approved exact head 已 squash merged，merge-after main CI 已 success，治理状态已同步；停止，不启动新 Phase 或 production wiring。
+- **当前 Phase / task:** `PRODUCTION_QFQ_DAILY_REFRESH_V1`，从 live baseline `main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b` 实现并审阅 scheduled latest 的窄 QFQ 补充路径。
+- **唯一目标:** 在不进入 legacy `full`/SETUP_03/Decision 的前提下，按正式 production universe 与已写入 `最新行情.交易日期` 刷新 CN/US 前复权历史，并保持 existing history/provider/upsert contract。
+- **实现边界:** 只读 `策略账户`、`策略股票池`、`自选清单`、`最新行情`、`参数设置`；只允许写 `历史行情_前复权`；不读取或写入 strategy state/holdings/decision，不接 broker/order，不改 frozen strategy semantics。
+- **交付范围:** `scripts/refresh_production_qfq.py`、focused regression tests、Asia/US workflow wiring、本 milestone governance closeout；cron unchanged，manual `full` unchanged，no live refresher run before merge。
+- **停止条件:** focused/full unittest、compileall、`git diff --check`、PR Test Gate/Daily Chain generic shadow/Portfolio Risk generic shadow 均通过后，创建 PR 并停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，不自动 merge。
 
 ## 1A. Previous Objective — PORTFOLIO_RISK_V1
 
@@ -442,4 +462,3 @@
 - `next_action`: governance sync only, then stop; `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_MERGED`; no strategy development or production wiring
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
-
