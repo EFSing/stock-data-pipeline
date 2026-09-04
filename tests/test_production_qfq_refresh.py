@@ -49,7 +49,13 @@ def latest(symbol: str, market: str, trade_date: date = TARGET) -> dict:
     return {"市场": market, "统一代码": symbol, "交易日期": trade_date}
 
 
-def quote(symbol: str, market: str, trade_date: date, source: str) -> Quote:
+def quote(
+    symbol: str,
+    market: str,
+    trade_date: date,
+    source: str,
+    close: float = 10.5,
+) -> Quote:
     return Quote(
         symbol=symbol,
         name=symbol,
@@ -59,7 +65,7 @@ def quote(symbol: str, market: str, trade_date: date, source: str) -> Quote:
         open=10.0,
         high=11.0,
         low=9.0,
-        close=10.5,
+        close=close,
         preclose=10.0,
         pct_change=5.0,
         volume=1000,
@@ -70,8 +76,14 @@ def quote(symbol: str, market: str, trade_date: date, source: str) -> Quote:
 
 
 class FakeSheetsClient:
-    def __init__(self, records: dict[str, list[dict]], config: dict | None = None):
-        self._records = records
+    def __init__(
+        self,
+        records: dict[str, list[dict]],
+        config: dict | None = None,
+        history_rows: list[dict] | None = None,
+    ):
+        self._records = {sheet: list(rows) for sheet, rows in records.items()}
+        self._records["历史行情_前复权"] = list(history_rows or [])
         self._config = config or {
             "history_days": "2",
             "retry_count": "1",
@@ -88,9 +100,21 @@ class FakeSheetsClient:
         self.reads.append("参数设置")
         return dict(self._config)
 
-    def upsert_history(self, sheet_name: str, rows):
-        self.writes.append((sheet_name, list(rows)))
-        return len(self.writes[-1][1])
+    def replace_history_series(self, rows, target_identities, *, existing=None):
+        sheet_name = "历史行情_前复权"
+        incoming = list(rows)
+        target_keys = set(target_identities)
+        existing_rows = list(self._records[sheet_name] if existing is None else existing)
+        final_rows = [
+            row
+            for row in existing_rows
+            if (str(row.get("市场") or "").strip(), str(row.get("统一代码") or "").strip())
+            not in target_keys
+        ]
+        final_rows.extend(incoming)
+        self._records[sheet_name] = final_rows
+        self.writes.append((sheet_name, list(final_rows)))
+        return len(incoming)
 
 
 def workbook(
@@ -100,6 +124,8 @@ def workbook(
     latest_rows=None,
     account_rows=None,
     pool_rows=None,
+    history_rows=None,
+    config=None,
 ):
     accounts = account_rows if account_rows is not None else [account("CN_MAIN", "CN")]
     pools = (
@@ -123,8 +149,38 @@ def workbook(
             "策略股票池": pools,
             "自选清单": watches,
             "最新行情": latests,
-        }
+        },
+        config=config,
+        history_rows=history_rows,
     )
+
+
+def stored_history(
+    symbol: str,
+    market: str,
+    trade_date: date,
+    close: float,
+    source: str,
+) -> dict:
+    return {
+        "统一代码": symbol,
+        "名称": symbol,
+        "市场": market,
+        "交易日期": trade_date,
+        "复权方式": "前复权",
+        "数据源": source,
+        "开盘": close,
+        "最高": close,
+        "最低": close,
+        "收盘": close,
+        "昨收": close,
+        "涨跌幅": 0.0,
+        "成交量": 1000,
+        "成交额": close * 1000,
+        "换手率": 1.0,
+        "币种": "CNY" if market == "CN" else "USD",
+        "抓取时间": FETCHED_AT,
+    }
 
 
 def successful_fetch(calls):
@@ -277,6 +333,83 @@ class ProductionQfqRefreshTests(unittest.TestCase):
         written = client.writes[0][1]
         self.assertEqual({row["交易日期"] for row in written}, {target - timedelta(days=1), target})
 
+    def test_target_qfq_series_is_replaced_and_non_target_rows_are_preserved(self):
+        target_symbol = "000725.SZ"
+        target_market = "CN"
+        non_target_rows = [
+            stored_history("OTHER.SZ", "CN", TARGET - timedelta(days=2), 7.0, "other-qfq"),
+            stored_history("OTHER.SZ", "CN", TARGET - timedelta(days=1), 8.0, "other-qfq"),
+        ]
+        existing_dates = [
+            TARGET - timedelta(days=days)
+            for days in range(1000, 0, -1)
+        ]
+        existing_target_rows = [
+            stored_history(target_symbol, target_market, trade_date, -float(index + 1), "old-qfq")
+            for index, trade_date in enumerate(existing_dates)
+        ]
+        client = workbook(
+            history_rows=non_target_rows + existing_target_rows,
+            config={
+                "history_days": "1000",
+                "retry_count": "1",
+                "retry_wait_seconds": "0",
+            },
+        )
+        incoming_dates = [
+            TARGET - timedelta(days=days)
+            for days in range(999, -1, -1)
+        ]
+        incoming_close = {
+            trade_date: float(10000 + index)
+            for index, trade_date in enumerate(incoming_dates)
+        }
+
+        def rolling_fetch(source, row, adjust, start, end, retry_count, retry_wait, *, target_trade_date):
+            return [
+                quote(
+                    row["统一代码"],
+                    row["市场"],
+                    trade_date,
+                    source,
+                    close=incoming_close[trade_date],
+                )
+                for trade_date in incoming_dates
+            ]
+
+        refresh_production_qfq(
+            "asia",
+            client=client,
+            fetch_history=rolling_fetch,
+            fetched_at=FETCHED_AT,
+        )
+
+        final_rows = client.records("历史行情_前复权")
+        final_target_rows = [
+            row
+            for row in final_rows
+            if (row["市场"], row["统一代码"]) == (target_market, target_symbol)
+        ]
+        self.assertEqual(len(final_target_rows), 1000)
+        self.assertEqual(
+            [row["交易日期"] for row in final_target_rows],
+            incoming_dates,
+        )
+        self.assertNotIn(existing_dates[0], {row["交易日期"] for row in final_target_rows})
+        self.assertTrue(all(row["数据源"] == "BaoStock" for row in final_target_rows))
+        self.assertEqual(
+            {
+                row["交易日期"]: row["收盘"]
+                for row in final_target_rows
+            },
+            incoming_close,
+        )
+        self.assertEqual(
+            [row for row in final_rows if (row["市场"], row["统一代码"]) == ("CN", "OTHER.SZ")],
+            non_target_rows,
+        )
+        self.assertEqual(len(client.writes), 1)
+
     def test_only_qfq_history_is_written(self):
         client = workbook()
         refresh_production_qfq(
@@ -287,11 +420,16 @@ class ProductionQfqRefreshTests(unittest.TestCase):
         self.assertNotIn("策略决策状态", client.reads)
 
     def test_all_formal_symbols_must_succeed_before_any_write(self):
+        existing_history = [
+            stored_history("000725.SZ", "CN", TARGET, 1.0, "existing-qfq"),
+            stored_history("002156.SZ", "CN", TARGET, 2.0, "existing-qfq"),
+        ]
         client = workbook(
             symbols=(
                 ("000725.SZ", "CN", "CN_MAIN", "BaoStock"),
                 ("002156.SZ", "CN", "CN_MAIN", "BaoStock"),
-            )
+            ),
+            history_rows=existing_history,
         )
 
         def one_fails(source, row, *args, **kwargs):
@@ -302,6 +440,7 @@ class ProductionQfqRefreshTests(unittest.TestCase):
         error = self.run_failure(client, one_fails)
         self.assertIn("002156.SZ", error)
         self.assertEqual(client.writes, [])
+        self.assertEqual(client.records("历史行情_前复权"), existing_history)
 
     def test_group_scope_is_cn_or_us_only(self):
         client = workbook(

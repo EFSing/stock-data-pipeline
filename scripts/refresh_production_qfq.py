@@ -227,6 +227,7 @@ def refresh_production_qfq(
             [f"PRODUCTION_QFQ_CONFIG_INVALID:{exc}"],
         )
 
+    existing_history = client.records("历史行情_前复权")
     now = fetched_at or beijing_now()
     rows_to_write: list[dict[str, Any]] = []
     fetch_errors: list[str] = []
@@ -269,7 +270,11 @@ def refresh_production_qfq(
     if fetch_errors:
         _fail(group, symbols_requested, sorted(set(failed_symbols)), fetch_errors)
 
-    result = client.upsert_history("历史行情_前复权", rows_to_write)
+    result = client.replace_history_series(
+        rows_to_write,
+        identities,
+        existing=existing_history,
+    )
     rows_written = result if isinstance(result, int) else len(rows_to_write)
     summary = _summary(
         group,
