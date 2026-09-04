@@ -22,7 +22,7 @@ V0.2
 - 只允许 `BaoStock`/`yfinance` QFQ，复用现有 `fetch_with_retry`、`history_days`、`quote_row` 与 `SheetsClient.upsert_history`；成功 mutation boundary 仅为 `历史行情_前复权`，失败时不做 partial write。
 - scheduled Asia/US cron 未改变；`RUN_MODE=latest` 在 main latest 成功后调用 refresher，manual `full` 不调用。摘要为 `PRODUCTION_QFQ_SUMMARY`，任何 formal symbol stale/missing/config duplicate 都 fail closed。
 - live workbook 配置仍为真实已激活配置；旧 read-only preflight 的五个 QFQ stale blockers 未被隐瞒。新代码尚未 merge，未对真实 Sheets 执行 refresher；strategy state/holdings/decision、broker/orders、FX 均未触及。
-- 当前分支=`codex/production-qfq-daily-refresh-v1`，基线=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；focused tests=`15/15`、full unittest=`586/586`、compileall 与 `git diff --check` 均通过。PR #68（head=`f0c1ed0`）为 `OPEN / CLEAN / MERGEABLE / merged=false`；CI Test Gate run=`33832424960`、Daily Decision Chain generic shadow run=`33832424964`、Portfolio Risk generic shadow run=`33832424961` 均 success。状态=`PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
+- 当前分支=`codex/production-qfq-daily-refresh-v1`，基线=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；focused tests=`15/15`、full unittest=`586/586`、compileall 与 `git diff --check` 均通过。PR #68 为 `OPEN / CLEAN / MERGEABLE / merged=false`；CI Test Gate、Daily Decision Chain generic shadow、Portfolio Risk generic shadow 在最终 PR head 均 success。状态=`PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
 
 ## Prior Operational Event — PRODUCTION_SHEETS_BOOTSTRAP_AND_PREFLIGHT_V1
 
