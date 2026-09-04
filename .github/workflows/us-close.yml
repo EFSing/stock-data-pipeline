@@ -37,6 +37,13 @@ jobs:
             RUN_MODE="${DISPATCH_MODE:-latest}"
           fi
           python main.py --group us --mode "$RUN_MODE" | tee run-summary.txt
+          main_status=${PIPESTATUS[0]}
+          if [ "$main_status" -ne 0 ]; then
+            exit "$main_status"
+          fi
+          if [ "$RUN_MODE" = "latest" ]; then
+            python scripts/refresh_production_qfq.py --group us | tee -a run-summary.txt
+          fi
       - name: Publish run summary
         if: always()
         run: |

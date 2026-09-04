@@ -252,6 +252,55 @@ class SheetsClient:
             ("市场", "统一代码", "交易日期"),
         )
 
+    def replace_history_series(
+        self,
+        rows: Iterable[dict],
+        target_identities: Iterable[tuple[str, str]],
+        *,
+        existing: Iterable[dict] | None = None,
+    ) -> int:
+        """Replace complete QFQ series for the nominated identities only.
+
+        The optional ``existing`` snapshot lets a caller read the sheet before
+        doing any provider work.  All non-target rows are carried into the
+        final rewrite unchanged; every target row is replaced by ``rows``.
+        This helper is intentionally scoped to the production QFQ worksheet.
+        """
+        target_keys = {
+            (str(market or "").strip(), str(symbol or "").strip())
+            for market, symbol in target_identities
+        }
+        incoming_rows = list(rows)
+        unexpected = sorted(
+            {
+                (
+                    str(row.get("市场") or "").strip(),
+                    str(row.get("统一代码") or "").strip(),
+                )
+                for row in incoming_rows
+                if (
+                    str(row.get("市场") or "").strip(),
+                    str(row.get("统一代码") or "").strip(),
+                ) not in target_keys
+            }
+        )
+        if unexpected:
+            identities = ", ".join(f"{market}|{symbol}" for market, symbol in unexpected)
+            raise ValueError(f"QFQ replacement rows outside target scope: {identities}")
+
+        existing_rows = list(existing) if existing is not None else self.records("历史行情_前复权")
+        final_rows = [
+            row
+            for row in existing_rows
+            if (
+                str(row.get("市场") or "").strip(),
+                str(row.get("统一代码") or "").strip(),
+            ) not in target_keys
+        ]
+        final_rows.extend(incoming_rows)
+        self._replace("历史行情_前复权", HISTORY_HEADERS, final_rows)
+        return len(incoming_rows)
+
     def upsert_decisions(self, rows: Iterable[dict]) -> int:
         return self._upsert(
             "交易决策",
