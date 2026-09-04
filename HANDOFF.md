@@ -10,10 +10,10 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0C. Latest Operational Milestone — PRODUCTION_CONFIG_ACTIVATION_AND_READ_ONLY_PREFLIGHT_V1
+## 0C. Prior Operational Milestone — PRODUCTION_CONFIG_ACTIVATION_AND_READ_ONLY_PREFLIGHT_V1
 
 - milestone status=`PRODUCTION_CONFIG_ACTIVATED`；live workbook ID=`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`，title=`持仓股股票行情数据中台`，time zone=`Asia/Shanghai`；live GitHub `main` / baseline=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`。
-- PR #66 / #67=`MERGED / merged=true`；latest main `CI Test Gate` run=`33767187219` success。当前 checkout=`codex/production-prerequisites-governance-closeout`，其本地开发基线尚未快进到 live main；本节中的 workbook 与 live GitHub facts 以实时核验为准。
+- PR #66 / #67=`MERGED / merged=true`；latest main `CI Test Gate` run=`33767187219` success。该里程碑完成时 checkout=`codex/production-prerequisites-governance-closeout`，其本地开发基线尚未快进到 live main；本节中的 workbook 与 live GitHub facts 以当时核验为准。
 - `策略账户` final rows：`TRUE | CN_MAIN | CN | CNY | 75000 | 2026-09-03`；`TRUE | US_MAIN | US | USD | 4500 | 2026-09-03`；备注为用户确认的 V1 启动参考净值，明确不表示券商自动同步。
 - `策略股票池` final enabled rows：`000725.SZ`、`002156.SZ`、`512400.SH` under `CN_MAIN`；`BABA`、`RKLB` under `US_MAIN`。`DRAM` remains `FALSE | US_MAIN | US | DRAM | Roundhill Memory ETF`，备注明确保留为 disabled candidate；enabled total=`5`。
 - `策略风险分组` final explicit mappings：`CN/000725.SZ→DISPLAY_TECH`、`CN/002156.SZ→SEMICONDUCTOR`、`CN/512400.SH→METALS`、`US/BABA→CHINA_INTERNET`、`US/RKLB→SPACE_AEROSPACE`；无 DRAM risk row。
@@ -28,11 +28,11 @@
 ## 0D. Latest Engineering Milestone — PRODUCTION_QFQ_DAILY_REFRESH_V1
 
 - 根因已确认并保留 machine-readable marker=`PRODUCTION_QFQ_NOT_REFRESHED_BY_SCHEDULED_LATEST_MODE`：scheduled `main.py --mode latest` 只更新 latest/validation/log，既有 QFQ upsert 位于 `mode == "full"`，而 `full` 会进入 legacy SETUP_03/Decision path。
-- 新增窄入口 `scripts/refresh_production_qfq.py`：formal enabled `策略股票池` 仅通过 enabled linked `策略账户` 进入；严格按 `(市场,统一代码)` 唯一匹配 `自选清单` source config 与 `最新行情` target `交易日期`；只允许 `BaoStock`/`yfinance` QFQ；复用 `history_days`、existing retry/provider、`quote_row` 与 `SheetsClient.upsert_history`。
+- 新增窄入口 `scripts/refresh_production_qfq.py`：formal enabled `策略股票池` 仅通过 enabled linked `策略账户` 进入；严格按 `(市场,统一代码)` 唯一匹配 `自选清单` source config 与 `最新行情` target `交易日期`；只允许 `BaoStock`/`yfinance` QFQ；复用 `history_days`、existing retry/provider、`quote_row`，并通过 scoped `SheetsClient.replace_history_series` 替换 target 的完整 QFQ series。
 - mutation boundary=`历史行情_前复权` only；不写 `策略账户`、`策略股票池`、`策略风险分组`、`策略持仓`、`策略决策状态`、`交易决策`、`最新行情`、`自选清单` 或 `历史行情_未复权`，不创建新 workflow/cron，不改策略语义。
 - Asia/US scheduled workflow 保持 cron 不变，并在 `main.py --mode latest` 成功后按 `RUN_MODE == latest` 调用 refresher；manual `full` 不调用 refresher。refresher 失败或任何 formal symbol stale/missing 时 fail closed，禁止 partial stale success，并输出 `PRODUCTION_QFQ_SUMMARY`。
 - 当前 live workbook 仍是真实已激活配置；现有 read-only preflight 的 QFQ stale blockers 仍有效。本分支新代码尚未 merge，也未对真实 Sheets 执行 refresher；state writes、broker/orders、FX 均未启用。
-- 当前 checkout=`codex/production-qfq-daily-refresh-v1`，基线=`main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；focused refresher tests=`15/15`、full unittest=`586/586`、compileall 与 `git diff --check` 均通过；PR #68 保持 `OPEN / CLEAN / MERGEABLE / merged=false`，CI Test Gate、Daily Decision Chain generic shadow、Portfolio Risk generic shadow 在最终 PR head 均 success；停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
+- 当前 checkout=`codex/production-qfq-daily-refresh-v1`，基线=`main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；substantive source/test head=`3df3aff565c60036b577386d31806b52a41f4a80`；focused refresher tests=`16/16`、full unittest=`587/587`、compileall 与 `git diff --check` 均通过；PR #68 保持 `OPEN / CLEAN / MERGEABLE / merged=false`，final docs tip 的三项 exact-head workflow 仍待执行；停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
 ## 0. Prior Governance Event — PRODUCTION_PREREQUISITES_V1
 
 - 正式起点为 `main@95eec374c3ef48877d45a4bfb2794f6df3cf0ae2`；该 exact head 的 `CI Test Gate` run=`33712447481`，result=`success`。
@@ -76,14 +76,14 @@
 ## 1. Current Objective
 
 - **当前 Phase / task:** `PRODUCTION_QFQ_DAILY_REFRESH_V1`，从 live baseline `main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b` 实现并审阅 scheduled latest 的窄 QFQ 补充路径。
-- **唯一目标:** 在不进入 legacy `full`/SETUP_03/Decision 的前提下，按正式 production universe 与已写入 `最新行情.交易日期` 刷新 CN/US 前复权历史，并保持 existing history/provider/upsert contract。
+- **唯一目标:** 在不进入 legacy `full`/SETUP_03/Decision 的前提下，按正式 production universe 与已写入 `最新行情.交易日期` 刷新 CN/US 前复权历史，并保持 existing history/provider/quote contract；target QFQ series 必须是 scoped replacement。
 - **实现边界:** 只读 `策略账户`、`策略股票池`、`自选清单`、`最新行情`、`参数设置`；只允许写 `历史行情_前复权`；不读取或写入 strategy state/holdings/decision，不接 broker/order，不改 frozen strategy semantics。
-- **交付范围:** `scripts/refresh_production_qfq.py`、focused regression tests、Asia/US workflow wiring、本 milestone governance closeout；cron unchanged，manual `full` unchanged，no live refresher run before merge。
+- **交付范围:** `scripts/refresh_production_qfq.py`、`sheets_client.py`、focused regression tests 与本 milestone governance closeout；现有 Asia/US workflow wiring、cron 与 manual `full` 均 unchanged，no live refresher run before merge。
 - **停止条件:** focused/full unittest、compileall、`git diff --check`、PR Test Gate/Daily Chain generic shadow/Portfolio Risk generic shadow 均通过后，创建 PR 并停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，不自动 merge。
 
-## 1A. Previous Objective — PORTFOLIO_RISK_V1
+## 1A. Historical Objective — PORTFOLIO_RISK_V1
 
-- **当前 Phase / task:** `PORTFOLIO_RISK_V1`（独立 downstream capacity gate，等待 Sol review）。
+- **当时 Phase / task:** `PORTFOLIO_RISK_V1`（独立 downstream capacity gate，等待 Sol review）。
 - **Sol approval / previous closeout:** `APPROVE_POSITION_MANAGEMENT_EXIT_V1_MERGE_AND_PROCEED_PORTFOLIO_RISK_V1`；PR #51 已 squash merged，真实 merge commit=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after main exact-head CI=`33607481962` success。
 - **唯一目标:** 从最新 clean merged main 实现独立 `PORTFOLIO-RISK-2026-09-02-v1`，只消费冻结 SETUP_01/SETUP_02 `ENTRY_ALLOWED`，完成 conservative/fail-closed portfolio reservation、T+1 settlement、synthetic boundary、frozen mechanical replay、回归与治理核验；创建 PR #59 供 Sol review，不 merge。
 - **实现范围:** `trading/portfolio_risk.py`、`research/portfolio_risk_replay.py`、synthetic shadow runner/workflow、tests、`research/protocols/portfolio_risk_v1.json` 与 `docs/PORTFOLIO_RISK_V1.md`；不改 Entry/Wave/Swing/Target/RR/Position Management/Exit/Wave5 semantics。
@@ -94,11 +94,12 @@
 
 ## 2. Current Repository State
 
-- **repository:** `EFSing/stock-data-pipeline`; **main exact SHA:** `74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4` (live GitHub, PR #64 squash merge)。
-- **working checkout:** `main`，当前 HEAD 与 `origin/main` 一致；merged source branch 为 `codex/prospective-daily-decision-chain-v1`，ignored `artifacts/` 不入 Git。
-- **PR:** #64=`https://github.com/EFSing/stock-data-pipeline/pull/64`，approved head=`58dfb1448fa73efd50856d989c42801664eb9419`，真实 squash merge commit=`74eed4b80f29d9dc96ceec555b7cf3a64d0f65e4`；live state=`MERGED / merged=true`；base=`main@dc03631b80c6118e0ef088739de277ab50f17220`。
-- **production boundary:** T 日只读 prospective decision support；无 broker/order/real trading/holdings mutation/Sheets strategy write/Secrets change/cron enablement；SETUP_03 保持 `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`，SETUP_04 不在本任务范围。
-- **audit finding:** 当前仓库没有正式 strategy universe、production NAV、accepted risk-group registry、authoritative position-origin store、exact exchange-calendar provider 或 persistent Daily Decision state backend；实现通过 injection 明确要求它们，缺失时 fail closed。
+- **repository:** `EFSing/stock-data-pipeline`; **formal main baseline:** `e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`。
+- **working checkout:** current branch=`codex/production-qfq-daily-refresh-v1`; substantive source/test head=`3df3aff565c60036b577386d31806b52a41f4a80`；working tree changes are limited to the current QFQ replacement fix and governance sync。
+- **current PR:** #68=`https://github.com/EFSing/stock-data-pipeline/pull/68`; substantive exact head=`3df3aff565c60036b577386d31806b52a41f4a80`，the final docs-only tip is verified by the exact-head workflow results recorded below；live state remains `OPEN / merged=false`，not merged。
+- **production configuration:** already genuinely activated in the live workbook；`EXISTING_POSITIONS_MANAGED=NO`；production state rows=`0`。
+- **current live preflight:** read-only result remains `NOT_READY`，current blocker is QFQ stale data (`DATA_STALE:qfq last date < T`)；this QFQ fix is not merged and has not been executed against live Sheets。
+- **production boundary:** broker/orders/FX/state writes are not enabled；no production state write, no live Sheets execution, no strategy-state/holdings/decision mutation；only `历史行情_前复权` may be mutated by the refresher；SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
 
 ## 2A. Historical Repository State — PORTFOLIO_RISK_V1 pre-merge
 
@@ -388,6 +389,35 @@
 
 ## 10. Next Action
 
+1. [ ] Finish the scoped QFQ replacement regression and governance consistency scan。
+2. [ ] Run focused tests, full unittest, compileall, and `git diff --check`。
+3. [ ] Push the revision to existing PR #68 only；do not create or merge a PR。
+4. [ ] Wait for the exact PR head's CI Test Gate, Daily Decision Chain generic shadow, and Portfolio Risk generic shadow；all three must succeed。
+5. [ ] Stop for Sol review；QFQ fix remains unmerged and no live Sheets or production state execution is allowed。
+
+## 11. Handoff Checklist
+
+- [ ] Current state names formal main baseline `e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b` and current branch `codex/production-qfq-daily-refresh-v1`。
+- [ ] Current PR is #68 and remains open/unmerged；exact head and three workflow results are recorded after push。
+- [ ] Scoped replacement proves target rolling series stays at `history_days` and removes the old adjustment basis；non-target history is preserved。
+- [ ] Any target fetch/validation failure produces zero workbook writes；only `历史行情_前复权` is in the mutation boundary。
+- [ ] Focused/full tests, compileall, `git diff --check`, and final consistency scan are complete。
+- [ ] Live Sheets changed=`NO`；production state writes=`NO`；broker/orders/FX remain disabled。
+
+## 12. Last Verified
+
+- `last_updated_at`: `2026-09-04`
+- `formal_main_baseline`: `e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`
+- `current_branch`: `codex/production-qfq-daily-refresh-v1`
+- `current_pr`: `#68`, open and unmerged；substantive exact head=`3df3aff565c60036b577386d31806b52a41f4a80`，final docs-only tip and exact-head workflow IDs are filled after the final push。
+- `production_config`: genuinely activated；existing positions unmanaged；production state rows=`0`。
+- `live_preflight`: `NOT_READY`; current blocker=`QFQ stale`；QFQ fix not merged/not live executed。
+- `scope_boundary`: QFQ history replacement only；no strategy semantic changes, broker/orders/FX/state writes, live Sheets execution, or production preflight。
+
+`HANDOFF_CURRENT_AND_CONSISTENT` is emitted only after the final exact-head consistency scan。
+
+## 10A. Historical Next Action — PORTFOLIO_RISK_V1
+
 1. [x] PR #51 closeout 已完成：source head=`2dbb7a751916921a29360b28467de92e150683e3`，squash merge=`993d03e428b7eb11da791a608940c9d77a608f96`；merge-after CI=`33607481962` success。
 2. [x] PR #59 四个 implementation commits 已从远端恢复；frozen archive 81/81 hash/size 与 loader 的 40 symbols/84,284 bars 已验证。
 3. [x] 已完成本地 rebase 到真实最新 `main@f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24`；冲突仅为治理文档，核心策略/risk 文件无冲突。
@@ -395,9 +425,9 @@
 5. [x] 已安全推送并核对 PR #59 exact-head CI/generic shadow；不 merge PR #59。
 6. [ ] 等待 Sol review；不得自动 merge。
 
-## 11. Handoff Checklist
+## 11A. Historical Handoff Checklist — PORTFOLIO_RISK_V1
 
-- [x] Current Objective 已更新为 Portfolio Risk V1 rebase/review closeout
+- [x] 当时 Objective 已更新为 Portfolio Risk V1 rebase/review closeout
 - [x] 真实远端 main/head/tag 与 PR #59 状态已核对
 - [x] frozen archive SHA、81/81 payload hashes/sizes、40 symbols/84,284 bars 已验证
 - [x] scope boundary 明确：不改 upstream strategy semantics，不访问 holdings/account/Secrets/Sheets，不运行 outcome/OOS
@@ -405,12 +435,12 @@
 - [x] corrected semantic invariance、focused/full tests、compileall 与 `git diff --check` 已完成
 - [x] rebased validation tip 的 exact-head `CI Test Gate` 与 generic shadow 均 success；PR 保持 OPEN / CLEAN / MERGEABLE / merged=false
 
-## 12. Last Verified
+## 12A. Historical Last Verified — PORTFOLIO_RISK_V1
 
 - `last_updated_at`: `2026-09-02`
 - `verified_origin_main_sha`: `f53ae42b85ca9e3e5a3bd6e8b91d919b1de0aa24` (live GitHub)
 - `latest_substantive_implementation_sha`: `96d3d52ef7baf6dacc0f464a07ca7a1c8b9ca1c0`; remote pre-rebase head=`d1016f217eb34108776d8c73b317ce47ed077025`
-- `current_branch`: `codex/portfolio-risk-v1`; PR #59 remains OPEN and unmerged
+- `historical_branch`: `codex/portfolio-risk-v1`; PR #59 remains OPEN and unmerged
 - `portfolio_risk_protocol`: `PORTFOLIO-RISK-2026-09-02-v1`; constants `0.005 / 0.02 / 0.01`; development NAV=`1.0`
 - `frozen_dataset`: 40 symbols / 84,284 bars; archive SHA=`sha256:15e3c63da65cd1eba52ecd6d441be22d6556e9ae2008f70c652a01bb7b0eaeb2`; manifest SHA=`sha256:93368588ced692c7a0360cd6914c46caa9726f3e20abb0381d99729afbd5e216`
 - `latest_test_result`: full unittest `529/529 OK`; Portfolio Risk focused/replay `27/27 OK`; generic operational shadow `17/17 SUCCESS`; Position Management `22/22 OK`; SETUP_01/02 `57/57 OK`; cache parity `3/3 OK`; compileall and `git diff --check` pass; validation tip `e80c61bd72953754802290ee09e8171b5ffd447c` exact-head CI runs `33645523150` / `33645523141` success
@@ -431,7 +461,7 @@
 
 ## 11B. Historical Handoff Checklist
 
-- [x] Current Objective 已切换为 Prospective Daily Decision Chain V1。
+- [x] 当时 Objective 已切换为 Prospective Daily Decision Chain V1。
 - [x] 真实 merged main、Portfolio Risk PR #59 merge SHA 与 merge-after CI 已核对。
 - [x] Daily Chain contract 明确 T 日 `data <= T`、same-day new CONFIRMED、exact identity、T/T+1 phase、Portfolio Risk constants 与 fail-closed prerequisites。
 - [x] Sol hardening 已覆盖 data-before-PM、canonical open-position merge/conflict、dual-CONFIRMED invariant guard、protocol-only settlement、mixed as-of 与 prerequisite report classification；未改冻结策略语义。

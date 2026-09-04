@@ -19,10 +19,10 @@ V0.2
 
 - 根因 marker=`PRODUCTION_QFQ_NOT_REFRESHED_BY_SCHEDULED_LATEST_MODE`：scheduled `main.py --mode latest` 不进入现有 QFQ history branch；`full` 虽可刷新 QFQ，但会进入 legacy SETUP_03/Decision path。
 - 已实现窄脚本 `scripts/refresh_production_qfq.py`，formal enabled universe 由 enabled linked `策略账户` + `策略股票池` 决定；`自选清单` 与 `最新行情` 均按 `(市场,统一代码)` 严格唯一匹配；target trade date 原样取 `最新行情.交易日期`。
-- 只允许 `BaoStock`/`yfinance` QFQ，复用现有 `fetch_with_retry`、`history_days`、`quote_row` 与 `SheetsClient.upsert_history`；成功 mutation boundary 仅为 `历史行情_前复权`，失败时不做 partial write。
+- 只允许 `BaoStock`/`yfinance` QFQ，复用现有 `fetch_with_retry`、`history_days`、`quote_row`；所有 formal target fetch/validation 成功后，通过 scoped `SheetsClient.replace_history_series` 删除 target identity 的全部旧 rows、写入 authoritative window，并原样保留 non-target rows。成功 mutation boundary 仅为 `历史行情_前复权`，失败时不做 partial write。
 - scheduled Asia/US cron 未改变；`RUN_MODE=latest` 在 main latest 成功后调用 refresher，manual `full` 不调用。摘要为 `PRODUCTION_QFQ_SUMMARY`，任何 formal symbol stale/missing/config duplicate 都 fail closed。
 - live workbook 配置仍为真实已激活配置；旧 read-only preflight 的五个 QFQ stale blockers 未被隐瞒。新代码尚未 merge，未对真实 Sheets 执行 refresher；strategy state/holdings/decision、broker/orders、FX 均未触及。
-- 当前分支=`codex/production-qfq-daily-refresh-v1`，基线=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；focused tests=`15/15`、full unittest=`586/586`、compileall 与 `git diff --check` 均通过。PR #68 为 `OPEN / CLEAN / MERGEABLE / merged=false`；CI Test Gate、Daily Decision Chain generic shadow、Portfolio Risk generic shadow 在最终 PR head 均 success。状态=`PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
+- 当前分支=`codex/production-qfq-daily-refresh-v1`，基线=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；substantive source/test head=`3df3aff565c60036b577386d31806b52a41f4a80`；focused tests=`16/16`、full unittest=`587/587`、compileall 与 `git diff --check` 均通过。PR #68 为 `OPEN / CLEAN / MERGEABLE / merged=false`；final docs tip 的 exact-head CI Test Gate、Daily Decision Chain generic shadow、Portfolio Risk generic shadow 待执行。状态=`PRODUCTION_QFQ_DAILY_REFRESH_V1_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
 
 ## Prior Operational Event — PRODUCTION_SHEETS_BOOTSTRAP_AND_PREFLIGHT_V1
 
