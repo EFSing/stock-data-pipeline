@@ -7,22 +7,22 @@ Version:
 V0.2
 ```
 
-## Latest Operational Event — PRODUCTION_CONFIG_ACTIVATION_AND_READ_ONLY_PREFLIGHT_V1
+## Prior Operational Event — PRODUCTION_CONFIG_ACTIVATION_AND_READ_ONLY_PREFLIGHT_V1
 
-- status=`PRODUCTION_CONFIG_ACTIVATED`；live workbook=`持仓股股票行情数据中台` (`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`)；live `main`/baseline=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；latest main `CI Test Gate`=`33767187219 SUCCESS`。
+- status=`PRODUCTION_CONFIG_ACTIVATED`；live workbook=`持仓股股票行情数据中台` (`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`)；pre-merge live `main`/baseline=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；current main is recorded in the latest engineering event below。
 - 已写入并复核：`策略账户` 启用 `CN_MAIN/CNY/NAV 75000`、`US_MAIN/USD/NAV 4500`，两者 `净值日期=2026-09-03`；`策略股票池` 启用 CN=`000725.SZ`、`002156.SZ`、`512400.SH`，US=`BABA`、`RKLB`；`DRAM` 保留 disabled candidate；`策略风险分组` 5 个显式映射，均非 `UNKNOWN`。
 - `策略持仓` rows=`0`；`策略决策状态` rows `0→0`；只写目标三张配置表，旧行情/决策/自选 tab 未改。
 - exact read-only preflight T=`2026-09-03`=`NOT_READY`。CN/US exact calendars 已通过（`XSHG`/`XNYS`，next session `2026-09-04`）；静态配置核验通过。唯一 blockers 为五个 enabled symbol 的 QFQ `DATA_STALE:qfq last date < T`（CN latest 至 `2026-09-02`；US latest 至 `2026-09-03`，QFQ 至 `2026-08-28`）。
 - state-store=`OK`；`READ_ONLY`；`NO STATE WRITE=true`；`NO Sheets mutation=true`。最终状态=`PRODUCTION_CONFIG_ACTIVATED / READ_ONLY_PREFLIGHT_NOT_READY_DATA_STALE`；无 broker、订单、FX、cron 或自动生产状态写入。`HANDOFF_CURRENT_AND_CONSISTENT`。
 
-## Latest Engineering Event — PRODUCTION_QFQ_DAILY_REFRESH_V1
+## Latest Engineering Event — PRODUCTION_QFQ_DAILY_REFRESH_V1_MERGED
 
 - 根因 marker=`PRODUCTION_QFQ_NOT_REFRESHED_BY_SCHEDULED_LATEST_MODE`：scheduled `main.py --mode latest` 不进入现有 QFQ history branch；`full` 虽可刷新 QFQ，但会进入 legacy SETUP_03/Decision path。
 - 已实现窄脚本 `scripts/refresh_production_qfq.py`，formal enabled universe 由 enabled linked `策略账户` + `策略股票池` 决定；`自选清单` 与 `最新行情` 均按 `(市场,统一代码)` 严格唯一匹配；target trade date 原样取 `最新行情.交易日期`。
 - 只允许 `BaoStock`/`yfinance` QFQ，复用现有 `fetch_with_retry`、`history_days`、`quote_row`；所有 formal target fetch/validation 成功后，通过 scoped `SheetsClient.replace_history_series` 删除 target identity 的全部旧 rows、写入 authoritative window，并原样保留 non-target rows。成功 mutation boundary 仅为 `历史行情_前复权`，失败时不做 partial write。
-- scheduled Asia/US cron 未改变；`RUN_MODE=latest` 在 main latest 成功后调用 refresher，manual `full` 不调用。摘要为 `PRODUCTION_QFQ_SUMMARY`，任何 formal symbol stale/missing/config duplicate 都 fail closed。
-- live workbook 配置仍为真实已激活配置；旧 read-only preflight 的五个 QFQ stale blockers 未被隐瞒。新代码尚未 merge，未对真实 Sheets 执行 refresher；strategy state/holdings/decision、broker/orders、FX 均未触及。
-- 当前分支=`codex/production-qfq-daily-refresh-v1`，基线=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；validated source/test head=`b9102b3a8734fa254c88a2fdcc0ea25338a91f92`；focused tests=`16/16`、full unittest=`587/587`、compileall 与 `git diff --check` 均通过。PR #68 为 `OPEN / CLEAN / MERGEABLE / merged=false`；CI Test Gate=`33836497215 SUCCESS`、Daily Decision Chain generic shadow=`33836497252 SUCCESS`、Portfolio Risk generic shadow=`33836497204 SUCCESS`；final docs-only handoff sync 不改变代码/test tree。状态=`PRODUCTION_QFQ_DAILY_REFRESH_V1_REVISED_READY_FOR_SOL_REVIEW`，等待 Sol review，禁止自动 merge。
+- scheduled Asia/US cron 未改变；`RUN_MODE=latest` 在 main latest 成功后调用 refresher，manual `full` 不调用。摘要为 `PRODUCTION_QFQ_SUMMARY`，任何 formal symbol stale/missing/config duplicate 都 fail closed；scheduled latest 现在具备自动 QFQ refresh 能力。
+- live workbook 配置仍为真实已激活配置；旧 read-only preflight 的五个 QFQ stale blockers 未被隐瞒。PR #68 已 squash merge，但 manual live QFQ refresher smoke=`NOT_RUN`；strategy state writes=`NO`；broker/orders/FX=`DISABLED`。
+- 当前分支=`main`；formal pre-merge baseline=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`；current `main`/`origin/main` exact SHA=`4034c87c354fc552496202e7004848ecfbfef6b3`；Sol-approved PR #68 exact head=`ffc753baf784f8af4bb702db7c6799371dcd3693`；squash merge commit=`4034c87c354fc552496202e7004848ecfbfef6b3`。focused tests=`16/16`、full unittest=`587/587`、compileall 与 `git diff --check` 均通过；approved head CI Test Gate=`33841344943 SUCCESS`、Daily Decision Chain generic shadow=`33841344884 SUCCESS`、Portfolio Risk generic shadow=`33841344891 SUCCESS`；merge-after main `CI Test Gate`=`33842189224 SUCCESS`。状态=`PRODUCTION_QFQ_DAILY_REFRESH_V1_MERGED`，停止，不自动启动新的 production decision phase。
 
 ## Prior Operational Event — PRODUCTION_SHEETS_BOOTSTRAP_AND_PREFLIGHT_V1
 
