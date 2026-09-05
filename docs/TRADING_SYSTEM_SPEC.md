@@ -5,7 +5,9 @@
 ## 核心交易框架
 
 ```text
-股票池
+Sector / Industry Universe
+→ Tradable Candidate Selector
+→ Candidate Universe
 → 数据质量
 → 周线趋势
 → 日线趋势
@@ -22,6 +24,35 @@
 → Position Management
 → Exit
 ```
+
+## Candidate Universe 边界
+
+Candidate Universe 是完整 Strategy Chain 之前的可交易候选筛选层。它按 sector /
+industry 保留候选，并可使用 affordability、流动性、历史可用性和轻量技术可分析性
+做 fail-closed gate；它只决定标的是否进入完整策略分析，不产生
+`ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号。候选层不得改变 frozen Wave、Swing、
+SETUP_01、SETUP_02、Entry、Stop、Target、RR、T→T+1 或 Portfolio Risk 语义。
+
+正式 V1 身份为 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`。CN seed universe 是
+`HS300 ∪ CSI500`，优先复用 BaoStock 的 `query_hs300_stocks`、
+`query_zz500_stocks`、`query_stock_basic` 和 `query_stock_industry`；不构建全 A 股
+security master。US seed universe 是 iShares Russell 1000 ETF (`IWB`) 官方公开
+`latest-holdings.csv`，使用其中的 ticker、sector、asset-class、price、exchange 和
+currency；不在 V1 构建 SEC/Nasdaq 全量 security master，也不引入 commercial provider。
+
+V1 的 CN affordability 使用证券 board 的已证明 minimum executable quantity：真实
+最小可交易单位 notional `<= 10,000 CNY` 为 preferred，`10,000 < notional <= 20,000
+CNY` 可保留但降低优先级，`> 20,000 CNY` 排除。board rule 无明确官方证据时
+fail closed；不得把全部 A 股统一写成 100 股。US candidate stage 排除一股 notional
+`> 1,000 USD`；最终单个新 strategy position 的 `1,000 USD` hard cap 仍必须在
+allocation / position sizing 边界再次验证，二者不是同一层。
+
+Candidate selector 先做 security/sector normalization、affordability gate、history /
+data-quality gate，再按 sector 内 20D/60D average traded notional（成交额缺失时用
+`close × volume`）排序并应用集中可调的 `TOP_N_PER_SECTOR = 20`。该数值不进入
+Strategy Engine protocol；seed 本身承担第一层流动性边界，V1 不拍脑袋新增跨市场绝对
+liquidity threshold，也不伪造 bid/ask spread。candidate 输出只保存轻量 internal
+rows/fixture/artifact，不写 production Google Sheets。
 
 ## 基本原则
 
@@ -165,10 +196,11 @@ RR < 2     → NO_TRADE
 
 1R 不是止盈。1R 是「单笔最大计划损失」。
 
-初始建议：
+冻结语义：`allocation_budget` 是用户明确授权给该账户整个策略风险账本的总策略预算，
+不是 broker NAV / 账户净值。
 
 ```text
-Risk Per Trade = 0.5% NAV
+Risk Per Trade = 0.5% allocation_budget
 ```
 
 仓位：

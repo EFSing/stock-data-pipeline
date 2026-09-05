@@ -7,6 +7,45 @@ Version:
 V0.2
 ```
 
+## Latest Engineering Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
+
+- Sol review 发现 `PROJECT_GOVERNANCE_STATE_CONFLICT`：`docs/TRADING_SYSTEM_SPEC.md`
+  1R 段落仍写 `Risk Per Trade = 0.5% NAV`，与已合并 PR #70、`DECISION_LOG.md` 和
+  当前 Portfolio Risk 语义不一致。
+- 最小治理修复：改为 `Risk Per Trade = 0.5% allocation_budget`，并明确
+  `allocation_budget` 是用户明确授权给该账户整个策略风险账本的总策略预算，不是
+  broker NAV / 账户净值。Position Size 公式未改。
+- 未新增 DECISION_LOG decision；未修改 Candidate code/tests、provider、Strategy Engine、
+  US `$1000` allocation hard cap 或 production state。继续 PR #71，不新建 PR、不 merge。
+- 当前 stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`；治理修复已 push，新的 exact-head
+  CI 已全部通过，final status=`HANDOFF_CURRENT_AND_CONSISTENT`。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
+
+- Sol 已正式决定：CN=`HS300 ∪ CSI500` + BaoStock basic/industry；US=`IWB` 官方
+  holdings；不采用完整 security-master 方案 B/C，不引入 commercial provider。
+- 已验证真实 source contract：BaoStock 0.9.3 的四个调用字段和
+  `query_stock_basic` 不接受 `fields=`；真实 adapter smoke=`800` CN seeds、
+  `metadata_ok=800`、`sector_present=800`。官方 IWB `latest-holdings.csv` smoke=
+  `source_date=2026-09-03`、`1018` Equity rows。
+- 已实现 `trading/candidate_universe.py` 与
+  `trading/candidate_universe_sources.py`：bounded read-only seed adapters、
+  board-specific affordability、20D/60D traded-notional proxy、history/data-quality
+  gate、sector-aware `TOP_N_PER_SECTOR=20`、included/excluded audit rows。
+- focused candidate tests=`10/10 OK`。Candidate layer 没有 Strategy action，永远不产生
+  `ENTRY_ALLOWED`；未写 Google Sheets、production state、broker/order，未修改 frozen
+  Strategy Engine、SETUP_03/04 或新增回测 phase。
+- substantive implementation head=`2d63fda031cda08dd2bf5bf631b9a9ea09ace415`；full
+  unittest=`606/606 OK`，compileall 与 `git diff --check` 通过；implementation PR #71
+  已创建并保持 `OPEN / MERGEABLE / merged=false`。PR final tip/exact-head CI 以 GitHub
+  实时核验为准，不把治理 closeout commit 自引用进状态文件。
+- 当前状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；详见
+  `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`。不 merge，不扩大 scope。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## Latest Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_MERGED
 
 - PR #70（`fix/strategy-capital-allocation-boundary`）已 MERGED。approved exact

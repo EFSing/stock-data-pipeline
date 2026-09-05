@@ -10,6 +10,78 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
+## 0M. Latest Engineering Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
+
+- Sol review 发现并确认 `PROJECT_GOVERNANCE_STATE_CONFLICT`：
+  `docs/TRADING_SYSTEM_SPEC.md` 的 1R 段落仍写 `Risk Per Trade = 0.5% NAV`，与已合并
+  PR #70、`docs/DECISION_LOG.md` 和实际 Portfolio Risk 语义冲突。
+- 最小修复已完成：1R 改为 `Risk Per Trade = 0.5% allocation_budget`，并明确
+  `allocation_budget` 是用户明确授权给该账户整个策略风险账本的总策略预算，不是
+  broker NAV / 账户净值；Position Size 公式保持不变。
+- 本次未新增 DECISION_LOG decision，未修改 Candidate Universe code/tests、provider、
+  Strategy Engine、US `$1000` allocation hard cap 或任何 production state。
+- 继续使用 PR #71，不新建 PR、不 merge。治理修复已 push，新的 exact-head CI 已全部通过；
+  stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`，并确认
+  `HANDOFF_CURRENT_AND_CONSISTENT`。
+
+## 0L. Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
+
+- 用户/Sol 已正式冻结 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`：CN=`HS300 ∪ CSI500`
+  via BaoStock HS300/ZZ500/basic/industry；US=`IWB` official
+  `latest-holdings.csv`。不采用完整 public security master B，不采用 commercial C，
+  不新增 Finnhub、SEC/Nasdaq full master、database、Sheets production writes、broker/
+  order、SETUP_03/04 或新回测 phase。
+- 真实 source proof：BaoStock 0.9.3 signatures/fields 已核对，`fields=` 对
+  `query_stock_basic` 明确不支持；真实 bounded adapter smoke=`800` CN seeds、
+  `metadata_ok=800`、`sector_present=800`。IWB official adapter smoke=
+  `source_date=2026-09-03`、`1018` Equity rows；旧 `.ajax` URL 返回 HTML，未作为 CSV
+  contract。
+- 已实现 `trading/candidate_universe.py` 与
+  `trading/candidate_universe_sources.py`，以及 focused tests `10/10 OK`。Selector
+  输出 included/excluded、sector、rank、affordability tier、minimum quantity/notional、
+  20D/60D traded-notional proxy、history quality、inclusion/exclusion reason；无
+  Strategy action 字段，不能产生 `ENTRY_ALLOWED`。
+- substantive implementation source head=`2d63fda031cda08dd2bf5bf631b9a9ea09ace415`；
+  full unittest=`606/606 OK`、compileall、`git diff --check` 通过。当前 branch 已 push，
+  implementation PR #71=`https://github.com/EFSing/stock-data-pipeline/pull/71`，base=`main`，
+  `OPEN / MERGEABLE / merged=false`；本 agent 不 merge。PR final tip 与 exact-head CI
+  是 GitHub 实时事实，不在治理文件中自引用 closeout commit SHA。
+- 当前停止节点=`PR_FULLY_READY_FOR_SOL_REVIEW`。Sol review 前不再改 scope，不创建新的
+  docs-only PR，不写 production Sheets/state，不接 broker/order。
+
+`PR_FULLY_READY_FOR_SOL_REVIEW`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## 0K. Historical Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_VERIFICATION
+
+- 当前任务基于 live `main@f65f76eb06592a17a897e4a27560e3d5db2c04f9`；审计开始时本地
+  `main`=`origin/main`，远端无 open PR，baseline `CI Test Gate` run=`33966049377`
+  为 `SUCCESS`。当前本地工作分支为
+  `codex/sector-candidate-universe-v1-feasibility`。
+- 已批准并登记的长期主线为：`Sector / Industry Universe → Tradable Candidate
+  Selector → Candidate Universe → existing Data Quality / Weekly / Daily / Swing /
+  Wave / Fibonacci / Setup chain`。Candidate layer 只做是否进入完整分析的 gate，
+  不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号。
+- CN affordability：真实 minimum-unit notional `<=10,000 CNY` preferred，
+  `10,000<notional<=20,000 CNY` retained/lower priority，`>20,000 CNY` excluded；
+  缺少 lot evidence 时 fail closed 或限制支持范围。US candidate 排除 price `>1,000
+  USD`，最终 `1,000 USD` hard cap 在 allocation/position sizing 再验证。
+- feasibility audit 发现现有 production provider 没有可扩展 CN/US security master、
+  security type、sector/industry、可靠 CN lot metadata 或 candidate-stage 批量
+  history gate；现有 Hithink/指数 snapshots 不能直接升级为 production source。
+- 停止状态=`READY_FOR_DECISION_DATA_SOURCE`。未改 strategy/provider code，未添加
+  dependency/provider/database/cache/registry，未写 Google Sheets、production state、
+  broker/order，未启动 `SETUP_03`/`SETUP_04`。完整审计见
+  `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`。
+- 唯一 next action：用户选择方案 B（BaoStock + SEC/Nasdaq + existing yfinance，并
+  明确 CN 支持板块）或方案 C（具体统一 reference-data provider/entitlement）；选定
+  前停止实现。
+
+`SECTOR_CANDIDATE_UNIVERSE_V1_READY_FOR_DECISION`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## 0I. Latest Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_MERGED
 
 - PR #70（`fix/strategy-capital-allocation-boundary`）已依据 Sol approval 完成
@@ -187,18 +259,17 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1`；基于
-  `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`，工作分支为
-  `fix/strategy-capital-allocation-boundary`。
-- **唯一目标:** 完成策略机会判断与用户批准后资本分配的最小正确解耦，创建 PR，核对
-  exact-head CI，并执行 `--preflight --date 2026-09-04` 的严格只读复核。
-- **实现边界:** 不改变 frozen strategy/risk semantics；不从 NAV/账户资产/入出金/P&L/
-  purchasing power 推导预算；不接 UI、broker、order 或自动 workflow；不运行
-  `--run`/`--write-state`，不写 `策略决策状态`、`策略持仓`。
-- **停止条件:** 通过则停在
-  `PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`；若 live preflight 存在独立
-  blocker，停在 `READY_FOR_DECISION_<BLOCKER>`，不擅自扩大范围。最终核验必须回写
-  `HANDOFF_CURRENT_AND_CONSISTENT`。
+- **当前 Phase / task:** `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`；工作分支为
+  `codex/sector-candidate-universe-v1-feasibility`，继续沿用，不从 main 新开任务。
+- **唯一目标:** 完成 bounded CN/US seed adapter、candidate domain/selector、focused
+  regression、治理同步、implementation PR 和 exact-head CI；不 merge，停在
+  `PR_FULLY_READY_FOR_SOL_REVIEW`。
+- **实现边界:** CN=`HS300 ∪ CSI500` / BaoStock；US=`IWB` official holdings；不构建
+  全市场 master，不接 commercial provider；不写 Google Sheets/production state，不接
+  broker/order，不改 frozen Strategy Engine、SETUP_01/02、SETUP_03/04 或新回测 phase。
+- **停止条件:** source contract、focused/full tests、compileall、`git diff --check`、
+  PR exact-head CI 均成功；若 BaoStock/IWB 实际 contract 不能稳定机器读取，停止在
+  `READY_FOR_DECISION_DATA_SOURCE_RUNTIME_BLOCKER` 并给出真实证据，不自行换 provider。
 
 ## 1A. Historical Objective — PORTFOLIO_RISK_V1
 
@@ -213,11 +284,16 @@
 
 ## 2. Current Repository State
 
-- **repository:** `EFSing/stock-data-pipeline`; **formal main baseline for this task:** `2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
-- **working checkout:** current branch=`fix/strategy-capital-allocation-boundary`; pre-fix substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`（不再作为 current PR head 引用）。
-- **current PR:** PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`，base=`main`，`OPEN / MERGEABLE / merged=false`；current PR head 一律以 GitHub 实时核验为准（push 前远端 head 为 docs closeout `cad8ec7318d6b9e6c8d1828ca9c43d10b628c1d4`）；旧 exact-head checks `33952922439`、`33952922429`、`33952922432` 对应旧 head，不用于本 fix。latest merged governance PR #69 remains head=`6fb4afefbb233b62f64a01952988781a54a6131b` → merge=`2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
-- **production configuration:** already genuinely activated in the live workbook；`EXISTING_POSITIONS_MANAGED=NO`；production state rows=`0`。
-- **production boundary:** broker/orders/FX/state writes are not enabled；本轮仅执行 live workbook read-only preflight，无 production state/strategy holdings/decision mutation；scheduled latest 仍只允许通过 refresher 写 `历史行情_前复权`；SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。NAV freshness is no longer a strategy proposal prerequisite；最终 connector-backed preflight=`READY`。
+- **repository:** `EFSing/stock-data-pipeline`; 当前 branch=`codex/sector-candidate-universe-v1-feasibility`。
+- **baseline:** branch 当前 substantive implementation head=`2d63fda031cda08dd2bf5bf631b9a9ea09ace415`；
+  implementation 已提交并推送，PR #71 已创建；PR final tip/exact-head CI 以 GitHub 实时核验为准。
+- **working tree scope:** 新增 candidate domain/source adapters/tests，并同步
+  `TRADING_SYSTEM_SPEC.md`、`DECISION_LOG.md`、`CURRENT_STATUS.md`、`HANDOFF.md`、
+  `ARCHITECTURE.md` 与 feasibility audit；未改 production provider chain 或 frozen
+  strategy implementation。
+- **production boundary:** no Google Sheets mutation, production state write, broker/order,
+  holdings read, SETUP_03/04 or new research phase。当前 adapter smoke 仅为 public,
+  read-only source validation。
 
 ## 2A. Historical Repository State — PORTFOLIO_RISK_V1 pre-merge
 
@@ -537,20 +613,22 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-09-05` (local task execution; final UTC timestamp to be written at closeout)
-- `formal_main_baseline`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476`
-- `current_branch`: `fix/strategy-capital-allocation-boundary`
-- `current_main_exact_sha`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476` (verified GitHub `origin/main` baseline)
-- `substantive_source_head_pre_fix`: `bb8e6d9a23a175ff01790314837e24621446ce1c`（substantive validation head，非 current PR head）
-- `current_pr`: PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`；base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`；`OPEN / MERGEABLE / mergeable_state=clean / merged=false`；Sol 独立核验 head=`8d2b9f76bbc2310182a47b94819adcd388385fe0`，exact-head CI=`33963031703 / 33963031701 / 33963031705` 均 SUCCESS；Sol correctness review=APPROVED，无代码 blocker。current PR head / exact-head CI 以 GitHub 实时状态为准；本文件不自引用 docs-only closeout SHA。
-- `production_config`: genuinely activated；existing positions unmanaged；production state rows=`0`。
-- `production_blocker`: QFQ stale failure was resolved by the single rerun and is classified=`TRANSIENT_YFINANCE_PUBLICATION_LAG`；prior `PRODUCTION_NAV_DATE_REQUIRED` is no longer a proposal prerequisite；connector-backed live preflight T=`2026-09-04`=`READY`, QFQ/NAV/risk-group blockers=`0`。
-- `approval_contract`: production allocation requires published `STRATEGY_PROPOSAL` + explicit `approved_event_identities` + valid `allocation_budget` + not pending/settled + Portfolio Risk prerequisites；budget alone is never approval；unapproved `ENTRY_ALLOWED` stays `STRATEGY_PROPOSAL`。
-- `allocation_budget_semantics`: user-authorized total strategy budget for the account's entire strategy risk ledger；existing system-managed positions and same-run approved proposals share it as denominator；frozen `0.005 / 0.01 / 0.02` unchanged。
-- `latest_test_result`: Daily Chain focused `31/31 OK`；Production Prerequisites focused `19/19 OK`；full unittest `596/596 OK`；Daily Chain generic shadow `17/17 SUCCESS`；Portfolio Risk generic shadow `17/17 checks SUCCESS`；`compileall`、protocol JSON parse、`git diff --check` pass。
-- `scope_boundary`: Sol review closeout for PR #70 only；no `--run`/`--write-state`/strategy state writes/broker/order；no new PR；production state writes, broker/orders/FX and automatic execution remain disabled；本 agent 不自动 merge，唯一 remaining authorized action 为 merge PR #70。
+- `last_updated_at`: `2026-09-06`
+- `formal_main_baseline`: `f65f76eb06592a17a897e4a27560e3d5db2c04f9`
+- `current_branch`: `codex/sector-candidate-universe-v1-feasibility`
+- `current_main_exact_sha`: `f65f76eb06592a17a897e4a27560e3d5db2c04f9` (verified `origin/main`)
+- `substantive_implementation_head`: `2d63fda031cda08dd2bf5bf631b9a9ea09ace415`
+- `current_pr`: PR #71=`https://github.com/EFSing/stock-data-pipeline/pull/71`；base=`main`；
+  `OPEN / MERGEABLE / merged=false`；PR final tip and exact-head CI remain live GitHub facts，
+  not a self-referenced governance SHA。
+- `source_runtime_proof`: BaoStock adapter=`800` CN union seeds with `800/800` basic+sector
+  metadata；IWB official adapter=`1018` Equity rows, source date=`2026-09-03`。
+- `latest_test_result`: candidate focused `10/10 OK`；full unittest `606/606 OK`；
+  `compileall` and `git diff --check` pass；final PR checks must be read from GitHub exact tip。
+- `scope_boundary`: bounded read-only candidate rows only；no production Sheets/state writes,
+  broker/order, holdings read, SETUP_03/04 or new research phase；不自动 merge。
 
-`PR_70_SOL_APPROVED_READY_FOR_MERGE`
+`PR_FULLY_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
