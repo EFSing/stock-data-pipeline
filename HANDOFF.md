@@ -10,7 +10,27 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0M. Latest Engineering Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
+## 0N. Latest Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED
+
+- PR #71 已 squash merged。Sol approved head=`1bb2996b1ee7d750fe7d02c53067314ee23866ec`；
+  真实 squash merge commit=`319bdf8a3fd950a0be70791ecd81f397aca7e9df`。
+- merge-after `CI Test Gate` run=`33984153275` 对 merge commit 为 `SUCCESS`；未自动触发
+  Daily Decision Chain / Portfolio Risk shadow，未人为创建 workflow。local `main` 与
+  `origin/main` 均为 `319bdf8a3fd950a0be70791ecd81f397aca7e9df`。
+- 正式 bounded contract 保持：CN seed=`HS300 ∪ CSI500`；US seed=`IWB official
+  holdings`；CN `<=10,000 CNY` preferred、`10,000<notional<=20,000 CNY` extended、
+  `>20,000 CNY` excluded；US candidate one-share `>1,000 USD` excluded；
+  `TOP_N_PER_SECTOR=20`。
+- Candidate layer 不产生 `ENTRY_ALLOWED`；production state writes=`NO`；broker/order=`NO`；
+  Candidate Universe 尚未接入正式每日 Strategy Engine production pipeline。
+- 唯一 next action：等待下一项明确用户/Sol 授权；不启动每日 production pipeline 接入，
+  不接 broker/order，不扩大 Candidate scope。
+
+`BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## 0M. Historical Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
 
 - Sol review 发现并确认 `PROJECT_GOVERNANCE_STATE_CONFLICT`：
   `docs/TRADING_SYSTEM_SPEC.md` 的 1R 段落仍写 `Risk Per Trade = 0.5% NAV`，与已合并
@@ -24,7 +44,7 @@
   stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`，并确认
   `HANDOFF_CURRENT_AND_CONSISTENT`。
 
-## 0L. Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
+## 0L. Historical Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - 用户/Sol 已正式冻结 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`：CN=`HS300 ∪ CSI500`
   via BaoStock HS300/ZZ500/basic/industry；US=`IWB` official

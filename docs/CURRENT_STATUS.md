@@ -7,7 +7,24 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
+## Latest Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED
+
+- PR #71 已 squash merged。Sol approved head=`1bb2996b1ee7d750fe7d02c53067314ee23866ec`；
+  真实 squash merge commit=`319bdf8a3fd950a0be70791ecd81f397aca7e9df`。
+- merge-after `CI Test Gate` run=`33984153275` 对 merge commit 为 `SUCCESS`；未自动触发
+  Daily Decision Chain / Portfolio Risk shadow。local `main` 与 `origin/main` 均为
+  `319bdf8a3fd950a0be70791ecd81f397aca7e9df`。
+- 正式 bounded contract：CN seed=`HS300 ∪ CSI500`；US seed=`IWB official holdings`；
+  CN `<=10,000 CNY` preferred、`10,000<notional<=20,000 CNY` extended、`>20,000 CNY`
+  excluded；US candidate one-share `>1,000 USD` excluded；`TOP_N_PER_SECTOR=20`。
+- Candidate layer 不产生 `ENTRY_ALLOWED`；production state writes=`NO`；broker/order=`NO`；
+  Candidate Universe 尚未接入正式每日 Strategy Engine production pipeline。
+- 当前 stop marker=`BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED`；
+  `HANDOFF_CURRENT_AND_CONSISTENT`。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## Historical Engineering Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
 
 - Sol review 发现 `PROJECT_GOVERNANCE_STATE_CONFLICT`：`docs/TRADING_SYSTEM_SPEC.md`
   1R 段落仍写 `Risk Per Trade = 0.5% NAV`，与已合并 PR #70、`DECISION_LOG.md` 和
@@ -22,7 +39,7 @@ V0.2
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
-## Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
+## Historical Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - Sol 已正式决定：CN=`HS300 ∪ CSI500` + BaoStock basic/industry；US=`IWB` 官方
   holdings；不采用完整 security-master 方案 B/C，不引入 commercial provider。
