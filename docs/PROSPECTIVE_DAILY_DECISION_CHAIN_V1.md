@@ -1,6 +1,6 @@
 # Prospective Daily Decision Chain V1
 
-Status: `PROSPECTIVE_DAILY_DECISION_CHAIN_V1_READY_FOR_SOL_REVIEW`
+Status: `PR_70_SOL_REVIEW_FIX_READY`
 
 Protocol identity: `PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-02-v1`
 
@@ -14,7 +14,8 @@ an automated trading system and has no broker/order path:
 ```text
 Market Data → Data Quality → Weekly/Daily State → Swing → Wave Scenario
 → SETUP_01 / SETUP_02 → Individual Decision → STRATEGY_PROPOSAL
-→ user approval + allocation_budget → Portfolio Risk / Position Size
+→ explicit approval of published proposal event identity
+→ explicit allocation_budget → Portfolio Risk / Position Size
 → Position Management / Wave5 context → read-only JSON/Markdown report
 ```
 
@@ -44,13 +45,28 @@ decision-ledger observation and creates a frozen in-memory position origin; it
 never submits a broker order.
 
 Portfolio Risk delegates to `PORTFOLIO-RISK-2026-09-02-v1`, but is downstream
-of the strategy proposal boundary. Without a user-supplied
-`allocation_budget`, an `ENTRY_ALLOWED` individual Decision remains visible as
-`STRATEGY_PROPOSAL`, with no position size, reservation or capital allocation.
-After approval, the explicit budget enters Portfolio Risk. UNKNOWN risk group
-keeps a development candidate visible but returns
+of the strategy proposal boundary. An `ENTRY_ALLOWED` individual Decision
+remains visible as `STRATEGY_PROPOSAL`, with no position size, reservation or
+capital allocation, until two independent inputs exist together: an explicit
+user approval of the published proposal's event identity
+(`approved_event_identities`) and an explicit `allocation_budget`. A budget
+alone is never approval: a budget with an empty approval set yields zero
+reservations and zero pending. Approval is granted per event identity, never
+guessed per symbol, and an approval of a missing, unpublished, already-pending
+or already-settled identity fails closed with
+`STRATEGY_PROPOSAL_APPROVAL_REQUIRED` without changing the proposal. UNKNOWN
+risk group keeps a development candidate visible but returns
 `BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION` in production. A reservation is saved as
 pending only after Portfolio Risk allows it.
+
+`allocation_budget` is the total strategy budget the user authorizes for the
+account's entire strategy risk ledger. It is not broker NAV, account equity,
+account total assets, deposits/withdrawals, P&L, purchasing power, or a
+new-cash tranche. Existing system-managed open positions and the same-run
+approved proposals share this budget as the Portfolio Risk denominator, with
+the frozen fractions `BASE_RISK_FRACTION=0.005`,
+`MAX_RISK_PER_GROUP_FRACTION=0.01`, and
+`MAX_TOTAL_OPEN_RISK_FRACTION=0.02` unchanged.
 
 ## Production architecture audit
 

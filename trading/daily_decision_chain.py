@@ -67,6 +67,7 @@ from trading.wave5_context import WAVE5_CONTEXT_PROTOCOL_VERSION
 DAILY_DECISION_CHAIN_PROTOCOL_VERSION = "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-02-v1"
 PRODUCTION_STRATEGY_UNIVERSE_REQUIRED = "PRODUCTION_STRATEGY_UNIVERSE_REQUIRED"
 STRATEGY_PROPOSAL = "STRATEGY_PROPOSAL"
+STRATEGY_PROPOSAL_APPROVAL_REQUIRED = "STRATEGY_PROPOSAL_APPROVAL_REQUIRED"
 PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED = (
     "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
 )
@@ -416,6 +417,7 @@ class DailyDecisionChain:
         *,
         mode: str = PRODUCTION,
         allocation_budget: float | None = None,
+        approved_event_identities: Iterable[str] | None = None,
         # Compatibility alias for older direct callers.  Production wiring
         # must pass allocation_budget, never an account NAV.
         reference_nav: float | None = None,
@@ -438,6 +440,9 @@ class DailyDecisionChain:
             allocation_budget if allocation_budget is not None else reference_nav
         )
         budget = self._resolved_allocation_budget(mode, requested_budget)
+        approved_identities = _normalize_approved_event_identities(
+            approved_event_identities
+        )
         settlement_context: dict[str, SettlementRecord] = {}
         settlement_blockers: dict[str, list[str]] = {}
         settlement_positions: list[OpenPortfolioPosition] = []
@@ -479,14 +484,27 @@ class DailyDecisionChain:
                 event.event_identity
             ) is not None
             if (
-                budget is not None
-                and event is not None
+                event is not None
                 and decision is not None
                 and decision.action is DecisionAction.ENTRY_ALLOWED
                 and not already_pending
                 and not already_settled
                 and (row.get("event_was_new") or prior_result is not None)
             ):
+                if mode == PRODUCTION:
+                    published = self.store.get_published_event(event.event_identity)
+                    if (
+                        published is None
+                        or event.event_identity not in approved_identities
+                    ):
+                        row["allocation_reason"] = STRATEGY_PROPOSAL_APPROVAL_REQUIRED
+                        continue
+                    if budget is None:
+                        row["allocation_reason"] = ALLOCATION_BUDGET_REQUIRED
+                        continue
+                elif budget is None:
+                    row["allocation_reason"] = ALLOCATION_BUDGET_REQUIRED
+                    continue
                 if unresolved_pending:
                     portfolio_by_identity[event.event_identity] = ValueError(
                         PORTFOLIO_PENDING_RESERVATION_UNRESOLVED
@@ -630,6 +648,7 @@ class DailyDecisionChain:
             "execution_phase": None,
             "execution_outcome": None,
             "allocation_requested": False,
+            "allocation_reason": None,
         }
         if item.data_quality_status != DATA_OK:
             base["reasons"].append(f"DATA_QUALITY_{item.data_quality_status}")
@@ -653,9 +672,12 @@ class DailyDecisionChain:
         event01 = _new_confirmed_event(setup01, item.as_of_date)
         event02 = _new_confirmed_event(setup02, item.as_of_date)
         decisions: list[tuple[Any, Any]] = []
+        # Production strategy decisions remain capital-independent.  The
+        # Portfolio Risk layer computes sizing only after a published event is
+        # explicitly approved and enters allocation with the user's budget.
         risk_capital = (
             initial_risk_capital(allocation_budget)
-            if allocation_budget is not None
+            if mode != PRODUCTION and allocation_budget is not None
             else None
         )
         for event, evaluator in ((event01, evaluate_setup01_decision), (event02, evaluate_setup02_decision)):
@@ -882,7 +904,9 @@ class DailyDecisionChain:
                     row["blocking"].append(PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED)
             elif settlement is None and portfolio_result is None:
                 row["execution_phase"] = T1ExecutionPhase.DECISION_T
-                row["reasons"].append(ALLOCATION_BUDGET_REQUIRED)
+                row["reasons"].append(
+                    row.get("allocation_reason") or ALLOCATION_BUDGET_REQUIRED
+                )
             primary_action = decision.action.value
         elif settlement is not None:
             primary_action = decision.action.value if decision is not None else "NO_TRADE"
@@ -993,6 +1017,24 @@ def _new_confirmed_event(report: Any, as_of_date: date) -> Any | None:
         )
     )
     return events[0] if events else None
+
+
+def _normalize_approved_event_identities(
+    values: Iterable[str] | None,
+) -> frozenset[str]:
+    """Normalize explicit approval input without accepting symbol shortcuts."""
+    if values is None:
+        return frozenset()
+    if isinstance(values, str):
+        values = (values,)
+    try:
+        return frozenset(
+            identity.strip()
+            for identity in values
+            if isinstance(identity, str) and identity.strip()
+        )
+    except TypeError:
+        return frozenset()
 
 
 def _portfolio_result(value: Any) -> DailyPortfolioResult | None:
@@ -1193,6 +1235,7 @@ __all__ = [
     "DAILY_DECISION_CHAIN_PROTOCOL_VERSION",
     "DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION",
     "STRATEGY_PROPOSAL",
+    "STRATEGY_PROPOSAL_APPROVAL_REQUIRED",
     "DailyChainEvaluators",
     "DailyDecisionChain",
     "DailyDecisionEventIdentity",

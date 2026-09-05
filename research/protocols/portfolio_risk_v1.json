@@ -35,6 +35,28 @@
     "strategy_proposal_requires_allocation_budget": false,
     "allocation_requires_user_approval": true,
     "allocation_requires_explicit_budget": true,
+    "approval_grant": "EXPLICIT_USER_APPROVAL_OF_PUBLISHED_PROPOSAL_EVENT_IDENTITY",
+    "approval_input": "approved_event_identities",
+    "allocation_budget_is_approval": false,
+    "budget_without_approval": "ZERO_RESERVATION_ZERO_PENDING",
+    "approval_requires_prior_published_proposal": true,
+    "approval_identity_matching": "EXACT_EVENT_IDENTITY_NO_SYMBOL_GUESS",
+    "unapproved_entry_allowed": "REMAINS_STRATEGY_PROPOSAL",
+    "approval_of_missing_unpublished_pending_or_settled": "FAIL_CLOSED_STRATEGY_PROPOSAL_APPROVAL_REQUIRED",
+    "allocation_budget_semantics": "USER_AUTHORIZED_TOTAL_STRATEGY_BUDGET_FOR_ACCOUNT_STRATEGY_RISK_LEDGER",
+    "allocation_budget_excludes": [
+      "broker NAV",
+      "account equity",
+      "account total assets",
+      "deposits and withdrawals",
+      "P&L",
+      "purchasing power",
+      "new cash tranche"
+    ],
+    "denominator_shared_by": [
+      "system-managed open positions",
+      "same-run approved proposals"
+    ],
     "production_missing_input": "ALLOCATION_BUDGET_REQUIRED",
     "account_nav_substitution_allowed": false,
     "broker_balance_substitution_allowed": false,
@@ -177,6 +199,6 @@
     "holdings_access": false,
     "sheets_write": false,
     "new_pr_merge": false,
-    "stop_state": "PORTFOLIO_RISK_V1_REMAINING_RISK_CORRECTED_READY_FOR_SOL_REVIEW"
+    "stop_state": "PR_70_SOL_REVIEW_FIX_READY"
   }
 }

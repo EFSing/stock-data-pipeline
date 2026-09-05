@@ -1,6 +1,6 @@
 # Portfolio Risk V1 Protocol
 
-Status: `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`
+Status: `PR_70_SOL_REVIEW_FIX_READY`
 
 Protocol identity: `PORTFOLIO-RISK-2026-09-02-v1`
 
@@ -40,10 +40,24 @@ fit capacity.
 `DEVELOPMENT_EXPOSED` replay retains its fixed normalized `reference_nav = 1.0`
 compatibility contract. This is normalized risk-unit accounting, not P&L or a
 simulated account balance. In production, strategy proposal generation does
-not enter this layer and does not require account NAV. After user approval,
-Portfolio Risk requires an explicit positive `allocation_budget`; missing input
-returns `ALLOCATION_BUDGET_REQUIRED`. Account NAV, assets, deposits,
-withdrawals, P&L and purchasing power are never used as a substitute.
+not enter this layer and does not require account NAV.
+
+Production allocation enters this layer only when the user explicitly approves
+the published proposal's event identity (`approved_event_identities`) and
+supplies an explicit positive `allocation_budget`; missing input returns
+`ALLOCATION_BUDGET_REQUIRED`. A budget alone never grants approval: a budget
+with an empty approval set yields zero reservations and zero pending, and an
+approval of a missing, unpublished, already-pending or already-settled
+identity fails closed without changing the proposal. Approval is matched by
+exact event identity, never guessed per symbol.
+
+`allocation_budget` is the total strategy budget the user authorizes for the
+account's entire strategy risk ledger. It is not broker NAV, account equity,
+account total assets, deposits/withdrawals, P&L, purchasing power, or a
+new-cash tranche. Existing system-managed open positions and the same-run
+approved proposals share this budget as the Portfolio Risk denominator.
+Account NAV, assets, deposits, withdrawals, P&L and purchasing power are never
+used as a substitute.
 
 ## Total and concentration gates
 
@@ -146,12 +160,14 @@ Before production Portfolio Risk allocation for an approved proposal, the
 system must provide:
 
 ```text
+STRATEGY_PROPOSAL_APPROVAL_REQUIRED (when the published proposal event identity is not explicitly approved)
 ALLOCATION_BUDGET_REQUIRED (when the explicit user budget is absent)
 PRODUCTION_RISK_GROUP_METADATA_REQUIRED_FOR_NEW_ENTRY
 ```
 
-The strategy proposal may be produced without either of those allocation
-inputs. `reference_nav` remains only in lower-level/replay compatibility
+The strategy proposal may be produced without any of those allocation inputs,
+and an `ENTRY_ALLOWED` stays `STRATEGY_PROPOSAL` until approval and budget are
+both present. `reference_nav` remains only in lower-level/replay compatibility
 signatures; production allocation uses the explicit budget. IBKR, broker
 holdings, account secrets, Google Sheets account values, and production
 execution wiring are intentionally outside this phase.

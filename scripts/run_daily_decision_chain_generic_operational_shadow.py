@@ -262,16 +262,32 @@ def run_shadow(output_dir: Path = DEFAULT_OUTPUT) -> dict:
 
     def unknown_group():
         _, _, event, _ = _reports(setup01=True)
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=_evaluators(setup01=True))
         with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
-            result = DailyDecisionChain(evaluators=_evaluators(setup01=True)).evaluate([_input(history)], mode="PRODUCTION", allocation_budget=1.0).results[0]
+            chain.evaluate([_input(history)], mode="PRODUCTION")
+            result = chain.evaluate(
+                [_input(history)],
+                mode="PRODUCTION",
+                allocation_budget=1.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
         assert result.portfolio_result.reason == "BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION"
         return {}
     case("individual ENTRY_ALLOWED + unknown risk group", unknown_group)
 
     def portfolio_allowed():
         _, _, event, _ = _reports(setup01=True)
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=_evaluators(setup01=True))
         with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
-            result = DailyDecisionChain(evaluators=_evaluators(setup01=True)).evaluate([_input(history, risk_group="TECH")], mode="PRODUCTION", allocation_budget=1.0).results[0]
+            chain.evaluate([_input(history, risk_group="TECH")], mode="PRODUCTION")
+            result = chain.evaluate(
+                [_input(history, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=1.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
         assert result.final_status == "PORTFOLIO_ALLOWED"
         return {}
     case("portfolio allowed", portfolio_allowed)
@@ -287,8 +303,16 @@ def run_shadow(output_dir: Path = DEFAULT_OUTPUT) -> dict:
 
     def calendar_disabled():
         _, _, event, _ = _reports(setup01=True)
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=_evaluators(setup01=True))
         with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
-            result = DailyDecisionChain(evaluators=_evaluators(setup01=True)).evaluate([_input(history, risk_group="TECH")], mode="PRODUCTION", allocation_budget=1.0).results[0]
+            chain.evaluate([_input(history, risk_group="TECH")], mode="PRODUCTION")
+            result = chain.evaluate(
+                [_input(history, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=1.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
         assert PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED in result.blocking_prerequisites
         return {}
     case("calendar unavailable -> T1 disabled", calendar_disabled)

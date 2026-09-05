@@ -7,7 +7,34 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1
+## Latest Engineering Event — PR_70_SOL_REVIEW_FIX_V1
+
+- 在现有 PR #70（`fix/strategy-capital-allocation-boundary`，base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`）
+  完成 Sol review 修复；不 merge、不新建 PR。
+- 显式 proposal approval：生产分配需要已发布 `STRATEGY_PROPOSAL` + 显式
+  `approved_event_identities`（event identity，不按 symbol 猜）+ 有效
+  `allocation_budget` + 未 pending + 未 settled + 原有 Portfolio Risk
+  prerequisites。budget 本身绝不代表 approval；budget 有值但批准集为空 → 0
+  reservation / 0 pending；同日多 proposal 只分配被批准 identity；未批准
+  `ENTRY_ALLOWED` 保持 `STRATEGY_PROPOSAL`；不存在、未发布、已 pending、已 settled
+  的批准 fail closed；`ENTRY_ALLOWED` 技术条件不变。
+- `allocation_budget` 语义：用户授权给该账户整个策略风险账本的总策略资金预算；不是
+  broker NAV、账户净值、账户总资产、入出金、P&L、purchasing power 或新增现金额度。
+  existing system-managed positions 与同轮 approved proposals 共用其作为 Portfolio
+  Risk denominator。冻结 `0.005 / 0.01 / 0.02` 不变；无 `new_cash_budget`，未重
+  设计 Portfolio Risk。
+- 治理：`bb8e6d9a23a175ff01790314837e24621446ce1c` 仅记录为 substantive source
+  head，不再写成 current PR head；current PR head 与 exact-head CI 以 GitHub 实时
+  核验为准；治理文件不自引用自身 docs closeout SHA。
+- 验证：Daily Chain `31/31 OK`、Production Prerequisites `19/19 OK`、full
+  unittest `596/596 OK`、Daily Chain generic shadow `17/17 SUCCESS`、Portfolio
+  Risk generic shadow `17/17 SUCCESS`、compileall、protocol JSON parse、
+  `git diff --check` 全部通过；未执行 `--run` / `--write-state` / 策略状态或持仓
+  写入 / broker/order。
+- 当前状态=`PR_70_SOL_REVIEW_FIX_READY`；不合并 PR，等待 push 后 exact-head CI
+  实时核验。
+
+## Prior Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1
 
 - 本任务基于真实 `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`，工作分支为
   `fix/strategy-capital-allocation-boundary`；不改变 Wave/Swing/Setup/Entry/
@@ -23,9 +50,10 @@ V0.2
 - `BASE_RISK_FRACTION=0.005`、`MAX_RISK_PER_GROUP_FRACTION=0.01`、
   `MAX_TOTAL_OPEN_RISK_FRACTION=0.02` 保持不变；无 broker/order/UI/自动 workflow
   接入，无 live strategy-state write。
-- substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`；PR #70=
+- substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`（历史
+  substantive head，不是 current PR head）；当时 PR #70=
   `https://github.com/EFSing/stock-data-pipeline/pull/70`，base=`main`，state=`OPEN`,
-  `MERGEABLE`, `merged=false`；exact-head checks：CI Test Gate run=`33952922439`,
+  `MERGEABLE`, `merged=false`；当时 exact-head checks：CI Test Gate run=`33952922439`,
   Daily Chain shadow run=`33952922429`, Portfolio Risk shadow run=`33952922432`，均
   `SUCCESS`。
 - live workbook connector-backed read-only preflight T=`2026-09-04`：2 个 enabled
@@ -34,7 +62,7 @@ V0.2
   `READY`，`READ_ONLY`、`NO STATE WRITE=true`、`NO Sheets mutation=true`。本机原生
   CLI 因未注入 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` 在连接前退出；未
   输出、记录或写入任何凭证，connector 读取与 adapter 复核均为只读。
-- 当前状态=`PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`；不启用 state writes，
+- 当时状态=`PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`；不启用 state writes，
   不合并 PR。治理文件不自引用其自身 docs-only commit SHA。
 
 ## Prior Production Verification — CN_US_SCHEDULED_QFQ_VERIFIED_AND_PREFLIGHT
