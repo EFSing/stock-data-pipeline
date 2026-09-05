@@ -7,7 +7,25 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED
+## Latest Engineering Event — READY_FOR_DECISION_CANDIDATE_RUNTIME
+
+- `CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1` 真实 runtime audit 停止在 blocker：CN seed=`800`、
+  US IWB Equity seed=`1018`。CN session-reuse probe=`20/20` 成功、`10.147s`；既有
+  逐标的 CN path probe=`5/5`、`3.870s`；US yfinance batch probe=`20/20`、`3.131s`。
+- CN full shadow（`--market cn --date 2026-09-04`）在 session reuse path 下运行超过 13
+  分钟仍未产生完整 summary，处于 network wait，已停止；没有伪造 included/per-sector/
+  strategy 结果，US full shadow 未启动。
+- blocker=`CANDIDATE_HISTORY_RUNTIME_NOT_ACCEPTABLE_OR_NOT_BOUNDED`。本轮未留下 bridge
+  code，未修改 provider、Candidate semantics、Strategy Engine、production state 或 broker。
+  production state writes=`NO`，broker/order=`NO`。
+- 最小选项：等待 Sol 接受多分钟级 bounded shadow cadence，或由 Sol 指定经批准的
+  CN history runtime/batching/caching 方案；不得自行引入数据库/commercial provider、
+  修改 universe/sector taxonomy、affordability/top-N 或接 production。
+- 当前 stop marker=`READY_FOR_DECISION_CANDIDATE_RUNTIME`；`HANDOFF_CURRENT_AND_CONSISTENT`。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## Historical Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED
 
 - PR #71 已 squash merged。Sol approved head=`1bb2996b1ee7d750fe7d02c53067314ee23866ec`；
   真实 squash merge commit=`319bdf8a3fd950a0be70791ecd81f397aca7e9df`。

@@ -10,7 +10,28 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0N. Latest Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED
+## 0O. Latest Engineering Event — READY_FOR_DECISION_CANDIDATE_RUNTIME
+
+- `CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1` 的真实 runtime audit 已停止在 blocker：
+  CN seed=`800`、US IWB Equity seed=`1018`。CN session-reuse probe=`20/20` 成功、
+  `10.147s`；既有逐标的 CN path probe=`5/5`、`3.870s`。US `yfinance.download`
+  batch probe=`20/20` 有数据、`3.131s`。
+- 真实 CN full shadow（`--market cn --date 2026-09-04`）在 session reuse path 下运行超过
+  13 分钟仍未产生完整 summary，进程处于 network wait；为避免无限等待已停止。故本轮
+  没有伪造 CN included/per-sector/strategy 结果，US full shadow 也未启动。
+- 当前 blocker=`CANDIDATE_HISTORY_RUNTIME_NOT_ACCEPTABLE_OR_NOT_BOUNDED`：无法在本机
+  证明 800 个 CN candidate history 能在日常 shadow/runtime budget 内完成。当前没有
+  PR、没有 bridge code 留在工作树、没有 provider/Strategy Engine/Candidate semantics
+  修改；production state writes=`NO`，broker/order=`NO`。
+- 最小选项：Sol 明确接受该多分钟级 bounded shadow cadence 后，再授权继续；或先指定
+  经批准的 CN history runtime/batching/caching 方案。不得自行引入数据库、commercial
+  provider、修改 universe/sector taxonomy、修改 affordability/top-N 或接 production。
+
+`READY_FOR_DECISION_CANDIDATE_RUNTIME`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## 0N. Historical Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_MERGED
 
 - PR #71 已 squash merged。Sol approved head=`1bb2996b1ee7d750fe7d02c53067314ee23866ec`；
   真实 squash merge commit=`319bdf8a3fd950a0be70791ecd81f397aca7e9df`。
