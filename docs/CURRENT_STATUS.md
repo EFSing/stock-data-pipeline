@@ -23,8 +23,19 @@ V0.2
 - `BASE_RISK_FRACTION=0.005`、`MAX_RISK_PER_GROUP_FRACTION=0.01`、
   `MAX_TOTAL_OPEN_RISK_FRACTION=0.02` 保持不变；无 broker/order/UI/自动 workflow
   接入，无 live strategy-state write。
-- 本节的最终 branch HEAD、exact-head CI、read-only preflight 和 stop marker 在
-  PR/CI/preflight 完成后补录；治理文件不自引用其自身 docs-only commit SHA。
+- substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`；PR #70=
+  `https://github.com/EFSing/stock-data-pipeline/pull/70`，base=`main`，state=`OPEN`,
+  `MERGEABLE`, `merged=false`；exact-head checks：CI Test Gate run=`33952922439`,
+  Daily Chain shadow run=`33952922429`, Portfolio Risk shadow run=`33952922432`，均
+  `SUCCESS`。
+- live workbook connector-backed read-only preflight T=`2026-09-04`：2 个 enabled
+  account，正式 universe 5 个 symbol，CN `DATA_OK=3/3`、US `DATA_OK=2/2`，QFQ
+  blockers=`0`，NAV blockers=`0`，risk-group blockers=`0`，state-store=`OK`；结果
+  `READY`，`READ_ONLY`、`NO STATE WRITE=true`、`NO Sheets mutation=true`。本机原生
+  CLI 因未注入 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` 在连接前退出；未
+  输出、记录或写入任何凭证，connector 读取与 adapter 复核均为只读。
+- 当前状态=`PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`；不启用 state writes，
+  不合并 PR。治理文件不自引用其自身 docs-only commit SHA。
 
 ## Prior Production Verification — CN_US_SCHEDULED_QFQ_VERIFIED_AND_PREFLIGHT
 

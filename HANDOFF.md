@@ -23,9 +23,17 @@
 - 没有 `allocation_budget` 时，`ENTRY_ALLOWED` 仍输出为 `STRATEGY_PROPOSAL`，不
   计算 Position Size、不 reserve、不写入 pending T+1 allocation。用户批准后仅以
   显式预算进入 Portfolio Risk；冻结风险比例 `0.005 / 0.01 / 0.02` 未改变。
-- 无 broker/order/UI/自动 workflow 接入；本任务不执行 `--run`、`--write-state`，不
-  写 `策略决策状态` 或 `策略持仓`。最终 exact HEAD、CI、read-only preflight 与 stop
-  marker 在后续核验完成后补录；本文件不自引用 docs-only commit SHA。
+- 无 broker/order/UI/自动 workflow 接入；本任务未执行 `--run`、`--write-state`，不
+  写 `策略决策状态` 或 `策略持仓`。substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`；
+  PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`，base=`main`，
+  `OPEN / MERGEABLE / merged=false`；exact-head CI：Test Gate=`33952922439`、
+  Daily Chain shadow=`33952922429`、Portfolio Risk shadow=`33952922432`，均成功。
+- connector-backed live read-only preflight T=`2026-09-04`=`READY`：CN `DATA_OK=3/3`、
+  US `DATA_OK=2/2`，QFQ blockers=`0`、NAV blockers=`0`、risk-group blockers=`0`、
+  state-store=`OK`、`NO STATE WRITE=true`、`NO Sheets mutation=true`。本机 CLI 未注入
+  `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON`，仅在 client 初始化前失败；未
+  输出或记录凭证。stop marker=`PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`；
+  本文件不自引用 docs-only commit SHA。
 
 ## 0F. Prior Production Verification — CN_US_SCHEDULED_QFQ_VERIFIED_AND_PREFLIGHT
 
@@ -129,10 +137,10 @@
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`; **formal main baseline for this task:** `2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
-- **working checkout:** current branch=`fix/strategy-capital-allocation-boundary`; source and governance changes are being validated before push。
-- **current PR:** pending creation for this task；latest merged governance PR #69=`https://github.com/EFSing/stock-data-pipeline/pull/69`，head=`6fb4afefbb233b62f64a01952988781a54a6131b`，merge commit=`2ce2711f4994f31c167bbe4961ecd0b34e90c476`；its checks `33842631527`、`33842631492`、`33842631493` were success。
+- **working checkout:** current branch=`fix/strategy-capital-allocation-boundary`; substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`。
+- **current PR:** PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`，head=`bb8e6d9a23a175ff01790314837e24621446ce1c`，base=`main`，`OPEN / MERGEABLE / merged=false`；exact-head checks `33952922439`、`33952922429`、`33952922432` all success。latest merged governance PR #69 remains head=`6fb4afefbb233b62f64a01952988781a54a6131b` → merge=`2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
 - **production configuration:** already genuinely activated in the live workbook；`EXISTING_POSITIONS_MANAGED=NO`；production state rows=`0`。
-- **production boundary:** broker/orders/FX/state writes are not enabled；本轮仅执行 live workbook read-only preflight，无 production state/strategy holdings/decision mutation；scheduled latest 仍只允许通过 refresher 写 `历史行情_前复权`；SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。NAV freshness is no longer a strategy proposal prerequisite；最终 preflight result pending live read-only verification。
+- **production boundary:** broker/orders/FX/state writes are not enabled；本轮仅执行 live workbook read-only preflight，无 production state/strategy holdings/decision mutation；scheduled latest 仍只允许通过 refresher 写 `历史行情_前复权`；SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。NAV freshness is no longer a strategy proposal prerequisite；最终 connector-backed preflight=`READY`。
 
 ## 2A. Historical Repository State — PORTFOLIO_RISK_V1 pre-merge
 
@@ -426,19 +434,21 @@
 2. [x] 完成 production prerequisites、Daily Chain、Portfolio Risk 真实调用关系审计；未改变冻结策略几何与风险比例。
 3. [x] 实现无 NAV strategy proposal 与显式 `allocation_budget` 后的 Portfolio Risk / Position Size 边界。
 4. [x] 完成 focused/full unittest、compileall、`git diff --check`、Daily Chain 17/17 shadow 与 Portfolio Risk synthetic shadow。
-5. [ ] 提交、push、创建 PR 并核对 PR exact head、mergeability 与 exact-head CI。
-6. [ ] 执行严格只读 `--preflight --date 2026-09-04`；禁止 `--run`、`--write-state`、broker/order 或任何 live strategy-state write。
-7. [ ] 依据真实 CI/preflight 结果更新本节并停止在用户 review/decision marker，不 merge PR。
+5. [x] 提交、push、创建 PR #70 并核对 PR exact head、mergeability 与 exact-head CI；三个 checks 均 success。
+6. [x] 执行严格只读 `--preflight --date 2026-09-04`；connector-backed adapter result=`READY`，QFQ/NAV blockers=`0`；未执行 `--run`/`--write-state`，未触及 broker/order 或 live strategy-state write。
+7. [x] 已依据真实 CI/preflight 结果更新本节；停止在 `PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`，不 merge PR，等待用户 review。
 
 ## 11. Handoff Checklist
 
-- [x] Current state names formal task baseline `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476` and current branch `fix/strategy-capital-allocation-boundary`。
+- [x] Current state names formal task baseline `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476` and current branch `fix/strategy-capital-allocation-boundary`；substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`。
 - [x] Real Asia/US scheduled run IDs and QFQ evidence remain recorded in prior section 0F；latest governance PR #69 is merged。
 - [x] Scoped replacement proves target rolling series stays at `history_days` and removes the old adjustment basis；non-target history is preserved。
 - [x] Any target fetch/validation failure produces zero workbook writes；only `历史行情_前复权` is in the mutation boundary。
 - [x] Focused/full tests, compileall, `git diff --check`, and synthetic boundary shadows are complete。
 - [x] Scheduled latest automatic QFQ refresh capability remains unchanged；manual live QFQ refresher smoke=`NOT_RUN`；live Sheets/state/broker/order mutation=`NO`；production state writes=`NO`。
 - [x] Provider smoke and one authorized US rerun passed for both formal US symbols at target `2026-09-04`；CN+US QFQ is verified；the prior NAV freshness blocker is retired for proposal preflight by this task's boundary decision。
+- [x] PR #70 exact-head CI checks `33952922439` / `33952922429` / `33952922432` all success；PR remains OPEN/MERGEABLE/merged=false。
+- [x] Connector-backed live read-only preflight T=`2026-09-04` is READY with CN `3/3` and US `2/2` DATA_OK, QFQ/NAV/risk-group blockers=`0`, state-store=`OK`, and no writes。
 
 ## 12. Last Verified
 
@@ -446,12 +456,12 @@
 - `formal_main_baseline`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476`
 - `current_branch`: `fix/strategy-capital-allocation-boundary`
 - `current_main_exact_sha`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476` (verified GitHub `origin/main` baseline)
-- `current_pr`: pending creation; latest merged PR #69=`6fb4afefbb233b62f64a01952988781a54a6131b → 2ce2711f4994f31c167bbe4961ecd0b34e90c476`；its checks `33842631527`、`33842631492`、`33842631493` success。
+- `current_pr`: PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`；base=`main`；head=`bb8e6d9a23a175ff01790314837e24621446ce1c`；`OPEN / MERGEABLE / merged=false`；exact-head checks=`33952922439 / 33952922429 / 33952922432` success；latest merged PR #69=`6fb4afefbb233b62f64a01952988781a54a6131b → 2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
 - `production_config`: genuinely activated；existing positions unmanaged；production state rows=`0`。
-- `production_blocker`: QFQ stale failure was resolved by the single rerun and is classified=`TRANSIENT_YFINANCE_PUBLICATION_LAG`；prior `PRODUCTION_NAV_DATE_REQUIRED` is no longer a proposal prerequisite；final live preflight blocker/result pending。
+- `production_blocker`: QFQ stale failure was resolved by the single rerun and is classified=`TRANSIENT_YFINANCE_PUBLICATION_LAG`；prior `PRODUCTION_NAV_DATE_REQUIRED` is no longer a proposal prerequisite；connector-backed live preflight T=`2026-09-04`=`READY`, QFQ/NAV/risk-group blockers=`0`。
 - `scope_boundary`: strategy proposal/capital allocation boundary only；no provider/schedule/freshness changes；read-only preflight only；production state writes, broker/orders/FX and automatic execution remain disabled。
 
-`STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_PENDING_PR_AND_PREFLIGHT`
+`PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
