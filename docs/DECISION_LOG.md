@@ -2,6 +2,56 @@
 
 只记录重要架构／交易规则决策，不记录普通 Bug 修复。
 
+## 2026-09-05
+
+**Decision:** Production strategy proposal 与账户净值解耦。系统先输出策略
+机会，由用户决定是否执行；用户批准后再提供本次 `allocation_budget`，
+Portfolio Risk / Position Size 基于该预算进行资金分配。Broker NAV、每日
+权益、入出金、浮盈浮亏、purchasing power 与 broker balance 不作为策略机会
+判断输入，也不自动改变策略预算。
+
+**Reason:** 账户资产管理不是 Strategy Decision 的职责；将每日账户权益无
+验证地引入动态风险缩放会改变策略机会语义；用户应保留最终资本投入控制权。
+`策略账户.参考净值` 与 `净值日期` 因向后兼容保留，但退出 strategy proposal
+preflight；冻结风险比例 `0.005 / 0.01 / 0.02` 不变，仅在明确预算进入
+Portfolio Risk 后使用。
+
+**Decision:** PR #70 Sol review 修复：生产分配引入显式 proposal approval。
+`allocation_budget` 绝不代表 approval。Production allocation 只有在 event
+已是已发布 `STRATEGY_PROPOSAL`、其 event identity 被用户显式批准
+（`approved_event_identities`）、`allocation_budget` 有效、未 pending、未
+settled、且原有 Portfolio Risk prerequisites 成立时才会进入 Portfolio Risk。
+批准只按 event identity 匹配，不按 symbol 猜测；不存在、未发布、已 pending、
+已 settled 的批准 fail closed；未批准的 `ENTRY_ALLOWED` 保持
+`STRATEGY_PROPOSAL`；`ENTRY_ALLOWED` 技术条件不变。
+
+**Reason:** 预算输入的存在不能等同于用户批准；同日多个 proposal 必须只分配
+用户明确批准的 identity，否则会绕过 proposal→approval→allocation 边界。
+`STRATEGY_PROPOSAL_APPROVAL_REQUIRED` 作为机器可读原因输出，budget 有值但
+批准集为空时 0 reservation / 0 pending。
+
+**Decision:** 正式固化 `allocation_budget` 语义：它是用户明确授权给该账户
+整个策略风险账本使用的总策略资金预算，不是 broker NAV、账户净值、账户总资产、
+入出金、P&L、purchasing power 或本轮新增现金额度。已有 system-managed
+positions 与同轮 approved proposals 共用该预算作为 Portfolio Risk
+denominator。冻结 `BASE_RISK_FRACTION=0.005`、`MAX_RISK_PER_GROUP_FRACTION=0.01`、
+`MAX_TOTAL_OPEN_RISK_FRACTION=0.02` 不变；不引入 `new_cash_budget`，不重设计
+Portfolio Risk。
+
+**Reason:** 防止预算被任何账户资金事实替代或稀释；单一总预算 denominator
+使 existing positions 与新 proposal 的 capacity 竞争保持一个来源。
+
+**Decision:** 治理 head 分离：substantive validation head 单独记录
+（`bb8e6d9a23a175ff01790314837e24621446ce1c` 为 substantive source head）；
+current PR head 一律以 GitHub 实时核验为准；治理文件不得把旧 substantive
+head 写成 current PR head，也不得自引用自身 docs closeout commit SHA。
+
+**Reason:** 旧治理文件曾把 substantive head 错写成 current PR head，造成
+governance 与远端 PR 事实冲突；docs-only closeout 的自引用 SHA 在 commit
+前不存在，写死会制造不可满足的自我引用。
+
+---
+
 ## 2026-08-21
 
 **Decision:** 确立 GitHub 仓库为项目唯一可信事实来源，`AGENTS.md` + `docs/` 作为跨 AI 工具共享上下文。

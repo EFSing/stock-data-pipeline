@@ -1,6 +1,6 @@
 # Portfolio Risk V1 Protocol
 
-Status: `PORTFOLIO_RISK_V1_REBASED_AND_READY_FOR_SOL_REVIEW`
+Status: `PR_70_SOL_REVIEW_FIX_READY`
 
 Protocol identity: `PORTFOLIO-RISK-2026-09-02-v1`
 
@@ -22,13 +22,13 @@ It does not modify Entry geometry, Wave, Swing, Target, minimum R/R, Position
 Management, Exit, or Wave5 rules. It does not create an entry or rescreen a
 candidate. The implementation is independent in `trading/portfolio_risk.py`.
 
-## Fixed risk unit and NAV
+## Fixed risk unit and explicit allocation budget
 
 The frozen system risk unit is:
 
 ```text
 BASE_RISK_FRACTION = 0.005
-planned_risk_capital = reference_nav * 0.005
+planned_risk_capital = allocation_budget * 0.005
 quantity = risk_capital / abs(entry - execution_stop)
 ```
 
@@ -37,10 +37,27 @@ quantity is retained. V1 does not round for A-shares, US shares, purchasing
 power, margin, or FX conversion. Portfolio Risk never narrows stop distance to
 fit capacity.
 
-`DEVELOPMENT_EXPOSED` replay fixes `reference_nav = 1.0`. This is normalized
-risk-unit accounting, not P&L or a simulated account balance. Historical gain
-or loss never changes it. Production requires an explicit reliable NAV input;
-missing input returns `PORTFOLIO_NAV_REQUIRED` and no account value is guessed.
+`DEVELOPMENT_EXPOSED` replay retains its fixed normalized `reference_nav = 1.0`
+compatibility contract. This is normalized risk-unit accounting, not P&L or a
+simulated account balance. In production, strategy proposal generation does
+not enter this layer and does not require account NAV.
+
+Production allocation enters this layer only when the user explicitly approves
+the published proposal's event identity (`approved_event_identities`) and
+supplies an explicit positive `allocation_budget`; missing input returns
+`ALLOCATION_BUDGET_REQUIRED`. A budget alone never grants approval: a budget
+with an empty approval set yields zero reservations and zero pending, and an
+approval of a missing, unpublished, already-pending or already-settled
+identity fails closed without changing the proposal. Approval is matched by
+exact event identity, never guessed per symbol.
+
+`allocation_budget` is the total strategy budget the user authorizes for the
+account's entire strategy risk ledger. It is not broker NAV, account equity,
+account total assets, deposits/withdrawals, P&L, purchasing power, or a
+new-cash tranche. Existing system-managed open positions and the same-run
+approved proposals share this budget as the Portfolio Risk denominator.
+Account NAV, assets, deposits, withdrawals, P&L and purchasing power are never
+used as a substitute.
 
 ## Total and concentration gates
 
@@ -53,7 +70,7 @@ For each open long position:
 
 ```text
 remaining_loss_risk_per_share = max(actual_entry - active_protective_stop, 0)
-remaining_loss_risk_fraction = quantity * remaining_loss_risk_per_share / reference_nav
+remaining_loss_risk_fraction = quantity * remaining_loss_risk_per_share / allocation_budget
 portfolio_open_risk = sum(remaining_loss_risk)
 ```
 
@@ -64,6 +81,10 @@ zero. Locked profit is never a negative offset for other positions. A new
 proposal is allowed only when total current open risk plus its `0.5%` initial
 risk is at most `2%`; otherwise the gate emits
 `BLOCK_TOTAL_RISK_BUDGET`. Equality at the boundary is allowed.
+
+In production this denominator is the user-supplied `allocation_budget`; the
+development replay keeps its fixed normalized `reference_nav = 1.0` for
+backward-compatible mechanical evidence.
 
 Every open position must carry a finite frozen `actual_entry`. Missing entry
 provenance fails closed under
@@ -109,7 +130,7 @@ settlement creates one frozen-quantity open portfolio position.
 
 Each session reads the already-frozen Position Management active protective
 stop. A stop raise can reduce future remaining capital-loss risk, but Portfolio
-Risk does not change the stop, MFE floor, exit behavior, or NAV. The corrected
+Risk does not change the stop, MFE floor, exit behavior, or account NAV. The corrected
 before/after diagnostic is the same entry-to-stop formula, and a stop raise
 must satisfy `after <= before`. When Position Management exits a position,
 that position is removed from the next session's open-risk ledger and its
@@ -135,12 +156,18 @@ holdings, account values, Secrets, or Sheets.
 
 ## Production prerequisites
 
-Before production new-entry wiring, the system must provide:
+Before production Portfolio Risk allocation for an approved proposal, the
+system must provide:
 
 ```text
-PRODUCTION_PORTFOLIO_NAV_INPUT_REQUIRED
+STRATEGY_PROPOSAL_APPROVAL_REQUIRED (when the published proposal event identity is not explicitly approved)
+ALLOCATION_BUDGET_REQUIRED (when the explicit user budget is absent)
 PRODUCTION_RISK_GROUP_METADATA_REQUIRED_FOR_NEW_ENTRY
 ```
 
-IBKR, broker holdings, account secrets, Google Sheets account values, and
-production execution wiring are intentionally outside this phase.
+The strategy proposal may be produced without any of those allocation inputs,
+and an `ENTRY_ALLOWED` stays `STRATEGY_PROPOSAL` until approval and budget are
+both present. `reference_nav` remains only in lower-level/replay compatibility
+signatures; production allocation uses the explicit budget. IBKR, broker
+holdings, account secrets, Google Sheets account values, and production
+execution wiring are intentionally outside this phase.

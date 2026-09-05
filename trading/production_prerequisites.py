@@ -1,9 +1,9 @@
 """Production prerequisite contracts and read-only construction adapters.
 
 This module is the narrow boundary between the existing frozen Daily Decision
-Chain and manually maintained Google Sheets facts.  It validates and adapts
-records; it does not write strategy rows, infer NAV/entry/risk metadata, or
-call a broker.
+Chain and manually maintained Google Sheets facts. It validates and adapts
+records; it does not write strategy rows, use account NAV for a strategy
+proposal, infer entry/risk metadata, or call a broker.
 """
 from __future__ import annotations
 
@@ -43,13 +43,11 @@ from trading.models import (
     Trend,
 )
 from trading.portfolio_risk import (
-    BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION,
     OpenPortfolioPosition,
     PortfolioCandidate,
     PortfolioReservation,
     PortfolioReservationStatus,
     PortfolioSettlement,
-    PORTFOLIO_NAV_REQUIRED,
     UNKNOWN_RISK_GROUP,
     normalize_risk_group,
 )
@@ -422,21 +420,27 @@ def parse_strategy_accounts(rows: Iterable[Mapping[str, Any]], *, as_of_date: da
         enabled = _as_bool(row.get("启用"))
         market = _text(row, "市场").upper()
         currency = _text(row, "币种").upper()
-        nav = _as_float(row.get("参考净值"), field_name="参考净值", required=False)
+        # These legacy Sheet fields remain readable for compatibility, but are
+        # optional allocation facts rather than strategy prerequisites.
+        try:
+            nav = _as_float(row.get("参考净值"), field_name="参考净值", required=False)
+        except ProductionPrerequisiteError:
+            nav = None
         nav_date = None
         raw_nav_date = row.get("净值日期")
         if raw_nav_date is not None and str(raw_nav_date).strip():
-            nav_date = parse_sheet_date(raw_nav_date, field_name="净值日期")
+            try:
+                nav_date = parse_sheet_date(raw_nav_date, field_name="净值日期")
+            except ProductionPrerequisiteError:
+                nav_date = None
         if enabled:
-            if not market or not currency or nav is None or nav <= 0 or nav_date is None:
-                raise ProductionPrerequisiteError(f"{PORTFOLIO_NAV_REQUIRED}:{account_id}")
+            if not market or not currency:
+                raise ProductionPrerequisiteError(f"{PRODUCTION_ACCOUNT_REQUIRED}:{account_id}")
             expected_currency = EXPECTED_CURRENCY_BY_MARKET.get(market)
             if expected_currency and currency != expected_currency:
                 raise ProductionPrerequisiteError(
                     f"{PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH}:{account_id}"
                 )
-            if as_of_date is not None and nav_date != as_of_date:
-                raise ProductionPrerequisiteError(f"PRODUCTION_NAV_DATE_REQUIRED:{account_id}")
         result.append(StrategyAccount(account_id, enabled, market, currency, nav, nav_date, _text(row, "备注")))
     return tuple(result)
 
@@ -1131,14 +1135,7 @@ class ProductionInputAdapter:
             account_positions = tuple(item for item in positions if item.account_id == account.account_id)
             if not account_universe:
                 account_errors.append(PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED)
-            if account_universe and account.reference_nav is None:
-                account_errors.append("PORTFOLIO_NAV_REQUIRED")
-            nav_status = "OK"
-            if account.reference_nav is None:
-                nav_status = "PORTFOLIO_NAV_REQUIRED"
-            elif account.nav_date != self.as_of_date:
-                nav_status = "PRODUCTION_NAV_DATE_REQUIRED"
-                account_errors.append(nav_status)
+            nav_status = "NOT_REQUIRED_FOR_STRATEGY_PROPOSAL"
             try:
                 current_now = self._current_now()
                 calendar_identity = self.calendar_provider.completed_session(
@@ -1161,7 +1158,6 @@ class ProductionInputAdapter:
                 group = risk_groups.get(item.key)
                 if group is None or group.risk_group == UNKNOWN_RISK_GROUP:
                     missing_groups.append(item.symbol)
-                    account_errors.append(f"{BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION}:{item.symbol}")
                 try:
                     if calendar_identity is None:
                         continue

@@ -15,27 +15,62 @@
   },
   "risk_unit": {
     "base_risk_fraction": 0.005,
-    "risk_per_trade": "0.5% NAV",
-    "planned_risk_capital": "reference_nav * 0.005",
+    "risk_per_trade": "0.5% allocation_budget",
+    "planned_risk_capital": "allocation_budget * 0.005",
     "quantity": "risk_capital / abs(entry - execution_stop)",
     "position_size_engine": "trading.risk.position_size",
     "quantity_rounding": "NONE_IN_V1_THEORETICAL_ONLY"
   },
   "reference_nav": {
+    "role": "LEGACY_REPLAY_AND_LOWER_LEVEL_COMPATIBILITY_ONLY",
     "development_mode": "DEVELOPMENT_EXPOSED",
     "development_reference_nav": 1.0,
     "development_nav_is_fixed": true,
     "historical_gain_loss_updates_nav": false,
-    "production_missing_input": "PORTFOLIO_NAV_REQUIRED",
-    "production_prerequisite": "PRODUCTION_PORTFOLIO_NAV_INPUT_REQUIRED"
+    "production_missing_input": "NOT_A_STRATEGY_PROPOSAL_PREREQUISITE",
+    "production_prerequisite": "NOT_USED_FOR_PRODUCTION_STRATEGY_PROPOSAL"
+  },
+  "allocation_boundary": {
+    "strategy_proposal_requires_account_nav": false,
+    "strategy_proposal_requires_allocation_budget": false,
+    "allocation_requires_user_approval": true,
+    "allocation_requires_explicit_budget": true,
+    "approval_grant": "EXPLICIT_USER_APPROVAL_OF_PUBLISHED_PROPOSAL_EVENT_IDENTITY",
+    "approval_input": "approved_event_identities",
+    "allocation_budget_is_approval": false,
+    "budget_without_approval": "ZERO_RESERVATION_ZERO_PENDING",
+    "approval_requires_prior_published_proposal": true,
+    "approval_identity_matching": "EXACT_EVENT_IDENTITY_NO_SYMBOL_GUESS",
+    "unapproved_entry_allowed": "REMAINS_STRATEGY_PROPOSAL",
+    "approval_of_missing_unpublished_pending_or_settled": "FAIL_CLOSED_STRATEGY_PROPOSAL_APPROVAL_REQUIRED",
+    "allocation_budget_semantics": "USER_AUTHORIZED_TOTAL_STRATEGY_BUDGET_FOR_ACCOUNT_STRATEGY_RISK_LEDGER",
+    "allocation_budget_excludes": [
+      "broker NAV",
+      "account equity",
+      "account total assets",
+      "deposits and withdrawals",
+      "P&L",
+      "purchasing power",
+      "new cash tranche"
+    ],
+    "denominator_shared_by": [
+      "system-managed open positions",
+      "same-run approved proposals"
+    ],
+    "production_missing_input": "ALLOCATION_BUDGET_REQUIRED",
+    "account_nav_substitution_allowed": false,
+    "broker_balance_substitution_allowed": false,
+    "p_and_l_or_deposit_withdrawal_scaling": false
   },
   "aggregate_risk": {
     "max_total_open_risk_fraction": 0.02,
     "max_risk_per_group_fraction": 0.01,
     "definition": "remaining capital-loss risk, not mark-to-stop giveback risk",
     "remaining_loss_risk_per_share": "max(actual_entry - active_protective_stop, 0)",
-    "remaining_loss_risk_fraction": "quantity * remaining_loss_risk_per_share / reference_nav",
-    "remaining_risk": "quantity * max(actual_entry - active_protective_stop, 0) / reference_nav",
+    "remaining_loss_risk_fraction": "quantity * remaining_loss_risk_per_share / allocation_budget",
+    "remaining_risk": "quantity * max(actual_entry - active_protective_stop, 0) / allocation_budget",
+    "denominator_production": "explicit allocation_budget",
+    "denominator_development_replay": "fixed reference_nav = 1.0",
     "current_price_participates": false,
     "actual_entry_required": true,
     "missing_actual_entry_behavior": "PRODUCTION_OPEN_POSITION_ENTRY_BASIS_REQUIRED_FOR_RISK_ACCOUNTING",
@@ -89,7 +124,7 @@
     "exit_is_not_triggered": true,
     "unrealized_profit_in_nav": false,
     "negative_risk_offset": false,
-    "stop_raise_diagnostic": "before=quantity * max(actual_entry - active_stop_before, 0) / reference_nav; after=quantity * max(actual_entry - active_stop_after, 0) / reference_nav; capacity_released=max(before-after, 0)",
+    "stop_raise_diagnostic": "before=quantity * max(actual_entry - active_stop_before, 0) / allocation_budget; after=quantity * max(actual_entry - active_stop_after, 0) / allocation_budget; capacity_released=max(before-after, 0)",
     "stop_raise_after_must_not_exceed_before": true,
     "exit_remaining_portfolio_risk_after": 0,
     "gap_slippage_tail_risk": "GAP/SLIPPAGE TAIL RISK NOT MODELED IN PORTFOLIO_RISK_V1",
@@ -164,6 +199,6 @@
     "holdings_access": false,
     "sheets_write": false,
     "new_pr_merge": false,
-    "stop_state": "PORTFOLIO_RISK_V1_REMAINING_RISK_CORRECTED_READY_FOR_SOL_REVIEW"
+    "stop_state": "PR_70_SOL_REVIEW_FIX_READY"
   }
 }

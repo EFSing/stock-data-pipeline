@@ -59,7 +59,6 @@ def run_production_daily_decision(
         report = DailyDecisionChain(store=store).evaluate(
             account_run.inputs,
             mode="PRODUCTION",
-            reference_nav=account_run.reference_nav,
             existing_positions=account_run.existing_positions,
         )
         reports.append({

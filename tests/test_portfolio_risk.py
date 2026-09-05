@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import unittest
 
 from trading.portfolio_risk import (
+    ALLOCATION_BUDGET_REQUIRED,
     BASE_RISK_FRACTION,
     BLOCK_EXISTING_POSITION_SAME_SYMBOL,
     BLOCK_RISK_GROUP_CONCENTRATION,
@@ -23,6 +24,7 @@ from trading.portfolio_risk import (
     candidate_order_key,
     portfolio_exposure,
     resolve_reference_nav,
+    resolve_allocation_budget,
 )
 
 
@@ -274,7 +276,20 @@ class PortfolioRiskTests(unittest.TestCase):
         self.assertIsNone(nav)
         self.assertEqual(reason, "PORTFOLIO_NAV_REQUIRED")
         batch = PortfolioRiskEngine(mode="PRODUCTION").reserve([candidate("AAA")])
-        self.assertEqual(batch.blocked[0].reason, "PORTFOLIO_NAV_REQUIRED")
+        self.assertEqual(batch.blocked[0].reason, ALLOCATION_BUDGET_REQUIRED)
+
+    def test_explicit_allocation_budget_drives_risk_capital(self):
+        budget, reason = resolve_allocation_budget(
+            mode="PRODUCTION", allocation_budget=5000.0
+        )
+        self.assertEqual((budget, reason), (5000.0, None))
+        reservation = PortfolioRiskEngine(
+            mode="PRODUCTION", allocation_budget=5000.0
+        ).reserve([candidate("AAA", group="TECH")]).approved[0]
+        self.assertAlmostEqual(
+            reservation.planned_position_size.risk_capital,
+            5000.0 * BASE_RISK_FRACTION,
+        )
 
     def test_metadata_resolves_formal_group_without_inference(self):
         batch = PortfolioRiskEngine(

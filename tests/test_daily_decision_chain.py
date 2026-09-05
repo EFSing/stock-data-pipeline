@@ -11,6 +11,8 @@ from trading.daily_decision_chain import (
     DATA_OK,
     DATA_STALE,
     DATA_UNAVAILABLE,
+    STRATEGY_PROPOSAL,
+    STRATEGY_PROPOSAL_APPROVAL_REQUIRED,
     DailyChainEvaluators,
     DailyDecisionChain,
     DailySymbolInput,
@@ -27,6 +29,7 @@ from trading.daily_decision_chain import (
 )
 from trading.models import DecisionAction, Setup01Evaluation, SetupState, Trend
 from trading.portfolio_risk import OpenPortfolioPosition
+from trading.portfolio_risk import ALLOCATION_BUDGET_REQUIRED
 from trading.position_management import PositionAnchor, PositionOrigin, PositionTarget
 from trading.setup01_replay import Setup01ReplayDay, Setup01ReplayEvent, Setup01ReplayReport
 
@@ -291,21 +294,250 @@ class DailyDecisionChainTests(unittest.TestCase):
         self.assertIn(event.event_identity, store.published_events)
         self.assertEqual(len(store.published_events), 1)
 
-    def test_missing_nav_keeps_individual_decision_visible(self):
+    def test_strategy_proposal_does_not_require_nav(self):
         history, t_day, event, evaluators = _fixture()
         with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
             result = DailyDecisionChain(evaluators=evaluators).evaluate(
-                [_input(history, t_day)], mode="PRODUCTION", reference_nav=None
+                [_input(history, t_day)], mode="PRODUCTION"
             ).results[0]
         self.assertEqual(result.individual_decision.action, DecisionAction.ENTRY_ALLOWED)
-        self.assertEqual(result.portfolio_result.reason, "PORTFOLIO_NAV_REQUIRED")
-        self.assertEqual(result.final_status, "PORTFOLIO_BLOCKED")
+        self.assertIsNone(getattr(result.individual_decision, "position_size", None))
+        self.assertIsNone(result.portfolio_result)
+        self.assertEqual(result.execution_phase, T1ExecutionPhase.DECISION_T)
+        self.assertEqual(result.final_status, STRATEGY_PROPOSAL)
+
+    def test_explicit_allocation_budget_is_required_and_applied_after_proposal(self):
+        history, t_day, event, evaluators = _fixture()
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            proposal_report = chain.evaluate(
+                [_input(history, t_day, risk_group="TECH")], mode="PRODUCTION"
+            )
+            proposal = proposal_report.results[0]
+            self.assertEqual(store.pending, {})
+            allocated = chain.evaluate(
+                [_input(history, t_day, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
+        self.assertEqual(proposal.final_status, STRATEGY_PROPOSAL)
+        self.assertIsNone(proposal.portfolio_result)
+        self.assertEqual(
+            proposal_report.to_dict()["sections"][STRATEGY_PROPOSAL][0]["final_status"],
+            STRATEGY_PROPOSAL,
+        )
+        self.assertEqual(allocated.final_status, "PORTFOLIO_ALLOWED")
+        self.assertAlmostEqual(allocated.portfolio_result.planned_quantity, 5000.0 * 0.005 / 12.0)
+        self.assertIn(event.event_identity, store.pending)
+
+    def test_budget_is_not_approval(self):
+        history, t_day, event, evaluators = _fixture()
+        store = InMemoryDecisionStateStore()
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(store=store, evaluators=evaluators).evaluate(
+                [_input(history, t_day, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(),
+            ).results[0]
+        self.assertEqual(result.final_status, STRATEGY_PROPOSAL)
+        self.assertEqual(result.individual_decision.action, DecisionAction.ENTRY_ALLOWED)
+        self.assertIsNone(getattr(result.individual_decision, "position_size", None))
+        self.assertIsNone(result.portfolio_result)
+        self.assertIn(STRATEGY_PROPOSAL_APPROVAL_REQUIRED, result.reasons)
+        self.assertEqual(store.pending, {})
+
+    def test_approval_requires_prior_published_proposal(self):
+        history, t_day, event, evaluators = _fixture()
+        store = InMemoryDecisionStateStore()
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(store=store, evaluators=evaluators).evaluate(
+                [_input(history, t_day, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
+        self.assertEqual(result.final_status, STRATEGY_PROPOSAL)
+        self.assertIsNone(result.portfolio_result)
+        self.assertEqual(store.pending, {})
+        self.assertIn(STRATEGY_PROPOSAL_APPROVAL_REQUIRED, result.reasons)
+
+    def test_approval_without_budget_keeps_proposal_and_does_not_persist(self):
+        history, t_day, event, evaluators = _fixture()
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            chain.evaluate(
+                [_input(history, t_day, risk_group="TECH")], mode="PRODUCTION"
+            )
+            result = chain.evaluate(
+                [_input(history, t_day, risk_group="TECH")],
+                mode="PRODUCTION",
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
+        self.assertEqual(result.final_status, STRATEGY_PROPOSAL)
+        self.assertIsNone(result.portfolio_result)
+        self.assertIn(ALLOCATION_BUDGET_REQUIRED, result.reasons)
+        self.assertEqual(store.pending, {})
+
+    def test_selective_approval_allocates_only_the_approved_event_identity(self):
+        history_a, t_day, event_a, evaluators_a = _fixture(symbol="SYMBOL_A")
+        history_b, _, event_b, evaluators_b = _fixture(symbol="SYMBOL_B")
+        store = InMemoryDecisionStateStore()
+        evaluators = DailyChainEvaluators(
+            wave=evaluators_a.wave,
+            setup01=lambda history, **kwargs: (
+                evaluators_a.setup01(history, **kwargs)
+                if history[0].symbol == "SYMBOL_A"
+                else evaluators_b.setup01(history, **kwargs)
+            ),
+            setup02=evaluators_a.setup02,
+        )
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        inputs = [
+            _input(history_a, t_day, risk_group="GROUP_A"),
+            _input(history_b, t_day, risk_group="GROUP_B"),
+        ]
+        with patch(
+            "trading.daily_decision_chain.evaluate_setup01_decision",
+            side_effect=lambda event, *_args, **_kwargs: _decision(event),
+        ):
+            proposals = chain.evaluate(inputs, mode="PRODUCTION")
+            allocated = chain.evaluate(
+                inputs,
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event_a.event_identity,),
+            )
+        results = {result.symbol: result for result in allocated.results}
+        self.assertEqual(
+            {result.final_status for result in proposals.results},
+            {STRATEGY_PROPOSAL},
+        )
+        self.assertEqual(results["SYMBOL_A"].final_status, "PORTFOLIO_ALLOWED")
+        self.assertEqual(results["SYMBOL_A"].portfolio_result.reservation_id, event_a.event_identity)
+        self.assertEqual(results["SYMBOL_B"].final_status, STRATEGY_PROPOSAL)
+        self.assertIsNone(results["SYMBOL_B"].portfolio_result)
+        self.assertIn(STRATEGY_PROPOSAL_APPROVAL_REQUIRED, results["SYMBOL_B"].reasons)
+        self.assertEqual(set(store.pending), {event_a.event_identity})
+        self.assertNotIn(event_b.event_identity, store.pending)
+
+    def test_existing_position_and_approved_proposal_share_total_budget_denominator(self):
+        history, t_day, event, evaluators = _fixture()
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        existing = _portfolio_position(
+            symbol="SYSTEM_HELD",
+            source_event_identity="held-event",
+            actual_entry=100.0,
+            active_protective_stop=90.0,
+            quantity=1.0,
+        )
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            chain.evaluate(
+                [_input(history, t_day, risk_group="TECH")], mode="PRODUCTION"
+            )
+            result = chain.evaluate(
+                [_input(history, t_day, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event.event_identity,),
+                existing_positions=(existing,),
+            ).results[0]
+        self.assertEqual(result.final_status, "PORTFOLIO_ALLOWED")
+        self.assertAlmostEqual(result.portfolio_result.total_risk_before, 10.0 / 5000.0)
+        self.assertAlmostEqual(result.portfolio_result.total_risk_after, 10.0 / 5000.0 + 0.005)
+
+    def test_production_t1_reuses_frozen_budget_without_second_budget(self):
+        history, t_day, event, evaluators = _fixture(t1=True)
+        t1 = t_day + timedelta(days=1)
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            proposal = chain.evaluate(
+                [_input(history[:21], t_day, exact=True, next_day=t1, risk_group="TECH")],
+                mode="PRODUCTION",
+            ).results[0]
+            allocated = chain.evaluate(
+                [_input(history[:21], t_day, exact=True, next_day=t1, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
+            self.assertEqual(set(store.pending), {event.event_identity})
+            settled = chain.evaluate(
+                [_input(history, t1, exact=True)], mode="PRODUCTION"
+            ).results[0]
+        self.assertEqual(proposal.final_status, STRATEGY_PROPOSAL)
+        self.assertEqual(allocated.final_status, "PORTFOLIO_ALLOWED")
+        self.assertEqual(settled.execution_phase, T1ExecutionPhase.T1_EXECUTION_OBSERVED)
+        self.assertEqual(set(store.settled), {event.event_identity})
+        self.assertAlmostEqual(
+            store.settled[event.event_identity].settlement.position_size.risk_capital,
+            5000.0 * 0.005,
+        )
+
+    def test_approval_of_pending_or_settled_identity_fails_closed_without_duplicate(self):
+        history, t_day, event, evaluators = _fixture(t1=True)
+        t1 = t_day + timedelta(days=1)
+        store = InMemoryDecisionStateStore()
+        chain = DailyDecisionChain(store=store, evaluators=evaluators)
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            chain.evaluate(
+                [_input(history[:21], t_day, exact=True, next_day=t1, risk_group="TECH")],
+                mode="PRODUCTION",
+            )
+            allocated = chain.evaluate(
+                [_input(history[:21], t_day, exact=True, next_day=t1, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
+            self.assertEqual(set(store.pending), {event.event_identity})
+            reservation_id = allocated.portfolio_result.reservation_id
+            self.assertIsNotNone(reservation_id)
+            repeated = chain.evaluate(
+                [_input(history[:21], t_day, exact=True, next_day=t1, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
+            self.assertEqual(set(store.pending), {event.event_identity})
+            self.assertEqual(
+                store.pending[event.event_identity].reservation.reservation_id,
+                reservation_id,
+            )
+            self.assertIsNone(repeated.portfolio_result)
+            settled = chain.evaluate(
+                [_input(history, t1, exact=True)], mode="PRODUCTION"
+            ).results[0]
+            self.assertEqual(set(store.settled), {event.event_identity})
+            self.assertEqual(set(store.pending), set())
+            reapproved_after_settlement = chain.evaluate(
+                [_input(history[:21], t_day, exact=True, next_day=t1, risk_group="TECH")],
+                mode="PRODUCTION",
+                allocation_budget=5000.0,
+                approved_event_identities=(event.event_identity,),
+            ).results[0]
+        self.assertEqual(settled.execution_phase, T1ExecutionPhase.T1_EXECUTION_OBSERVED)
+        self.assertEqual(set(store.pending), set())
+        self.assertEqual(set(store.settled), {event.event_identity})
+        self.assertIsNone(reapproved_after_settlement.portfolio_result)
+        self.assertEqual(reapproved_after_settlement.final_status, STRATEGY_PROPOSAL)
 
     def test_unknown_group_blocks_production_but_development_allows(self):
         history, t_day, event, evaluators = _fixture()
         with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
-            production = DailyDecisionChain(evaluators=evaluators).evaluate(
-                [_input(history, t_day)], mode="PRODUCTION", reference_nav=1.0
+            store = InMemoryDecisionStateStore()
+            chain = DailyDecisionChain(store=store, evaluators=evaluators)
+            chain.evaluate([_input(history, t_day)], mode="PRODUCTION")
+            production = chain.evaluate(
+                [_input(history, t_day)],
+                mode="PRODUCTION",
+                allocation_budget=1.0,
+                approved_event_identities=(event.event_identity,),
             ).results[0]
         self.assertEqual(production.portfolio_result.reason, "BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION")
         store = InMemoryDecisionStateStore()

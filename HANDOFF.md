@@ -10,6 +10,87 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
+## 0H. Latest Engineering Event — PR_70_SOL_APPROVED_READY_FOR_MERGE
+
+- 在现有 PR #70（`fix/strategy-capital-allocation-boundary`，base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`）
+  上完成 Sol review 修复，并通过 Sol correctness review；本 agent 不 merge、不新建 PR，
+  继续沿用本分支，等待用户/Sol 执行 merge。
+- **A. 显式 proposal approval：** `DailyDecisionChain.evaluate` 新增
+  `approved_event_identities`（仅接受 event identity，拒绝 symbol 猜测）与
+  `STRATEGY_PROPOSAL_APPROVAL_REQUIRED`。生产分配必须同时满足：event 已是已发布
+  `STRATEGY_PROPOSAL`、identity 被用户显式批准、`allocation_budget` 有效、未
+  pending、未 settled、原有 Portfolio Risk prerequisites 成立。`allocation_budget`
+  本身绝不代表 approval；budget 有值但批准集为空 → 0 reservation / 0 pending；同日
+  多 proposal 只分配被明确批准的 identity；未批准 `ENTRY_ALLOWED` 保持
+  `STRATEGY_PROPOSAL`；不存在、未发布、已 pending、已 settled 的批准 fail closed；
+  `ENTRY_ALLOWED` 技术条件未改变。
+- **B. `allocation_budget` 正式语义：** 用户明确授权给该账户整个策略风险账本使用的
+  总策略资金预算；不是 broker NAV、账户净值、账户总资产、入出金、P&L、purchasing
+  power 或本轮新增现金额度。已有 system-managed positions 与同轮 approved proposals
+  共用该预算作为 Portfolio Risk denominator。冻结
+  `BASE_RISK_FRACTION=0.005` / `MAX_RISK_PER_GROUP_FRACTION=0.01` /
+  `MAX_TOTAL_OPEN_RISK_FRACTION=0.02` 不变；未引入 `new_cash_budget`，未重设计
+  Portfolio Risk。
+- **C. Governance conflict 修复：** substantive validation head 与 current PR head
+  分离记录。`bb8e6d9a23a175ff01790314837e24621446ce1c` 是 substantive source
+  head，不再写成 current PR head；current PR head 一律以 GitHub 实时核验为准；治理
+  文件不自引用自身 docs closeout commit SHA。
+- 新增回归覆盖：选择性批准（2 ENTRY_ALLOWED 只批准 A）、budget 非 approval、
+  approval 需 prior published proposal、有 approval 无 budget fail closed、
+  T+1 不重传 budget 仍按 frozen `risk_capital` settlement、existing positions 与
+  approved proposal 共用总预算 denominator、pending/settled 身份重复批准不重复
+  reserve、NAV 不重新进入 proposal prerequisite。
+- 验证：Daily Chain focused `31/31 OK`；Production Prerequisites focused `19/19 OK`；
+  full unittest `596/596 OK`；Daily Chain generic shadow `17/17 SUCCESS`；Portfolio
+  Risk generic shadow `17/17 checks SUCCESS`；`compileall`、protocol JSON parse、
+  `git diff --check` 均通过。未执行 `--run` / `--write-state`，未写策略决策状态 /
+  策略持仓，未访问 broker/order。
+- 协议/文档：`research/protocols/portfolio_risk_v1.json` 的 `allocation_boundary`
+  已扩展 approval contract 与 budget 语义（`protocol_version` 未变）；`docs/
+  PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md` 与 `docs/PORTFOLIO_RISK_V1.md` 已同步。
+  本 closeout 不修改 protocol JSON。
+- PR #70 当前 head 与 exact-head CI 以 GitHub 实时状态为准；截至本次 closeout，Sol
+  独立核验 head=`8d2b9f76bbc2310182a47b94819adcd388385fe0`，exact-head CI 全部
+  SUCCESS（Test Gate=`33963031703`、Daily Decision Chain shadow=`33963031701`、
+  Portfolio Risk shadow=`33963031705`），并已通过 Sol correctness review。stop
+  marker=`PR_70_SOL_APPROVED_READY_FOR_MERGE`；当前唯一 next action 为 merge PR
+  #70；本 agent 不 merge、不新建 PR。
+
+## 0G. Prior Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1
+
+- 本任务基于真实 `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`，当前工作分支为
+  `fix/strategy-capital-allocation-boundary`；创建 PR 但不 merge。
+- 正式边界为：`Market Data → Data Quality → Weekly/Daily State → Swing → Wave
+  Scenario → Fibonacci → Setup → Entry/Stop/Target/RR → STRATEGY_PROPOSAL →
+  用户批准 → allocation_budget → Portfolio Risk/Position Size → 后续执行`。
+- Strategy Decision 不读取或依赖 broker NAV、账户资产、每日权益、入出金、P&L、
+  purchasing power 或 broker balance。`策略账户.参考净值` / `净值日期` 保留为可选
+  legacy fields，但已退出 proposal preflight；缺少或落后 T 不再构成纯 proposal blocker。
+- 没有 `allocation_budget` 时，`ENTRY_ALLOWED` 仍输出为 `STRATEGY_PROPOSAL`，不
+  计算 Position Size、不 reserve、不写入 pending T+1 allocation。用户批准后仅以
+  显式预算进入 Portfolio Risk；冻结风险比例 `0.005 / 0.01 / 0.02` 未改变。
+- 无 broker/order/UI/自动 workflow 接入；本任务未执行 `--run`、`--write-state`，不
+  写 `策略决策状态` 或 `策略持仓`。substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`；
+  PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`，base=`main`，
+  `OPEN / MERGEABLE / merged=false`；exact-head CI：Test Gate=`33952922439`、
+  Daily Chain shadow=`33952922429`、Portfolio Risk shadow=`33952922432`，均成功。
+- connector-backed live read-only preflight T=`2026-09-04`=`READY`：CN `DATA_OK=3/3`、
+  US `DATA_OK=2/2`，QFQ blockers=`0`、NAV blockers=`0`、risk-group blockers=`0`、
+  state-store=`OK`、`NO STATE WRITE=true`、`NO Sheets mutation=true`。本机 CLI 未注入
+  `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON`，仅在 client 初始化前失败；未
+  输出或记录凭证。stop marker=`PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`；
+  本文件不自引用 docs-only commit SHA。
+
+## 0F. Prior Production Verification — CN_US_SCHEDULED_QFQ_VERIFIED_AND_PREFLIGHT
+
+- 本轮真实 GitHub Actions 均核验为 `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`。Asia scheduled run `33879573985`（event=`schedule`）为 `SUCCESS`；主行情 `symbols_requested=9`、`freshest_rows_written=9`、`failed_symbols=0`；`PRODUCTION_QFQ_SUMMARY` 为 `group=asia`、`symbols_requested=3`、`symbols_updated=3`、`rows_written=3000`、`status=SUCCESS`。
+- 对同一 US scheduled run `33932473603` 仅执行一次 `Re-run failed jobs`；未创建新 workflow。attempt=`2`，job=`101264486493`，job/run=`SUCCESS`，completed=`2026-09-05T06:44:01Z` / run updated=`2026-09-05T06:44:02Z`；checkout log 明确 fetch/checkout `2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
+- US attempt 2 的 `python main.py --group us --mode latest` 正常完成：`symbols_requested=4`、`freshest_rows_written=4`、`failed_symbols=0`、`history_rows_written=0`、`decision_rows_written=0`、`status=PARTIAL_DATA_QUALITY`（非正式 universe 的 single-source/pending 诊断仍在摘要中）。随后 `PRODUCTION_QFQ_SUMMARY`=`group=us`、`symbols_requested=2`、`symbols_updated=2`、`rows_written=2000`、`stale_or_failed_symbols=[]`、`status=SUCCESS`；BABA/RKLB 均完成 target=`2026-09-04`。
+- 因此 Asia + US 已形成 `CN_US_SCHEDULED_QFQ_VERIFIED` 生产证据。workflow/log scope 仅为行情 latest 与 `历史行情_前复权` QFQ；日志无 `策略决策状态`、`策略持仓`、legacy `交易决策` 或 broker/order 写入，production state write=`NO`。
+- live workbook 只读复核显示正式 5 个 symbol 的 `最新行情` 与 `历史行情_前复权` 均为 `2026-09-04`，包括 BABA/RKLB；`策略持仓` 与 `策略决策状态` 均无数据。严格 read-only production preflight（现有 CLI `--preflight --date 2026-09-04`，无 `--run`/`--write-state`，使用 live connector snapshot）为 `NOT_READY`，state-store=`OK`，`NO STATE WRITE=true`，`NO Sheets mutation=true`。
+- preflight 的有效根因是 NAV freshness：live `CN_MAIN` 与 `US_MAIN` 的 `净值日期` 都仍为 `2026-09-03`，落后 T=`2026-09-04`；适配器先报 `PRODUCTION_NAV_DATE_REQUIRED:CN_MAIN`，并因 fail-closed 解析产生 `PRODUCTION_STRATEGY_UNIVERSE_REQUIRED` / `PRODUCTION_ACCOUNT_REQUIRED` cascade。QFQ freshness blocker 已全部消失；不能将 NAV blocker 归类为 QFQ failure。
+- 本轮不改代码、provider、retry、schedule、freshness contract、strategy/state/broker/order；不产生 PR，不进入 production state write。当前 stop marker=`PRODUCTION_PREFLIGHT_NOT_READY_NAV_FRESHNESS`；唯一 next action 是在用户决定并使两账户 NAV date 满足 T 后，重新执行一次同样的严格 read-only `--preflight`。`HANDOFF_CURRENT_AND_CONSISTENT`。
+
 ## 0C. Prior Operational Milestone — PRODUCTION_CONFIG_ACTIVATION_AND_READ_ONLY_PREFLIGHT_V1
 
 - milestone status=`PRODUCTION_CONFIG_ACTIVATED`；live workbook ID=`1M6VvFaBNCkaS7N32afDqsHBn2CGie-WrOmPqOhDHuws`，title=`持仓股股票行情数据中台`，time zone=`Asia/Shanghai`；live GitHub `main` / baseline=`e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`。
@@ -75,11 +156,18 @@
 
 ## 1. Current Objective
 
-- **当前 Phase / task:** `PRODUCTION_QFQ_DAILY_REFRESH_V1` merge closeout；从 formal baseline `main@e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b` 合并 scheduled latest 的窄 QFQ 补充路径。
-- **唯一目标:** 保持不进入 legacy `full`/SETUP_03/Decision 的边界；scheduled latest 成功后按正式 production universe 与已写入 `最新行情.交易日期` 刷新 CN/US 前复权历史，并保持 target QFQ series 为 scoped replacement。
-- **实现边界:** 只读 `策略账户`、`策略股票池`、`自选清单`、`最新行情`、`参数设置`；只允许写 `历史行情_前复权`；不读取或写入 strategy state/holdings/decision，不接 broker/order，不改 frozen strategy semantics。
-- **交付范围:** `scripts/refresh_production_qfq.py`、`sheets_client.py`、focused regression tests 与本 milestone governance closeout；现有 Asia/US workflow wiring、cron 与 manual `full` 均 unchanged；manual live refresher smoke=`NOT_RUN`。
-- **停止条件:** approved exact-head checks、squash merge、fetch/switch main 与 merge-after main CI 均完成后，停止在 `PRODUCTION_QFQ_DAILY_REFRESH_V1_MERGED`，不自动启动新的 production decision phase。
+- **当前 Phase / task:** `STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1`；基于
+  `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`，工作分支为
+  `fix/strategy-capital-allocation-boundary`。
+- **唯一目标:** 完成策略机会判断与用户批准后资本分配的最小正确解耦，创建 PR，核对
+  exact-head CI，并执行 `--preflight --date 2026-09-04` 的严格只读复核。
+- **实现边界:** 不改变 frozen strategy/risk semantics；不从 NAV/账户资产/入出金/P&L/
+  purchasing power 推导预算；不接 UI、broker、order 或自动 workflow；不运行
+  `--run`/`--write-state`，不写 `策略决策状态`、`策略持仓`。
+- **停止条件:** 通过则停在
+  `PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`；若 live preflight 存在独立
+  blocker，停在 `READY_FOR_DECISION_<BLOCKER>`，不擅自扩大范围。最终核验必须回写
+  `HANDOFF_CURRENT_AND_CONSISTENT`。
 
 ## 1A. Historical Objective — PORTFOLIO_RISK_V1
 
@@ -94,12 +182,11 @@
 
 ## 2. Current Repository State
 
-- **repository:** `EFSing/stock-data-pipeline`; **formal pre-merge main baseline:** `e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`; **current main/origin/main:** `4034c87c354fc552496202e7004848ecfbfef6b3`。
-- **working checkout:** current branch=`main`; PR #68 approved exact head=`ffc753baf784f8af4bb702db7c6799371dcd3693` has been squash merged as `4034c87c354fc552496202e7004848ecfbfef6b3`。
-- **current PR:** #68=`https://github.com/EFSing/stock-data-pipeline/pull/68`; `MERGED / merged=true`；approved exact-head CI Test Gate=`33841344943`、Daily Decision Chain generic shadow=`33841344884`、Portfolio Risk generic shadow=`33841344891` all success；merge-after main `CI Test Gate`=`33842189224 SUCCESS`。
+- **repository:** `EFSing/stock-data-pipeline`; **formal main baseline for this task:** `2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
+- **working checkout:** current branch=`fix/strategy-capital-allocation-boundary`; pre-fix substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`（不再作为 current PR head 引用）。
+- **current PR:** PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`，base=`main`，`OPEN / MERGEABLE / merged=false`；current PR head 一律以 GitHub 实时核验为准（push 前远端 head 为 docs closeout `cad8ec7318d6b9e6c8d1828ca9c43d10b628c1d4`）；旧 exact-head checks `33952922439`、`33952922429`、`33952922432` 对应旧 head，不用于本 fix。latest merged governance PR #69 remains head=`6fb4afefbb233b62f64a01952988781a54a6131b` → merge=`2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
 - **production configuration:** already genuinely activated in the live workbook；`EXISTING_POSITIONS_MANAGED=NO`；production state rows=`0`。
-- **current live preflight:** read-only result remains `NOT_READY`，current blocker is QFQ stale data (`DATA_STALE:qfq last date < T`)；the merged fix has not had a manual live Sheets smoke run。
-- **production boundary:** broker/orders/FX/state writes are not enabled；no production state write, no manual live Sheets execution, no strategy-state/holdings/decision mutation；scheduled latest may mutate only `历史行情_前复权` through the refresher；SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。
+- **production boundary:** broker/orders/FX/state writes are not enabled；本轮仅执行 live workbook read-only preflight，无 production state/strategy holdings/decision mutation；scheduled latest 仍只允许通过 refresher 写 `历史行情_前复权`；SETUP_03 remains `STOP_SETUP_03_STRUCTURAL_DEVELOPMENT`。NAV freshness is no longer a strategy proposal prerequisite；最终 connector-backed preflight=`READY`。
 
 ## 2A. Historical Repository State — PORTFOLIO_RISK_V1 pre-merge
 
@@ -389,34 +476,50 @@
 
 ## 10. Next Action
 
-1. [x] Finish the scoped QFQ replacement regression and governance consistency scan。
-2. [x] Run focused tests, full unittest, compileall, and `git diff --check`。
-3. [x] Verify approved exact head `ffc753baf784f8af4bb702db7c6799371dcd3693` and its three required checks。
-4. [x] Squash merge PR #68 as `4034c87c354fc552496202e7004848ecfbfef6b3`；fetch/switch latest `main` and verify `main`/`origin/main` exact SHA。
-5. [x] Verify merge-after main `CI Test Gate`=`33842189224 SUCCESS`。
-6. [x] Manual live QFQ refresher smoke=`NOT_RUN`；strategy state writes=`NO`；stop without starting a new production decision phase。
+1. [x] `git fetch origin`，核验真实基线 `origin/main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`，并在其上创建本任务分支。
+2. [x] 完成 production prerequisites、Daily Chain、Portfolio Risk 真实调用关系审计；未改变冻结策略几何与风险比例。
+3. [x] 实现无 NAV strategy proposal 与显式 `allocation_budget` 后的 Portfolio Risk / Position Size 边界。
+4. [x] 完成 focused/full unittest、compileall、`git diff --check`、Daily Chain 17/17 shadow 与 Portfolio Risk synthetic shadow。
+5. [x] 提交、push、创建 PR #70 并核对 PR exact head、mergeability 与 exact-head CI；三个 checks 均 success。
+6. [x] 执行严格只读 `--preflight --date 2026-09-04`；connector-backed adapter result=`READY`，QFQ/NAV blockers=`0`；未执行 `--run`/`--write-state`，未触及 broker/order 或 live strategy-state write。
+7. [x] 已依据真实 CI/preflight 结果更新本节；停止在 `PR_FULLY_READY_AND_PREFLIGHT_READY_FOR_SOL_REVIEW`，不 merge PR，等待用户 review。
+8. [x] Sol review 修复 A/B/C：显式 `approved_event_identities` approval contract、`allocation_budget` 正式总预算语义、substantive/current PR head 治理分离；未改 `ENTRY_ALLOWED` 技术条件与冻结风险比例。
+9. [x] 新增 8 个 approval/budget 回归并完成 focused/full unittest、两个 generic shadow、compileall、protocol JSON parse 与 `git diff --check`。
+10. [x] 更新治理文件与协议后 commit 并 push 到现有 PR #70；不新建 PR、不 merge；current PR head 与 exact-head CI 以 GitHub 实时核验为准。
+11. [x] Sol correctness review 已 APPROVED；PR #70 exact-head CI 全部 SUCCESS；已记录 `PR_70_SOL_APPROVED_READY_FOR_MERGE`；本 agent 不 merge，当前唯一 next action 为 merge PR #70。
 
 ## 11. Handoff Checklist
 
-- [x] Current state names formal pre-merge main baseline `e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`，current branch `main`，and current main/origin/main exact SHA `4034c87c354fc552496202e7004848ecfbfef6b3`。
-- [x] PR #68 approved exact head `ffc753baf784f8af4bb702db7c6799371dcd3693` is recorded as `MERGED / merged=true` with merge SHA and three successful exact-head workflow IDs above。
+- [x] Current state names formal task baseline `main@2ce2711f4994f31c167bbe4961ecd0b34e90c476` and current branch `fix/strategy-capital-allocation-boundary`；substantive source head=`bb8e6d9a23a175ff01790314837e24621446ce1c`。
+- [x] Real Asia/US scheduled run IDs and QFQ evidence remain recorded in prior section 0F；latest governance PR #69 is merged。
 - [x] Scoped replacement proves target rolling series stays at `history_days` and removes the old adjustment basis；non-target history is preserved。
 - [x] Any target fetch/validation failure produces zero workbook writes；only `历史行情_前复权` is in the mutation boundary。
-- [x] Focused/full tests, compileall, `git diff --check`, and final consistency scan are complete。
-- [x] Scheduled latest now has automatic QFQ refresh capability；manual live QFQ refresher smoke=`NOT_RUN`；live Sheets manual change=`NO`；production state writes=`NO`；broker/orders/FX remain disabled。
+- [x] Focused/full tests, compileall, `git diff --check`, and synthetic boundary shadows are complete。
+- [x] Scheduled latest automatic QFQ refresh capability remains unchanged；manual live QFQ refresher smoke=`NOT_RUN`；live Sheets/state/broker/order mutation=`NO`；production state writes=`NO`。
+- [x] Provider smoke and one authorized US rerun passed for both formal US symbols at target `2026-09-04`；CN+US QFQ is verified；the prior NAV freshness blocker is retired for proposal preflight by this task's boundary decision。
+- [x] PR #70 exact-head CI checks `33952922439` / `33952922429` / `33952922432` all success；PR remains OPEN/MERGEABLE/merged=false。
+- [x] Connector-backed live read-only preflight T=`2026-09-04` is READY with CN `3/3` and US `2/2` DATA_OK, QFQ/NAV/risk-group blockers=`0`, state-store=`OK`, and no writes。
+- [x] Sol review 修复后 `allocation_budget` 不再是 approval；批准仅按已发布 proposal 的 event identity，且 pending/settled 重复批准 fail closed；未批准 `ENTRY_ALLOWED` 保持 `STRATEGY_PROPOSAL`。
+- [x] `allocation_budget` 语义固化为账户整个策略风险账本的用户总预算，denominator 与 existing positions 共用；NAV/资产/入出金/P&L/purchasing power 均不是该预算。
+- [x] `bb8e6d9a23a175ff01790314837e24621446ce1c` 仅作为 substantive source head 记录；current PR head 以 GitHub 实时核验为准；本文件不自引用 docs closeout SHA。
+- [x] 修复回归与全量验证完成：Daily Chain `31/31`、Production Prerequisites `19/19`、full `596/596 OK`、Daily Chain shadow `17/17 SUCCESS`、Portfolio Risk shadow `17/17 SUCCESS`、compileall/protocol JSON/`git diff --check` 通过。
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-09-04`
-- `formal_main_baseline`: `e4a58a7a1b2c53a76abf190cff8d3a39d737cf9b`
-- `current_branch`: `main`
-- `current_main_exact_sha`: `4034c87c354fc552496202e7004848ecfbfef6b3`；`origin/main` same SHA。
-- `current_pr`: `#68`, `MERGED / merged=true`；Sol-approved exact head=`ffc753baf784f8af4bb702db7c6799371dcd3693`；merge commit=`4034c87c354fc552496202e7004848ecfbfef6b3`；approved-head CI Test Gate=`33841344943 SUCCESS`、Daily Decision Chain generic shadow=`33841344884 SUCCESS`、Portfolio Risk generic shadow=`33841344891 SUCCESS`；merge-after main `CI Test Gate`=`33842189224 SUCCESS`。
+- `last_updated_at`: `2026-09-05` (local task execution; final UTC timestamp to be written at closeout)
+- `formal_main_baseline`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476`
+- `current_branch`: `fix/strategy-capital-allocation-boundary`
+- `current_main_exact_sha`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476` (verified GitHub `origin/main` baseline)
+- `substantive_source_head_pre_fix`: `bb8e6d9a23a175ff01790314837e24621446ce1c`（substantive validation head，非 current PR head）
+- `current_pr`: PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`；base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`；`OPEN / MERGEABLE / mergeable_state=clean / merged=false`；Sol 独立核验 head=`8d2b9f76bbc2310182a47b94819adcd388385fe0`，exact-head CI=`33963031703 / 33963031701 / 33963031705` 均 SUCCESS；Sol correctness review=APPROVED，无代码 blocker。current PR head / exact-head CI 以 GitHub 实时状态为准；本文件不自引用 docs-only closeout SHA。
 - `production_config`: genuinely activated；existing positions unmanaged；production state rows=`0`。
-- `live_preflight`: `NOT_READY`; current blocker=`QFQ stale`；merged scheduled capability has not had a manual live refresher smoke。
-- `scope_boundary`: scheduled QFQ history replacement only；no strategy semantic changes, manual live Sheets execution, production state writes, broker/orders/FX, or new production decision phase。
+- `production_blocker`: QFQ stale failure was resolved by the single rerun and is classified=`TRANSIENT_YFINANCE_PUBLICATION_LAG`；prior `PRODUCTION_NAV_DATE_REQUIRED` is no longer a proposal prerequisite；connector-backed live preflight T=`2026-09-04`=`READY`, QFQ/NAV/risk-group blockers=`0`。
+- `approval_contract`: production allocation requires published `STRATEGY_PROPOSAL` + explicit `approved_event_identities` + valid `allocation_budget` + not pending/settled + Portfolio Risk prerequisites；budget alone is never approval；unapproved `ENTRY_ALLOWED` stays `STRATEGY_PROPOSAL`。
+- `allocation_budget_semantics`: user-authorized total strategy budget for the account's entire strategy risk ledger；existing system-managed positions and same-run approved proposals share it as denominator；frozen `0.005 / 0.01 / 0.02` unchanged。
+- `latest_test_result`: Daily Chain focused `31/31 OK`；Production Prerequisites focused `19/19 OK`；full unittest `596/596 OK`；Daily Chain generic shadow `17/17 SUCCESS`；Portfolio Risk generic shadow `17/17 checks SUCCESS`；`compileall`、protocol JSON parse、`git diff --check` pass。
+- `scope_boundary`: Sol review closeout for PR #70 only；no `--run`/`--write-state`/strategy state writes/broker/order；no new PR；production state writes, broker/orders/FX and automatic execution remain disabled；本 agent 不自动 merge，唯一 remaining authorized action 为 merge PR #70。
 
-`PRODUCTION_QFQ_DAILY_REFRESH_V1_MERGED`
+`PR_70_SOL_APPROVED_READY_FOR_MERGE`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

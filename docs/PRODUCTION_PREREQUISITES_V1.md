@@ -11,7 +11,7 @@ Entry, Target, or R/R semantics.
 
 | Surface | Worksheet / provider | Owner | Production role |
 |---|---|---|---|
-| Strategy account | `策略账户` | Human | Account ID, market, currency, reference NAV and NAV date |
+| Strategy account | `策略账户` | Human | Account ID, market and currency; legacy reference NAV/date remain optional fields |
 | Strategy universe | `策略股票池` | Human | Formal enabled strategy symbols; `自选清单` is not a substitute |
 | Risk group | `策略风险分组` | Human | Explicit `(market, symbol) → risk group` join |
 | Open strategy positions | `策略持仓` | Human | Actual quantity, actual entry and active protective stop |
@@ -28,15 +28,18 @@ It does not create a second Google API client.
 The required headers are exact names; extra columns remain allowed.
 
 * `策略账户`: `账户ID`, `启用`, `市场`, `币种`, `参考净值`, `净值日期`, `备注`.
-  Enabled accounts require a unique non-empty ID, a positive finite NAV and a
-  valid NAV date equal to T. CN accounts use CNY and US accounts use USD.
+  Enabled accounts require a unique non-empty ID, market and currency. The
+  legacy `参考净值` and `净值日期` columns remain readable for compatibility,
+  but missing, stale or malformed values do not block a strategy proposal.
+  CN accounts use CNY and US accounts use USD.
 * `策略股票池`: `启用`, `账户ID`, `市场`, `统一代码`, `名称`, `备注`.
   An enabled row must reference an enabled account with the same market. The
   same `(market, symbol)` cannot be enabled for two accounts and fails closed
   with `STRATEGY_SYMBOL_MULTIPLE_ACCOUNTS`.
 * `策略风险分组`: `市场`, `统一代码`, `风险组`, `备注`. The key is unique.
   No external sector database or name-based classification is used. Missing
-  or `UNKNOWN` risk group is `BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION`.
+  or `UNKNOWN` risk group is `BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION` when an
+  approved proposal enters production Portfolio Risk allocation.
 * `策略持仓`: `启用`, `账户ID`, `市场`, `统一代码`, `数量`, `实际入场价`,
   `当前保护止损`, `入场日期`, `来源事件ID`, `更新时间`, `备注`.
   Enabled facts require a matching enabled account and strategy universe,
@@ -51,18 +54,22 @@ The required headers are exact names; extra columns remain allowed.
 
 ## Risk-book isolation
 
-Each enabled account runs one separate `DailyDecisionChain` and one separate
-`PortfolioRiskEngine` input set:
+Each enabled account runs one separate `DailyDecisionChain` input set. A
+`PortfolioRiskEngine` input set is created only after an approved proposal has
+an explicit `allocation_budget`:
 
 ```text
-one account = one market = one currency = one reference NAV
+one account = one market = one currency
+approved proposal + allocation_budget → one Portfolio Risk allocation
 ```
 
-NAV, open positions, reservations, total-risk cap and risk-group cap are never
-merged across accounts. The frozen constants remain `0.005`, `0.02` and
-`0.01`; the frozen remaining-loss formula remains based on
-`actual_entry - active_protective_stop`. V1 has no FX normalization. An
-account/market/currency mismatch fails closed with
+Open positions, reservations, total-risk cap and risk-group cap are never
+merged across accounts. Account NAV, assets, deposits, withdrawals, P&L and
+purchasing power are not strategy inputs and are never substituted for
+`allocation_budget`. The frozen constants remain `0.005`, `0.02` and `0.01`;
+they apply to the explicit budget. The frozen remaining-loss formula remains
+based on `actual_entry - active_protective_stop`. V1 has no FX normalization.
+An account/market/currency mismatch fails closed with
 `PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH`.
 
 ## Calendar and data-quality contracts
@@ -135,12 +142,15 @@ snapshot = ProductionInputAdapter(
 ).snapshot()
 ```
 
-`snapshot.account_runs` contains isolated `DailySymbolInput` tuples,
-account-local `existing_positions`, and the account NAV. A PositionOrigin is
+`snapshot.account_runs` contains isolated `DailySymbolInput` tuples and
+account-local `existing_positions`; the account object may retain optional
+legacy NAV/date fields for compatibility, but the strategy proposal path does
+not consume them. A PositionOrigin is
 loaded only from the state store by authoritative `来源事件ID`; it is never
 invented from holdings average cost, current price or charts. Actual entry,
 quantity, stop and risk group remain available for Portfolio Risk accounting
-even when Position Management must fail closed for a missing origin. Therefore
+after a user supplies an allocation budget, even when Position Management must
+fail closed for a missing origin. Therefore
 missing PositionOrigin is reported in `missing_position_origins` but does not
 make the account risk book `NOT_READY`; wrong identity/market, future origin
 entry date or corrupt origin remains a hard failure.
@@ -164,7 +174,7 @@ python scripts/run_production_daily_decision.py --preflight --date YYYY-MM-DD
 ```
 
 It prints a Chinese-first per-account summary containing account, market,
-currency, T, NAV status, strategy/position counts, data counts, missing risk
+currency, T, legacy NAV status, strategy/position counts, data counts, missing risk
 groups, missing PositionOrigins, calendar status, state-store status and
 readiness. The preflight has no state write and no Sheets mutation. No cron,
 workflow schedule, broker, IBKR or order path is added.
@@ -172,9 +182,10 @@ workflow schedule, broker, IBKR or order path is added.
 ## Manual next steps
 
 1. Create the five worksheets with the schemas above in the existing workbook.
-2. Populate enabled accounts with same-day authoritative NAVs.
-3. Populate the formal strategy universe, explicit risk groups and actual open
-   position facts; do not use `自选清单` as a strategy-universe substitute.
+2. Populate the formal strategy universe and actual open position facts; do not
+   use `自选清单` as a strategy-universe substitute.
+3. After a strategy proposal is approved, provide its explicit
+   `allocation_budget` and accepted risk-group metadata for Portfolio Risk.
 4. Review a preflight report for each intended T.
 5. Separately authorize any stateful production run; this PR does not execute
    it and does not mutate real Sheets.
