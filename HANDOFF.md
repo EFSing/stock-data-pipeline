@@ -10,10 +10,11 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0H. Latest Engineering Event — PR_70_SOL_REVIEW_FIX_V1
+## 0H. Latest Engineering Event — PR_70_SOL_APPROVED_READY_FOR_MERGE
 
 - 在现有 PR #70（`fix/strategy-capital-allocation-boundary`，base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`）
-  上完成 Sol review 修复，不 merge、不新建 PR，继续沿用本分支。
+  上完成 Sol review 修复，并通过 Sol correctness review；本 agent 不 merge、不新建 PR，
+  继续沿用本分支，等待用户/Sol 执行 merge。
 - **A. 显式 proposal approval：** `DailyDecisionChain.evaluate` 新增
   `approved_event_identities`（仅接受 event identity，拒绝 symbol 猜测）与
   `STRATEGY_PROPOSAL_APPROVAL_REQUIRED`。生产分配必须同时满足：event 已是已发布
@@ -45,11 +46,15 @@
   `git diff --check` 均通过。未执行 `--run` / `--write-state`，未写策略决策状态 /
   策略持仓，未访问 broker/order。
 - 协议/文档：`research/protocols/portfolio_risk_v1.json` 的 `allocation_boundary`
-  已扩展 approval contract 与 budget 语义（`protocol_version` 未变，`stop_state`=
-  `PR_70_SOL_REVIEW_FIX_READY`）；`docs/PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md` 与
-  `docs/PORTFOLIO_RISK_V1.md` 已同步。
-- stop marker=`PR_70_SOL_REVIEW_FIX_READY`；等待 push 后 GitHub exact-head CI 实时
-  核验，不 merge。
+  已扩展 approval contract 与 budget 语义（`protocol_version` 未变）；`docs/
+  PROSPECTIVE_DAILY_DECISION_CHAIN_V1.md` 与 `docs/PORTFOLIO_RISK_V1.md` 已同步。
+  本 closeout 不修改 protocol JSON。
+- PR #70 当前 head 与 exact-head CI 以 GitHub 实时状态为准；截至本次 closeout，Sol
+  独立核验 head=`8d2b9f76bbc2310182a47b94819adcd388385fe0`，exact-head CI 全部
+  SUCCESS（Test Gate=`33963031703`、Daily Decision Chain shadow=`33963031701`、
+  Portfolio Risk shadow=`33963031705`），并已通过 Sol correctness review。stop
+  marker=`PR_70_SOL_APPROVED_READY_FOR_MERGE`；当前唯一 next action 为 merge PR
+  #70；本 agent 不 merge、不新建 PR。
 
 ## 0G. Prior Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1
 
@@ -481,6 +486,7 @@
 8. [x] Sol review 修复 A/B/C：显式 `approved_event_identities` approval contract、`allocation_budget` 正式总预算语义、substantive/current PR head 治理分离；未改 `ENTRY_ALLOWED` 技术条件与冻结风险比例。
 9. [x] 新增 8 个 approval/budget 回归并完成 focused/full unittest、两个 generic shadow、compileall、protocol JSON parse 与 `git diff --check`。
 10. [x] 更新治理文件与协议后 commit 并 push 到现有 PR #70；不新建 PR、不 merge；current PR head 与 exact-head CI 以 GitHub 实时核验为准。
+11. [x] Sol correctness review 已 APPROVED；PR #70 exact-head CI 全部 SUCCESS；已记录 `PR_70_SOL_APPROVED_READY_FOR_MERGE`；本 agent 不 merge，当前唯一 next action 为 merge PR #70。
 
 ## 11. Handoff Checklist
 
@@ -505,15 +511,15 @@
 - `current_branch`: `fix/strategy-capital-allocation-boundary`
 - `current_main_exact_sha`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476` (verified GitHub `origin/main` baseline)
 - `substantive_source_head_pre_fix`: `bb8e6d9a23a175ff01790314837e24621446ce1c`（substantive validation head，非 current PR head）
-- `current_pr`: PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`；base=`main`；current PR head 以 GitHub 实时核验为准（push 前远端 head=`cad8ec7318d6b9e6c8d1828ca9c43d10b628c1d4` docs closeout）；`OPEN / MERGEABLE / merged=false`；旧 head 的 exact-head checks=`33952922439 / 33952922429 / 33952922432` 不用于本 fix；latest merged PR #69=`6fb4afefbb233b62f64a01952988781a54a6131b → 2ce2711f4994f31c167bbe4961ecd0b34e90c476`。
+- `current_pr`: PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`；base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`；`OPEN / MERGEABLE / mergeable_state=clean / merged=false`；Sol 独立核验 head=`8d2b9f76bbc2310182a47b94819adcd388385fe0`，exact-head CI=`33963031703 / 33963031701 / 33963031705` 均 SUCCESS；Sol correctness review=APPROVED，无代码 blocker。current PR head / exact-head CI 以 GitHub 实时状态为准；本文件不自引用 docs-only closeout SHA。
 - `production_config`: genuinely activated；existing positions unmanaged；production state rows=`0`。
 - `production_blocker`: QFQ stale failure was resolved by the single rerun and is classified=`TRANSIENT_YFINANCE_PUBLICATION_LAG`；prior `PRODUCTION_NAV_DATE_REQUIRED` is no longer a proposal prerequisite；connector-backed live preflight T=`2026-09-04`=`READY`, QFQ/NAV/risk-group blockers=`0`。
 - `approval_contract`: production allocation requires published `STRATEGY_PROPOSAL` + explicit `approved_event_identities` + valid `allocation_budget` + not pending/settled + Portfolio Risk prerequisites；budget alone is never approval；unapproved `ENTRY_ALLOWED` stays `STRATEGY_PROPOSAL`。
 - `allocation_budget_semantics`: user-authorized total strategy budget for the account's entire strategy risk ledger；existing system-managed positions and same-run approved proposals share it as denominator；frozen `0.005 / 0.01 / 0.02` unchanged。
 - `latest_test_result`: Daily Chain focused `31/31 OK`；Production Prerequisites focused `19/19 OK`；full unittest `596/596 OK`；Daily Chain generic shadow `17/17 SUCCESS`；Portfolio Risk generic shadow `17/17 checks SUCCESS`；`compileall`、protocol JSON parse、`git diff --check` pass。
-- `scope_boundary`: Sol review fix for PR #70 only；no `--run`/`--write-state`/strategy state writes/broker/order；no merge, no new PR；production state writes, broker/orders/FX and automatic execution remain disabled。
+- `scope_boundary`: Sol review closeout for PR #70 only；no `--run`/`--write-state`/strategy state writes/broker/order；no new PR；production state writes, broker/orders/FX and automatic execution remain disabled；本 agent 不自动 merge，唯一 remaining authorized action 为 merge PR #70。
 
-`PR_70_SOL_REVIEW_FIX_READY`
+`PR_70_SOL_APPROVED_READY_FOR_MERGE`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

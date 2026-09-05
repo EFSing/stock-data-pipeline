@@ -7,10 +7,10 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — PR_70_SOL_REVIEW_FIX_V1
+## Latest Engineering Event — PR_70_SOL_APPROVED_READY_FOR_MERGE
 
 - 在现有 PR #70（`fix/strategy-capital-allocation-boundary`，base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`）
-  完成 Sol review 修复；不 merge、不新建 PR。
+  完成 Sol review 修复，并通过 Sol correctness review；本 agent 不 merge、不新建 PR。
 - 显式 proposal approval：生产分配需要已发布 `STRATEGY_PROPOSAL` + 显式
   `approved_event_identities`（event identity，不按 symbol 猜）+ 有效
   `allocation_budget` + 未 pending + 未 settled + 原有 Portfolio Risk
@@ -31,8 +31,12 @@ V0.2
   Risk generic shadow `17/17 SUCCESS`、compileall、protocol JSON parse、
   `git diff --check` 全部通过；未执行 `--run` / `--write-state` / 策略状态或持仓
   写入 / broker/order。
-- 当前状态=`PR_70_SOL_REVIEW_FIX_READY`；不合并 PR，等待 push 后 exact-head CI
-  实时核验。
+- 当前状态=`PR_70_SOL_APPROVED_READY_FOR_MERGE`。PR #70 当前 head 与 exact-head CI
+  以 GitHub 实时状态为准；截至本次 closeout，Sol 独立核验 head=
+  `8d2b9f76bbc2310182a47b94819adcd388385fe0`，exact-head CI 全部 SUCCESS（Test
+  Gate=`33963031703`、Daily Decision Chain shadow=`33963031701`、Portfolio Risk
+  shadow=`33963031705`），并已通过 Sol correctness review。当前唯一 next action
+  为 merge PR #70；本 agent 不 merge、不新建 PR。
 
 ## Prior Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1
 
