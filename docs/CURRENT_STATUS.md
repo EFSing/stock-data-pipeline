@@ -7,6 +7,29 @@ Version:
 V0.2
 ```
 
+## Latest Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_MERGED
+
+- PR #70（`fix/strategy-capital-allocation-boundary`）已 MERGED。approved exact
+  head=`88b6889429d36c4d4cdb4d2f8515243f1681dcac`，base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`，
+  真实 squash merge commit=`898a01f3e789f15474f30e218eec53eadf34d0c5`。
+- merge-after main：本地 `main` 与 `origin/main` 完全一致，均为
+  `898a01f3e789f15474f30e218eec53eadf34d0c5`；`CI Test Gate` run=`33965870377`
+  为 `SUCCESS`。该 merge commit 未自动触发 Daily Decision Chain 或 Portfolio Risk
+  shadow，未手工创建 workflow。
+- Strategy Proposal 与 NAV 已正式解耦；allocation 必须经过用户显式 proposal
+  approval。`allocation_budget` 是用户授权给该账户策略风险账本的总策略预算，不是
+  broker NAV、账户净值、账户总资产、P&L、入出金或本轮新增现金额度。
+- 冻结 `0.005 / 0.01 / 0.02` 不变；existing positions 与 approved proposals
+  共用同一总预算 denominator。production state writes=`NO`，broker/order=`NO`；
+  未执行 `--run` / `--write-state`，未写策略状态或策略持仓。
+- 本 closeout 不重复新增 `docs/DECISION_LOG.md` 长期架构 decision，也不写入治理
+  文件自身尚不存在的 commit SHA；PR、merge commit 与 CI 事实以 GitHub 实时状态为准。
+- 当前正式状态=`STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_MERGED`；
+  PR #70 closeout 无剩余 merge blocker。production state writes、broker/order 与
+  自动执行仍未启用。唯一 next action：停止并等待用户下一项明确授权。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## Latest Engineering Event — PR_70_SOL_APPROVED_READY_FOR_MERGE
 
 - 在现有 PR #70（`fix/strategy-capital-allocation-boundary`，base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`）

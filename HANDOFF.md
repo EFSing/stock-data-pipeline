@@ -10,6 +10,37 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
+## 0I. Latest Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_MERGED
+
+- PR #70（`fix/strategy-capital-allocation-boundary`）已依据 Sol approval 完成
+  squash merge。approved exact head=`88b6889429d36c4d4cdb4d2f8515243f1681dcac`，
+  base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`；GitHub final state=
+  `MERGED / merged=true`，真实 squash merge commit=
+  `898a01f3e789f15474f30e218eec53eadf34d0c5`。
+- merge-after main 已实时核验：本地 `main` 与 `origin/main` 均为
+  `898a01f3e789f15474f30e218eec53eadf34d0c5`；`CI Test Gate` run=`33965870377`
+  为 `SUCCESS`。该 merge commit 未自动触发 Daily Decision Chain 或 Portfolio Risk
+  shadow；未手工创建不必要的 workflow。
+- 正式边界保持为：`STRATEGY_PROPOSAL` 与 NAV 正式解耦；Strategy Proposal 不读取
+  broker NAV、账户净值、账户资产、P&L、入出金或 purchasing power。allocation 必须
+  经过用户显式 proposal approval；`allocation_budget` 是用户授权给该账户策略风险
+  账本的总策略预算，不是 NAV、账户总资产或本轮新增现金额度。
+- `BASE_RISK_FRACTION=0.005`、`MAX_RISK_PER_GROUP_FRACTION=0.01`、
+  `MAX_TOTAL_OPEN_RISK_FRACTION=0.02` 冻结不变；existing positions 与 approved
+  proposals 共用同一总预算 denominator。
+- 本次 closeout 未执行 `--run` / `--write-state`，未写 production strategy state
+  或策略持仓，未访问 broker/order；production state writes=`NO`，broker/order=`NO`。
+- 本治理同步不新增 `DECISION_LOG.md` decision，也不把 HANDOFF/CURRENT_STATUS
+  自身尚不存在的 commit SHA 写入文件。PR、merge commit 与 CI 事实以 GitHub 实时
+  核验为准。
+- 剩余 blocker：PR #70 merge closeout 无 blocker；production state writes、broker/
+  order 与自动执行仍按边界禁用。唯一 next action：停止并等待用户下一项明确授权，
+  不启动新的策略开发或生产操作。
+
+`STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_MERGED`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## 0H. Latest Engineering Event — PR_70_SOL_APPROVED_READY_FOR_MERGE
 
 - 在现有 PR #70（`fix/strategy-capital-allocation-boundary`，base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`）
