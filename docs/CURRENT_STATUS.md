@@ -7,26 +7,25 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — SECTOR_CANDIDATE_UNIVERSE_V1_READY_FOR_DECISION
+## Latest Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED
 
-- 已从 live `main@f65f76eb06592a17a897e4a27560e3d5db2c04f9` 做 repo-backed feasibility
-  audit；本地 `main` 与 `origin/main` 在审计开始时一致，远端无 open PR。
-- GitHub `CI Test Gate` run=`33966049377` 对该 baseline=`SUCCESS`。本轮未修改
-  provider、strategy engine、Sheets、production state、broker/order 或 workflow。
-- 已登记长期主线：`Sector / Industry Universe → Tradable Candidate Selector →
-  Candidate Universe → existing Strategy Chain`。Candidate 只决定是否进入完整
-  分析，不产生 `ENTRY_ALLOWED`；CN/US affordability、sector-aware grouping、
-  liquidity proxy 与 final allocation hard cap contract 已写入 `DECISION_LOG.md` 与
-  `TRADING_SYSTEM_SPEC.md`。
-- 审计结论：现有 production provider 只可靠支持已知标的 OHLCV/latest/history；
-  缺少可扩展 CN/US security master、security type、sector/industry、CN 最低交易单位
-  metadata，以及候选阶段的轻量批量 history gate。Hithink/指数 snapshots 仍是
-  research-only/current-snapshot evidence，不能直接作为 production universe source。
-- 当前正式状态=`READY_FOR_DECISION_DATA_SOURCE`。详细字段审计和方案 B/C 的稳定性、
-  成本、调用限制、开发复杂度见 `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`。
-- 下一步：用户选择方案 B（公共源组合并明确 CN 支持范围）或方案 C（具体统一
-  reference-data provider/entitlement）；在选择前不实现 selector、不新增 provider、
-  不写真实 workbook、不启动新策略 Phase。
+- Sol 已正式决定：CN=`HS300 ∪ CSI500` + BaoStock basic/industry；US=`IWB` 官方
+  holdings；不采用完整 security-master 方案 B/C，不引入 commercial provider。
+- 已验证真实 source contract：BaoStock 0.9.3 的四个调用字段和
+  `query_stock_basic` 不接受 `fields=`；真实 adapter smoke=`800` CN seeds、
+  `metadata_ok=800`、`sector_present=800`。官方 IWB `latest-holdings.csv` smoke=
+  `source_date=2026-09-03`、`1018` Equity rows。
+- 已实现 `trading/candidate_universe.py` 与
+  `trading/candidate_universe_sources.py`：bounded read-only seed adapters、
+  board-specific affordability、20D/60D traded-notional proxy、history/data-quality
+  gate、sector-aware `TOP_N_PER_SECTOR=20`、included/excluded audit rows。
+- focused candidate tests=`10/10 OK`。Candidate layer 没有 Strategy action，永远不产生
+  `ENTRY_ALLOWED`；未写 Google Sheets、production state、broker/order，未修改 frozen
+  Strategy Engine、SETUP_03/04 或新增回测 phase。
+- 当前状态=`BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_VERIFICATION`；
+  详见 `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`。下一步为 focused/full
+  tests、compileall、diff check、提交并 push 当前分支，创建 implementation PR，核对
+  exact-head CI，停在 `PR_FULLY_READY_FOR_SOL_REVIEW`，不 merge。
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

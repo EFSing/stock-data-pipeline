@@ -5,6 +5,22 @@
 ## 数据流
 
 ```text
+Weekly bounded seed refresh (read-only, no Sheet write)
+        ↓
+trading/candidate_universe_sources.py
+        → BaoStock HS300 ∪ CSI500 + basic/industry metadata (CN)
+        → official iShares IWB latest-holdings.csv (US)
+        ↓
+trading/candidate_universe.py
+        → security/sector normalization
+        → documented board-rule affordability gate
+        → 20D/60D traded-notional proxy and history/data-quality gate
+        → sector-aware TOP_N_PER_SECTOR selection
+        ↓
+lightweight candidate rows / fixture (no production state, no Sheets)
+        ↓
+existing Data Quality → Weekly / Daily → Swing → Wave → Fibonacci → Setup chain
+
 GitHub Actions scheduler (cron)
         ↓
 main.py  (CLI 入口: --group asia|us|all, --mode latest|full, --fixture)
@@ -61,6 +77,14 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
         → JSON/CSV artifact + GitHub Step Summary
         (no Sheet write, no Decision, no production entry)
 ```
+
+`trading/candidate_universe_sources.py` and `trading/candidate_universe.py` form the
+bounded V1 candidate layer.  The source adapters are read-only and do not reuse the
+production watchlist as a universe, do not create a security master, and do not write
+Google Sheets, broker state, orders, or strategy state.  `CandidateRecord` exposes
+inclusion/exclusion reason, sector, rank, affordability tier, documented minimum quantity,
+20D/60D liquidity proxy and history freshness.  It intentionally has no Strategy action
+field and cannot produce `ENTRY_ALLOWED`.
 
 ### Execution modes
 

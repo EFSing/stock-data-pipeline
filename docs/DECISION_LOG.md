@@ -2,6 +2,51 @@
 
 只记录重要架构／交易规则决策，不记录普通 Bug 修复。
 
+## 2026-09-06 — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1
+
+**Decision:** Sol 正式选择 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`，不采用完整
+public security-master 方案 B，不采用 commercial provider 方案 C。CN seed 固定为
+`HS300 ∪ CSI500`，优先复用 BaoStock `query_hs300_stocks`、`query_zz500_stocks`、
+`query_stock_basic`、`query_stock_industry`；US seed 固定为 iShares Russell 1000
+ETF (`IWB`) 官方 holdings。V1 不构建全 A 股/SEC/Nasdaq security master，不引入
+Finnhub 或其他 commercial provider。
+
+**Runtime evidence:** 本机 BaoStock 0.9.3 的实际 signatures 为
+`query_hs300_stocks(date='')`、`query_zz500_stocks(date='')`、
+`query_stock_basic(code='', code_name='')`、`query_stock_industry(code='', date='')`。
+四个调用实际返回字段分别为 index `updateDate/code/code_name`、basic
+`code/code_name/ipoDate/outDate/type/status`、industry
+`updateDate/code/code_name/industry/industryClassification`；`query_stock_basic`
+不接受 `fields=`。真实 bounded adapter smoke（as-of `2026-09-04`）得到 union
+`800`、metadata/sector `800/800`。官方 IWB URL
+`https://www.ishares.com/us/products/239707/ishares-russell-1000-etf/latest-holdings.csv`
+实际返回 CSV preamble + `Fund Holdings as of` + fields
+`Ticker/Name/Sector/Asset Class/Price/Exchange/Currency`；adapter smoke 得到
+`source_date=2026-09-03`、`1018` Equity rows。旧 `.ajax` URL 机器读取为 HTML 外壳，
+因此不作为 CSV contract，也不触发换 provider。
+
+**Decision:** Candidate layer 的顺序固定为 seed refresh → normalization → affordability
+gate → liquidity ranking → history/data-quality gate → sector-aware candidate universe。
+CN minimum executable quantity 必须由有官方证据的 board rule 得出：`<=10,000 CNY`
+preferred，`10,000<notional<=20,000 CNY` retained/lower priority，`>20,000 CNY`
+excluded；unsupported/ambiguous board fail closed，禁止把所有 A 股统一写成 100 股。
+US candidate stage 排除一股 notional `>1,000 USD`；allocation stage 的单个新仓位
+`1,000 USD` hard cap 单独复核。
+
+**Decision:** Liquidity 只使用现有/可靠 OHLCV 的明确 proxy：20D/60D average traded
+notional，成交额缺失时用 `close × volume`。不新增 bid/ask provider，不拍脑袋新增
+跨市场绝对 liquidity threshold。`TOP_N_PER_SECTOR=20` 是集中可调常量，不进入
+Strategy Engine protocol。Candidate Selector 不产生 alpha、setup、decision 或
+`ENTRY_ALLOWED`，不写 production Sheets/state/broker/order，不启动 SETUP_03/04 或
+新回测 phase。
+
+**Reason:** 该 bounded contract 满足“高流动性、低交易摩擦、资金可负担、按行业分散”
+的候选池目标，同时把真实技术判断留给 frozen Weekly/Daily → Swing → Wave →
+Fibonacci → SETUP_01/SETUP_02 → Entry/Stop/Target/RR chain。实现只产生轻量 internal
+rows/fixtures，避免全市场 history warehouse、数据库和生产 workbook 扩张。
+
+---
+
 ## 2026-09-05
 
 **Decision:** 启动 `SECTOR_CANDIDATE_UNIVERSE_V1` 的长期架构边界：
