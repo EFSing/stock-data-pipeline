@@ -7,7 +7,7 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED
+## Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - Sol 已正式决定：CN=`HS300 ∪ CSI500` + BaoStock basic/industry；US=`IWB` 官方
   holdings；不采用完整 security-master 方案 B/C，不引入 commercial provider。
@@ -22,10 +22,12 @@ V0.2
 - focused candidate tests=`10/10 OK`。Candidate layer 没有 Strategy action，永远不产生
   `ENTRY_ALLOWED`；未写 Google Sheets、production state、broker/order，未修改 frozen
   Strategy Engine、SETUP_03/04 或新增回测 phase。
-- 当前状态=`BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_VERIFICATION`；
-  详见 `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`。下一步为 focused/full
-  tests、compileall、diff check、提交并 push 当前分支，创建 implementation PR，核对
-  exact-head CI，停在 `PR_FULLY_READY_FOR_SOL_REVIEW`，不 merge。
+- substantive implementation head=`2d63fda031cda08dd2bf5bf631b9a9ea09ace415`；full
+  unittest=`606/606 OK`，compileall 与 `git diff --check` 通过；implementation PR #71
+  已创建并保持 `OPEN / MERGEABLE / merged=false`。PR final tip/exact-head CI 以 GitHub
+  实时核验为准，不把治理 closeout commit 自引用进状态文件。
+- 当前状态=`PR_FULLY_READY_FOR_SOL_REVIEW`；详见
+  `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`。不 merge，不扩大 scope。
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

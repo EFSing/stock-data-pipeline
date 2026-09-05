@@ -1,6 +1,6 @@
 # SECTOR_CANDIDATE_UNIVERSE_V1 — Feasibility Audit and Runtime Decision
 
-状态：`BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_PR_VERIFICATION`
+状态：`PR_FULLY_READY_FOR_SOL_REVIEW`
 
 本审计已由原来的“等待方案 B/C provider 决策”更新为 Sol 已批准的 bounded V1
 contract。V1 不是全市场 universe，也不是 security master；它只形成一个按 sector /
@@ -82,8 +82,9 @@ weekly seed refresh
 ## 审计结论
 
 原“需要方案 B/C provider 决策”的 feasibility blocker 已正式关闭。当前实现继续
-保持 bounded、read-only、fail-closed；剩余工作仅为 focused/full verification、CI
-exact-head 和 Sol review。若后续真实 endpoint contract 改变，必须停在
+保持 bounded、read-only、fail-closed；focused/full verification 与本地 integrity checks
+已通过，implementation PR #71 保持 open，最终 PR tip/exact-head CI 以 GitHub 实时核验
+为准，剩余工作仅为 Sol review。若后续真实 endpoint contract 改变，必须停在
 `READY_FOR_DECISION_DATA_SOURCE_RUNTIME_BLOCKER`，不能自行扩展为全市场 source。
 
 官方 board evidence：

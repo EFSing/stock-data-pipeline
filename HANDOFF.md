@@ -10,7 +10,7 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0K. Latest Engineering Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_VERIFICATION
+## 0L. Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - 用户/Sol 已正式冻结 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`：CN=`HS300 ∪ CSI500`
   via BaoStock HS300/ZZ500/basic/industry；US=`IWB` official
@@ -27,17 +27,19 @@
   输出 included/excluded、sector、rank、affordability tier、minimum quantity/notional、
   20D/60D traded-notional proxy、history quality、inclusion/exclusion reason；无
   Strategy action 字段，不能产生 `ENTRY_ALLOWED`。
-- 当前停止节点=`BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_VERIFICATION`。
-  当前 branch=`codex/sector-candidate-universe-v1-feasibility`，继续在该 branch 实现、
-  commit、push、创建 implementation PR；不新建 docs-only PR，不 merge。下一步是
-  full unittest、compileall、git diff --check、PR exact-head CI，最终停在
-  `PR_FULLY_READY_FOR_SOL_REVIEW`。
+- substantive implementation source head=`2d63fda031cda08dd2bf5bf631b9a9ea09ace415`；
+  full unittest=`606/606 OK`、compileall、`git diff --check` 通过。当前 branch 已 push，
+  implementation PR #71=`https://github.com/EFSing/stock-data-pipeline/pull/71`，base=`main`，
+  `OPEN / MERGEABLE / merged=false`；本 agent 不 merge。PR final tip 与 exact-head CI
+  是 GitHub 实时事实，不在治理文件中自引用 closeout commit SHA。
+- 当前停止节点=`PR_FULLY_READY_FOR_SOL_REVIEW`。Sol review 前不再改 scope，不创建新的
+  docs-only PR，不写 production Sheets/state，不接 broker/order。
 
-`BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_VERIFICATION`
+`PR_FULLY_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
-## 0J. Historical Event — SECTOR_CANDIDATE_UNIVERSE_V1_READY_FOR_DECISION
+## 0K. Historical Event — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1_IMPLEMENTED_PENDING_VERIFICATION
 
 - 当前任务基于 live `main@f65f76eb06592a17a897e4a27560e3d5db2c04f9`；审计开始时本地
   `main`=`origin/main`，远端无 open PR，baseline `CI Test Gate` run=`33966049377`
@@ -269,8 +271,8 @@
 ## 2. Current Repository State
 
 - **repository:** `EFSing/stock-data-pipeline`; 当前 branch=`codex/sector-candidate-universe-v1-feasibility`。
-- **baseline:** branch 当前 substantive baseline=`c3b0883`，包含此前 feasibility docs；本轮
-  implementation 尚未提交/推送，当前尚无该 branch 的远端 PR。
+- **baseline:** branch 当前 substantive implementation head=`2d63fda031cda08dd2bf5bf631b9a9ea09ace415`；
+  implementation 已提交并推送，PR #71 已创建；PR final tip/exact-head CI 以 GitHub 实时核验为准。
 - **working tree scope:** 新增 candidate domain/source adapters/tests，并同步
   `TRADING_SYSTEM_SPEC.md`、`DECISION_LOG.md`、`CURRENT_STATUS.md`、`HANDOFF.md`、
   `ARCHITECTURE.md` 与 feasibility audit；未改 production provider chain 或 frozen
