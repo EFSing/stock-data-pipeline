@@ -10,6 +10,35 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
+## 0J. Latest Engineering Event — SECTOR_CANDIDATE_UNIVERSE_V1_READY_FOR_DECISION
+
+- 当前任务基于 live `main@f65f76eb06592a17a897e4a27560e3d5db2c04f9`；审计开始时本地
+  `main`=`origin/main`，远端无 open PR，baseline `CI Test Gate` run=`33966049377`
+  为 `SUCCESS`。当前本地工作分支为
+  `codex/sector-candidate-universe-v1-feasibility`。
+- 已批准并登记的长期主线为：`Sector / Industry Universe → Tradable Candidate
+  Selector → Candidate Universe → existing Data Quality / Weekly / Daily / Swing /
+  Wave / Fibonacci / Setup chain`。Candidate layer 只做是否进入完整分析的 gate，
+  不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号。
+- CN affordability：真实 minimum-unit notional `<=10,000 CNY` preferred，
+  `10,000<notional<=20,000 CNY` retained/lower priority，`>20,000 CNY` excluded；
+  缺少 lot evidence 时 fail closed 或限制支持范围。US candidate 排除 price `>1,000
+  USD`，最终 `1,000 USD` hard cap 在 allocation/position sizing 再验证。
+- feasibility audit 发现现有 production provider 没有可扩展 CN/US security master、
+  security type、sector/industry、可靠 CN lot metadata 或 candidate-stage 批量
+  history gate；现有 Hithink/指数 snapshots 不能直接升级为 production source。
+- 停止状态=`READY_FOR_DECISION_DATA_SOURCE`。未改 strategy/provider code，未添加
+  dependency/provider/database/cache/registry，未写 Google Sheets、production state、
+  broker/order，未启动 `SETUP_03`/`SETUP_04`。完整审计见
+  `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`。
+- 唯一 next action：用户选择方案 B（BaoStock + SEC/Nasdaq + existing yfinance，并
+  明确 CN 支持板块）或方案 C（具体统一 reference-data provider/entitlement）；选定
+  前停止实现。
+
+`SECTOR_CANDIDATE_UNIVERSE_V1_READY_FOR_DECISION`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## 0I. Latest Engineering Event — STRATEGY_DECISION_AND_CAPITAL_ALLOCATION_BOUNDARY_V1_MERGED
 
 - PR #70（`fix/strategy-capital-allocation-boundary`）已依据 Sol approval 完成

@@ -4,6 +4,37 @@
 
 ## 2026-09-05
 
+**Decision:** 启动 `SECTOR_CANDIDATE_UNIVERSE_V1` 的长期架构边界：
+`Sector / Industry Universe → Tradable Candidate Selector → Candidate Universe`
+位于现有 `Data Quality → Weekly / Daily → Swing → Wave → Fibonacci → Setup →
+Entry / Decision → Risk → Exit` 之前。Candidate layer 只决定标的是否值得进入完整
+策略分析，不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；不改变 frozen
+Wave、Swing、`SETUP_01`、`SETUP_02`、Entry/Stop/Target/RR、T→T+1、Portfolio Risk
+语义，也不启动 `SETUP_03` / `SETUP_04`、broker/order 或 production state writes。
+
+用户批准的 V1 affordability contract：CN 真实最低可交易单位 notional `<= 10,000
+CNY` 为 preferred，`10,000 < notional <= 20,000 CNY` 保留但降低候选优先级，`> 20,000
+CNY` 排除；缺少 lot 证据时 fail closed 或限制支持范围。US 至少排除单股价格
+`> 1,000 USD`，最终单标的名义本金 hard max=`1,000 USD`，并在 allocation /
+position sizing 边界再次校验。按 sector/industry 分组保留候选，不做纯全市场总排名；
+流动性/成本优先使用现有可靠批量字段，不能伪造 spread。
+
+**Reason:** Candidate Universe 是策略分析前的可交易性和分析资源边界，不是新的
+交易信号层；把 affordability、sector diversification 和低成本可分析性放在完整
+策略链之前，可以减少重历史/策略计算而不污染冻结策略语义。
+
+**Decision:** 本轮 repo-backed feasibility audit 的停止状态为
+`READY_FOR_DECISION_DATA_SOURCE`。当前 production provider 只有已知标的行情/历史
+路径，没有可扩展 CN/US security master、sector/industry、统一 security type、可靠
+CN lot metadata 或候选阶段批量 history-availability contract。未经用户选择数据源，
+不新增 provider、数据库、缓存、registry，不实现 Candidate Selector，不写真实
+`策略股票池` 或其他 production Sheet。
+
+**Reason:** 在缺少事实源时实现 selector 会迫使代码猜测 universe、sector 和 lot，
+违反 fail-closed、single-source-of-truth 和 affordability contract。最小替代方案及
+其稳定性、成本、调用限制、复杂度已登记在 `docs/SECTOR_CANDIDATE_UNIVERSE_V1_FEASIBILITY.md`；
+下一步由用户选择公共源组合 B 或统一 reference-data provider C。
+
 **Decision:** Production strategy proposal 与账户净值解耦。系统先输出策略
 机会，由用户决定是否执行；用户批准后再提供本次 `allocation_budget`，
 Portfolio Risk / Position Size 基于该预算进行资金分配。Broker NAV、每日

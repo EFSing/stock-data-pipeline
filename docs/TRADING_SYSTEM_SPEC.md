@@ -5,7 +5,9 @@
 ## 核心交易框架
 
 ```text
-股票池
+Sector / Industry Universe
+→ Tradable Candidate Selector
+→ Candidate Universe
 → 数据质量
 → 周线趋势
 → 日线趋势
@@ -22,6 +24,21 @@
 → Position Management
 → Exit
 ```
+
+## Candidate Universe 边界
+
+Candidate Universe 是完整 Strategy Chain 之前的可交易候选筛选层。它按 sector /
+industry 保留候选，并可使用 affordability、流动性、历史可用性和轻量技术可分析性
+做 fail-closed gate；它只决定标的是否进入完整策略分析，不产生
+`ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号。候选层不得改变 frozen Wave、Swing、
+SETUP_01、SETUP_02、Entry、Stop、Target、RR、T→T+1 或 Portfolio Risk 语义。
+
+V1 的 CN affordability：真实最小可交易单位 notional `<= 10,000 CNY` 为 preferred，
+`10,000 < notional <= 20,000 CNY` 可保留但降低优先级，`> 20,000 CNY` 排除；缺少
+交易单位证据时 fail closed 或明确限制支持范围。US candidate 至少排除单股价格
+`> 1,000 USD`，最终 `1,000 USD` 单标的名义本金 hard cap 还必须在 allocation /
+position sizing 边界再次验证。候选层不得伪造 bid/ask spread；成交额/成交量只能在
+文档明确为 proxy 时使用。
 
 ## 基本原则
 
