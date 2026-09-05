@@ -599,20 +599,22 @@
 
 ## 12. Last Verified
 
-- `last_updated_at`: `2026-09-05` (local task execution; final UTC timestamp to be written at closeout)
-- `formal_main_baseline`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476`
-- `current_branch`: `fix/strategy-capital-allocation-boundary`
-- `current_main_exact_sha`: `2ce2711f4994f31c167bbe4961ecd0b34e90c476` (verified GitHub `origin/main` baseline)
-- `substantive_source_head_pre_fix`: `bb8e6d9a23a175ff01790314837e24621446ce1c`（substantive validation head，非 current PR head）
-- `current_pr`: PR #70=`https://github.com/EFSing/stock-data-pipeline/pull/70`；base=`main@2ce2711f4994f31c167bbe4961ecd0b34e90c476`；`OPEN / MERGEABLE / mergeable_state=clean / merged=false`；Sol 独立核验 head=`8d2b9f76bbc2310182a47b94819adcd388385fe0`，exact-head CI=`33963031703 / 33963031701 / 33963031705` 均 SUCCESS；Sol correctness review=APPROVED，无代码 blocker。current PR head / exact-head CI 以 GitHub 实时状态为准；本文件不自引用 docs-only closeout SHA。
-- `production_config`: genuinely activated；existing positions unmanaged；production state rows=`0`。
-- `production_blocker`: QFQ stale failure was resolved by the single rerun and is classified=`TRANSIENT_YFINANCE_PUBLICATION_LAG`；prior `PRODUCTION_NAV_DATE_REQUIRED` is no longer a proposal prerequisite；connector-backed live preflight T=`2026-09-04`=`READY`, QFQ/NAV/risk-group blockers=`0`。
-- `approval_contract`: production allocation requires published `STRATEGY_PROPOSAL` + explicit `approved_event_identities` + valid `allocation_budget` + not pending/settled + Portfolio Risk prerequisites；budget alone is never approval；unapproved `ENTRY_ALLOWED` stays `STRATEGY_PROPOSAL`。
-- `allocation_budget_semantics`: user-authorized total strategy budget for the account's entire strategy risk ledger；existing system-managed positions and same-run approved proposals share it as denominator；frozen `0.005 / 0.01 / 0.02` unchanged。
-- `latest_test_result`: Daily Chain focused `31/31 OK`；Production Prerequisites focused `19/19 OK`；full unittest `596/596 OK`；Daily Chain generic shadow `17/17 SUCCESS`；Portfolio Risk generic shadow `17/17 checks SUCCESS`；`compileall`、protocol JSON parse、`git diff --check` pass。
-- `scope_boundary`: Sol review closeout for PR #70 only；no `--run`/`--write-state`/strategy state writes/broker/order；no new PR；production state writes, broker/orders/FX and automatic execution remain disabled；本 agent 不自动 merge，唯一 remaining authorized action 为 merge PR #70。
+- `last_updated_at`: `2026-09-06`
+- `formal_main_baseline`: `f65f76eb06592a17a897e4a27560e3d5db2c04f9`
+- `current_branch`: `codex/sector-candidate-universe-v1-feasibility`
+- `current_main_exact_sha`: `f65f76eb06592a17a897e4a27560e3d5db2c04f9` (verified `origin/main`)
+- `substantive_implementation_head`: `2d63fda031cda08dd2bf5bf631b9a9ea09ace415`
+- `current_pr`: PR #71=`https://github.com/EFSing/stock-data-pipeline/pull/71`；base=`main`；
+  `OPEN / MERGEABLE / merged=false`；PR final tip and exact-head CI remain live GitHub facts，
+  not a self-referenced governance SHA。
+- `source_runtime_proof`: BaoStock adapter=`800` CN union seeds with `800/800` basic+sector
+  metadata；IWB official adapter=`1018` Equity rows, source date=`2026-09-03`。
+- `latest_test_result`: candidate focused `10/10 OK`；full unittest `606/606 OK`；
+  `compileall` and `git diff --check` pass；final PR checks must be read from GitHub exact tip。
+- `scope_boundary`: bounded read-only candidate rows only；no production Sheets/state writes,
+  broker/order, holdings read, SETUP_03/04 or new research phase；不自动 merge。
 
-`PR_70_SOL_APPROVED_READY_FOR_MERGE`
+`PR_FULLY_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
