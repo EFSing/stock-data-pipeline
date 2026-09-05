@@ -20,8 +20,8 @@
   broker NAV / 账户净值；Position Size 公式保持不变。
 - 本次未新增 DECISION_LOG decision，未修改 Candidate Universe code/tests、provider、
   Strategy Engine、US `$1000` allocation hard cap 或任何 production state。
-- 继续使用 PR #71，不新建 PR、不 merge。当前治理修复需要 push 后等待 exact-head CI；
-  CI 通过后 stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`，并确认
+- 继续使用 PR #71，不新建 PR、不 merge。治理修复已 push，新的 exact-head CI 已全部通过；
+  stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`，并确认
   `HANDOFF_CURRENT_AND_CONSISTENT`。
 
 ## 0L. Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW

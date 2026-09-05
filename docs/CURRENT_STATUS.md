@@ -17,8 +17,8 @@ V0.2
   broker NAV / 账户净值。Position Size 公式未改。
 - 未新增 DECISION_LOG decision；未修改 Candidate code/tests、provider、Strategy Engine、
   US `$1000` allocation hard cap 或 production state。继续 PR #71，不新建 PR、不 merge。
-- 当前 stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`，待 push 后核对新的 exact-head CI；
-  final status 必须保持 `HANDOFF_CURRENT_AND_CONSISTENT`。
+- 当前 stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`；治理修复已 push，新的 exact-head
+  CI 已全部通过，final status=`HANDOFF_CURRENT_AND_CONSISTENT`。
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
