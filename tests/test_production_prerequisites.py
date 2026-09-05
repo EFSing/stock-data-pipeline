@@ -201,17 +201,29 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         after_close = build_production_snapshot(_rows(), as_of_date=T_DAY, now=AFTER_CLOSE).preflight
         self.assertTrue(after_close.ready)
 
-    def test_accounts_require_same_day_nav_and_known_currency(self):
-        with self.assertRaisesRegex(ValueError, "PORTFOLIO_NAV_REQUIRED"):
-            parse_strategy_accounts([{
-                "账户ID": "A", "启用": "TRUE", "市场": "US", "币种": "USD",
-                "参考净值": "", "净值日期": T_DAY.isoformat(), "备注": "",
-            }], as_of_date=T_DAY)
-        with self.assertRaisesRegex(ValueError, "PRODUCTION_NAV_DATE_REQUIRED"):
-            parse_strategy_accounts([{
-                "账户ID": "A", "启用": "TRUE", "市场": "US", "币种": "USD",
-                "参考净值": "100", "净值日期": "2026-09-02", "备注": "",
-            }], as_of_date=T_DAY)
+    def test_account_nav_is_optional_for_strategy_proposal_preflight(self):
+        missing = parse_strategy_accounts([{
+            "账户ID": "A", "启用": "TRUE", "市场": "US", "币种": "USD",
+            "参考净值": "", "净值日期": "", "备注": "",
+        }], as_of_date=T_DAY)
+        self.assertIsNone(missing[0].reference_nav)
+        self.assertIsNone(missing[0].nav_date)
+        stale = parse_strategy_accounts([{
+            "账户ID": "A", "启用": "TRUE", "市场": "US", "币种": "USD",
+            "参考净值": "100", "净值日期": "2026-09-02", "备注": "",
+        }], as_of_date=T_DAY)
+        self.assertEqual(stale[0].nav_date, date(2026, 9, 2))
+        client = _rows()
+        for account in client.rows["策略账户"]:
+            account["参考净值"] = ""
+            account["净值日期"] = ""
+        report = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight
+        self.assertTrue(report.ready)
+        self.assertNotIn("PRODUCTION_NAV_DATE_REQUIRED", " ".join(report.errors))
+        self.assertTrue(all(
+            item.nav_status == "NOT_REQUIRED_FOR_STRATEGY_PROPOSAL"
+            for item in report.accounts
+        ))
         client = _rows(cn_currency="USD")
         report = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight
         self.assertTrue(any(PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH in item for item in report.errors))
@@ -269,7 +281,7 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         self.assertEqual(cn.missing_risk_groups, ("600000",))
         self.assertEqual(us.missing_position_origins, ("AAPL",))
         self.assertFalse(any("POSITION_ORIGIN_REQUIRED_FOR_MANAGEMENT" in error for error in us.errors))
-        self.assertFalse(snapshot.preflight.ready)
+        self.assertTrue(snapshot.preflight.ready)
 
         origin_only = build_production_snapshot(_rows(position=True), as_of_date=T_DAY, now=AFTER_CLOSE)
         origin_summary = next(item for item in origin_only.preflight.accounts if item.account_id == "US-1")

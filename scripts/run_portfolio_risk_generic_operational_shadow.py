@@ -76,7 +76,7 @@ def run_portfolio_risk_generic_operational_shadow(*, output_dir: str | Path) -> 
     checks["group_boundary"] = len(group.approved) == 2 and group.blocked[-1].reason == BLOCK_RISK_GROUP_CONCENTRATION
 
     unknown_dev = PortfolioRiskEngine().reserve([_candidate("UNK")])
-    unknown_prod = PortfolioRiskEngine(mode="PRODUCTION", reference_nav=1.0).reserve([_candidate("UNK")])
+    unknown_prod = PortfolioRiskEngine(mode="PRODUCTION", allocation_budget=1.0).reserve([_candidate("UNK")])
     checks["unknown_development_advisory"] = RISK_GROUP_UNKNOWN in unknown_dev.approved[0].advisory_flags
     checks["unknown_production_fail_closed"] = unknown_prod.blocked[0].reason == BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION
 

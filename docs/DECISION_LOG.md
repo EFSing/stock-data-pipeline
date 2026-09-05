@@ -2,6 +2,22 @@
 
 只记录重要架构／交易规则决策，不记录普通 Bug 修复。
 
+## 2026-09-05
+
+**Decision:** Production strategy proposal 与账户净值解耦。系统先输出策略
+机会，由用户决定是否执行；用户批准后再提供本次 `allocation_budget`，
+Portfolio Risk / Position Size 基于该预算进行资金分配。Broker NAV、每日
+权益、入出金、浮盈浮亏、purchasing power 与 broker balance 不作为策略机会
+判断输入，也不自动改变策略预算。
+
+**Reason:** 账户资产管理不是 Strategy Decision 的职责；将每日账户权益无
+验证地引入动态风险缩放会改变策略机会语义；用户应保留最终资本投入控制权。
+`策略账户.参考净值` 与 `净值日期` 因向后兼容保留，但退出 strategy proposal
+preflight；冻结风险比例 `0.005 / 0.01 / 0.02` 不变，仅在明确预算进入
+Portfolio Risk 后使用。
+
+---
+
 ## 2026-08-21
 
 **Decision:** 确立 GitHub 仓库为项目唯一可信事实来源，`AGENTS.md` + `docs/` 作为跨 AI 工具共享上下文。

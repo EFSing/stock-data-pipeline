@@ -28,6 +28,9 @@ MAX_RISK_PER_GROUP_FRACTION = 0.01
 UNKNOWN_RISK_GROUP = "UNKNOWN"
 
 PORTFOLIO_ALLOWED = "PORTFOLIO_ALLOWED"
+ALLOCATION_BUDGET_REQUIRED = "ALLOCATION_BUDGET_REQUIRED"
+# Compatibility reason for callers of the pre-boundary NAV API.  Production
+# strategy proposal code must use an explicit allocation budget instead.
 PORTFOLIO_NAV_REQUIRED = "PORTFOLIO_NAV_REQUIRED"
 BLOCK_TOTAL_RISK_BUDGET = "BLOCK_TOTAL_RISK_BUDGET"
 BLOCK_EXISTING_POSITION_SAME_SYMBOL = "BLOCK_EXISTING_POSITION_SAME_SYMBOL"
@@ -255,26 +258,42 @@ def normalize_risk_group(risk_group: object | None) -> str:
     return value.upper() if value else UNKNOWN_RISK_GROUP
 
 
+def resolve_allocation_budget(
+    *, mode: str = DEVELOPMENT_EXPOSED, allocation_budget: float | None = None
+) -> tuple[float | None, str | None]:
+    """Resolve explicit strategy capital only at the allocation boundary."""
+    if mode == DEVELOPMENT_EXPOSED:
+        if allocation_budget is None:
+            return 1.0, None
+        try:
+            value = float(allocation_budget)
+        except (TypeError, ValueError):
+            return None, "DEVELOPMENT_REFERENCE_NAV_FIXED_AT_1_0"
+        if not math.isclose(value, 1.0, rel_tol=0.0, abs_tol=1e-12):
+            return None, "DEVELOPMENT_REFERENCE_NAV_FIXED_AT_1_0"
+        return 1.0, None
+    if allocation_budget is None:
+        return None, ALLOCATION_BUDGET_REQUIRED
+    try:
+        return _require_positive_finite(allocation_budget, "allocation_budget"), None
+    except ValueError:
+        return None, ALLOCATION_BUDGET_REQUIRED
+
+
 def resolve_reference_nav(
     *, mode: str = DEVELOPMENT_EXPOSED, reference_nav: float | None = None
 ) -> tuple[float | None, str | None]:
-    """Resolve the only allowed NAV source for the selected environment."""
-    if mode == DEVELOPMENT_EXPOSED:
-        if reference_nav is None:
-            return 1.0, None
-        if not math.isclose(float(reference_nav), 1.0, rel_tol=0.0, abs_tol=1e-12):
-            return None, "DEVELOPMENT_REFERENCE_NAV_FIXED_AT_1_0"
-        return 1.0, None
-    if reference_nav is None:
-        return None, PORTFOLIO_NAV_REQUIRED
-    try:
-        return _require_positive_finite(reference_nav, "reference_nav"), None
-    except ValueError:
-        return None, PORTFOLIO_NAV_REQUIRED
+    """Compatibility wrapper for the frozen research/replay NAV vocabulary."""
+    value, reason = resolve_allocation_budget(
+        mode=mode, allocation_budget=reference_nav
+    )
+    if reason == ALLOCATION_BUDGET_REQUIRED:
+        return value, PORTFOLIO_NAV_REQUIRED
+    return value, reason
 
 
-def initial_risk_capital(reference_nav: float) -> float:
-    return _require_positive_finite(reference_nav, "reference_nav") * BASE_RISK_FRACTION
+def initial_risk_capital(allocation_budget: float) -> float:
+    return _require_positive_finite(allocation_budget, "allocation_budget") * BASE_RISK_FRACTION
 
 
 def _quality_rank(value: str) -> int:
@@ -369,14 +388,24 @@ class PortfolioRiskEngine:
         self,
         *,
         mode: str = DEVELOPMENT_EXPOSED,
+        allocation_budget: float | None = None,
         reference_nav: float | None = None,
         risk_group_metadata: Mapping[str, str] | None = None,
         existing_positions: Sequence[OpenPortfolioPosition] = (),
     ) -> None:
+        if allocation_budget is not None and reference_nav is not None:
+            raise ValueError("provide allocation_budget, not reference_nav")
         self.mode = mode
-        self.reference_nav, self.nav_error = resolve_reference_nav(
-            mode=mode, reference_nav=reference_nav
+        requested_budget = (
+            allocation_budget if allocation_budget is not None else reference_nav
         )
+        self.allocation_budget, self.allocation_error = resolve_allocation_budget(
+            mode=mode, allocation_budget=requested_budget
+        )
+        # Keep these attributes for older replay/report consumers.  Production
+        # callers use allocation_budget and allocation_error.
+        self.reference_nav = self.allocation_budget
+        self.nav_error = self.allocation_error
         self.risk_group_metadata = {
             canonical_symbol(symbol): normalize_risk_group(group)
             for symbol, group in (risk_group_metadata or {}).items()
@@ -398,11 +427,11 @@ class PortfolioRiskEngine:
         ordered = tuple(sorted(tuple(candidates), key=candidate_order_key))
         if len({item.event_identity for item in ordered}) != len(ordered):
             raise ValueError("candidate event identities must be unique")
-        if self.reference_nav is None:
+        if self.allocation_budget is None:
             before = _empty_exposure()
         else:
             before = portfolio_exposure(
-                self.existing_positions, reference_nav=self.reference_nav
+                self.existing_positions, reference_nav=self.allocation_budget
             )
         total = before.total_open_risk_fraction
         groups = defaultdict(float, before.risk_by_group)
@@ -413,10 +442,10 @@ class PortfolioRiskEngine:
             flags = (RISK_GROUP_UNKNOWN,) if group == UNKNOWN_RISK_GROUP else ()
             group_before = groups.get(group, 0.0)
             planned_size: PositionSize | None = None
-            if self.reference_nav is not None:
+            if self.allocation_budget is not None:
                 try:
                     planned_size = position_size(
-                        initial_risk_capital(self.reference_nav),
+                        initial_risk_capital(self.allocation_budget),
                         candidate.planned_entry,
                         candidate.execution_stop,
                     )
@@ -429,11 +458,7 @@ class PortfolioRiskEngine:
             group_after = group_before + BASE_RISK_FRACTION
             if self.nav_error is not None:
                 status = PortfolioReservationStatus.BLOCKED
-                reason = (
-                    self.nav_error
-                    if self.nav_error == PORTFOLIO_NAV_REQUIRED
-                    else self.nav_error
-                )
+                reason = self.allocation_error
             elif candidate.position_management_action == "NO_ADD":
                 status = PortfolioReservationStatus.BLOCKED
                 reason = BLOCK_POSITION_MANAGEMENT_NO_ADD
@@ -528,17 +553,25 @@ class PortfolioRiskEngine:
                 position_size=None,
                 position=None,
             )
-        if self.reference_nav is None:
+        risk_capital = None
+        if self.allocation_budget is not None:
+            risk_capital = initial_risk_capital(self.allocation_budget)
+        elif reservation.planned_position_size is not None:
+            # A pending reservation already carries sizing produced from the
+            # user's earlier explicit allocation budget.  Reuse that frozen
+            # risk capital for T+1 settlement; never consult account NAV.
+            risk_capital = reservation.planned_position_size.risk_capital
+        if risk_capital is None:
             return PortfolioSettlement(
                 reservation=reservation,
                 status=PortfolioReservationStatus.RELEASED,
-                reason=PORTFOLIO_NAV_REQUIRED,
+                reason=ALLOCATION_BUDGET_REQUIRED,
                 position_size=None,
                 position=None,
             )
         try:
             size = position_size(
-                initial_risk_capital(self.reference_nav),
+                risk_capital,
                 float(resolved_entry),
                 reservation.candidate.execution_stop,
             )
@@ -685,6 +718,7 @@ def settlement_to_dict(value: PortfolioSettlement, *, reference_nav: float | Non
 
 __all__ = [
     "BASE_RISK_FRACTION",
+    "ALLOCATION_BUDGET_REQUIRED",
     "BLOCK_EXISTING_POSITION_SAME_SYMBOL",
     "BLOCK_INVALID_RISK_GEOMETRY",
     "BLOCK_POSITION_MANAGEMENT_NO_ADD",
@@ -720,5 +754,6 @@ __all__ = [
     "remaining_loss_risk_fraction",
     "reservation_to_dict",
     "resolve_reference_nav",
+    "resolve_allocation_budget",
     "settlement_to_dict",
 ]

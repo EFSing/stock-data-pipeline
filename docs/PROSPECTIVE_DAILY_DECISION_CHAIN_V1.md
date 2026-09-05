@@ -13,7 +13,8 @@ an automated trading system and has no broker/order path:
 
 ```text
 Market Data → Data Quality → Weekly/Daily State → Swing → Wave Scenario
-→ SETUP_01 / SETUP_02 → Individual Decision → Portfolio Risk
+→ SETUP_01 / SETUP_02 → Individual Decision → STRATEGY_PROPOSAL
+→ user approval + allocation_budget → Portfolio Risk / Position Size
 → Position Management / Wave5 context → read-only JSON/Markdown report
 ```
 
@@ -42,9 +43,12 @@ T+1 is represented separately as `PENDING_T1_EXECUTION_CHECK` and
 decision-ledger observation and creates a frozen in-memory position origin; it
 never submits a broker order.
 
-Portfolio Risk delegates to `PORTFOLIO-RISK-2026-09-02-v1`. Missing NAV keeps
-the individual Decision visible and returns `PORTFOLIO_NAV_REQUIRED`. UNKNOWN
-risk group keeps a development candidate visible but returns
+Portfolio Risk delegates to `PORTFOLIO-RISK-2026-09-02-v1`, but is downstream
+of the strategy proposal boundary. Without a user-supplied
+`allocation_budget`, an `ENTRY_ALLOWED` individual Decision remains visible as
+`STRATEGY_PROPOSAL`, with no position size, reservation or capital allocation.
+After approval, the explicit budget enters Portfolio Risk. UNKNOWN risk group
+keeps a development candidate visible but returns
 `BLOCK_UNKNOWN_RISK_GROUP_PRODUCTION` in production. A reservation is saved as
 pending only after Portfolio Risk allows it.
 
@@ -56,12 +60,12 @@ pending only after Portfolio Risk allows it.
 | Production daily/qfq data | `providers.py` provides raw snapshots through BaoStock/Tencent/Sina/yfinance fallback and qfq history through configured `自选清单.历史数据源` (`BaoStock` or `yfinance`). `latest_snapshot.py` owns completed-session/freshness/validation semantics. | Reuse these adapters at a future production wrapper boundary; current chain consumes injected qfq history only. |
 | Authoritative strategy decision persistence | `SheetsClient` has `交易决策` upsert for the legacy SETUP_03 surface. It is not a versioned SETUP_01/02 daily event store. | Provide `DecisionStateStore` plus `InMemoryDecisionStateStore` for tests/shadow; do not choose a new long-term backend in this phase. |
 | Published-event identity ledger | Existing SETUP_01/02 replay event identities are deterministic. The existing Sheet ledger is SETUP_03-keyed. | Reuse existing SETUP_01/02 event identity; store exact-once published identities in the injected state store. |
-| Production NAV | No authoritative NAV/account-value source exists. `参数设置. decision_risk_capital` is a legacy individual-decision input, not Portfolio NAV. | Production NAV is required and never guessed. |
-| Risk-group/sector metadata | No reliable sector/risk-group metadata source is present in the production data path. | Inject accepted metadata; production UNKNOWN fails closed. |
+| Production capital | Account NAV/assets are not strategy inputs. `参数设置. decision_risk_capital` is a legacy individual-decision input, not an allocation budget. | Proposal generation is independent of NAV. After user approval, Portfolio Risk accepts only explicit `allocation_budget`; account NAV is never substituted. |
+| Risk-group/sector metadata | No reliable sector/risk-group metadata source is present in the production data path. | Inject accepted metadata when Portfolio Risk allocation is requested; production UNKNOWN fails closed there. |
 | Real open-position origin | Holdings lifecycle tracks enabled symbols and historical data, not complete strategy position origins. Position Management has immutable replay origins only when created from an executed frozen Decision. | Require authoritative `PositionOrigin`; never derive entry/stop/origin from holdings average cost or chart history. |
 | Session/calendar | `latest_completed_market_session()` and `ordinary_calendar_freshness_guard()` use source evidence plus an ordinary weekday guard. `research.market_sessions` uses a frozen observed session union and explicitly is not an exchange calendar. | T-day prospective decisions are allowed. Production T+1 execution is disabled with `PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED` until an exact exchange-calendar source is injected. |
 | Current output/publish surface | Existing scheduled workflows write `最新行情`, history, validation, logs, and legacy `交易决策` through Google Sheets. | This chain is read-only and emits machine JSON plus concise Chinese-first Markdown; no Sheet write is added. |
-| Reusable vs fail-closed | Reusable: core Quote/QC, providers/latest contracts, Wave, SETUP_01/02, frozen Decision/Risk, Portfolio Risk, Position Management/Wave5. | Fail closed: missing formal universe, NAV, accepted risk group, position origin, exact calendar, or persistence backend for production enablement. |
+| Reusable vs fail-closed | Reusable: core Quote/QC, providers/latest contracts, Wave, SETUP_01/02, frozen Decision/Risk, Portfolio Risk, Position Management/Wave5. | Fail closed: missing formal universe, accepted allocation budget after approval, accepted risk group when allocating, position origin, exact calendar, or persistence backend for production enablement. |
 
 ## Persistence boundary
 
@@ -78,11 +82,12 @@ separate review decision.
 versions. `to_markdown()` uses the required user-facing sections:
 
 1. `需要关注`
-2. `ENTRY_ALLOWED但组合层阻塞`
-3. `PORTFOLIO_ALLOWED`
-4. `持仓管理`
-5. `NO_TRADE`
-6. `数据/生产前置条件异常`
+2. `STRATEGY_PROPOSAL`
+3. `ENTRY_ALLOWED但组合层阻塞`
+4. `PORTFOLIO_ALLOWED`
+5. `持仓管理`
+6. `NO_TRADE`
+7. `数据/生产前置条件异常`
 
 Each symbol shows date/data status, weekly/daily state, primary/alternate
 scenario, both Setup states, Decision geometry, Portfolio Risk,
@@ -141,3 +146,9 @@ quantity, actual entry, protective stop, or risk group from PositionOrigin,
 current price, holdings average cost, or chart history. The existing global
 and per-symbol authoritative position merge/deduplication/conflict behavior is
 otherwise unchanged.
+
+The strategy proposal boundary is intentionally outcome-blind and capital
+independent: account NAV, account assets, deposits, withdrawals, P&L,
+purchasing power and broker balances are not read as strategy inputs. The
+frozen risk fractions remain unchanged; they are applied only to the explicit
+user `allocation_budget` after approval.
