@@ -196,10 +196,11 @@ RR < 2     → NO_TRADE
 
 1R 不是止盈。1R 是「单笔最大计划损失」。
 
-初始建议：
+冻结语义：`allocation_budget` 是用户明确授权给该账户整个策略风险账本的总策略预算，
+不是 broker NAV / 账户净值。
 
 ```text
-Risk Per Trade = 0.5% NAV
+Risk Per Trade = 0.5% allocation_budget
 ```
 
 仓位：

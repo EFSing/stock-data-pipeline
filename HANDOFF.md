@@ -10,6 +10,20 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
+## 0M. Latest Engineering Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
+
+- Sol review 发现并确认 `PROJECT_GOVERNANCE_STATE_CONFLICT`：
+  `docs/TRADING_SYSTEM_SPEC.md` 的 1R 段落仍写 `Risk Per Trade = 0.5% NAV`，与已合并
+  PR #70、`docs/DECISION_LOG.md` 和实际 Portfolio Risk 语义冲突。
+- 最小修复已完成：1R 改为 `Risk Per Trade = 0.5% allocation_budget`，并明确
+  `allocation_budget` 是用户明确授权给该账户整个策略风险账本的总策略预算，不是
+  broker NAV / 账户净值；Position Size 公式保持不变。
+- 本次未新增 DECISION_LOG decision，未修改 Candidate Universe code/tests、provider、
+  Strategy Engine、US `$1000` allocation hard cap 或任何 production state。
+- 继续使用 PR #71，不新建 PR、不 merge。当前治理修复需要 push 后等待 exact-head CI；
+  CI 通过后 stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`，并确认
+  `HANDOFF_CURRENT_AND_CONSISTENT`。
+
 ## 0L. Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - 用户/Sol 已正式冻结 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`：CN=`HS300 ∪ CSI500`

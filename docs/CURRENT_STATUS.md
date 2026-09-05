@@ -7,6 +7,21 @@ Version:
 V0.2
 ```
 
+## Latest Engineering Event — PR_71_SOL_APPROVED_GOVERNANCE_FIX
+
+- Sol review 发现 `PROJECT_GOVERNANCE_STATE_CONFLICT`：`docs/TRADING_SYSTEM_SPEC.md`
+  1R 段落仍写 `Risk Per Trade = 0.5% NAV`，与已合并 PR #70、`DECISION_LOG.md` 和
+  当前 Portfolio Risk 语义不一致。
+- 最小治理修复：改为 `Risk Per Trade = 0.5% allocation_budget`，并明确
+  `allocation_budget` 是用户明确授权给该账户整个策略风险账本的总策略预算，不是
+  broker NAV / 账户净值。Position Size 公式未改。
+- 未新增 DECISION_LOG decision；未修改 Candidate code/tests、provider、Strategy Engine、
+  US `$1000` allocation hard cap 或 production state。继续 PR #71，不新建 PR、不 merge。
+- 当前 stop marker=`PR_71_SOL_APPROVED_READY_FOR_MERGE`，待 push 后核对新的 exact-head CI；
+  final status 必须保持 `HANDOFF_CURRENT_AND_CONSISTENT`。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - Sol 已正式决定：CN=`HS300 ∪ CSI500` + BaoStock basic/industry；US=`IWB` 官方
