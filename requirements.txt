@@ -5,3 +5,4 @@ pandas>=2.2
 yfinance>=0.2.65
 tzdata>=2024.1
 exchange_calendars>=4.13,<5
+tushare==1.4.24

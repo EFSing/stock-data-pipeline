@@ -1,0 +1,2 @@
+TUSHARE_TOKEN = "YOUR_TOKEN_HERE"
+TUSHARE_API_URL = "https://tuaremax.top"

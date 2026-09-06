@@ -2,6 +2,56 @@
 
 只记录重要架构／交易规则决策，不记录普通 Bug 修复。
 
+## 2026-09-06 — STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED
+
+**Decision:** Strategy history runtime acceptance is market-independent. CN and US have
+different completed-session close times and must fetch, evaluate, summarize and fail as
+separate market runs. The formal CLI supports `--market cn` and `--market us`; `--market all`
+is retained only as a development convenience and is not an acceptance standard.
+
+**Frozen boundary:** CN remains `HS300 ∪ CSI500`, Candidate included=`513`,
+`TOP_N_PER_SECTOR=20`, Candidate history approximately 60 completed bars, and Strategy
+history only for included candidates up to 1000 completed bars through exact T. CN keeps
+`daily` and `adj_factor` fixed batching at 5 symbols/request. US keeps IWB official holdings
+and the existing yfinance batch implementation. Affordability, sector taxonomy, Candidate
+semantics, Wave/Setup/Decision and Portfolio Risk are unchanged.
+
+**Runtime/report contract:** Each market records seed/metadata, Candidate short-history
+network, Candidate selector, deep raw-history network, adj-factor network, QFQ construction,
+DailyDecisionChain, report construction and total timings, including API requests, symbols,
+rows, usable and failed counts. Reports preserve final-status/action distributions, SETUP_01/
+SETUP_02 WATCH and ARMED states, primary Wave scenarios and `STRATEGY_PROPOSAL`; zero proposal
+is a legal result. One market failure must not erase the other market's summary.
+
+**Boundary:** This is a read-only shadow/runtime change. It adds no database, persistent cache,
+history warehouse or concurrency framework; it does not lower 1000 bars, narrow Candidate
+breadth, add a fund API for `512400.SH`, or connect production state, Sheets, allocation,
+broker/order. The temporary Tushare-compatible gateway remains a local runtime mechanism and
+is not a long-term production-provider decision.
+
+## 2026-09-06 — PR_72_REVIEW_CORRECTIONS
+
+**Decision:** Keep the existing Candidate/Strategy/runtime architecture and close only Sol's
+pre-merge review gaps. US yfinance auto-adjusted Strategy history is permitted only when the
+requested T is the latest completed XNYS session at an injected/current execution time;
+historical, future, holiday, or not-completed T fails closed before the deep yfinance fetch.
+No US corporate-action reconstruction is introduced.
+
+**Decision:** Pin the temporary Tushare-compatible gateway to `tushare==1.4.24`, matching the
+vendor private-field contract. A clean-environment smoke succeeded at exact version `1.4.24`:
+20-symbol daily returned 500 rows across 20 symbols and 2-symbol adj_factor returned 8 rows;
+no credential output was emitted. No full CN runtime rerun is required because Candidate/QFQ
+algorithms are unchanged.
+
+**Decision:** Correct CN Candidate request accounting only. When the successful 80-symbol probe
+is reused by the fixed full batch, the count is `1 + 1 + 1 + 9 = 12`, not 13; network batching
+remains unchanged.
+
+**Governance:** A stale docs-only PR tip was detected against live PR #72 and handled as
+`PROJECT_GOVERNANCE_STATE_CONFLICT`. Current PR tip, exact-head CI and mergeability remain live
+GitHub facts and are not hardcoded in HANDOFF/CURRENT_STATUS. `HANDOFF_CURRENT_AND_CONSISTENT`
+is restored after objective Git/PR verification.
+
 ## 2026-09-06 — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1
 
 **Decision:** Sol 正式选择 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`，不采用完整

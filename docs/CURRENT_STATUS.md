@@ -7,6 +7,140 @@ Version:
 V0.2
 ```
 
+## Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
+
+- Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN 与 US 是不同
+  收盘时段，必须独立 fetch/evaluate/summarize/fail；`--market all` 仅为开发便利，
+  不作为 runtime acceptance 标准。当前分支仍为 `feat/candidate-strategy-shadow-bridge-v1`，
+  substantive source head=`d3972cd36500ce1a090b981deef73b01177978f6`；PR #72 继续保持 open，
+  current PR tip / exact-head CI 统一以 GitHub live verification 为准。
+- runner 现支持 `--market cn|us|all --date YYYY-MM-DD`（`--as-of` 保留为兼容别名），
+  每个市场独立返回完整/部分 summary；一个市场失败不会抹掉另一个市场的结果。报告固定
+  记录 seed/metadata、candidate short-history network、candidate selector、deep raw-history
+  network、adj-factor network、QFQ construction、DailyDecisionChain、report construction、
+  total 九段 timing，以及每段 API requests、symbols、rows、usable/failed counts。
+- CN 正式 runtime（`--market cn --date 2026-09-04`）=`CANDIDATE_SUCCESS`，总耗时
+  `618.470s`（约 10.3 分钟）：seed `800`，Candidate usable `797`，included `513`；
+  stage timings=`91.115/31.881/0.037/289.555/127.639/5.563/72.679/0/618.470s`；
+  deep raw=`513/513`、`505,134` rows、`105` requests；adj_factor=`513/513`、
+  `505,762` rows、`109` requests；exact-T anchor、factor-change validation、future/
+  duplicate checks 与 DailyDecisionChain `513/513` 均通过。
+- CN Strategy report：`final_status=NO_TRADE:513`；primary action=`NO_TRADE:425`、
+  `WAIT_CONFIRMATION:88`；SETUP_01 `WATCH=52`、`ARMED=17`，SETUP_02 `WATCH=8`、
+  `ARMED=11`；`STRATEGY_PROPOSAL=0`（合法结果，未压缩掉 WATCH/ARMED）。
+- US 正式 runtime（`--market us --date 2026-09-04`）=`CANDIDATE_SUCCESS`，总耗时
+  `422.718s`（约 7.0 分钟）：IWB seed `1018`，Candidate usable `1007`，included `220`；
+  stage timings=`2.933/291.389/0.058/84.943/0/0/43.396/0/422.718s`；deep
+  auto-adjusted QFQ=`220/220`、`217,895` rows、`3` requests，no future/duplicate/stale。
+- US Strategy report：`final_status=NO_TRADE:220`；primary action=`NO_TRADE:195`、
+  `WAIT_CONFIRMATION:25`；SETUP_01 `WATCH=9`、`ARMED=3`，SETUP_02 `WATCH=5`、
+  `ARMED=8`；`STRATEGY_PROPOSAL=0`。US Candidate exclusions are explicit:
+  `HISTORY_INSUFFICIENT=11`、`US_ONE_SHARE_NOTIONAL_OVER_1000=18`、
+  `SECTOR_TOP_N_EXCEEDED=769`。
+- PR #72 review corrections：US `YFINANCE_AUTO_ADJUSTED` 只允许
+  `LATEST_COMPLETED_SESSION_ONLY`，`historical_replay_supported=false`；older/future/
+  not-completed US T 在 yfinance deep-history 前 fail-closed，其中 older 使用
+  `US_HISTORICAL_QFQ_ASOF_UNVERIFIED` / `READY_FOR_DECISION_US_HISTORICAL_QFQ_ASOF`。
+  CN daily+adj_factor exact-T 语义未变。CN short-history reused 80-symbol probe 的 request
+  accounting 已从 13 修正为精确 12（20/50/80 probes + remaining 720/80）。
+- Tushare SDK contract 已在干净临时环境验证：`1.4.24` exact，20-symbol daily 返回
+  `500` rows / `20` symbols，2-symbol adj_factor 返回 `8` rows，gateway success，
+  credential output=`false`；requirements 已 pin 为 `tushare==1.4.24`。不因 pin 重跑完整
+  CN runtime。
+- 两个市场此前的 `2026-09-04` latest-session runtime 均 `runtime_acceptance=ACCEPTED` 且独立低于
+  30 分钟；没有 production state/
+  Sheets/allocation/broker/order write。CN temporary Tushare-compatible gateway 只服务本地
+  read-only shadow，仍不是长期 production provider 决策；US 继续 IWB+yfinance，不接 Tushare。
+- 旧文档 tip 与 live PR tip 不一致，已按 `PROJECT_GOVERNANCE_STATE_CONFLICT` 完成客观核对；
+  current PR tip / exact-head CI 不再硬编码，统一以 GitHub live verification 为准。当前
+  review correction implementation、focused/full tests、compileall、diff/secret checks、
+  SAME PR #72 push 与新 exact-head CI 均已完成；current PR tip / exact-head CI 继续以 GitHub
+  live verification 为准。
+
+- focused bridge=`10/10`、full unittest=`623/623`、compileall、`git diff --check`、
+  `local_tushare_config.py` ignored、tracked secret comparison=`0` 均通过。PR #72 保持
+  `OPEN / CLEAN / MERGEABLE`，不合并。
+
+`PR_FULLY_READY_FOR_SOL_REVIEW`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## Historical Engineering Event — READY_FOR_DECISION_STRATEGY_HISTORY_RUNTIME
+
+- 当前工作分支为 `feat/candidate-strategy-shadow-bridge-v1`，基于真实远端 baseline
+  `edb56d74c70415b407104f0de47ab29fca6ad506`；未创建 PR，未提交或覆盖用户已有的
+  Tushare 本地工作树修改。
+- 已实现两级 read-only bridge：CN Candidate 仍固定约 60 completed bars、既有
+  `TOP_N_PER_SECTOR=20`；仅最终 included symbols 进入 Strategy history，CN 使用
+  `daily + adj_factor` 固定 `5 symbols/request`、最多 1000 completed bars、exact T
+  anchor；US 使用 official IWB holdings、yfinance batch short history，再对 included
+  symbols 使用 auto-adjusted up-to-1000-bar batch history。未修改 Candidate semantics、
+  Wave、Swing、Fibonacci、SETUP_01/02、Decision 或 Portfolio Risk。
+- 真实 CN deep daily 曾完整返回 `513/513`、`505,134` rows、`103` requests；其中
+  `438/513` 为 1000 bars，另有较短上市股票，但均达到 60-bar minimum、last bar exact
+  T、无 future/duplicate。随后单个 factor chunk 的 transient request failure 按
+  fail-closed 停止；加入一次固定 retry 后，另一次完整 combined runtime 在超过约 30
+  分钟时仍未形成 CN+US final summary，已停止。未伪造 factor-change comparison、
+  Strategy result 或 US result。
+- 当前 blocker=`READY_FOR_DECISION_STRATEGY_HISTORY_RUNTIME`：现有 yfinance/Tushare
+  combined full-history shadow 尚未证明在约 30 分钟内 bounded。需 Sol 决定是否接受该
+  cadence 或指定经批准的固定批量/runtime 方案；本轮不引入 cache/database/concurrency
+  framework，不接 production pipeline。
+- 新增 bridge focused tests=`20/20 OK`；full unittest=`616/616 OK`、compileall、
+  `git diff --check` 通过；`local_tushare_config.py` 保持 ignored、tracked secret matches=`0`。
+  production state、Sheets、allocation、broker/order 均为 `NO`。
+
+`READY_FOR_DECISION_STRATEGY_HISTORY_RUNTIME`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## Latest Engineering Event — READY_FOR_DECISION_CANDIDATE_BREADTH
+
+- 逐 symbol history path 已停止；真实 `MULTI_SYMBOL_DAILY_BATCH` contract 在 60 个
+  XSHG completed sessions 上成功：20=`1200 rows / 1.881s`，50=`3000 / 1.333s`，
+  80=`4800 / 1.465s`，每次仅 1 个 API request，latest=`2026-09-04`，无 missing/error。
+- CN HS300 ∪ CSI500 seed=`800` 采用固定 chunk=`80` 完成 short-history：`10` requests、
+  `800` returned、`797` usable、`47,980` rows、network path 约 `16.647s`。三支少于 60
+  bars 的 symbol (`002155.SZ`、`300567.SZ`、`688072.SH`) 进入既有
+  `HISTORY_INSUFFICIENT`，未被伪造为 usable；未执行 date-major fallback。
+- Candidate 结果保持原语义和 `TOP_N_PER_SECTOR=20`：seed=`800`、history usable=`797`、
+  preferred=`682`、extended=`55`、affordability excluded=`58`、unsupported board=`2`、
+  history/data-quality excluded=`3`、sector=`65`、TOP-N excluded=`224`、final included=`513`。
+- included count 已知后才启动 QFQ。A `pro_bar(adj="qfq")` 被 gateway 拒绝；B
+  `daily + adj_factor` 成为选定方案。`000725.SZ`、`002156.SZ`、`000333.SZ` 三支 CN
+  equity 与现有 BaoStock qfq path 只读交叉验证均为 `60/60` date、`0 mismatch`，最大
+  相对差=`5.86e-06`，容差=`0.002`；corporate-action boundary 已检查。正式配置参考的
+  `512400.SH` 为 ETF，未返回 stock daily/adj_factor rows，未混入股票公式验证。
+- included=`513` QFQ factor bulk=`7` requests、`30,780` rows、`513/513` exact-as-of
+  anchors；使用 `raw_price(t) * adj_factor(t) / adj_factor(T)`。随后只读
+  DailyDecisionChain=`513/513`，全部 `NO_TRADE`。production state、Sheets、allocation、
+  broker/order 均为 `NO`。
+- focused=`17/17 OK`，full unittest=`613/613 OK`；compileall、`git diff --check` 通过。
+  当前状态=`READY_FOR_DECISION_CANDIDATE_BREADTH`，Candidate 未接入生产自动执行路径。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
+## Latest Engineering Event — TUSHARE_GATEWAY_RUNTIME_PROBE_SUCCESS_BUT_HISTORY_RUNTIME_NOT_BOUNDED
+
+- 已新增临时、只读 `trading/tushare_gateway.py`；配置唯一从项目根目录
+  `local_tushare_config.py` 读取。该文件已加入 `.gitignore`，可提交模板为
+  `local_tushare_config.example.py`；真实配置值不进入 Git、测试、日志或治理文档。
+  缺失/未填写时明确 fail closed 为 `TUSHARE_LOCAL_CONFIG_REQUIRED`，不读取环境变量。
+- 商家要求的 `import tushare as ts`、`ts.pro_api(TUSHARE_TOKEN)` 以及两个
+  `pro._DataApi__...` 配置赋值已原样保留；新增只读 runner
+  `scripts/run_candidate_strategy_shadow_bridge_v1_tushare_probe.py`。
+- 真实 3 标的 smoke=`3/3 DATA_OK`、`375` rows、约 `7.641s`；CN candidate seed
+  bounded sample=`20/20 DATA_OK`、`2500` rows、Tushare history request path
+  `32.695s`，单标的约 `1.5–2.6s`。两次均未写 production state、Sheets 或 broker/order。
+- 800 标的 full shadow 未运行、未伪造结果。按顺序请求的 20 标的实测线性外推约
+  `21.8` 分钟，尚未证明日常 shadow budget 内 bounded；当前 blocker 为
+  `TUSHARE_GATEWAY_RUNTIME_PROBE_SUCCESS_BUT_HISTORY_RUNTIME_NOT_BOUNDED`。
+- focused=`13/13 OK`，full unittest=`609/609 OK`；`requirements.txt` 新增
+  `tushare>=1.4.29,<2`。Candidate Universe 仍未接入 production Strategy Engine，策略
+  路线和 production boundary 未改变。
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## Latest Engineering Event — READY_FOR_DECISION_CANDIDATE_RUNTIME
 
 - `CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1` 真实 runtime audit 停止在 blocker：CN seed=`800`、
