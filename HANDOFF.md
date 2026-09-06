@@ -10,13 +10,13 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0S. Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
+## 0S. Latest Engineering Event — CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_MERGED
 
 - 当前 Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN/US 独立
   runtime；`--market all` 仅开发便利，不是 acceptance 标准。工作分支为
-  `feat/candidate-strategy-shadow-bridge-v1`，substantive source head=`d3972cd36500ce1a090b981deef73b01177978f6`；
-  未 reset、未丢失用户已有 Tushare gateway/probe/test 修改。PR #72 继续 open，不合并；
-  current PR tip / exact-head CI 统一以 GitHub live verification 为准。
+  当前 main 已同步到 PR #72 的真实 squash merge commit=`c78743d500c7992cd628b2237237a938858ebc5b`；
+  substantive source head=`d3972cd36500ce1a090b981deef73b01177978f6`。PR #72 已 MERGED；
+  current main/CI 继续以 GitHub live verification 为准，不记录 docs-only current tip。
 - runner 已支持 `--market cn|us|all --date YYYY-MM-DD`；每个市场独立 fetch、evaluate、
   summarize、fail，并固定输出九段 stage timings：seed/metadata、candidate short-history
   network、candidate selector、deep raw-history network、adj-factor network、QFQ construction、
@@ -48,14 +48,12 @@
   allocation/broker/order writes。`512400.SH` 仍只是 ETF reference，未增加 fund API。
 - temporary Tushare-compatible gateway 仍是本地只读 shadow 的临时实现，不构成长期 production
   provider 决策；US 仍固定 IWB+yfinance。旧文档 tip 与 live PR tip 不一致，已按
-  `PROJECT_GOVERNANCE_STATE_CONFLICT` 完成客观核对；current PR tip / exact-head CI 不再
-  硬编码，统一以 GitHub live verification 为准。review correction implementation、
-  focused/full tests、compileall、diff/secret checks、push SAME PR #72 与新 exact-head CI
-  均已完成。PR #72 保持 open，不合并；current PR tip / exact-head CI 以 GitHub live
-  verification 为准。
-- focused bridge=`10/10`、full unittest=`623/623`、compileall、diff/secret checks 均通过。
+  `PROJECT_GOVERNANCE_STATE_CONFLICT` 完成客观核对；current main/CI 继续以 GitHub live
+  verification 为准，不记录 docs-only current tip。focused bridge=`10/10`、full unittest=`623/623`、
+  compileall、diff/secret checks 均通过。merge-after main `CI Test Gate`=`34030152914` SUCCESS；
+  没有观察到 merge commit 对应的新 generic shadow workflow run。不启动下一阶段。
 
-`PR_FULLY_READY_FOR_SOL_REVIEW`
+`CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_MERGED`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

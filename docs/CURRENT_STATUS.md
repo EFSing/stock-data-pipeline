@@ -7,13 +7,14 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
+## Latest Engineering Event — CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_MERGED
 
 - Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN 与 US 是不同
   收盘时段，必须独立 fetch/evaluate/summarize/fail；`--market all` 仅为开发便利，
   不作为 runtime acceptance 标准。当前分支仍为 `feat/candidate-strategy-shadow-bridge-v1`，
-  substantive source head=`d3972cd36500ce1a090b981deef73b01177978f6`；PR #72 继续保持 open，
-  current PR tip / exact-head CI 统一以 GitHub live verification 为准。
+  substantive source head=`d3972cd36500ce1a090b981deef73b01177978f6`；PR #72 已 squash merged，
+  merge commit=`c78743d500c7992cd628b2237237a938858ebc5b`。当前 main/CI 继续以 GitHub live
+  verification 为准，不记录 docs-only current tip。
 - runner 现支持 `--market cn|us|all --date YYYY-MM-DD`（`--as-of` 保留为兼容别名），
   每个市场独立返回完整/部分 summary；一个市场失败不会抹掉另一个市场的结果。报告固定
   记录 seed/metadata、candidate short-history network、candidate selector、deep raw-history
@@ -58,10 +59,11 @@ V0.2
   live verification 为准。
 
 - focused bridge=`10/10`、full unittest=`623/623`、compileall、`git diff --check`、
-  `local_tushare_config.py` ignored、tracked secret comparison=`0` 均通过。PR #72 保持
-  `OPEN / CLEAN / MERGEABLE`，不合并。
+  `local_tushare_config.py` ignored、tracked secret comparison=`0` 均通过。PR #72 merge-after
+  main `CI Test Gate`=`34030152914` SUCCESS；没有观察到 merge commit 对应的新 generic shadow
+  workflow run。当前 main 与 origin/main 均为 merge commit；不启动下一阶段。
 
-`PR_FULLY_READY_FOR_SOL_REVIEW`
+`CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_MERGED`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
