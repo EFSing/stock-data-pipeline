@@ -39,9 +39,10 @@
   allocation/broker/order writes。`512400.SH` 仍只是 ETF reference，未增加 fund API。
 - temporary Tushare-compatible gateway 仍是本地只读 shadow 的临时实现，不构成长期 production
   provider 决策；US 仍固定 IWB+yfinance。focused=`5/5`、full unittest=`618/618`、compileall、
-  diff/secret checks 均通过。PR #72 exact-head CI：CI Test Gate=`34027505639`、Daily Decision
-  Chain generic shadow=`34027505622`、Portfolio Risk generic shadow=`34027505600`，均成功。
-  当前最终停止点为 `PR_FULLY_READY_FOR_SOL_REVIEW`；不合并。
+  diff/secret checks 均通过。Substantive source head `da88a84` 的 exact-head CI：CI Test Gate=
+  `34027505639`、Daily Decision Chain generic shadow=`34027505622`、Portfolio Risk generic
+  shadow=`34027505600`，均成功；docs-only closeout tip=`117ecf4` 的最终 exact-head CI 以
+  GitHub live verification 为准。当前最终停止点为 `PR_FULLY_READY_FOR_SOL_REVIEW`；不合并。
 
 `PR_FULLY_READY_FOR_SOL_REVIEW`
 

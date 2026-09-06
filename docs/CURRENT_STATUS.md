@@ -41,10 +41,11 @@ V0.2
   Sheets/allocation/broker/order write。CN temporary Tushare-compatible gateway 只服务本地
   read-only shadow，仍不是长期 production provider 决策；US 继续 IWB+yfinance，不接 Tushare。
 - focused bridge=`5/5`、full unittest=`618/618`、compileall、`git diff --check`、
-  `local_tushare_config.py` ignored、tracked secret comparison=`0` 均通过。PR #72 exact-head
-  CI：CI Test Gate=`34027505639`、Daily Decision Chain generic shadow=`34027505622`、
-  Portfolio Risk generic shadow=`34027505600`，均 `SUCCESS`；当前停止点为
-  `PR_FULLY_READY_FOR_SOL_REVIEW`。
+  `local_tushare_config.py` ignored、tracked secret comparison=`0` 均通过。Substantive
+  source head `da88a84` 的 exact-head CI：CI Test Gate=`34027505639`、Daily Decision Chain
+  generic shadow=`34027505622`、Portfolio Risk generic shadow=`34027505600`，均 `SUCCESS`；
+  docs-only closeout tip=`117ecf4` 的最终 exact-head CI 以 GitHub live verification 为准。
+  当前停止点为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
 
 `PR_FULLY_READY_FOR_SOL_REVIEW`
 
