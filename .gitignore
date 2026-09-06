@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .task_deps/
 .env
+local_tushare_config.py
 service-account*.json
 .workbuddy/
 artifacts/

@@ -21,6 +21,14 @@ lightweight candidate rows / fixture (no production state, no Sheets)
         ↓
 existing Data Quality → Weekly / Daily → Swing → Wave → Fibonacci → Setup chain
 
+Candidate Strategy Shadow Bridge (manual/local read-only runtime)
+        ↓
+scripts/run_candidate_strategy_shadow_bridge_v1_tushare_probe.py
+        → --market cn: BaoStock seed + Tushare daily/adj_factor deep history
+        → --market us: IWB official holdings + yfinance batch deep history
+        → independent Candidate summary + Strategy/DailyDecisionChain summary
+        → stage timings and JSON report (no production state, Sheets, allocation, or orders)
+
 GitHub Actions scheduler (cron)
         ↓
 main.py  (CLI 入口: --group asia|us|all, --mode latest|full, --fixture)
@@ -85,6 +93,14 @@ Google Sheets, broker state, orders, or strategy state.  `CandidateRecord` expos
 inclusion/exclusion reason, sector, rank, affordability tier, documented minimum quantity,
 20D/60D liquidity proxy and history freshness.  It intentionally has no Strategy action
 field and cannot produce `ENTRY_ALLOWED`.
+
+The Candidate Strategy Shadow Bridge is a manual/local development path. `--market cn` and
+`--market us` execute independently; `--market all` aggregates both only for convenience and
+is not the runtime acceptance standard. It preserves the Candidate selector and frozen
+Strategy/Wave/Setup/Decision semantics, runs Strategy history only for included candidates,
+and reports nine fixed stages with request/symbol/row/usable/failed accounting. CN's temporary
+Tushare-compatible gateway is not part of the production provider fallback chain or a
+long-term provider decision; US remains IWB plus yfinance. All bridge execution is read-only.
 
 ### Execution modes
 
