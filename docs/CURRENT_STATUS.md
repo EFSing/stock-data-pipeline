@@ -7,7 +7,7 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — PR_72_REVIEW_CORRECTIONS_IMPLEMENTED
+## Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN 与 US 是不同
   收盘时段，必须独立 fetch/evaluate/summarize/fail；`--market all` 仅为开发便利，
@@ -53,10 +53,15 @@ V0.2
   read-only shadow，仍不是长期 production provider 决策；US 继续 IWB+yfinance，不接 Tushare。
 - 旧文档 tip 与 live PR tip 不一致，已按 `PROJECT_GOVERNANCE_STATE_CONFLICT` 完成客观核对；
   current PR tip / exact-head CI 不再硬编码，统一以 GitHub live verification 为准。当前
-  review correction implementation 待 focused/full tests、compileall、diff/secret checks、
-  push SAME PR #72 与新 exact-head CI。
+  review correction implementation、focused/full tests、compileall、diff/secret checks、
+  SAME PR #72 push 与新 exact-head CI 均已完成；current PR tip / exact-head CI 继续以 GitHub
+  live verification 为准。
 
-`PR_72_REVIEW_CORRECTIONS_IMPLEMENTED`
+- focused bridge=`10/10`、full unittest=`623/623`、compileall、`git diff --check`、
+  `local_tushare_config.py` ignored、tracked secret comparison=`0` 均通过。PR #72 保持
+  `OPEN / CLEAN / MERGEABLE`，不合并。
+
+`PR_FULLY_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

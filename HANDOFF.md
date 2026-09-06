@@ -10,7 +10,7 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0S. Latest Engineering Event — PR_72_REVIEW_CORRECTIONS_IMPLEMENTED
+## 0S. Latest Engineering Event — PR_FULLY_READY_FOR_SOL_REVIEW
 
 - 当前 Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN/US 独立
   runtime；`--market all` 仅开发便利，不是 acceptance 标准。工作分支为
@@ -49,11 +49,13 @@
 - temporary Tushare-compatible gateway 仍是本地只读 shadow 的临时实现，不构成长期 production
   provider 决策；US 仍固定 IWB+yfinance。旧文档 tip 与 live PR tip 不一致，已按
   `PROJECT_GOVERNANCE_STATE_CONFLICT` 完成客观核对；current PR tip / exact-head CI 不再
-  硬编码，统一以 GitHub live verification 为准。review correction implementation 下一步
-  为 focused/full tests、compileall、diff/secret checks、push SAME PR #72 与新 exact-head CI；
-  不合并。
+  硬编码，统一以 GitHub live verification 为准。review correction implementation、
+  focused/full tests、compileall、diff/secret checks、push SAME PR #72 与新 exact-head CI
+  均已完成。PR #72 保持 open，不合并；current PR tip / exact-head CI 以 GitHub live
+  verification 为准。
+- focused bridge=`10/10`、full unittest=`623/623`、compileall、diff/secret checks 均通过。
 
-`PR_72_REVIEW_CORRECTIONS_IMPLEMENTED`
+`PR_FULLY_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
