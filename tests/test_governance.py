@@ -18,46 +18,50 @@ class GovernanceTests(unittest.TestCase):
         )
         cls.entry = cls.registry["artifacts"][0]
 
-    def test_handoff_contains_required_sections_in_order(self):
-        sections = [
-            "## 1. Current Objective",
-            "## 2. Current Repository State",
-            "## 3. Completed Work",
-            "## 4. Pending Work",
-            "## 5. Key Decisions And Rationale",
-            "## 6. Important Files Changed",
-            "## 7. Frozen Identities And Invariants",
-            "## 8. Known Issues / Blockers",
-            "## 9. Lessons / Pitfalls — DO NOT REPEAT",
-            "## 10. Next Action",
-            "## 11. Handoff Checklist",
-            "## 12. Last Verified",
-        ]
-        positions = [self.handoff.index(section) for section in sections]
-        self.assertEqual(positions, sorted(positions))
-        self.assertIn("PROJECT_GOVERNANCE_STATE_CONFLICT", self.handoff)
+    def test_governance_roles_and_markers_are_defined_in_agents(self):
+        for marker in (
+            "HANDOFF_CURRENT_AND_CONSISTENT",
+            "PROJECT_GOVERNANCE_STATE_CONFLICT",
+            "docs-only",
+            "git diff --check",
+        ):
+            self.assertIn(marker, self.agents)
+        self.assertIn("当前开发现场恢复文件", self.agents)
+        self.assertIn("能力地图", self.agents)
+        self.assertIn("只保留长期有效", self.agents)
+
+    def test_handoff_recovers_current_development_site(self):
+        for field in (
+            "Current Task",
+            "Current State",
+            "Completed",
+            "Blocker",
+            "Next Action",
+            "Constraints",
+            "Pitfall",
+        ):
+            self.assertIn(field, self.handoff)
         self.assertIn("HANDOFF_CURRENT_AND_CONSISTENT", self.handoff)
+        # HANDOFF/CURRENT_STATUS 是现场/能力文档，不是历史流水账。
+        for text in (self.handoff, self.current_status):
+            self.assertNotIn("Engineering Event —", text)
+            self.assertNotIn("Historical Event —", text)
+            self.assertNotIn("Latest Operational Event —", text)
 
     def test_project_strategy_identity_is_explicit(self):
         for text in (self.agents, self.handoff, self.current_status):
             self.assertIn("docs/TRADING_SYSTEM_SPEC.md", text)
-            self.assertIn("SETUP_01", text)
-            self.assertIn("SETUP_02", text)
-            self.assertIn("SETUP_03", text)
-            self.assertIn("SETUP_04", text)
+            for setup in ("SETUP_01", "SETUP_02", "SETUP_03", "SETUP_04"):
+                self.assertIn(setup, text)
         self.assertIn("不是单一 Platform Breakout", self.agents)
-        self.assertIn("SETUP_03` 当前只是正在研究的一个子策略", self.handoff)
-        self.assertIn("Wave Scenario", self.handoff)
-        self.assertIn("Weekly State", self.handoff)
+        for text in (self.handoff, self.current_status):
+            self.assertIn("子策略", text)
+            self.assertIn("Wave Scenario", text)
+            self.assertIn("Weekly State", text)
 
     def test_atr_boundary_closeout_state_is_recorded(self):
-        expected_protocol_sha = "sha256:86595d25226b0c9280492df8f91bb5a9fd92c2dd753dfa6114986c71ec6145b4"
-        expected_universe_sha = "sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b"
-        self.assertIn(expected_protocol_sha, self.handoff)
-        self.assertIn(expected_universe_sha, self.handoff)
-        self.assertIn("ATR_BOUNDARY_PROTOCOL_FROZEN_NOT_EXECUTED", self.current_status)
-        self.assertIn("40/40 frozen clean symbols", self.current_status)
         self.assertIn("STOP_SETUP_03_STRUCTURAL_DEVELOPMENT", self.current_status)
+        self.assertIn("NOT_READY_FOR_FORMAL_PARAMETER_FREEZE", self.current_status)
 
     def test_atr_normalized_mode_is_outside_production_entrypoints(self):
         setup_source = (ROOT / "trading" / "setup.py").read_text(encoding="utf-8")

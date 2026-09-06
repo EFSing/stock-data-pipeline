@@ -28,17 +28,24 @@
 4. 读取与当前任务直接相关的 governance / protocol / architecture 文件。
 5. 核对真实 Git、远端 PR、CI、artifact 和 hash 状态；不得以聊天记录或旧的本地 remote-tracking ref 代替远端事实。
 
-如果治理文件与客观 Git / PR / CI / artifact 证据冲突，状态必须标记为
-`PROJECT_GOVERNANCE_STATE_CONFLICT`，停止继续实现，先用客观证据完成核对；不得自行猜测哪个状态正确。
+Git / GitHub 负责动态工程事实：branch、HEAD、PR、commit、diff、CI 的唯一实时
+事实源是仓库本身，不是治理文档。治理文档不长期镜像 main SHA、PR final tip、
+CI run ID、mergeability 等易变信息；需要时一律从 GitHub 实时核对，不得以聊天
+记录或旧的本地 remote-tracking ref 代替远端事实。
 
-治理文件记录 latest substantive implementation/source head，以及与之对应
-的业务状态、protocol、决策和 next action；不得要求它们保存“包含它自身的
-最终 commit SHA”，因为这是不可满足的自引用条件。当前 PR final tip、
-exact-head CI、mergeability 与 merge commit 必须在需要时从 GitHub 实时核验。
-docs-only governance commit 不要求文件记录其自身 SHA。`HANDOFF_CURRENT_AND_CONSISTENT`
-表示业务状态、protocol、source head、决策和 next action 与真实 repo 一致；
-PR final tip/CI 由实时 GitHub verification 提供。不得为了更新文件自己的
-SHA 制造无限 docs-only commit。
+`HANDOFF_CURRENT_AND_CONSISTENT` 只表示：当前 HANDOFF 能正确恢复当前开发现场；
+`docs/CURRENT_STATUS.md` 与当前系统能力没有实质矛盾；长期 Decision 与当前实现
+没有已知冲突；不存在会让下一台设备错误继续开发的重大状态错误。它不要求文档
+保存实时 main SHA、exact-head CI run、docs-only commit 后重新完整验证，也不要求
+历史 Event 记录逐项相互一致。
+
+`PROJECT_GOVERNANCE_STATE_CONFLICT` 只用于可能真正影响正确开发的问题，例如：
+HANDOFF 说 PR 未合并但实际已合并且会改变下一步；CURRENT_STATUS 能力状态与代码
+明显不一致；DECISION_LOG frozen semantics 与当前实现冲突；当前 branch 有重要
+未提交工作且新设备可能覆盖；或治理指示会造成生产／研究语义错误。docs-only
+commit 改变 HEAD、CI run ID 过期、测试计数变化、merge 后旧 SHA 尚未同步、历史
+Event 未同步最新动态事实等自然过期信息，不得单独升级为治理冲突。若确属真实
+冲突，先用客观 Git/GitHub 证据完成核对，再标记冲突并停止猜测。
 
 真实持仓 shadow 必须与 generic operational shadow 分离：
 `GENERIC_OPERATIONAL_SHADOW` 使用 synthetic / controlled public fixture，是
@@ -50,6 +57,46 @@ research/development 的默认 blocker。未经明确 production milestone scope
 GitHub Actions；不得把账户 holdings secrets 注入 generic shadow 或普通 CI。
 
 每完成一个具有独立意义的逻辑任务，或准备报告 `TASK_COMPLETE`、`PHASE_COMPLETE`、`PR_FULLY_READY`、`READY_FOR_REVIEW`、`READY_FOR_DECISION` 前，必须更新 `HANDOFF.md`，并确认其状态为 `HANDOFF_CURRENT_AND_CONSISTENT`。
+
+## 治理文档职责与验证成本（必须遵守）
+
+各治理文件的职责固定为：
+
+- **Git / GitHub**：动态工程事实源。治理文档只允许在 HANDOFF 中作 branch / PR
+  状态的语义描述，不得硬编码 SHA 或 CI run ID 来证明治理一致性。
+- **`HANDOFF.md`**：当前开发现场恢复文件。只保留新设备 / 新 Codex 会话继续工作
+  真正需要的信息（当前任务、正式状态、branch / PR 语义状态、已完成、blocker、
+  下一步、未完成事项、关键约束、已知坑）。历史由 Git / PR / commit 保存，不保存
+  旧 Engineering Event / Historical Event 流水账，不另建 archive。
+- **`docs/CURRENT_STATUS.md`**：整个系统当前能力地图，回答“已具备什么能力、
+  哪些仍在研究／未接入生产”。不保存历史 PR 过程、blocker 演变、测试数量、
+  CI run ID、commit SHA 或 Engineering Event 流水账。
+- **`docs/DECISION_LOG.md`**：只保留长期有效、未来开发不能随意推翻的重要决策及
+  理由（策略架构、T→T+1、Target-before-RR、Wave 主／备情景、Candidate 边界、
+  CN / US runtime 独立、allocation_budget / Portfolio Risk 语义、look-ahead /
+  OOS / production safety 等）。普通 bugfix、PR review correction、测试数量变化、
+  小型 provider 细节、临时 runtime 调试结论不作为长期 Decision。
+
+三个文件职责不重复；修改时若发现同一信息被复制到多个文件，只保留其职责所在
+位置的事实源。
+
+**验证规则（禁止 docs-only 触发高成本验证）：**
+
+代码／研究产生实质变化时：
+
+```text
+实质修改 → 根据风险执行对应测试 / shadow → 验证通过
+→ 一次性同步治理文档 → 仅执行轻量 docs closeout 检查 → 结束
+```
+
+禁止形成“代码验证 → 更新 docs → docs commit 改 HEAD → 因 HEAD 改变重新完整验证
+→ 再更新 docs → 再 reconcile”的循环。
+
+docs-only governance 更新原则上不得触发完整 unittest、完整 runtime shadow 或其他
+高成本验证。docs-only 默认验证最多包括当前已有且无需新增工具的轻量检查，例如：
+`git diff --check`、现有 Markdown / JSON 语法检查、必要的 grep / consistency
+check。不得为了 governance 新增 validator、registry、state machine、protocol、
+CI workflow 或测试框架。
 
 ## 每次修改代码之前（必须按顺序）
 
@@ -75,13 +122,16 @@ GitHub Actions；不得把账户 holdings secrets 注入 generic shadow 或普�
 
 ## 修改完成必须
 
-1. 运行测试：`python -m unittest discover -s tests -v`
-2. 增加必要测试
-3. 更新 `docs/CURRENT_STATUS.md`
-4. 重要设计变化写入 `docs/DECISION_LOG.md`
-5. 给出修改文件列表
-6. 给出测试结果
-7. 给出剩余风险
+1. 实质代码／研究修改运行 `python -m unittest discover -s tests -v`；docs-only
+   修改按上文“验证规则”执行轻量检查，不重跑完整测试。
+2. 实质代码／研究修改按需增加必要测试；docs-only 修改不得为此新增测试框架。
+3. 系统能力发生实质变化时更新 `docs/CURRENT_STATUS.md`；普通 docs-only 同步视
+   需要更新，不把历史 PR 过程写入该文件。
+4. 重要长期设计变化写入 `docs/DECISION_LOG.md`；普通 bugfix、review correction、
+   测试数量变化等不写。
+5. 给出修改文件列表。
+6. 给出验证结果（实质修改给出测试结果；docs-only 给出轻量检查结果）。
+7. 给出剩余风险。
 
 ## 项目技术约定（以当前真实代码为准）
 
