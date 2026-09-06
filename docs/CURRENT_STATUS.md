@@ -7,6 +7,33 @@ Version:
 V0.2
 ```
 
+## Latest Operational Event — TUSHARE_CN_REFERENCE_2026_09_04_ARCHIVED
+
+- 已完成一次性、只读 CN 基准归档：`T=2026-09-04`，source=`Tushare-compatible gateway`，
+  `tushare=1.4.24`；CN universe=`HS300 ∪ CSI500`，`TOP_N_PER_SECTOR=20`。
+- Google Drive 路径：`交易系统/benchmark-data/TUSHARE_CN_REFERENCE_2026_09_04/`；
+  folder URL=`https://drive.google.com/drive/folders/1KwhmKem6xaFTk6aQM8IKUKAlAd33ubpW`。
+  Drive 页面已核实 8/8 文件存在且大小正常：seed、Candidate raw/result、included raw、
+  adj_factor、exact-T QFQ、Strategy shadow summary、manifest。
+- 计数：seed/usable/included/strategy-ready=`800/797/513/513`；Candidate raw=`47,980`
+  行；included raw=`505,134` 行；canonical adj_factor=`505,582` 行；exact-T QFQ=`505,134`
+  行。runtime adj-factor stage 的 `505,762` 行包含额外 180 行只读采样验证请求，未重复
+  写入归档文件。
+- 归档总计=`525,737,986` bytes（8 files，约 501.4 MiB）；manifest SHA-256=`sha256:6d94be63e4ff0622a2ef51ed3318c9c06f5bdd80cd1c4a39e6a3ff4b4cb52f18`。所有行情/因子行
+  `max_trade_date=2026-09-04`、无 symbol/date 重复；QFQ 使用
+  `raw_price_times_adj_factor_over_exact_T_factor` 与 exact-T factor anchor。
+- `local_tushare_config.py` 未上传，Tushare token 未输出/未上传，行情文件位于 ignored
+  `artifacts/`、未进入 Git；未修改 Candidate、Wave、SETUP、Decision、Risk 或 production
+  state/Sheets/broker/order。当前 archive marker=`TUSHARE_CN_REFERENCE_2026_09_04_ARCHIVED`。
+- 本次 closeout 只更新治理文档，不新增长期策略决策，不启动同花顺 Financial benchmark。
+  文档更新前已核验 `main`=`origin/main`=`d8bbf6333365075cf3b1834be0c120427f0f52d9`、
+  working tree clean；docs-only closeout commit 后的 final main/CI 以实时 GitHub
+  verification 为准。
+
+`TUSHARE_CN_REFERENCE_2026_09_04_ARCHIVED`
+
+`HANDOFF_CURRENT_AND_CONSISTENT`
+
 ## Latest Engineering Event — CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_MERGED
 
 - Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN 与 US 是不同
