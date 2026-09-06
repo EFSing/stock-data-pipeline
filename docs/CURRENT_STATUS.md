@@ -7,13 +7,13 @@ Version:
 V0.2
 ```
 
-## Latest Engineering Event — CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_RUNTIME_ACCEPTED
+## Latest Engineering Event — PR_72_REVIEW_CORRECTIONS_IMPLEMENTED
 
 - Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN 与 US 是不同
   收盘时段，必须独立 fetch/evaluate/summarize/fail；`--market all` 仅为开发便利，
   不作为 runtime acceptance 标准。当前分支仍为 `feat/candidate-strategy-shadow-bridge-v1`，
-  substantive source head=`da88a8481df3ef09641b8bbddf46320fbf1db931`，PR #72 已创建并保持
-  `OPEN / MERGEABLE`，不合并。
+  substantive source head=`d3972cd36500ce1a090b981deef73b01177978f6`；PR #72 继续保持 open，
+  current PR tip / exact-head CI 统一以 GitHub live verification 为准。
 - runner 现支持 `--market cn|us|all --date YYYY-MM-DD`（`--as-of` 保留为兼容别名），
   每个市场独立返回完整/部分 summary；一个市场失败不会抹掉另一个市场的结果。报告固定
   记录 seed/metadata、candidate short-history network、candidate selector、deep raw-history
@@ -37,17 +37,26 @@ V0.2
   `ARMED=8`；`STRATEGY_PROPOSAL=0`。US Candidate exclusions are explicit:
   `HISTORY_INSUFFICIENT=11`、`US_ONE_SHARE_NOTIONAL_OVER_1000=18`、
   `SECTOR_TOP_N_EXCEEDED=769`。
-- 两个市场均 `runtime_acceptance=ACCEPTED` 且独立低于 30 分钟；没有 production state/
+- PR #72 review corrections：US `YFINANCE_AUTO_ADJUSTED` 只允许
+  `LATEST_COMPLETED_SESSION_ONLY`，`historical_replay_supported=false`；older/future/
+  not-completed US T 在 yfinance deep-history 前 fail-closed，其中 older 使用
+  `US_HISTORICAL_QFQ_ASOF_UNVERIFIED` / `READY_FOR_DECISION_US_HISTORICAL_QFQ_ASOF`。
+  CN daily+adj_factor exact-T 语义未变。CN short-history reused 80-symbol probe 的 request
+  accounting 已从 13 修正为精确 12（20/50/80 probes + remaining 720/80）。
+- Tushare SDK contract 已在干净临时环境验证：`1.4.24` exact，20-symbol daily 返回
+  `500` rows / `20` symbols，2-symbol adj_factor 返回 `8` rows，gateway success，
+  credential output=`false`；requirements 已 pin 为 `tushare==1.4.24`。不因 pin 重跑完整
+  CN runtime。
+- 两个市场此前的 `2026-09-04` latest-session runtime 均 `runtime_acceptance=ACCEPTED` 且独立低于
+  30 分钟；没有 production state/
   Sheets/allocation/broker/order write。CN temporary Tushare-compatible gateway 只服务本地
   read-only shadow，仍不是长期 production provider 决策；US 继续 IWB+yfinance，不接 Tushare。
-- focused bridge=`5/5`、full unittest=`618/618`、compileall、`git diff --check`、
-  `local_tushare_config.py` ignored、tracked secret comparison=`0` 均通过。Substantive
-  source head `da88a84` 的 exact-head CI：CI Test Gate=`34027505639`、Daily Decision Chain
-  generic shadow=`34027505622`、Portfolio Risk generic shadow=`34027505600`，均 `SUCCESS`；
-  docs-only closeout tip=`117ecf4` 的最终 exact-head CI 以 GitHub live verification 为准。
-  当前停止点为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+- 旧文档 tip 与 live PR tip 不一致，已按 `PROJECT_GOVERNANCE_STATE_CONFLICT` 完成客观核对；
+  current PR tip / exact-head CI 不再硬编码，统一以 GitHub live verification 为准。当前
+  review correction implementation 待 focused/full tests、compileall、diff/secret checks、
+  push SAME PR #72 与新 exact-head CI。
 
-`PR_FULLY_READY_FOR_SOL_REVIEW`
+`PR_72_REVIEW_CORRECTIONS_IMPLEMENTED`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

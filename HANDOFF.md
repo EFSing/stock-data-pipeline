@@ -10,12 +10,13 @@
 - `SETUP_03` 当前只是正在研究的一个子策略；当前开发深度、commit 数量或 Phase 数量不改变总体策略或优先级。Wave Scenario Engine、`SETUP_01`、`SETUP_02` 仍是总体核心路线。
 - 任何总体路线变化都必须先取得用户明确批准，并记录在 `docs/DECISION_LOG.md`；本快照不复制完整策略规范，避免双事实源。
 
-## 0S. Latest Engineering Event — CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_RUNTIME_ACCEPTED
+## 0S. Latest Engineering Event — PR_72_REVIEW_CORRECTIONS_IMPLEMENTED
 
 - 当前 Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN/US 独立
   runtime；`--market all` 仅开发便利，不是 acceptance 标准。工作分支为
-  `feat/candidate-strategy-shadow-bridge-v1`，substantive source head=`da88a8481df3ef09641b8bbddf46320fbf1db931`；
-  未 reset、未丢失用户已有 Tushare gateway/probe/test 修改。PR #72 `OPEN / MERGEABLE`，不合并。
+  `feat/candidate-strategy-shadow-bridge-v1`，substantive source head=`d3972cd36500ce1a090b981deef73b01177978f6`；
+  未 reset、未丢失用户已有 Tushare gateway/probe/test 修改。PR #72 继续 open，不合并；
+  current PR tip / exact-head CI 统一以 GitHub live verification 为准。
 - runner 已支持 `--market cn|us|all --date YYYY-MM-DD`；每个市场独立 fetch、evaluate、
   summarize、fail，并固定输出九段 stage timings：seed/metadata、candidate short-history
   network、candidate selector、deep raw-history network、adj-factor network、QFQ construction、
@@ -33,18 +34,26 @@
   `3 requests`；`SETUP_01 WATCH/ARMED=9/3`、`SETUP_02 WATCH/ARMED=5/8`、
   `STRATEGY_PROPOSAL=0`；Candidate exclusions=`HISTORY_INSUFFICIENT:11`,
   `US_ONE_SHARE_NOTIONAL_OVER_1000:18`, `SECTOR_TOP_N_EXCEEDED:769`。
+- PR #72 review corrections：US auto-adjusted QFQ 明确为
+  `qfq_method=YFINANCE_AUTO_ADJUSTED`、`as_of_mode=LATEST_COMPLETED_SESSION_ONLY`、
+  `historical_replay_supported=false`；older/future/not-completed T 在 yfinance deep fetch
+  前 fail-closed。CN exact-T daily+adj_factor 未变；reused 80-symbol probe accounting 已
+  精确修正为 `12` requests，不改 batching。
+- Tushare `1.4.24` clean-environment smoke 成功：20-symbol daily=`500 rows/20 symbols`，
+  2-symbol adj_factor=`8 rows`，gateway success，credential output=`false`；requirements
+  已 pin `tushare==1.4.24`，不重跑完整 CN runtime。
 - CN final status=`NO_TRADE:513`，US=`NO_TRADE:220`，但报告保留 final_status/primary_action/
   setup states/primary Wave distributions及 WATCH/ARMED/STRATEGY_PROPOSAL symbol lists；0
   proposal 是合法结果。两个 runtime 均无 future/duplicate/stale、无 production state/Sheets/
   allocation/broker/order writes。`512400.SH` 仍只是 ETF reference，未增加 fund API。
 - temporary Tushare-compatible gateway 仍是本地只读 shadow 的临时实现，不构成长期 production
-  provider 决策；US 仍固定 IWB+yfinance。focused=`5/5`、full unittest=`618/618`、compileall、
-  diff/secret checks 均通过。Substantive source head `da88a84` 的 exact-head CI：CI Test Gate=
-  `34027505639`、Daily Decision Chain generic shadow=`34027505622`、Portfolio Risk generic
-  shadow=`34027505600`，均成功；docs-only closeout tip=`117ecf4` 的最终 exact-head CI 以
-  GitHub live verification 为准。当前最终停止点为 `PR_FULLY_READY_FOR_SOL_REVIEW`；不合并。
+  provider 决策；US 仍固定 IWB+yfinance。旧文档 tip 与 live PR tip 不一致，已按
+  `PROJECT_GOVERNANCE_STATE_CONFLICT` 完成客观核对；current PR tip / exact-head CI 不再
+  硬编码，统一以 GitHub live verification 为准。review correction implementation 下一步
+  为 focused/full tests、compileall、diff/secret checks、push SAME PR #72 与新 exact-head CI；
+  不合并。
 
-`PR_FULLY_READY_FOR_SOL_REVIEW`
+`PR_72_REVIEW_CORRECTIONS_IMPLEMENTED`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 

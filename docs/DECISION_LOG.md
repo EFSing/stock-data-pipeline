@@ -29,6 +29,29 @@ breadth, add a fund API for `512400.SH`, or connect production state, Sheets, al
 broker/order. The temporary Tushare-compatible gateway remains a local runtime mechanism and
 is not a long-term production-provider decision.
 
+## 2026-09-06 — PR_72_REVIEW_CORRECTIONS
+
+**Decision:** Keep the existing Candidate/Strategy/runtime architecture and close only Sol's
+pre-merge review gaps. US yfinance auto-adjusted Strategy history is permitted only when the
+requested T is the latest completed XNYS session at an injected/current execution time;
+historical, future, holiday, or not-completed T fails closed before the deep yfinance fetch.
+No US corporate-action reconstruction is introduced.
+
+**Decision:** Pin the temporary Tushare-compatible gateway to `tushare==1.4.24`, matching the
+vendor private-field contract. A clean-environment smoke succeeded at exact version `1.4.24`:
+20-symbol daily returned 500 rows across 20 symbols and 2-symbol adj_factor returned 8 rows;
+no credential output was emitted. No full CN runtime rerun is required because Candidate/QFQ
+algorithms are unchanged.
+
+**Decision:** Correct CN Candidate request accounting only. When the successful 80-symbol probe
+is reused by the fixed full batch, the count is `1 + 1 + 1 + 9 = 12`, not 13; network batching
+remains unchanged.
+
+**Governance:** A stale docs-only PR tip was detected against live PR #72 and handled as
+`PROJECT_GOVERNANCE_STATE_CONFLICT`. Current PR tip, exact-head CI and mergeability remain live
+GitHub facts and are not hardcoded in HANDOFF/CURRENT_STATUS. `HANDOFF_CURRENT_AND_CONSISTENT`
+is restored after objective Git/PR verification.
+
 ## 2026-09-06 — BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1
 
 **Decision:** Sol 正式选择 `BOUNDED_SECTOR_CANDIDATE_UNIVERSE_V1`，不采用完整

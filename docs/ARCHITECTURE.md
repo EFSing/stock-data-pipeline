@@ -100,7 +100,9 @@ is not the runtime acceptance standard. It preserves the Candidate selector and 
 Strategy/Wave/Setup/Decision semantics, runs Strategy history only for included candidates,
 and reports nine fixed stages with request/symbol/row/usable/failed accounting. CN's temporary
 Tushare-compatible gateway is not part of the production provider fallback chain or a
-long-term provider decision; US remains IWB plus yfinance. All bridge execution is read-only.
+long-term provider decision; US remains IWB plus yfinance auto-adjusted history only for the
+latest completed XNYS session, with historical as-of replay fail-closed before deep fetch.
+All bridge execution is read-only.
 
 ### Execution modes
 
