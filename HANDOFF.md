@@ -13,7 +13,8 @@
 - 目标：把 `HANDOFF.md` 收敛为现场恢复文件、`docs/CURRENT_STATUS.md` 收敛为能力
   地图、`docs/DECISION_LOG.md` 收敛为长期决策；明确 docs-only 不触发完整验证。
 - 工作分支：`codex/governance-slim-v1`。当前状态：
-  `PR_FULLY_READY`（等待用户 review / merge，不自动 merge）。
+  `PR_FULLY_READY`；PR #73 已创建且 OPEN（`github.com/EFSing/stock-data-pipeline/pull/73`），
+  等待用户 review / merge，不自动 merge。PR final tip / checks 以 GitHub 实时状态为准。
 - 本任务完成并合并前，不启动任何新的工程 / 研究 / production 任务。
 
 ## 2. Current State（当前正式状态）
@@ -32,7 +33,8 @@
   系统能力无实质矛盾、长期 Decision 无已知冲突、无会让下一设备错误继续的重大
   状态错误。它不要求本文件保存实时 main SHA / CI run ID，也不要求 docs-only
   commit 后重新完整验证。
-- 当前不存在 `PROJECT_GOVERNANCE_STATE_CONFLICT`。
+- 当前不存在 `PROJECT_GOVERNANCE_STATE_CONFLICT`。实时 PR 状态以
+  `gh pr view 73` / `gh pr list` 为准。
 
 ## 3. Completed（已完成事项 — 当前任务上下文）
 
@@ -57,15 +59,15 @@
 
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- 无工程 / 研究 blocker。唯一等待项：用户 review 并合并本治理 PR
-  （`codex/governance-slim-v1`）。
+- 无工程 / 研究 blocker。唯一等待项：用户 review 并合并治理 PR #73
+  （branch `codex/governance-slim-v1`）。
 - 合并后建议：删除本地与远端该分支（可选）；然后以 `docs/CURRENT_STATUS.md` 的
   能力状态决定下一个明确授权的任务。不要在没有用户授权时自行启动下一阶段。
 
 ## 5. Next Action（下一步动作）
 
 1. 新会话开始：按 `AGENTS.md` 顺序读取本文件、CURRENT_STATUS、DECISION_LOG，
-   再 `git fetch origin` + `gh pr list` / `gh pr view` 核对实时 PR 状态。
+   再 `git fetch origin` + `gh pr list` / `gh pr view 73` 核对实时 PR 状态。
 2. 若本治理 PR 尚未合并：review diff（应只有治理文档、AGENTS.md 与
    `tests/test_governance.py`），确认无业务代码 / 交易语义变化后 squash merge。
 3. 若已合并：`git fetch origin && git switch main && git pull`，随后选择下一个
