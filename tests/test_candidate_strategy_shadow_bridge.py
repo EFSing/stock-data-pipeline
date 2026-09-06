@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from dataclasses import replace
 from types import SimpleNamespace
 import unittest
@@ -8,9 +8,13 @@ from core import Quote
 from scripts.run_candidate_strategy_shadow_bridge_v1_tushare_probe import (
     _qfq_comparison,
     _qfq_history_from_factors,
+    _candidate_network_api_request_count,
     _run_daily_decision_shadow,
     _run_us_market,
     _run_tushare_strategy_history,
+    US_COMPLETED_SESSION_REQUIRED,
+    US_HISTORICAL_QFQ_ASOF_UNVERIFIED,
+    _validate_us_qfq_as_of,
     run_probe,
 )
 
@@ -64,6 +68,98 @@ class _FakeGateway:
 
 
 class CandidateStrategyShadowBridgeTests(unittest.TestCase):
+    def test_latest_completed_us_session_is_allowed_with_injected_now(self):
+        result = _validate_us_qfq_as_of(
+            AS_OF,
+            now=datetime(2026, 9, 6, 12, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(result["status"], "SUCCESS")
+        self.assertEqual(result["as_of_mode"], "LATEST_COMPLETED_SESSION_ONLY")
+        self.assertFalse(result["historical_replay_supported"])
+
+    def test_older_completed_us_session_fails_closed(self):
+        with self.assertRaisesRegex(
+            RuntimeError, f"^{US_HISTORICAL_QFQ_ASOF_UNVERIFIED}$"
+        ):
+            _validate_us_qfq_as_of(
+                date(2026, 9, 3),
+                now=datetime(2026, 9, 6, 12, 0, tzinfo=timezone.utc),
+            )
+
+    def test_future_or_not_completed_us_session_fails_closed(self):
+        with self.assertRaisesRegex(
+            RuntimeError, f"^{US_COMPLETED_SESSION_REQUIRED}$"
+        ):
+            _validate_us_qfq_as_of(
+                AS_OF,
+                now=datetime(2026, 9, 4, 19, 59, tzinfo=timezone.utc),
+            )
+
+    def test_historical_us_qfq_gate_runs_before_deep_yfinance_request(self):
+        seed = SimpleNamespace(symbol="US.A", market="US")
+        universe = SimpleNamespace(included=(SimpleNamespace(symbol="US.A"),))
+        candidate_summary = {
+            "seed_count": 1,
+            "history_usable": 1,
+            "final_included_count": 1,
+            "included": 1,
+        }
+        history = {"US.A": [_quote("US.A", AS_OF)]}
+        history_report = {
+            "status": "SUCCESS",
+            "symbols_requested": 1,
+            "symbols_strategy_ready": 1,
+            "rows": 1,
+            "api_request_count": 1,
+            "errors": [],
+            "bars_distribution": {"1": 1},
+        }
+        with patch(
+            "scripts.run_candidate_strategy_shadow_bridge_v1_tushare_probe.IwbOfficialHoldingsAdapter"
+        ) as adapter, patch(
+            "scripts.run_candidate_strategy_shadow_bridge_v1_tushare_probe._completed_us_sessions",
+            return_value=(AS_OF,),
+        ), patch(
+            "scripts.run_candidate_strategy_shadow_bridge_v1_tushare_probe._candidate_summary",
+            return_value=(candidate_summary, universe),
+        ), patch(
+            "scripts.run_candidate_strategy_shadow_bridge_v1_tushare_probe._run_yfinance_batch_history",
+            return_value=(history, history_report),
+        ) as yfinance_history, patch(
+            "scripts.run_candidate_strategy_shadow_bridge_v1_tushare_probe._validate_us_qfq_as_of",
+            side_effect=RuntimeError(US_HISTORICAL_QFQ_ASOF_UNVERIFIED),
+        ):
+            adapter.return_value.load.return_value = (AS_OF, (seed,))
+            report = _run_us_market(
+                as_of=AS_OF,
+                now=datetime(2026, 9, 6, 12, 0, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(report["decision_marker"], "READY_FOR_DECISION_US_HISTORICAL_QFQ_ASOF")
+        self.assertEqual(yfinance_history.call_count, 1)
+        self.assertEqual(
+            report["stage_timings"]["deep_raw_history_network"]["status"],
+            "NOT_RUN",
+        )
+        self.assertEqual(
+            report["strategy"]["qfq"]["as_of_mode"],
+            "LATEST_COMPLETED_SESSION_ONLY",
+        )
+
+    def test_cn_candidate_request_accounting_does_not_double_count_reused_80_probe(self):
+        probes = (
+            {"probe_size": 20, "api_request_count": 1},
+            {"probe_size": 50, "api_request_count": 1},
+            {"probe_size": 80, "api_request_count": 1},
+        )
+        bulk = {"api_request_count": 10}
+        self.assertEqual(
+            _candidate_network_api_request_count(
+                probes, bulk, "MULTI_SYMBOL_DAILY_BATCH"
+            ),
+            12,
+        )
+
     def test_us_market_report_has_independent_stage_contract(self):
         seed = SimpleNamespace(symbol="US.A", market="US")
         universe = SimpleNamespace(
@@ -114,7 +210,10 @@ class CandidateStrategyShadowBridgeTests(unittest.TestCase):
             return_value=decision,
         ):
             adapter.return_value.load.return_value = (AS_OF, (seed,))
-            report = _run_us_market(as_of=AS_OF)
+            report = _run_us_market(
+                as_of=AS_OF,
+                now=datetime(2026, 9, 6, 12, 0, tzinfo=timezone.utc),
+            )
 
         self.assertEqual(report["status"], "CANDIDATE_SUCCESS")
         self.assertEqual(

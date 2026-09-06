@@ -40,6 +40,10 @@ from trading.daily_decision_chain import (  # noqa: E402
     PRODUCTION,
     STRATEGY_PROPOSAL,
 )
+from trading.production_prerequisites import (  # noqa: E402
+    ExactExchangeCalendarProvider,
+    ProductionPrerequisiteError,
+)
 from trading.tushare_gateway import (  # noqa: E402
     TushareGateway,
     TushareGatewayError,
@@ -59,6 +63,9 @@ RUNTIME_BUDGET_SECONDS = 30 * 60
 QFQ_VALIDATION_SYMBOLS = ("000725.SZ", "002156.SZ", "000333.SZ")
 FORMAL_CN_QFQ_REFERENCE_SYMBOLS = ("000725.SZ", "002156.SZ", "512400.SH")
 QFQ_RELATIVE_TOLERANCE = 0.002
+US_HISTORICAL_QFQ_ASOF_UNVERIFIED = "US_HISTORICAL_QFQ_ASOF_UNVERIFIED"
+US_HISTORICAL_QFQ_ASOF_MARKER = "READY_FOR_DECISION_US_HISTORICAL_QFQ_ASOF"
+US_COMPLETED_SESSION_REQUIRED = "US_COMPLETED_SESSION_REQUIRED"
 MARKETS = ("CN", "US")
 STAGE_NAMES = (
     "seed_metadata",
@@ -192,6 +199,60 @@ def _completed_us_sessions(as_of: date, bars: int) -> tuple[date, ...]:
     return _completed_market_sessions("XNYS", as_of, bars)
 
 
+def _latest_completed_us_session(now: datetime) -> date:
+    """Resolve the latest completed XNYS session using the existing contract."""
+
+    provider = ExactExchangeCalendarProvider()
+    try:
+        import exchange_calendars as xc
+        import pandas as pd
+
+        calendar = xc.get_calendar(provider.calendar_name("US"))
+        sessions = calendar.sessions_in_range(
+            pd.Timestamp(now.date()) - pd.Timedelta(days=14),
+            pd.Timestamp(now.date()),
+        )
+        for session in reversed(sessions):
+            candidate = session.date()
+            try:
+                provider.completed_session("US", candidate, now=now)
+            except ProductionPrerequisiteError:
+                continue
+            return candidate
+    except (ImportError, KeyError, TypeError, ValueError):
+        pass
+    raise RuntimeError(US_COMPLETED_SESSION_REQUIRED)
+
+
+def _validate_us_qfq_as_of(
+    as_of: date, *, now: datetime | None = None
+) -> dict[str, Any]:
+    """Allow auto-adjusted yfinance only for the latest completed XNYS session."""
+
+    current = now or datetime.now().astimezone()
+    if current.tzinfo is None or current.utcoffset() is None:
+        raise RuntimeError(US_COMPLETED_SESSION_REQUIRED)
+    provider = ExactExchangeCalendarProvider()
+    try:
+        provider.completed_session("US", as_of, now=current)
+    except ProductionPrerequisiteError as exc:
+        if str(exc) == "COMPLETED_SESSION_REQUIRED":
+            raise RuntimeError(US_COMPLETED_SESSION_REQUIRED) from None
+        raise RuntimeError(US_HISTORICAL_QFQ_ASOF_UNVERIFIED) from None
+    latest = _latest_completed_us_session(current)
+    if as_of != latest:
+        raise RuntimeError(US_HISTORICAL_QFQ_ASOF_UNVERIFIED)
+    return {
+        "status": "SUCCESS",
+        "qfq_method": "YFINANCE_AUTO_ADJUSTED",
+        "as_of_mode": "LATEST_COMPLETED_SESSION_ONLY",
+        "historical_replay_supported": False,
+        "as_of_date": as_of.isoformat(),
+        "latest_completed_session": latest.isoformat(),
+        "now": current.isoformat(),
+    }
+
+
 def _normalize_symbols(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(
         dict.fromkeys(str(value).strip().upper() for value in values if str(value).strip())
@@ -241,6 +302,26 @@ def _bulk_report(
         # classify it as HISTORY_INSUFFICIENT instead of aborting the run.
         "status": "SUCCESS" if not errors and returned else "FAILED_OR_INCOMPLETE",
     }
+
+
+def _candidate_network_api_request_count(
+    multi_probes: Iterable[Mapping[str, Any]],
+    bulk_report: Mapping[str, Any],
+    bulk_mode: str,
+) -> int:
+    """Count candidate requests once when the successful 80 probe is reused."""
+
+    probes = tuple(multi_probes)
+    probe_requests = sum(int(item.get("api_request_count", 0) or 0) for item in probes)
+    reused = (
+        1
+        if bulk_mode == "MULTI_SYMBOL_DAILY_BATCH"
+        and any(int(item.get("probe_size", 0) or 0) == FIXED_MULTI_SYMBOL_CHUNK for item in probes)
+        else 0
+    )
+    return max(probe_requests - reused, 0) + int(
+        bulk_report.get("api_request_count", 0) or 0
+    )
 
 
 def _run_multi_symbol_probe(
@@ -1492,8 +1573,9 @@ def _run_cn_market(*, as_of: date) -> dict[str, Any]:
         bulk_report,
         started=candidate_network_started,
         symbols=len(seeds),
-        api_requests=sum(item["api_request_count"] for item in multi_probes)
-        + int(bulk_report.get("api_request_count", 0) or 0),
+        api_requests=_candidate_network_api_request_count(
+            multi_probes, bulk_report, bulk_mode
+        ),
         rows=int(bulk_report.get("rows", 0) or 0),
         usable_count=int(bulk_report.get("symbols_usable", 0) or 0),
         failed_count=max(
@@ -1501,6 +1583,13 @@ def _run_cn_market(*, as_of: date) -> dict[str, Any]:
         ),
         status=str(bulk_report.get("status", "FAILED")),
         probe_requests=sum(item["api_request_count"] for item in multi_probes),
+        reused_probe_request=(
+            bulk_mode == "MULTI_SYMBOL_DAILY_BATCH"
+            and any(
+                int(item.get("probe_size", 0) or 0) == FIXED_MULTI_SYMBOL_CHUNK
+                for item in multi_probes
+            )
+        ),
     )
     if bulk_report["status"] != "SUCCESS":
         return _finish_market_report(
@@ -1785,7 +1874,9 @@ def _run_cn_market(*, as_of: date) -> dict[str, Any]:
     )
 
 
-def _run_us_market(*, as_of: date) -> dict[str, Any]:
+def _run_us_market(
+    *, as_of: date, now: datetime | None = None
+) -> dict[str, Any]:
     run_started = time.perf_counter()
     report = _new_market_report("US", as_of)
 
@@ -1936,6 +2027,42 @@ def _run_us_market(*, as_of: date) -> dict[str, Any]:
     if over_budget is not None:
         return over_budget
 
+    try:
+        us_qfq_asof = _validate_us_qfq_as_of(as_of, now=now)
+        if effective_as_of != as_of:
+            raise RuntimeError(US_COMPLETED_SESSION_REQUIRED)
+    except Exception as exc:
+        error_code = str(exc)
+        if error_code not in {
+            US_HISTORICAL_QFQ_ASOF_UNVERIFIED,
+            US_COMPLETED_SESSION_REQUIRED,
+        }:
+            error_code = US_HISTORICAL_QFQ_ASOF_UNVERIFIED
+        report["strategy"] = {
+            "qfq_asof_gate": {
+                "status": "FAILED",
+                "error_code": error_code,
+                "qfq_method": "YFINANCE_AUTO_ADJUSTED",
+                "as_of_mode": "LATEST_COMPLETED_SESSION_ONLY",
+                "historical_replay_supported": False,
+                "as_of_date": as_of.isoformat(),
+            },
+            "qfq": {
+                "qfq_method": "YFINANCE_AUTO_ADJUSTED",
+                "as_of_mode": "LATEST_COMPLETED_SESSION_ONLY",
+                "historical_replay_supported": False,
+                "status": "BLOCKED",
+            },
+        }
+        return _finish_market_report(
+            report,
+            run_started,
+            status=US_HISTORICAL_QFQ_ASOF_MARKER,
+            marker=US_HISTORICAL_QFQ_ASOF_MARKER,
+            error_code=error_code,
+        )
+    report.setdefault("strategy", {})["qfq_asof_gate"] = us_qfq_asof
+
     included_symbols = tuple(record.symbol for record in candidate_universe.included)
     if not included_symbols:
         return _finish_market_report(
@@ -2065,9 +2192,10 @@ def _run_us_market(*, as_of: date) -> dict[str, Any]:
     report["strategy"].update(
         {
             "qfq": {
-                "method": "YFINANCE_AUTO_ADJUSTED",
-                "exact_as_of_anchor": True,
-                "status": "SUCCESS",
+                **us_qfq_asof,
+                "qfq_method": "YFINANCE_AUTO_ADJUSTED",
+                "as_of_mode": "LATEST_COMPLETED_SESSION_ONLY",
+                "historical_replay_supported": False,
             },
             "decision_chain": decision,
         }
@@ -2093,7 +2221,9 @@ def _run_us_market(*, as_of: date) -> dict[str, Any]:
     )
 
 
-def run_market_probe(*, market: str, as_of: date = DEFAULT_AS_OF) -> dict[str, Any]:
+def run_market_probe(
+    *, market: str, as_of: date = DEFAULT_AS_OF, now: datetime | None = None
+) -> dict[str, Any]:
     normalized = str(market).strip().upper()
     if normalized not in MARKETS:
         raise ValueError("market must be cn or us")
@@ -2101,7 +2231,7 @@ def run_market_probe(*, market: str, as_of: date = DEFAULT_AS_OF) -> dict[str, A
     try:
         if normalized == "CN":
             return _run_cn_market(as_of=as_of)
-        return _run_us_market(as_of=as_of)
+        return _run_us_market(as_of=as_of, now=now)
     except Exception as exc:
         report = _new_market_report(normalized, as_of)
         error_code = _market_error_code(
@@ -2125,19 +2255,23 @@ def run_market_probe(*, market: str, as_of: date = DEFAULT_AS_OF) -> dict[str, A
 
 
 def run_probe(
-    *, as_of: date = DEFAULT_AS_OF, market: str = "all"
+    *,
+    as_of: date = DEFAULT_AS_OF,
+    market: str = "all",
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Run one market independently, or run both as a convenience aggregate."""
 
     normalized = str(market).strip().upper()
     if normalized in MARKETS:
-        return run_market_probe(market=normalized, as_of=as_of)
+        return run_market_probe(market=normalized, as_of=as_of, now=now)
     if normalized != "ALL":
         raise ValueError("market must be cn, us, or all")
 
     started = time.perf_counter()
     markets = {
-        name: run_market_probe(market=name, as_of=as_of) for name in MARKETS
+        name: run_market_probe(market=name, as_of=as_of, now=now)
+        for name in MARKETS
     }
     successful = all(item.get("status") == "CANDIDATE_SUCCESS" for item in markets.values())
     return {
