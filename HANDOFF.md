@@ -14,8 +14,8 @@
 
 - 当前 Sol decision=`STRATEGY_HISTORY_RUNTIME_V1_MARKET_SPLIT_ACCEPTED`：CN/US 独立
   runtime；`--market all` 仅开发便利，不是 acceptance 标准。工作分支为
-  `feat/candidate-strategy-shadow-bridge-v1`，真实 baseline=`edb56d74c70415b407104f0de47ab29fca6ad506`；
-  未 reset、未丢失用户已有未提交 Tushare gateway/probe/test 修改，当前无 PR。
+  `feat/candidate-strategy-shadow-bridge-v1`，substantive source head=`da88a8481df3ef09641b8bbddf46320fbf1db931`；
+  未 reset、未丢失用户已有 Tushare gateway/probe/test 修改。PR #72 `OPEN / MERGEABLE`，不合并。
 - runner 已支持 `--market cn|us|all --date YYYY-MM-DD`；每个市场独立 fetch、evaluate、
   summarize、fail，并固定输出九段 stage timings：seed/metadata、candidate short-history
   network、candidate selector、deep raw-history network、adj-factor network、QFQ construction、
@@ -38,10 +38,12 @@
   proposal 是合法结果。两个 runtime 均无 future/duplicate/stale、无 production state/Sheets/
   allocation/broker/order writes。`512400.SH` 仍只是 ETF reference，未增加 fund API。
 - temporary Tushare-compatible gateway 仍是本地只读 shadow 的临时实现，不构成长期 production
-  provider 决策；US 仍固定 IWB+yfinance。下一步：focused/full tests、compileall、diff/secret
-  checks、commit/push/PR/exact-head CI；通过后状态为 `PR_FULLY_READY_FOR_SOL_REVIEW`。
+  provider 决策；US 仍固定 IWB+yfinance。focused=`5/5`、full unittest=`618/618`、compileall、
+  diff/secret checks 均通过。PR #72 exact-head CI：CI Test Gate=`34027505639`、Daily Decision
+  Chain generic shadow=`34027505622`、Portfolio Risk generic shadow=`34027505600`，均成功。
+  当前最终停止点为 `PR_FULLY_READY_FOR_SOL_REVIEW`；不合并。
 
-`CANDIDATE_STRATEGY_SHADOW_BRIDGE_V1_RUNTIME_ACCEPTED`
+`PR_FULLY_READY_FOR_SOL_REVIEW`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
