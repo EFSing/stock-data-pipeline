@@ -89,9 +89,9 @@
 
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- PR #73 与 PR #74 均已合并；本轮 PR #75 的实现、文档与本地回归已完成，当前本地
-  提交尚未因 GitHub 命令行认证缺失推送，PR #75 保持未合并等待远端 head/CI 刷新与
-  review；最新远端 branch/CI 结论必须以 GitHub 实时状态为准。
+- PR #73 与 PR #74 均已合并；本轮 PR #75 的实现、文档、本地回归与新 head CI
+  checks 已完成，PR #75 保持未合并等待用户 review / merge；最新远端 branch/CI
+  结论仍以 GitHub 实时状态为准。
 - 当前没有已知的业务语义 blocker。若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
@@ -99,10 +99,9 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 在 GitHub 已认证的命令行环境推送当前本地 PR #75 分支，并确认新 head 的 CI
-   checks；不自动 merge。
-2. CI 通过后由用户 review / merge PR #75；若继续修改，重新核对本地分支、GitHub
-   checks 与 `HANDOFF_CURRENT_AND_CONSISTENT`。
+1. 用户 review / merge PR #75；不自动 merge。
+2. 若继续修改，重新核对本地分支、GitHub checks 与
+   `HANDOFF_CURRENT_AND_CONSISTENT`。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
@@ -170,6 +169,6 @@
 
 状态标记：
 
-`READY_FOR_DECISION`
+`PR_FULLY_READY`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
