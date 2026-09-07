@@ -123,9 +123,10 @@ persisted without settlement fails closed with
 `PERSISTED_STATE_INCOMPLETE:origin_without_settlement:<identity>`. Incomplete
 independent appends fail closed with `PERSISTED_STATE_INCOMPLETE`.
 
-The store defaults to read-only. `--preflight` never passes write authority.
-The stateful runner requires an explicit `--write-state` flag, and its only
-write surface is the system-owned `策略决策状态` worksheet.
+The store defaults to read-only. `--preflight` and the default `--run` path
+never pass write authority. The stateful runner requires an explicit
+`--write-state` flag, and its only write surface is the system-owned
+`策略决策状态` worksheet.
 
 ## Production construction and preflight
 
@@ -167,17 +168,22 @@ Any unresolved PENDING_T1 reservation conservatively blocks new Portfolio
 reservations with `PORTFOLIO_PENDING_RESERVATION_UNRESOLVED`; it is never
 treated as absent.
 
-The CLI supports a read-only preflight:
+The CLI supports a read-only preflight and a read-only full Daily Chain report:
 
 ```text
 python scripts/run_production_daily_decision.py --preflight --date YYYY-MM-DD
+python scripts/run_production_daily_decision.py --run --date YYYY-MM-DD
 ```
 
-It prints a Chinese-first per-account summary containing account, market,
-currency, T, legacy NAV status, strategy/position counts, data counts, missing risk
-groups, missing PositionOrigins, calendar status, state-store status and
-readiness. The preflight has no state write and no Sheets mutation. No cron,
-workflow schedule, broker, IBKR or order path is added.
+Preflight prints a Chinese-first per-account readiness summary. `--run` prints
+the same preflight snapshot plus one account-isolated machine-JSON and Markdown
+Daily Chain report, including fail-closed symbol rows when data or production
+prerequisites are not ready. Both modes have no state write and no Sheets
+mutation by default. Use `--approve-event EVENT_IDENTITY` only for an already
+published proposal and `--allocation-budget ACCOUNT_ID=AMOUNT` for the explicit
+strategy risk-ledger budget; these are not NAV substitutes. Add
+`--write-state` only for an explicitly authorized stateful run after a READY
+preflight. No cron, workflow schedule, broker, IBKR or order path is added.
 
 ## Manual next steps
 
@@ -187,5 +193,6 @@ workflow schedule, broker, IBKR or order path is added.
 3. After a strategy proposal is approved, provide its explicit
    `allocation_budget` and accepted risk-group metadata for Portfolio Risk.
 4. Review a preflight report for each intended T.
-5. Separately authorize any stateful production run; this PR does not execute
-   it and does not mutate real Sheets.
+5. Review the read-only `--run` report for each intended T. Separately authorize
+   any stateful production run with `--write-state`; this PR does not schedule
+   it, submit orders, or mutate real Sheets unless that flag is explicitly used.

@@ -955,6 +955,21 @@ class DailyDecisionChainTests(unittest.TestCase):
         self.assertIn("protocol_versions", payload)
         self.assertIn("sections", payload)
 
+    def test_read_only_evaluation_never_persists_state(self):
+        history, t_day, event, evaluators = _fixture()
+        store = InMemoryDecisionStateStore()
+        with patch("trading.daily_decision_chain.evaluate_setup01_decision", return_value=_decision(event)):
+            result = DailyDecisionChain(store=store, evaluators=evaluators).evaluate(
+                [_input(history, t_day)],
+                mode="PRODUCTION",
+                persist_state=False,
+            ).results[0]
+        self.assertEqual(result.final_status, STRATEGY_PROPOSAL)
+        self.assertTrue(result.event_was_new)
+        self.assertEqual(store.published_events, {})
+        self.assertEqual(store.pending, {})
+        self.assertEqual(store.daily_history, [])
+
 
 if __name__ == "__main__":
     unittest.main()

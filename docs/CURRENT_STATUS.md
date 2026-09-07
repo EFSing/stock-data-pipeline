@@ -131,16 +131,19 @@
 
 - 未实现。
 
-### Daily Decision Chain（已实现，未自动生产运行）
+### Daily Decision Chain（已实现，人工触发只读生产报告）
 
 - `trading/daily_decision_chain.py` 是只读 prospective orchestration：将 frozen
   Wave、SETUP_01/02 Decision/Risk、Portfolio Risk、Position Management、Wave5
   组合为单账户日决策链，可发 T 日 prospective Decision，但不下 broker order，
   也不把机械 T+1 ledger 观察当成真实成交。
-- 生产运行要求正式 `策略股票池` universe、可靠 NAV、risk-group metadata、
-  authoritative position origin、exact exchange-calendar session 与持久
+- 生产运行要求正式 `策略股票池` universe、显式 `allocation_budget`（不读取 NAV
+  替代）、risk-group metadata、authoritative position origin、exact
+  exchange-calendar session 与持久
   `DecisionStateStore`；缺失时 fail closed。`scripts/run_production_daily_decision.py`
-  提供 `--preflight`（严格只读）与 `--run`（要求显式 `--write-state`）。
+  提供 `--preflight` 与默认只读 `--run`；只有显式 `--write-state` 才追加
+  系统-owned `策略决策状态`，并可用显式 `--approve-event`、
+  `--allocation-budget ACCOUNT_ID=AMOUNT` 完成人工在环输入。
 
 ### Portfolio Risk（已实现并合并，未自动生产运行）
 
@@ -178,9 +181,17 @@
   account-scoped、append-only compound protocol、默认 read-only）；production
   adapter 支持 account-isolated risk books（CN=CNY/XSHG、US=USD/XNYS）与 exact
   session proof（`exchange_calendars`）。
-- 已具备严格只读 `--preflight`；正式 daily chain 的 stateful `--run` 需要显式
-  `--write-state` 且当前没有自动 workflow 调用。生产 strategy state 写入、
-  scheduled decision chain 尚未启用；holdings 行情路径（上表）是已运行的例外。
+- 已具备严格只读 `--preflight` 与默认只读的人工 `--run` 报告；正式 daily
+  chain 的 stateful `--run` 需要显式 `--write-state`，且当前没有自动 workflow
+  调用。生产 strategy state 写入、scheduled decision chain、broker order 尚未
+  自动启用；holdings 行情路径（上表）是已运行的例外。
+
+- 现有 `HiThink Financial API（同花顺金融数据服务）` 仅完成有界 CN transport
+  smoke：ticker/index constituents、market-dump signing、corporate-action
+  adjustment events、calendar；尚未证明财务报表字段契约、复权公式/as-of
+  语义或长历史覆盖。因此本 V1 不依赖、不接入 HiThink；后续可在单独验证后
+  作为 CN fundamentals/metadata 或 Candidate 辅助源，不能把它描述成已验证的
+  iFinD 替代品。当前生产链仍使用正式 `策略股票池` 与现有已验证的 QFQ 数据边界。
 
 ### Broker execution
 
@@ -194,7 +205,8 @@
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
 - Daily Decision Chain / Portfolio Risk / Position Management：策略语义已实现并
-  frozen，但未作为每日自动 production 决策链运行。
+  frozen，已支持人工触发的 account-isolated 只读生产报告，但未作为每日自动
+  production 决策链运行。
 - 真实账户持仓 shadow 属 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，未运行时
   status=`NOT_RUN_USER_PRIVACY`；缺少真实持仓不是 SETUP_01 等核心开发 blocker。
 
