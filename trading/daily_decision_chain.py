@@ -422,6 +422,10 @@ class DailyDecisionChain:
         # must pass allocation_budget, never an account NAV.
         reference_nav: float | None = None,
         existing_positions: Sequence[OpenPortfolioPosition] = (),
+        # Read-only production reports still use the injected store for
+        # authoritative reads, but never append published/pending/settlement
+        # or daily-result rows.  Stateful callers must opt in explicitly.
+        persist_state: bool = True,
         generated_at: datetime | None = None,
     ) -> DailyTradingDecisionReport:
         values = tuple(inputs)
@@ -454,7 +458,9 @@ class DailyDecisionChain:
                     settlement_blockers.setdefault(item.symbol.upper(), []).append(blocker)
                     unresolved_pending.append(pending)
                     continue
-                settled = self._try_settle_pending(item, pending, mode, budget)
+                settled = self._try_settle_pending(
+                    item, pending, mode, budget, persist_state=persist_state
+                )
                 if settled is not None:
                     settlement_context[pending.event.event_identity] = settled
                     if settled.settlement.position is not None:
@@ -574,10 +580,10 @@ class DailyDecisionChain:
                 generated_at=generated,
             )
             results.append(result)
-            if result.event_was_new and result.new_confirmed_event_identities:
+            if persist_state and result.event_was_new and result.new_confirmed_event_identities:
                 for event_identity in result.new_confirmed_event_identities:
                     self.store.record_published_event(event_identity, result)
-            if row.get("allocation_requested"):
+            if persist_state and row.get("allocation_requested"):
                 reservation = portfolio_by_identity.get(identity)
                 if isinstance(reservation, PortfolioReservation) and reservation.status is PortfolioReservationStatus.RESERVED:
                     event = row["selected_event"]
@@ -592,7 +598,8 @@ class DailyDecisionChain:
                             reservation=reservation,
                             expected_execution_date=expected,
                         ))
-            self.store.record_daily_result(result)
+            if persist_state:
+                self.store.record_daily_result(result)
 
         return DailyTradingDecisionReport(
             as_of_date=values[0].as_of_date,
@@ -821,6 +828,8 @@ class DailyDecisionChain:
         pending: PendingT1Decision,
         mode: str,
         allocation_budget: float | None,
+        *,
+        persist_state: bool,
     ) -> SettlementRecord | None:
         expected = pending.expected_execution_date
         if not item.completed_session_identity.exact_exchange_calendar or expected is None:
@@ -856,12 +865,13 @@ class DailyDecisionChain:
             source_setup = "SETUP_01" if hasattr(pending.event, "setup01") else "SETUP_02"
             try:
                 origin = position_origin_from_execution(source_setup, pending.event, pending.decision, execution)
-                if origin is not None:
+                if origin is not None and persist_state:
                     self.store.save_position_origin(origin)
             except (TypeError, ValueError):
                 origin = None
         record = SettlementRecord(pending, execution, settlement, origin)
-        self.store.settle_pending(pending.event.event_identity, record)
+        if persist_state:
+            self.store.settle_pending(pending.event.event_identity, record)
         return record
 
     def _finalize_result(

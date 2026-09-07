@@ -1,0 +1,70 @@
+from datetime import date
+import unittest
+
+from scripts.run_production_daily_decision import run_production_daily_decision
+from tests.test_production_prerequisites import AFTER_CLOSE, T_DAY, _rows
+
+
+class ProductionDailyDecisionRunnerTests(unittest.TestCase):
+    def test_run_is_read_only_by_default_and_keeps_accounts_isolated(self):
+        client = _rows()
+
+        result = run_production_daily_decision(
+            client,
+            as_of_date=T_DAY,
+            preflight=False,
+            now=AFTER_CLOSE,
+        )
+
+        self.assertEqual(result["read behavior"], "READ_ONLY")
+        self.assertTrue(result["NO STATE WRITE"])
+        self.assertTrue(result["NO Sheets mutation"])
+        self.assertEqual(result["broker orders"], "NONE")
+        self.assertEqual(
+            [item["账户ID"] for item in result["reports"]],
+            ["CN-1", "US-1"],
+        )
+        self.assertTrue(all(item["NO Sheets mutation"] for item in result["reports"]))
+        self.assertEqual(client.writes, [])
+
+    def test_stale_qfq_still_emits_fail_closed_daily_rows_without_writing(self):
+        client = _rows()
+        client.rows["历史行情_前复权"] = [
+            dict(row, 交易日期=date(2026, 9, 2).isoformat())
+            for row in client.rows["历史行情_前复权"]
+        ]
+
+        result = run_production_daily_decision(
+            client,
+            as_of_date=T_DAY,
+            preflight=False,
+            now=AFTER_CLOSE,
+        )
+
+        self.assertEqual(result["preflight"]["production readiness"], "NOT_READY")
+        self.assertEqual(len(result["reports"]), 2)
+        for item in result["reports"]:
+            row = item["报告"]["results"][0]
+            self.assertEqual(row["final_status"], "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED")
+            self.assertTrue(row["data_status"] in {"DATA_STALE", "DATA_UNAVAILABLE"})
+        self.assertEqual(client.writes, [])
+
+    def test_state_write_requires_explicit_flag(self):
+        client = _rows()
+
+        result = run_production_daily_decision(
+            client,
+            as_of_date=T_DAY,
+            preflight=False,
+            write_state=True,
+            now=AFTER_CLOSE,
+        )
+
+        self.assertEqual(result["read behavior"], "STATE_WRITE_AUTHORIZED")
+        self.assertFalse(result["NO STATE WRITE"])
+        self.assertTrue(client.writes)
+        self.assertTrue(all(write[0] == "策略决策状态" for write in client.writes))
+
+
+if __name__ == "__main__":
+    unittest.main()

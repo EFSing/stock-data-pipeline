@@ -7,15 +7,18 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前唯一任务：**治理体系最小瘦身（governance slim v1）**，只改治理文档与
-  governance 约束，不触碰行情 / Candidate / Wave / Fibonacci / Setup / Decision /
-  Portfolio Risk / 生产写入 / broker 等业务代码或交易语义。
-- 目标：把 `HANDOFF.md` 收敛为现场恢复文件、`docs/CURRENT_STATUS.md` 收敛为能力
-  地图、`docs/DECISION_LOG.md` 收敛为长期决策；明确 docs-only 不触发完整验证。
-- 工作分支：`codex/governance-slim-v1`。当前状态：
-  `PR_FULLY_READY`；PR #73 已创建且 OPEN（`github.com/EFSing/stock-data-pipeline/pull/73`），
-  等待用户 review / merge，不自动 merge。PR final tip / checks 以 GitHub 实时状态为准。
-- 本任务完成并合并前，不启动任何新的工程 / 研究 / production 任务。
+- 当前唯一任务：**Production Daily Decision Chain V1（Human-in-the-loop）**。
+  在现有 frozen Wave / SETUP_01 / SETUP_02 Decision/Risk / Portfolio Risk /
+  Position Management 之上，完成正式 `策略股票池` 驱动的每日只读决策输出；用户保留
+  最终交易决定。
+- 只做 `SETUP_01` / `SETUP_02`，不重开 `SETUP_03`、不做 `SETUP_03 formal
+  validation`、不开发 `SETUP_04`、不接 Candidate Universe、不接 broker/order，
+  不自动批准交易；默认 read-only，state write 必须继续显式 `--write-state`。
+- 治理体系瘦身 v1 已完成：PR #73 已合并；当前无活动 PR。此前关于 PR #73
+  `OPEN / 等待 merge` 的现场描述已经过期；动态 branch / PR / CI 状态以 GitHub
+  实时事实为准。
+- 本轮实现分支：`codex/production-daily-decision-chain-v1`；完成后只创建一个
+  feature PR，不自动 merge。
 
 ## 2. Current State（当前正式状态）
 
@@ -54,33 +57,45 @@
   protocol / CI workflow / 测试框架。
 - 近期已完成且已合并的能力里程碑（背景，非流水账）：生产 QFQ 刷新、策略预算与
   NAV 解耦、bounded Candidate Universe、Candidate/Strategy shadow bridge、
-  一次性 Tushare CN 基准归档；此后没有新的工程任务启动。详见
-  `docs/CURRENT_STATUS.md` 能力地图与 Git 历史。
+  一次性 Tushare CN 基准归档；详见 `docs/CURRENT_STATUS.md` 能力地图与 Git
+  历史。
+- 本轮已核对正式五表契约、CN/US 账户隔离、exact exchange-calendar proof、QFQ
+  数据质量门与现有 frozen Daily Chain/Portfolio Risk/Position Management 边界。
+- 已完成最小 production glue：正式 `策略股票池` → latest/QFQ → account-isolated
+  Daily Chain；默认 `--run` 只读输出 JSON/Markdown，`--write-state` 是唯一显式
+  状态写入开关；`--approve-event` 与 `--allocation-budget` 保持人工在环。
+- 已覆盖 read-only 不写状态、stale QFQ 逐标的 fail-closed、显式 state write、无
+  broker order 与 CN/US 隔离回归；未接 Candidate、SETUP_03/04 或自动调度。
+- 已按 bounded smoke 结论记录 HiThink Financial API（同花顺金融数据服务）仍是
+  未完成验证的未来辅助源，本 V1 不依赖、不接入，也不把它描述成已验证的 iFinD
+  替代品。
 
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- 无工程 / 研究 blocker。唯一等待项：用户 review 并合并治理 PR #73
-  （branch `codex/governance-slim-v1`）。
-- 合并后建议：删除本地与远端该分支（可选）；然后以 `docs/CURRENT_STATUS.md` 的
-  能力状态决定下一个明确授权的任务。不要在没有用户授权时自行启动下一阶段。
+- PR #73 已合并，不再是 blocker；本轮实现、文档与本地验证已完成，待提交并创建
+  唯一 feature PR。
+- 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
+  `READY_FOR_DECISION` 请求用户选择；普通代码接线、测试和文档处理不构成 blocker。
 
 ## 5. Next Action（下一步动作）
 
-1. 新会话开始：按 `AGENTS.md` 顺序读取本文件、CURRENT_STATUS、DECISION_LOG，
-   再 `git fetch origin` + `gh pr list` / `gh pr view 73` 核对实时 PR 状态。
-2. 若本治理 PR 尚未合并：review diff（应只有治理文档、AGENTS.md 与
-   `tests/test_governance.py`），确认无业务代码 / 交易语义变化后 squash merge。
-3. 若已合并：`git fetch origin && git switch main && git pull`，随后选择下一个
-   明确授权的开发 / 研究任务。
+1. 在提交前重跑 `git diff --check`、全量 unittest 与 generic operational shadow，
+   确认 working tree 只包含本轮 production chain 变更。
+2. 提交并推送 `codex/production-daily-decision-chain-v1`，创建唯一 feature PR，
+   不自动 merge。
+3. 核对 PR checks；若通过，更新本文件为 `PR_FULLY_READY`，并以 GitHub 实时
+   PR/CI 状态作为后续依据。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
 - Production 策略链：Daily Decision Chain / Portfolio Risk / SETUP_01/02 语义已
-  frozen，但每日自动 production 决策链仍未启用；`--run --write-state` 必须显式
-  授权。Strategy state 写入未启用；broker 未连接。
+  frozen，人工触发的 account-isolated 只读 `--run` 已可用；自动 daily schedule、
+  自动 state write 与 broker 仍未启用。`--run --write-state` 必须显式授权。
 - SETUP_03：formal validation 未执行，无 production tolerance；继续需新的明确
   研究决策 + 新 protocol/version。
 - Candidate Universe 尚未接入 production strategy chain。
+- HiThink Financial API 只有 bounded transport smoke，财务字段、复权公式/as-of
+  与长历史覆盖仍未验证；继续保持未接入状态。
 - （治理层）GitHub CI 的 `ci.yml` 仍对所有 PR/main push 跑完整 unittest；本次未
   改 workflow（不新增 validator / CI）。若未来要彻底消除 docs-only push 的完整 CI
   成本，需单独决策是否给 `ci.yml` 加 paths-ignore。
@@ -132,6 +147,6 @@
 
 状态标记：
 
-`PR_FULLY_READY`
+`PRODUCTION_DAILY_DECISION_CHAIN_V1_IN_PROGRESS`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
