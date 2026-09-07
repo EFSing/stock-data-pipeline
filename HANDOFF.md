@@ -7,27 +7,27 @@
 
 ## 1. Current Task（当前任务）
 
-- 本轮唯一任务：**PR #74 合并收尾**，已完成。
-- **Production Daily Decision Chain V1 已 squash merge 进入默认 `main`**；本轮不启动
-  任何新的功能、研究或生产自动化任务。
-- 当前没有活动开发任务；下一步等待用户明确选择新的任务。
+- 本轮唯一任务：**将现有 Candidate Universe 最小接入 Production Daily Decision
+  Chain V1**；当前在 feature branch 上完成实现与验证收尾。
+- 基线 `main` 已包含 Production Daily Decision Chain V1；本轮新增 Candidate
+  runtime 仍保持人工触发、account-isolated、默认只读。
 - 本轮已将现有 frozen Wave / SETUP_01 / SETUP_02 Decision/Risk / Portfolio Risk /
   Position Management 接入正式 `策略股票池` 驱动的每日只读决策输出；用户保留最终
   交易决定。
 - 只做 `SETUP_01` / `SETUP_02`，不重开 `SETUP_03`、不做 `SETUP_03 formal
-  validation`、不开发 `SETUP_04`、不接 Candidate Universe、不接 broker/order，
-  不自动批准交易；默认 read-only，state write 必须继续显式 `--write-state`。
+  validation`、不开发 `SETUP_04`、不接 scheduler/HiThink/broker/order，不自动
+  批准交易；默认 read-only，state write 必须继续显式 `--write-state`。
 - 治理体系瘦身 v1 已完成：PR #73 已合并；此前关于 PR #73 `OPEN / 等待 merge`
   的现场描述已经过期。动态 branch / PR / CI 状态以 GitHub 实时事实为准。
-- PR #74 已 squash merge；当前无活动 feature PR。PR、branch、HEAD 与 CI 的动态状态
+- PR #74 已 squash merge；Candidate 接入的 feature branch / PR / HEAD / CI 动态状态
   仍以 Git / GitHub 实时事实为准。
 
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支 `main`。
-- PR #74 已 squash merge 到 `main`；当前工作现场已切回 `main` 并同步
-  `origin/main`，working tree 应保持 clean，GitHub 无 open PR；这些动态事实仍须
-  以 Git / GitHub 实时结果为准，不信任本文件中的历史描述。
+- PR #74 已 squash merge 到 `main`；Candidate 接入工作现场位于 feature branch，
+  branch、PR、HEAD、working tree 与 GitHub 状态仍须以实时结果为准，不信任本文件
+  中的历史描述。
 - 治理文件职责现为（详见 `AGENTS.md`）：
   - Git/GitHub = 动态工程事实源；
   - `HANDOFF.md` = 当前开发现场恢复；
@@ -64,27 +64,33 @@
   历史。
 - 本轮已核对正式五表契约、CN/US 账户隔离、exact exchange-calendar proof、QFQ
   数据质量门与现有 frozen Daily Chain/Portfolio Risk/Position Management 边界。
-- 已完成最小 production glue：正式 `策略股票池` → latest/QFQ → account-isolated
-  Daily Chain；默认 `--run` 只读输出 JSON/Markdown，`--write-state` 是唯一显式
-  状态写入开关；`--approve-event` 与 `--allocation-budget` 保持人工在环。
-- 已覆盖 read-only 不写状态、stale QFQ 逐标的 fail-closed、显式 state write、无
-  broker order 与 CN/US 隔离回归；未接 Candidate、SETUP_03/04 或自动调度。
+- 已完成最小 production glue：正式 `策略股票池` + active `策略持仓` + 当日动态
+  Candidate Set → 同一个 account-isolated Daily Chain；正式池、持仓与 Candidate
+  以 market-aware identity 去重，并保留报告 provenance。
+- Candidate Stage A 使用 60-bar yfinance batch selector，Stage B 只请求 included
+  Candidate 的既有 yfinance QFQ 深历史；Candidate 不写 `策略股票池`，默认 `--run`
+  只读输出 JSON/Markdown，`--write-state` 仍是唯一显式状态写入开关；
+  `--approve-event` 与 `--allocation-budget` 保持人工在环。
+- 已覆盖 read-only 不写状态、Candidate 两阶段/去重/失败闭环、持仓独立管理、无
+  broker order 与 CN/US 隔离回归；未触碰 SETUP_03/04 或自动调度。
 - 已按 bounded smoke 结论记录 HiThink Financial API（同花顺金融数据服务）仍是
   未完成验证的未来辅助源，本 V1 不依赖、不接入，也不把它描述成已验证的 iFinD
   替代品。
 
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- PR #73 与 PR #74 均已合并，不再存在 review / merge blocker；本轮实现、文档、
-  本地验证与 PR checks 已完成。
-- 当前没有活动开发任务。
+- PR #73 与 PR #74 均已合并；Candidate 接入的本地实现与文档已完成，待本轮
+  最终 full unittest、GitHub/CI 动态核对与 PR handoff。
+- 当前没有已知的业务语义 blocker。若同一 market 存在多个 enabled strategy
+  accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
   `READY_FOR_DECISION` 请求用户选择；普通代码接线、测试和文档处理不构成 blocker。
 
 ## 5. Next Action（下一步动作）
 
-1. 等待用户明确选择新的任务。
-2. 在收到新的明确任务前，不启动新的功能、研究或生产自动化工作。
+1. 完成本分支的 focused/full unittest、diff 与文档一致性检查。
+2. 核对可用的 GitHub PR/CI 动态状态；不自动 merge。
+3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
@@ -95,7 +101,8 @@
 - SETUP_03：formal validation 未重开（仍未执行），无 production tolerance；继续需新的明确
   研究决策 + 新 protocol/version。
 - SETUP_04：未实现。
-- Candidate Universe 尚未接入 production strategy chain。
+- Candidate Universe 已接入人工触发的 production strategy chain；真实 private
+  smoke 仍需在凭证与隐私安全允许时执行。
 - HiThink Financial API 只有 bounded transport smoke，财务字段、复权公式/as-of
   与长历史覆盖仍未验证；继续保持未接入状态。
 - （治理层）GitHub CI 的 `ci.yml` 仍对所有 PR/main push 跑完整 unittest；本次未
