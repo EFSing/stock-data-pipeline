@@ -2,10 +2,11 @@
 
 ``--preflight`` and the default ``--run`` path are strictly read-only.  The
 ``--write-state`` flag explicitly authorizes appending system-owned state rows
-to the injected Sheets backend; neither mode writes strategy input worksheets
-or calls a broker.  On a real ``SheetsClient``, ``--run`` also performs the
-bounded CN/US Candidate screening and merges the selected symbols into the
-same day's in-memory Daily Chain input.
+to the injected Sheets backend for formal strategy-pool inputs; Candidate-only
+inputs remain read-only even when the flag is present.  Neither mode writes
+strategy input worksheets or calls a broker.  On a real ``SheetsClient``,
+``--run`` also performs the bounded CN/US Candidate screening and merges the
+selected symbols into the same day's in-memory Daily Chain input.
 """
 from __future__ import annotations
 
@@ -22,34 +23,23 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sheets_client import SheetsClient
-from trading.daily_decision_chain import DailyDecisionChain, STRATEGY_PROPOSAL
+from trading.daily_decision_chain import (
+    DailyDecisionChain,
+    DailyTradingDecisionReport,
+    InMemoryDecisionStateStore,
+    STRATEGY_PROPOSAL,
+)
 from trading.production_candidate_runtime import (
     CandidateMarketRuntimeResult,
     PRODUCTION_CANDIDATE_ACCOUNT_ROUTING_REQUIRED,
     ProductionCandidateRuntime,
+    canonical_key,
 )
 from trading.production_prerequisites import (
     ProductionInputAdapter,
     ProductionPrerequisiteError,
     SheetsDecisionStateStore,
 )
-
-
-def _canonical_key(market: str, symbol: str) -> tuple[str, str]:
-    normalized_market = str(market).strip().upper()
-    normalized_symbol = str(symbol).strip().upper()
-    if normalized_market == "CN":
-        code, separator, suffix = normalized_symbol.partition(".")
-        if code.isdigit() and len(code) == 6:
-            if not separator:
-                suffix = "SH" if code.startswith(("5", "6", "9")) else "SZ"
-            elif suffix in {"SSE", "XSHG"}:
-                suffix = "SH"
-            elif suffix in {"SZSE", "XSHE"}:
-                suffix = "SZ"
-            if suffix in {"SH", "SZ"}:
-                normalized_symbol = f"{code}.{suffix}"
-    return normalized_market, normalized_symbol
 
 
 def _action_value(decision) -> str | None:
@@ -115,7 +105,7 @@ def _merge_candidate_inputs(
     """Union formal, active-position and dynamic Candidate inputs once."""
 
     values = {
-        _canonical_key(item.market, item.symbol): item
+        canonical_key(item.market, item.symbol): item
         for item in account_run.inputs
     }
     formal_symbols = {
@@ -143,28 +133,28 @@ def _merge_candidate_inputs(
     }
     if session_identity is not None:
         for item in candidate_result.daily_inputs(session_identity):
-            values.setdefault(_canonical_key(item.market, item.symbol), item)
+            values.setdefault(canonical_key(item.market, item.symbol), item)
 
     ordered = tuple(
         values[key]
         for key in sorted(values, key=lambda value: (value[0], value[1]))
     )
     formal_keys = {
-        _canonical_key(account_run.account.market, symbol)
+        canonical_key(account_run.account.market, symbol)
         for symbol in formal_symbols
     }
     position_keys = {
-        _canonical_key(account_run.account.market, symbol)
+        canonical_key(account_run.account.market, symbol)
         for symbol in position_symbols
     }
     dynamic_keys = {
-        _canonical_key(account_run.account.market, symbol)
+        canonical_key(account_run.account.market, symbol)
         for symbol in dynamic_symbols
     }
     provenance: dict[str, list[str]] = {}
     for item in ordered:
         symbol = item.symbol.upper()
-        identity = _canonical_key(item.market, item.symbol)
+        identity = canonical_key(item.market, item.symbol)
         labels = provenance.setdefault(symbol, [])
         if identity in formal_keys:
             labels.append("FORMAL_STRATEGY_POOL")
@@ -172,15 +162,110 @@ def _merge_candidate_inputs(
             labels.append("ACTIVE_STRATEGY_POSITION")
         if identity in dynamic_keys:
             labels.append("DYNAMIC_CANDIDATE")
+    provenance_metadata: dict[str, dict[str, object]] = {}
+    dynamic_candidate_only: list[str] = []
+    for symbol, labels in sorted(provenance.items()):
+        is_formal = "FORMAL_STRATEGY_POOL" in labels
+        is_position = "ACTIVE_STRATEGY_POSITION" in labels
+        is_dynamic = "DYNAMIC_CANDIDATE" in labels
+        candidate_only = is_dynamic and not is_formal and not is_position
+        if candidate_only:
+            dynamic_candidate_only.append(symbol)
+        provenance_metadata[symbol] = {
+            "source": "DYNAMIC_CANDIDATE" if candidate_only else "+".join(labels),
+            "state_persistence_eligible": is_formal,
+            "promotion_required": candidate_only,
+            "persistence_policy": (
+                "FORMAL_STRATEGY_LIFECYCLE"
+                if is_formal
+                else "READ_ONLY_DISCOVERY"
+                if candidate_only
+                else "READ_ONLY_POSITION_MANAGEMENT"
+            ),
+            "production_execution_eligible": is_formal,
+        }
     return ordered, {
         "formal_strategy_pool": sorted(formal_symbols),
         "active_strategy_positions": sorted(position_symbols),
         "dynamic_candidate_set": sorted(dynamic_symbols),
+        "dynamic_candidate_only": dynamic_candidate_only,
+        "stateful_analysis_symbols": [
+            item.symbol.upper()
+            for item in ordered
+            if canonical_key(item.market, item.symbol) in formal_keys
+        ],
         "daily_analysis_universe": [item.symbol.upper() for item in ordered],
         "provenance": {
             symbol: labels for symbol, labels in sorted(provenance.items())
         },
+        "provenance_metadata": provenance_metadata,
     }
+
+
+def _split_persistence_inputs(
+    account_run,
+    inputs: tuple,
+) -> tuple[tuple, tuple]:
+    """Keep formal symbols stateful; inspect every other input read-only."""
+
+    formal_keys = {
+        canonical_key(account_run.account.market, symbol)
+        for symbol in account_run.formal_strategy_pool
+    }
+    if not formal_keys:
+        formal_keys = {
+            canonical_key(item.market, item.symbol)
+            for item in account_run.inputs
+            if item.open_position_state is None
+        }
+    formal_inputs = tuple(
+        item for item in inputs if canonical_key(item.market, item.symbol) in formal_keys
+    )
+    read_only_inputs = tuple(
+        item for item in inputs if canonical_key(item.market, item.symbol) not in formal_keys
+    )
+    return formal_inputs, read_only_inputs
+
+
+def _merge_reports(
+    reports: Iterable[DailyTradingDecisionReport],
+    *,
+    as_of_date: date,
+    generated_at: datetime,
+) -> DailyTradingDecisionReport:
+    """Combine disjoint group reports without re-evaluating any symbol."""
+
+    group_reports = tuple(reports)
+    if not group_reports:
+        raise ValueError("Daily Decision Chain requires at least one input group")
+    values = tuple(
+        result
+        for report in group_reports
+        for result in report.results
+    )
+    identities = tuple((result.market.upper(), result.symbol.upper()) for result in values)
+    if len(set(identities)) != len(identities):
+        raise ValueError("Daily Decision Chain group inputs must be disjoint")
+    return DailyTradingDecisionReport(
+        as_of_date=as_of_date,
+        results=tuple(sorted(values, key=lambda result: (result.market, result.symbol))),
+        generated_at=generated_at,
+        protocol_versions=dict(group_reports[0].protocol_versions),
+    )
+
+
+def _report_payload(report, universe_report: Mapping[str, object]) -> dict[str, object]:
+    """Add per-symbol provenance without changing the frozen result model."""
+
+    payload = report.to_dict()
+    metadata = dict(universe_report.get("provenance_metadata", {}))
+    payload["symbol_provenance"] = metadata
+    for row in payload["results"]:
+        row["provenance"] = metadata.get(row["symbol"], {})
+    for rows in payload["sections"].values():
+        for row in rows:
+            row["provenance"] = metadata.get(row["symbol"], {})
+    return payload
 
 
 def _funnel(
@@ -235,7 +320,7 @@ def _production_markdown(
         for name, values in timings.items()
         if name != "total" and isinstance(values, Mapping)
     )
-    return "\n".join([
+    lines = [
         report.to_markdown(),
         "## Candidate → Daily Chain",
         "",
@@ -246,8 +331,24 @@ def _production_markdown(
         f"- Candidate runtime：{candidate_report.get('status', 'UNKNOWN')}；阶段耗时：{timing_text or '—'}",
         f"- Strategy evaluation elapsed：{strategy_elapsed_seconds}s",
         "- Candidate 不写入策略股票池；broker orders：NONE；默认运行：READ_ONLY",
-        "",
-    ])
+    ]
+    for symbol in universe_report.get("dynamic_candidate_only", ()):
+        metadata = universe_report.get("provenance_metadata", {}).get(symbol, {})
+        result = next(
+            (item for item in report.results if item.symbol.upper() == symbol),
+            None,
+        )
+        line = (
+            f"- Candidate-only {symbol}：source={metadata.get('source', 'DYNAMIC_CANDIDATE')}；"
+            "state_persistence_eligible=false；promotion_required=true；"
+            "policy=READ_ONLY_DISCOVERY；需要人工加入正式策略股票池后重新运行，"
+            "才能进入正式交易生命周期。"
+        )
+        if result is not None and _action_value(result.individual_decision) == "ENTRY_ALLOWED":
+            line += " technical ENTRY_ALLOWED 仍为 NOT_PRODUCTION_EXECUTION_ELIGIBLE_UNTIL_PROMOTED。"
+        lines.append(line)
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _resolve_candidate_runtime(client, candidate_runtime):
@@ -304,6 +405,53 @@ def _allocation_budget(value: str) -> tuple[str, float]:
     if not math.isfinite(budget) or budget <= 0:
         raise argparse.ArgumentTypeError("allocation budget must be positive and finite")
     return account_id, budget
+
+
+def _evaluate_persistence_groups(
+    *,
+    formal_inputs: tuple,
+    read_only_inputs: tuple,
+    state_store,
+    existing_positions,
+    allocation_budget: float | None,
+    approved_event_identities: tuple[str, ...],
+    write_state: bool,
+    generated_at: datetime,
+    as_of_date: date,
+) -> DailyTradingDecisionReport:
+    """Evaluate formal and discovery inputs once with separate write policy."""
+
+    reports: list[DailyTradingDecisionReport] = []
+    if formal_inputs:
+        reports.append(
+            DailyDecisionChain(store=state_store).evaluate(
+                formal_inputs,
+                mode="PRODUCTION",
+                allocation_budget=allocation_budget,
+                approved_event_identities=approved_event_identities,
+                existing_positions=existing_positions,
+                persist_state=write_state,
+                generated_at=generated_at,
+            )
+        )
+    if read_only_inputs:
+        # Candidate-only and active-position-only inputs must not read an
+        # accidental legacy Candidate event or pending record from the formal
+        # production store.  This reuses the existing in-memory test/shadow
+        # store only as an empty read-only state view; no second persistence
+        # framework or production worksheet is introduced.
+        reports.append(
+            DailyDecisionChain(store=InMemoryDecisionStateStore()).evaluate(
+                read_only_inputs,
+                mode="PRODUCTION",
+                allocation_budget=None,
+                approved_event_identities=(),
+                existing_positions=(),
+                persist_state=False,
+                generated_at=generated_at,
+            )
+        )
+    return _merge_reports(reports, as_of_date=as_of_date, generated_at=generated_at)
 
 
 def run_production_daily_decision(
@@ -403,13 +551,20 @@ def run_production_daily_decision(
             account_run, candidate_result, session_identity
         )
         strategy_started = time.perf_counter()
-        report = DailyDecisionChain(store=store).evaluate(
-            inputs,
-            mode="PRODUCTION",
+        formal_inputs, read_only_inputs = _split_persistence_inputs(
+            account_run, inputs
+        )
+        generated_at = datetime.now().astimezone()
+        report = _evaluate_persistence_groups(
+            formal_inputs=formal_inputs,
+            read_only_inputs=read_only_inputs,
+            state_store=store,
+            existing_positions=account_run.existing_positions,
             allocation_budget=budgets.get(account_run.account.account_id),
             approved_event_identities=approvals,
-            existing_positions=account_run.existing_positions,
-            persist_state=write_state,
+            write_state=write_state,
+            generated_at=generated_at,
+            as_of_date=as_of_date,
         )
         strategy_elapsed_seconds = round(time.perf_counter() - strategy_started, 3)
         candidate_report = candidate_result.to_dict()
@@ -418,9 +573,9 @@ def run_production_daily_decision(
             item.symbol.upper() for item in inputs
         ]
         candidate_report["reused_formal_or_position_count"] = sum(
-            _canonical_key(market, symbol)
+            canonical_key(market, symbol)
             in {
-                _canonical_key(market, item.symbol)
+                canonical_key(market, item.symbol)
                 for item in account_run.inputs
             }
             for symbol in candidate_result.included_symbols
@@ -447,7 +602,7 @@ def run_production_daily_decision(
             "runtime": {
                 "strategy_evaluation_elapsed_seconds": strategy_elapsed_seconds,
             },
-            "报告": report.to_dict(),
+            "报告": _report_payload(report, universe_report),
             "Markdown": markdown,
         })
     candidate_payload = {
@@ -492,7 +647,7 @@ def main(argv: list[str] | None = None) -> int:
     actions.add_argument("--preflight", action="store_true", help="只读验证，不写任何状态或 worksheet")
     actions.add_argument(
         "--run", action="store_true",
-        help="运行 Candidate→account-isolated Daily Chain；默认只读，只有 --write-state 才追加系统状态",
+        help="运行 Candidate→account-isolated Daily Chain；默认只读，--write-state 只对正式策略池输入追加系统状态",
     )
     parser.add_argument("--date", "--trade-date", dest="trade_date", type=_date, default=date.today())
     parser.add_argument("--write-state", action="store_true", help="允许系统-owned 策略决策状态写入")

@@ -278,23 +278,23 @@ def _seed_currency(seeds: Sequence[Any], symbol: str) -> str | None:
     return None
 
 
-def _canonical_symbol(market: str, symbol: str) -> str:
-    """Normalize the two CN spellings used by Sheets and seed adapters."""
+def canonical_key(market: str, symbol: str) -> tuple[str, str]:
+    """Return one market-aware identity for Sheets and Candidate inputs."""
 
+    normalized_market = str(market).strip().upper()
     value = str(symbol).strip().upper()
-    if str(market).strip().upper() != "CN":
-        return value
-    code, separator, suffix = value.partition(".")
-    if code.isdigit() and len(code) == 6:
-        if not separator:
-            suffix = "SH" if code.startswith(("5", "6", "9")) else "SZ"
-        elif suffix in {"SSE", "XSHG"}:
-            suffix = "SH"
-        elif suffix in {"SZSE", "XSHE"}:
-            suffix = "SZ"
-        if suffix in {"SH", "SZ"}:
-            return f"{code}.{suffix}"
-    return value
+    if normalized_market == "CN":
+        code, separator, suffix = value.partition(".")
+        if code.isdigit() and len(code) == 6:
+            if not separator:
+                suffix = "SH" if code.startswith(("5", "6", "9")) else "SZ"
+            elif suffix in {"SSE", "XSHG"}:
+                suffix = "SH"
+            elif suffix in {"SZSE", "XSHE"}:
+                suffix = "SZ"
+            if suffix in {"SH", "SZ"}:
+                value = f"{code}.{suffix}"
+    return normalized_market, value
 
 
 def _deep_data_status(
@@ -362,8 +362,9 @@ def _completed_session_window(
     try:
         import exchange_calendars as xc
         import pandas as pd
+        from trading.production_prerequisites import ExactExchangeCalendarProvider
 
-        calendar_name = {"CN": "XSHG", "US": "XNYS"}[market.upper()]
+        calendar_name = ExactExchangeCalendarProvider().calendar_name(market)
         calendar = xc.get_calendar(calendar_name)
         lookback_days = max(180, bars * 3 + 30)
         sessions = calendar.sessions_in_range(
@@ -456,64 +457,46 @@ def _batch_quotes(
     start_date: date,
     end_date: date,
 ) -> tuple[Quote, ...]:
+    """Project one symbol from a batched yfinance frame.
+
+    The frame selection is Candidate-specific; quote normalization stays in
+    the existing provider helper so raw yfinance semantics do not diverge from
+    the formal history path.
+    """
+
     selected = _download_symbol_frame(frame, ticker)
-    columns = {
-        str(column).strip().lower(): column
-        for column in getattr(selected, "columns", ())
-    }
-    required = {
-        field: columns.get(field) for field in ("open", "high", "low", "close")
-    }
-    if any(value is None for value in required.values()):
+    selected_columns = getattr(selected, "columns", None)
+    if selected_columns is None or len(selected_columns) == 0:
         return ()
-    volume_column = columns.get("volume")
-    output: list[Quote] = []
-    previous_close: float | None = None
-    for index, row in selected.iterrows():
-        try:
-            trade_date = _as_frame_date(index)
-            if trade_date < start_date or trade_date > end_date:
-                continue
-            values = {
-                field: float(row[column])
-                for field, column in required.items()
-            }
-            if not all(math.isfinite(value) for value in values.values()):
-                continue
-            volume = None
-            if volume_column is not None:
-                raw_volume = row[volume_column]
-                if raw_volume == raw_volume:
-                    candidate_volume = float(raw_volume)
-                    if math.isfinite(candidate_volume):
-                        volume = candidate_volume
-            output.append(
-                Quote(
-                    symbol=str(seed.symbol).strip().upper(),
-                    name=str(getattr(seed, "name", "") or seed.symbol),
-                    market=str(seed.market).strip().upper(),
-                    trade_date=trade_date,
-                    source="yfinance",
-                    open=values["open"],
-                    high=values["high"],
-                    low=values["low"],
-                    close=values["close"],
-                    preclose=previous_close,
-                    pct_change=(
-                        (values["close"] / previous_close - 1.0) * 100.0
-                        if previous_close not in (None, 0)
-                        else None
-                    ),
-                    volume=volume,
-                    amount=None,
-                    turnover_rate=None,
-                    currency=str(seed.currency).strip().upper(),
-                )
-            )
-            previous_close = values["close"]
-        except (TypeError, ValueError, OverflowError, KeyError):
-            continue
-    return tuple(sorted(output, key=lambda item: item.trade_date))
+    try:
+        selected = selected.sort_index().reset_index()
+        columns = {
+            str(column).strip().lower(): column
+            for column in getattr(selected, "columns", ())
+        }
+        date_column = columns.get("日期") or columns.get("date") or columns.get("index")
+        required = {
+            field: columns.get(field) for field in ("open", "high", "low", "close")
+        }
+        if date_column is None or any(value is None for value in required.values()):
+            return ()
+        selected["日期"] = selected[date_column].map(_as_frame_date)
+        selected = selected[
+            (selected["日期"] >= start_date) & (selected["日期"] <= end_date)
+        ]
+        rename = {
+            column: field.title()
+            for field, column in required.items()
+        }
+        volume_column = columns.get("volume")
+        if volume_column is not None:
+            rename[volume_column] = "Volume"
+        selected = selected.rename(columns=rename)
+        from providers import _records_to_quotes
+
+        return tuple(_records_to_quotes(selected, _provider_watch(seed), "yfinance"))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return ()
 
 
 def _default_short_history_loader(
@@ -860,13 +843,13 @@ class ProductionCandidateRuntime:
             str(seed.symbol).strip().upper(): seed for seed in seeds
         }
         reuse = {
-            _canonical_symbol(normalized_market, symbol)
+            canonical_key(normalized_market, symbol)[1]
             for symbol in reuse_symbols
         }
         deep_targets = tuple(
             seed_by_symbol[record.symbol.upper()]
             for record in universe.included
-            if _canonical_symbol(normalized_market, record.symbol) not in reuse
+            if canonical_key(normalized_market, record.symbol)[1] not in reuse
             and record.symbol.upper() in seed_by_symbol
         )
         deep_started = time.perf_counter()
@@ -1049,4 +1032,5 @@ __all__ = [
     "US_COMPLETED_SESSION_REQUIRED",
     "US_HISTORICAL_QFQ_ASOF_UNVERIFIED",
     "YFINANCE_BATCH_CHUNK",
+    "canonical_key",
 ]

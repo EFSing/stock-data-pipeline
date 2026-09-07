@@ -7,7 +7,7 @@ proposal, infer entry/risk metadata, or call a broker.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 import json
@@ -1187,6 +1187,10 @@ class ProductionInputAdapter:
                         item, as_of_date=self.as_of_date, account_currency=account.currency,
                         latest_rows=latest_rows, history_rows=history_rows,
                         calendar_identity=calendar_identity,
+                    )
+                    symbol_input = replace(
+                        symbol_input,
+                        risk_group=group.risk_group if group else None,
                     )
                     if status != DATA_OK:
                         account_errors.append(f"{PRODUCTION_DATA_QUALITY_REQUIRED}:{item.symbol}:{status}:{detail}")

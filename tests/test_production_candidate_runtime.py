@@ -1,14 +1,27 @@
 from datetime import date, timedelta
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from core import Quote
 from scripts.run_production_daily_decision import run_production_daily_decision
-from tests.test_production_prerequisites import AFTER_CLOSE, T_DAY, _latest, _rows
+from tests.test_production_prerequisites import (
+    AFTER_CLOSE,
+    T_DAY,
+    _decision_for_state,
+    _latest,
+    _rows,
+)
 from trading.candidate_universe import SeedSecurity
 from trading.daily_decision_chain import (
     CompletedSessionIdentity,
     DATA_UNAVAILABLE,
+    DailyChainEvaluators,
+    DailyDecisionChain as RealDailyDecisionChain,
+    STRATEGY_PROPOSAL,
 )
+from trading.models import Setup01Evaluation, SetupState, Trend
+from trading.setup01_replay import Setup01ReplayDay, Setup01ReplayEvent, Setup01ReplayReport
 from trading.production_candidate_runtime import (
     HistoryLoadResult,
     ProductionCandidateRuntime,
@@ -53,6 +66,120 @@ def _history(symbol: str, market: str, currency: str, *, bars: int = 60):
         )
         for index in range(bars)
     )
+
+
+def _candidate_event_identity(symbol: str) -> str:
+    return f"{symbol}|SETUP_01|{T_DAY.isoformat()}|CONFIRMED|lifecycle=1"
+
+
+def _stub_chain_factory(confirmed_symbols: set[str]):
+    wave = SimpleNamespace(
+        weekly_state=Trend.UPTREND,
+        daily_state=Trend.UPTREND,
+        primary_scenario=SimpleNamespace(family="WAVE_2_TO_3_CANDIDATE"),
+        alternate_scenario=SimpleNamespace(family="ABC_CORRECTION_CANDIDATE"),
+    )
+
+    def setup01(history, **_kwargs):
+        symbol = history[0].symbol.upper()
+        confirmed = symbol in confirmed_symbols
+        current = Setup01Evaluation(
+            setup_type="SETUP_01",
+            protocol_version="SETUP-01-WAVE2-TO-WAVE3-2026-08-30-v1",
+            state=SetupState.CONFIRMED if confirmed else SetupState.NONE,
+            as_of_date=T_DAY,
+            wave1_origin=None,
+            wave1_peak=None,
+            wave2_low=None,
+            fib_retracement_ratio=None,
+            fib_retracement_region=None,
+            confirmation_level=None,
+            structural_invalidation=None,
+            wave_scenario_invalidation=None,
+            wave1_origin_confirmed_date=None,
+            wave1_peak_confirmed_date=None,
+            wave2_low_confirmed_date=None,
+            state_entered_index=0,
+            state_entered_date=T_DAY,
+            confirmed_index=0 if confirmed else None,
+            confirmed_date=T_DAY if confirmed else None,
+            failed_index=None,
+            failed_date=None,
+            primary_wave_scenario="WAVE_2_TO_3_CANDIDATE",
+            alternate_wave_scenario="ABC_CORRECTION_CANDIDATE",
+            reason="synthetic",
+            terminal_event_type=SetupState.CONFIRMED if confirmed else None,
+            terminal_event_date=T_DAY if confirmed else None,
+            is_new_confirmed_event_as_of=confirmed,
+            is_live_preconfirmation_candidate=False,
+            lifecycle_index=1,
+        )
+        if not confirmed:
+            return Setup01ReplayReport(
+                symbol=symbol,
+                market="US",
+                days=(Setup01ReplayDay(symbol, T_DAY, current),),
+                events=(),
+            )
+        event = Setup01ReplayEvent(
+            event_identity=_candidate_event_identity(symbol),
+            symbol=symbol,
+            market="US",
+            trade_date=T_DAY,
+            event_type=SetupState.CONFIRMED,
+            setup01=current,
+        )
+        return Setup01ReplayReport(
+            symbol=symbol,
+            market="US",
+            days=(Setup01ReplayDay(symbol, T_DAY, current),),
+            events=(event,),
+        )
+
+    def setup02(_history, **_kwargs):
+        return SimpleNamespace(current=SimpleNamespace(state=SetupState.NONE), events=())
+
+    def factory(*, store):
+        return RealDailyDecisionChain(
+            store=store,
+            evaluators=DailyChainEvaluators(
+                wave=lambda *_args, **_kwargs: wave,
+                setup01=setup01,
+                setup02=setup02,
+            ),
+        )
+
+    return factory
+
+
+def _runtime_for(seed):
+    histories = {seed.symbol: _history(seed.symbol, seed.market, seed.currency)}
+    return ProductionCandidateRuntime(
+        seed_loaders={
+            "CN": lambda _as_of: (),
+            "US": lambda _as_of: (T_DAY, (seed,)),
+        },
+        short_history_loader=lambda values, _start, _end: HistoryLoadResult(
+            {item.symbol: histories[item.symbol] for item in values}
+        ),
+        deep_history_loader=lambda values, _start, _end: HistoryLoadResult(
+            {item.symbol: histories[item.symbol] for item in values}
+        ),
+        session_window_loader=lambda _market, end, _bars: (end, end),
+        enforce_us_latest_qfq_asof=False,
+    )
+
+
+def _state_rows(client, symbol: str | None = None):
+    rows = [
+        row
+        for sheet_name, _headers, written in client.writes
+        if sheet_name == "策略决策状态"
+        for row in written
+    ]
+    if symbol is None:
+        return rows
+    return [row for row in rows if row.get("统一代码") == symbol]
 
 
 def _identity(market: str) -> CompletedSessionIdentity:
@@ -209,6 +336,125 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         self.assertTrue(by_account["CN-1"]["Candidate"]["read_only"])
         self.assertEqual(client.writes, [])
         self.assertNotIn("策略股票池", [write[0] for write in client.writes])
+
+    def test_candidate_only_write_state_is_discovery_only(self):
+        client = _rows()
+        seed = _seed("US", "DYN")
+        runtime = _runtime_for(seed)
+        event_identity = _candidate_event_identity("DYN")
+
+        with (
+            patch(
+                "scripts.run_production_daily_decision.DailyDecisionChain",
+                side_effect=_stub_chain_factory({"DYN"}),
+            ),
+            patch(
+                "trading.daily_decision_chain.evaluate_setup01_decision",
+                side_effect=lambda event, _history, **_kwargs: _decision_for_state(event),
+            ),
+        ):
+            result = run_production_daily_decision(
+                client,
+                as_of_date=T_DAY,
+                preflight=False,
+                write_state=True,
+                approved_event_identities=(event_identity,),
+                allocation_budgets={"US-1": 100000.0},
+                now=AFTER_CLOSE,
+                candidate_runtime=runtime,
+            )
+
+        us_report = next(item for item in result["reports"] if item["账户ID"] == "US-1")
+        dyn = next(row for row in us_report["报告"]["results"] if row["symbol"] == "DYN")
+        metadata = us_report["universe"]["provenance_metadata"]["DYN"]
+        self.assertEqual(dyn["final_status"], STRATEGY_PROPOSAL)
+        self.assertIsNone(dyn["portfolio_result"])
+        self.assertEqual(metadata["source"], "DYNAMIC_CANDIDATE")
+        self.assertFalse(metadata["state_persistence_eligible"])
+        self.assertTrue(metadata["promotion_required"])
+        self.assertEqual(metadata["persistence_policy"], "READ_ONLY_DISCOVERY")
+        self.assertEqual(_state_rows(client, "DYN"), [])
+        self.assertIn("promotion_required=true", us_report["Markdown"])
+        self.assertIn("NOT_PRODUCTION_EXECUTION_ELIGIBLE_UNTIL_PROMOTED", us_report["Markdown"])
+
+    def test_candidate_only_approval_and_budget_do_not_allocate_or_write(self):
+        client = _rows()
+        seed = _seed("US", "DYN")
+        runtime = _runtime_for(seed)
+
+        with (
+            patch(
+                "scripts.run_production_daily_decision.DailyDecisionChain",
+                side_effect=_stub_chain_factory({"DYN"}),
+            ),
+            patch(
+                "trading.daily_decision_chain.evaluate_setup01_decision",
+                side_effect=lambda event, _history, **_kwargs: _decision_for_state(event),
+            ),
+        ):
+            result = run_production_daily_decision(
+                client,
+                as_of_date=T_DAY,
+                preflight=False,
+                approved_event_identities=(_candidate_event_identity("DYN"),),
+                allocation_budgets={"US-1": 100000.0},
+                now=AFTER_CLOSE,
+                candidate_runtime=runtime,
+            )
+
+        us_report = next(item for item in result["reports"] if item["账户ID"] == "US-1")
+        dyn = next(row for row in us_report["报告"]["results"] if row["symbol"] == "DYN")
+        self.assertEqual(dyn["final_status"], STRATEGY_PROPOSAL)
+        self.assertIsNone(dyn["portfolio_result"])
+        self.assertEqual(client.writes, [])
+
+    def test_formal_candidate_member_keeps_formal_state_lifecycle(self):
+        client = _rows()
+        seed = _seed("US", "AAPL")
+        runtime = _runtime_for(seed)
+        event_identity = _candidate_event_identity("AAPL")
+
+        with (
+            patch(
+                "scripts.run_production_daily_decision.DailyDecisionChain",
+                side_effect=_stub_chain_factory({"AAPL"}),
+            ),
+            patch(
+                "trading.daily_decision_chain.evaluate_setup01_decision",
+                side_effect=lambda event, _history, **_kwargs: _decision_for_state(event),
+            ),
+        ):
+            first = run_production_daily_decision(
+                client,
+                as_of_date=T_DAY,
+                preflight=False,
+                write_state=True,
+                now=AFTER_CLOSE,
+                candidate_runtime=runtime,
+            )
+            second = run_production_daily_decision(
+                client,
+                as_of_date=T_DAY,
+                preflight=False,
+                write_state=True,
+                approved_event_identities=(event_identity,),
+                allocation_budgets={"US-1": 100000.0},
+                now=AFTER_CLOSE,
+                candidate_runtime=runtime,
+            )
+
+        us_report = next(item for item in second["reports"] if item["账户ID"] == "US-1")
+        aapl = next(row for row in us_report["报告"]["results"] if row["symbol"] == "AAPL")
+        metadata = us_report["universe"]["provenance_metadata"]["AAPL"]
+        self.assertEqual(first["reports"][1]["报告"]["results"][0]["final_status"], STRATEGY_PROPOSAL)
+        self.assertEqual(aapl["final_status"], "PORTFOLIO_ALLOWED")
+        self.assertTrue(aapl["provenance"]["production_execution_eligible"])
+        self.assertTrue(metadata["state_persistence_eligible"])
+        self.assertFalse(metadata["promotion_required"])
+        self.assertTrue(_state_rows(client, "AAPL"))
+        self.assertTrue(
+            any(row["记录类型"] == "PENDING_T1" for row in _state_rows(client, "AAPL"))
+        )
 
     def test_multiple_enabled_accounts_same_market_requires_routing_decision(self):
         client = _rows()

@@ -475,6 +475,20 @@ Strategy protocol。
 **Reason:** Candidate 是交易前可交易性/分析资源边界，不是新信号层；把 affordability
 与分散性放在重历史/策略计算之前可降低资源消耗而不污染冻结策略语义。
 
+## 2026-09-07 — Dynamic Candidate 仅作发现，正式池晋级后才进入生命周期
+
+**Decision:** Dynamic Candidate 是 discovery-only 输入。它可以进入同一套只读
+Strategy/Daily 分析并出现在 JSON/Markdown 报告，但不得写入策略决策状态、发布
+event identity、创建或结算 T→T+1 pending、进入 Portfolio allocation，或产生生产
+执行资格。Candidate 与正式 `策略股票池` 重叠时，按正式池身份处理；Candidate-only
+标的若要进入正式交易生命周期，必须由人工加入正式 `策略股票池`，补齐现有账户、
+risk group、origin、calendar、budget 等生产前置条件后重新运行。正式池之外的已有
+持仓仍可进入只读 Position Management，不借此把持仓提升为正式策略池。
+
+**Reason:** 这保持一个正式、可审计的 stateful lifecycle，避免动态发现集合与持久
+状态 identity、approval 和 T+1 ledger 发生隐式耦合；人工 promotion 是进入正式交易
+语义的明确控制点，不新增第二套状态机或新的 Sheet contract。
+
 ## 2026-09-06 — Strategy history runtime 与 CN/US 独立
 
 **Decision:** CN 与 US 收盘时段不同，Candidate/Strategy history runtime 必须按

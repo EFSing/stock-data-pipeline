@@ -33,10 +33,13 @@ trading/production_candidate_runtime.py (one independent market runtime)
         ↓
 formal strategy pool ∪ active strategy positions ∪ dynamic Candidate Set
         → de-duplicated in-memory DailySymbolInput values with provenance
+        → formal strategy-pool group: existing state store / approval / budget path
+        → non-formal Candidate-only and active-position-only group: read-only path
         ↓
 existing Data Quality → Weekly / Daily → Swing → Wave → Fibonacci →
 SETUP_01 / SETUP_02 → Decision → Portfolio Risk → Position Management
-        → JSON/Markdown funnel; no Candidate or strategy-pool Sheet mutation
+        → merged JSON/Markdown funnel; only formal group may persist state
+        → Candidate-only cannot allocate or enter production execution
 
 Candidate Strategy Shadow Bridge (manual/local read-only runtime)
         ↓
@@ -118,8 +121,13 @@ with multiple enabled strategy accounts is rejected as
 `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING` rather than guessed. Stage A uses fixed
 yfinance batches and Stage B calls the existing yfinance QFQ provider only for included
 symbols; formal/position inputs are reused and the final union is analyzed once. Candidate
-data failures become ordinary DATA_* fail-closed Daily Chain rows. The runtime is read-only,
-does not approve events, allocate capital, write state automatically, or submit orders.
+data failures become ordinary DATA_* fail-closed Daily Chain rows. The union is analyzed once,
+then the runner evaluates the formal strategy-pool group with the existing account-scoped
+state store and evaluates non-formal Candidate/position inputs with an empty read-only state
+view before merging the report. Candidate-only inputs cannot publish events, create/settle
+T+1 pending, reserve Portfolio Risk, or become production-execution eligible; manual promotion
+into `策略股票池` is required. The runtime does not approve events, write strategy input
+worksheets, or submit orders.
 
 The Candidate Strategy Shadow Bridge is a manual/local development path. `--market cn` and
 `--market us` execute independently; `--market all` aggregates both only for convenience and
@@ -144,11 +152,13 @@ All bridge execution is read-only.
   existing 60-bar minimum and end exactly at completed T.
 - The runner forms the in-memory union
   `formal_strategy_pool ∪ active_strategy_positions ∪ dynamic_candidate_set`,
-  de-duplicates by market-aware canonical identity, preserves provenance in the
-  report, and evaluates the existing Daily Chain once per symbol. Candidate data
-  failures become DATA_* fail-closed rows. Candidate rows are never written to
-  `策略股票池` or any other Sheet, and no broker/approval/allocation action is
-  performed automatically.
+  de-duplicates by one shared market-aware canonical identity, preserves per-symbol
+  provenance in the report, and evaluates the existing Daily Chain once per symbol.
+  Formal-pool rows keep the existing stateful lifecycle; Candidate-only rows use
+  `READ_ONLY_DISCOVERY`, so even an approval, budget, or `--write-state` flag cannot
+  publish/persist/allocate them. Active-only rows remain read-only Position Management.
+  Candidate data failures become DATA_* fail-closed rows. No Candidate row is written
+  to `策略股票池` or any other Sheet, and no broker order is submitted automatically.
 
 ### Execution modes
 

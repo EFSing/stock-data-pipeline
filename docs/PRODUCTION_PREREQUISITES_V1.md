@@ -179,9 +179,13 @@ Preflight prints a Chinese-first per-account readiness summary. `--run` prints
 the same preflight snapshot plus one account-isolated machine-JSON and Markdown
 Daily Chain report, including fail-closed symbol rows when data or production
 prerequisites are not ready. Both modes have no state write and no Sheets
-mutation by default. Use `--approve-event EVENT_IDENTITY` only for an already
-published proposal and `--allocation-budget ACCOUNT_ID=AMOUNT` for the explicit
-strategy risk-ledger budget; these are not NAV substitutes. Add
+mutation by default. Formal `策略股票池` inputs are the only inputs eligible for
+the existing stateful lifecycle. Dynamic Candidate-only rows remain read-only
+discovery rows and cannot be promoted by `--approve-event`,
+`--allocation-budget`, or `--write-state`; manually add them to `策略股票池` and
+rerun after production prerequisites are complete. Use `--approve-event EVENT_IDENTITY`
+only for an already published formal proposal and `--allocation-budget ACCOUNT_ID=AMOUNT`
+for the explicit strategy risk-ledger budget; these are not NAV substitutes. Add
 `--write-state` only for an explicitly authorized stateful run after a READY
 preflight. No cron, workflow schedule, broker, IBKR or order path is added.
 

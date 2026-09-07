@@ -7,8 +7,8 @@
 
 ## 1. Current Task（当前任务）
 
-- 本轮唯一任务：**将现有 Candidate Universe 最小接入 Production Daily Decision
-  Chain V1**；当前在 feature branch 上完成实现与验证收尾。
+- 本轮唯一任务：**修正 Candidate Universe 接入 Production Daily Decision Chain
+  V1 的生命周期边界**；当前在 feature branch 上完成实现、回归与文档收尾。
 - 基线 `main` 已包含 Production Daily Decision Chain V1；本轮新增 Candidate
   runtime 仍保持人工触发、account-isolated、默认只读。
 - 本轮已将现有 frozen Wave / SETUP_01 / SETUP_02 Decision/Risk / Portfolio Risk /
@@ -17,6 +17,11 @@
 - 只做 `SETUP_01` / `SETUP_02`，不重开 `SETUP_03`、不做 `SETUP_03 formal
   validation`、不开发 `SETUP_04`、不接 scheduler/HiThink/broker/order，不自动
   批准交易；默认 read-only，state write 必须继续显式 `--write-state`。
+- Dynamic Candidate 正式确定为 discovery-only：Candidate-only 只进入当日只读分析
+  与报告，不进入 state write、published event、T→T+1 pending/settlement、Portfolio
+  allocation 或 production execution；必须人工加入正式 `策略股票池` 并补齐现有
+  production prerequisites 后重新运行。Candidate overlap 正式池时按正式池生命周期，
+  正式池之外的已有持仓仍只做 Position Management。
 - 治理体系瘦身 v1 已完成：PR #73 已合并；此前关于 PR #73 `OPEN / 等待 merge`
   的现场描述已经过期。动态 branch / PR / CI 状态以 GitHub 实时事实为准。
 - PR #74 已 squash merge；本轮 Candidate 接入的 PR #75 已创建并保持未合并，
@@ -38,7 +43,7 @@
   状态错误。它不要求本文件保存实时 main SHA / CI run ID，也不要求 docs-only
   commit 后重新完整验证。
 - 当前不存在 `PROJECT_GOVERNANCE_STATE_CONFLICT`。实时 PR 状态以 GitHub 上的
-  PR #74 与 `git fetch origin` 结果为准。
+  PR #75 与 `git fetch origin` 结果为准。
 
 ## 3. Completed（已完成事项 — 当前任务上下文）
 
@@ -66,11 +71,16 @@
   数据质量门与现有 frozen Daily Chain/Portfolio Risk/Position Management 边界。
 - 已完成最小 production glue：正式 `策略股票池` + active `策略持仓` + 当日动态
   Candidate Set → 同一个 account-isolated Daily Chain；正式池、持仓与 Candidate
-  以 market-aware identity 去重，并保留报告 provenance。
+  以共享 market-aware identity 去重，并保留报告 provenance；正式池与非正式输入
+  分成 stateful/read-only persistence groups 后合并报告。
+- 已修正生命周期漏洞：Candidate-only 永远使用 `READ_ONLY_DISCOVERY`，不受
+  `--approve-event`、`--allocation-budget` 或 `--write-state` 绕过；只有人工 promotion
+  到正式 `策略股票池` 后才可进入正式策略生命周期。
 - Candidate Stage A 使用 60-bar yfinance batch selector，Stage B 只请求 included
-  Candidate 的既有 yfinance QFQ 深历史；Candidate 不写 `策略股票池`，默认 `--run`
-  只读输出 JSON/Markdown，`--write-state` 仍是唯一显式状态写入开关；
-  `--approve-event` 与 `--allocation-budget` 保持人工在环。
+  Candidate 的既有 yfinance QFQ 深历史；Candidate 不写 `策略股票池`。默认 `--run`
+  只读输出 JSON/Markdown；`--write-state` 仍是唯一显式状态写入开关，但只对正式
+  `策略股票池` 输入生效；`--approve-event` 与 `--allocation-budget` 保持人工在环，
+  且不能替代 Candidate promotion。
 - 已覆盖 read-only 不写状态、Candidate 两阶段/去重/失败闭环、持仓独立管理、无
   broker order 与 CN/US 隔离回归；未触碰 SETUP_03/04 或自动调度。
 - 已按 bounded smoke 结论记录 HiThink Financial API（同花顺金融数据服务）仍是
@@ -79,8 +89,8 @@
 
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- PR #73 与 PR #74 均已合并；本轮 Candidate 接入的实现、文档、本地 full unittest
-  与 PR #75 CI checks 已完成，PR #75 保持未合并等待 review。
+- PR #73 与 PR #74 均已合并；本轮 PR #75 的实现、文档与本地回归正在收尾，PR #75
+  保持未合并等待 review；最新远端 branch/CI 结论必须以 GitHub 实时状态为准。
 - 当前没有已知的业务语义 blocker。若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
@@ -102,8 +112,9 @@
 - SETUP_03：formal validation 未重开（仍未执行），无 production tolerance；继续需新的明确
   研究决策 + 新 protocol/version。
 - SETUP_04：未实现。
-- Candidate Universe 已接入人工触发的 production strategy chain；真实 private
-  smoke 仍需在凭证与隐私安全允许时执行。
+- Candidate Universe 已接入人工触发的 production strategy chain；Candidate-only
+  需要人工 promotion 才能进入正式生命周期；真实 private smoke 仍需在凭证与隐私
+  安全允许时执行。
 - HiThink Financial API 只有 bounded transport smoke，财务字段、复权公式/as-of
   与长历史覆盖仍未验证；继续保持未接入状态。
 - （治理层）GitHub CI 的 `ci.yml` 仍对所有 PR/main push 跑完整 unittest；本次未

@@ -74,7 +74,7 @@ the frozen fractions `BASE_RISK_FRACTION=0.005`,
 |---|---|---|
 | Formal strategy universe | `ProductionInputAdapter` reads enabled, account-scoped rows from the formal `策略股票池`; `自选清单` remains a market-data coverage source and holdings are not a substitute. | Use the existing formal Sheet contract; fail closed with `PRODUCTION_STRATEGY_UNIVERSE_REQUIRED` when no enabled strategy row is available. No new registry/provider is added in V1. |
 | Production daily/qfq data | The production adapter reads completed-session latest rows and non-empty QFQ history from the formal Sheet contracts, validates exact T coverage and rejects future/stale/duplicate data before the chain. | Reuse the existing latest/QFQ contracts and injected `DailySymbolInput` boundary; provider expansion and new adjustment semantics are out of scope for V1. |
-| Authoritative strategy decision persistence | `交易决策` remains the legacy SETUP_03 surface; `策略决策状态` is the existing typed/account-scoped V1 state store for SETUP_01/02 daily identities. | Reuse `SheetsDecisionStateStore` for production reads and explicitly authorized state writes; use `InMemoryDecisionStateStore` only for tests/shadow. |
+| Authoritative strategy decision persistence | `交易决策` remains the legacy SETUP_03 surface; `策略决策状态` is the existing typed/account-scoped V1 state store for SETUP_01/02 daily identities. | Reuse `SheetsDecisionStateStore` for formal production reads and explicitly authorized state writes; use an empty `InMemoryDecisionStateStore` only as a transient read-only view for non-formal Candidate/position inputs, tests, and shadow. |
 | Published-event identity ledger | Existing SETUP_01/02 replay event identities are deterministic. The existing Sheet ledger is SETUP_03-keyed. | Reuse existing SETUP_01/02 event identity; store exact-once published identities in the injected state store. |
 | Production capital | Account NAV/assets are not strategy inputs. `参数设置. decision_risk_capital` is a legacy individual-decision input, not an allocation budget. | Proposal generation is independent of NAV. After user approval, Portfolio Risk accepts only explicit `allocation_budget`; account NAV is never substituted. |
 | Risk-group/sector metadata | No reliable sector/risk-group metadata source is present in the production data path. | Inject accepted metadata when Portfolio Risk allocation is requested; production UNKNOWN fails closed there. |
@@ -87,11 +87,13 @@ the frozen fractions `BASE_RISK_FRACTION=0.005`,
 
 The `DecisionStateStore` interface records published event identity, pending T+1
 decisions, settled execution identity, system-created position origins, and
-daily report history. Production uses the existing account-scoped
-`SheetsDecisionStateStore` backed by `策略决策状态`; its default is read-only.
-`InMemoryDecisionStateStore` remains limited to tests and synthetic shadow. No
-new Sheet schema, external database, broker, or automatic schedule is added by
-this V1 wiring.
+daily report history. Production formal-pool inputs use the existing
+account-scoped `SheetsDecisionStateStore` backed by `策略决策状态`; its default
+is read-only. The runner may use the existing `InMemoryDecisionStateStore` as
+an empty transient read-only view for non-formal Candidate/position inputs; it
+never receives writes and is not a production persistence backend. No new Sheet
+schema, external database, broker, or automatic schedule is added by this V1
+wiring.
 
 ## Production Daily Runner V1
 
@@ -105,7 +107,10 @@ without turning a diagnostic run into a state mutation.
 
 `--write-state` is the only explicit state-write opt-in and is accepted only
 when preflight is `READY`; it still writes only system-owned
-`策略决策状态` rows. Human-in-the-loop inputs remain explicit:
+`策略决策状态` rows for formal `策略股票池` inputs. Dynamic Candidate-only inputs
+are evaluated in a separate empty read-only state view and cannot publish events,
+create/settle T+1 pending, reserve Portfolio Risk, or become production-execution
+eligible. They require manual promotion into the formal pool and a new run. Human-in-the-loop inputs remain explicit:
 `--approve-event EVENT_IDENTITY` matches an already-published proposal identity,
 and `--allocation-budget ACCOUNT_ID=AMOUNT` supplies the account's strategy
 risk-ledger budget. Neither option reads or substitutes account NAV, and neither

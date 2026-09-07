@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-07（Candidate→Daily Chain production 接入）。
+> 最后实质更新：2026-09-07（Dynamic Candidate 生命周期边界修正）。
 
 ## 项目身份
 
@@ -63,15 +63,18 @@
   US 一股 `>1,000 USD` 排除）、20D/60D traded-notional 流动性 proxy、
   history/data-quality gate、sector-aware `TOP_N_PER_SECTOR=20` 与
   included/excluded 审计行。
-- Candidate 层仍不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；
+- Candidate selector 仍不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；
   `scripts/run_production_daily_decision.py --run` 在真实 `SheetsClient` 上按 CN/US
   独立运行两阶段输入：Stage A 用固定 yfinance batch 获取至少 60 bars 并调用现有
   selector，Stage B 只对 included Candidate（已存在正式池/持仓输入的标的复用已有
-  QFQ）加载深历史并交给同一 Daily Decision Chain。
+  QFQ）加载深历史并交给同一套 Strategy/Daily 分析。
 - 动态集合只存在于当日内存和 JSON/Markdown 报告中，按 market-aware identity 与
   正式 `策略股票池`、`策略持仓` 去重；报告保留
   `FORMAL_STRATEGY_POOL` / `ACTIVE_STRATEGY_POSITION` / `DYNAMIC_CANDIDATE`
-  provenance。Candidate 不写入 `策略股票池`，默认运行保持 READ_ONLY。
+  provenance。正式池输入组成 stateful group；Candidate-only 强制为
+  `READ_ONLY_DISCOVERY`，`state_persistence_eligible=false`、
+  `promotion_required=true`，不产生 state/pending/settlement/Portfolio allocation
+  或 production execution。Candidate overlap 正式池时按正式池生命周期处理。
 
 ### 策略核心计算层（Wave / Swing / Structure / Fibonacci）
 
@@ -148,10 +151,11 @@
   替代）、risk-group metadata、authoritative position origin、exact
   exchange-calendar session 与持久
   `DecisionStateStore`；缺失时 fail closed。`scripts/run_production_daily_decision.py`
-  提供 `--preflight` 与默认只读 `--run`；`--run` 现在会将 Candidate→Daily 的
-  动态输入并入正式池/持仓输入，输出 account-level funnel 和 stage timings。只有
-  显式 `--write-state` 才追加系统-owned `策略决策状态`，并可用显式 `--approve-event`、
-  `--allocation-budget ACCOUNT_ID=AMOUNT` 完成人工在环输入。
+  提供 `--preflight` 与默认只读 `--run`；`--run` 会将 Candidate→Daily 的动态输入
+  并入去重后的当日分析 universe，但把正式池与非正式池输入分成 stateful/read-only
+  两组后合并展示结果。只有正式池输入在显式 `--write-state` 下才追加 system-owned
+  `策略决策状态`；`--approve-event`、`--allocation-budget ACCOUNT_ID=AMOUNT` 对
+  Candidate-only 不会绕过晋级边界。
 - 启用持仓即使不在正式股票池或 Candidate 中也会继续进入 Position Management；
   多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
   `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。
@@ -211,8 +215,10 @@
 
 ## 研究中的能力 / 明确未接入生产
 
-- Candidate Universe：已接入人工触发的 production Daily Decision Chain V1；没有
-  自动调度、自动批准、自动 state write 或 broker execution。
+- Candidate Universe：已接入人工触发的 production Daily Decision Chain V1；动态
+  Candidate-only 仍是 discovery-only，进入正式生命周期必须人工加入
+  `策略股票池` 并重新满足 production prerequisites；没有自动调度、自动批准、自动
+  state write 或 broker execution。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
