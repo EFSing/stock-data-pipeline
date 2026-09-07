@@ -14,19 +14,19 @@
 - 只做 `SETUP_01` / `SETUP_02`，不重开 `SETUP_03`、不做 `SETUP_03 formal
   validation`、不开发 `SETUP_04`、不接 Candidate Universe、不接 broker/order，
   不自动批准交易；默认 read-only，state write 必须继续显式 `--write-state`。
-- 治理体系瘦身 v1 已完成：PR #73 已合并；当前无活动 PR。此前关于 PR #73
-  `OPEN / 等待 merge` 的现场描述已经过期；动态 branch / PR / CI 状态以 GitHub
-  实时事实为准。
-- 本轮实现分支：`codex/production-daily-decision-chain-v1`；完成后只创建一个
-  feature PR，不自动 merge。
+- 治理体系瘦身 v1 已完成：PR #73 已合并；此前关于 PR #73 `OPEN / 等待 merge`
+  的现场描述已经过期。动态 branch / PR / CI 状态以 GitHub 实时事实为准。
+- 本轮实现分支：`codex/production-daily-decision-chain-v1`；PR #74 已创建并为
+  OPEN；只保留这一 feature PR，不自动 merge。PR final tip / checks 以 GitHub
+  实时状态为准。
 
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支 `main`。
 - 本任务开始时真实仓库状态：本地 `main` = `origin/main`、working tree clean、
   GitHub 无 open PR、无未提交业务代码；最后核对日期 `2026-09-06`。
-  此后一律以 `git fetch origin` + `gh pr list` 的实时结果为准，不信任本文件中的
-  历史描述。
+  本轮已从该基线创建 feature branch 并打开 PR #74；此后一律以 Git / GitHub
+  实时结果为准，不信任本文件中的历史描述。
 - 治理文件职责现为（详见 `AGENTS.md`）：
   - Git/GitHub = 动态工程事实源；
   - `HANDOFF.md` = 当前开发现场恢复；
@@ -36,8 +36,8 @@
   系统能力无实质矛盾、长期 Decision 无已知冲突、无会让下一设备错误继续的重大
   状态错误。它不要求本文件保存实时 main SHA / CI run ID，也不要求 docs-only
   commit 后重新完整验证。
-- 当前不存在 `PROJECT_GOVERNANCE_STATE_CONFLICT`。实时 PR 状态以
-  `gh pr view 73` / `gh pr list` 为准。
+- 当前不存在 `PROJECT_GOVERNANCE_STATE_CONFLICT`。实时 PR 状态以 GitHub 上的
+  PR #74 与 `git fetch origin` 结果为准。
 
 ## 3. Completed（已完成事项 — 当前任务上下文）
 
@@ -72,19 +72,17 @@
 
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- PR #73 已合并，不再是 blocker；本轮实现、文档与本地验证已完成，待提交并创建
-  唯一 feature PR。
+- PR #73 已合并，不再是 blocker；本轮实现、文档、本地验证与 PR checks 已完成。
+  PR #74 等待用户 review / merge，不自动 merge。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
   `READY_FOR_DECISION` 请求用户选择；普通代码接线、测试和文档处理不构成 blocker。
 
 ## 5. Next Action（下一步动作）
 
-1. 在提交前重跑 `git diff --check`、全量 unittest 与 generic operational shadow，
-   确认 working tree 只包含本轮 production chain 变更。
-2. 提交并推送 `codex/production-daily-decision-chain-v1`，创建唯一 feature PR，
-   不自动 merge。
-3. 核对 PR checks；若通过，更新本文件为 `PR_FULLY_READY`，并以 GitHub 实时
-   PR/CI 状态作为后续依据。
+1. 用户 review / merge PR #74；不自动 merge。
+2. 若 PR 继续修改，重新核对本地分支、GitHub checks 与
+   `HANDOFF_CURRENT_AND_CONSISTENT`；若合并，按 `AGENTS.md` 规则以新的明确授权
+   任务为准。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
@@ -147,6 +145,6 @@
 
 状态标记：
 
-`PRODUCTION_DAILY_DECISION_CHAIN_V1_IN_PROGRESS`
+`PR_FULLY_READY`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
