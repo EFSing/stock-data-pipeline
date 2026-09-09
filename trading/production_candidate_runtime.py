@@ -19,6 +19,7 @@ module never replaces that data.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 import math
@@ -50,6 +51,14 @@ from trading.models import validate_quote_series
 
 STRATEGY_HISTORY_BARS = 1000
 YFINANCE_BATCH_CHUNK = 80
+# yfinance accepts an explicit integer thread bound.  Keep the bound small and
+# stable so Stage A gains transport parallelism without opening an unbounded
+# client-side fan-out or changing the batch/normalization contract.
+YFINANCE_BATCH_THREADS = 8
+# Stage B still uses one existing per-symbol QFQ provider request.  A small,
+# explicit pool overlaps network wait while keeping the request fan-out
+# bounded and the result/error order deterministic.
+YFINANCE_DEEP_HISTORY_WORKERS = 4
 US_HISTORICAL_QFQ_ASOF_UNVERIFIED = "US_HISTORICAL_QFQ_ASOF_UNVERIFIED"
 US_COMPLETED_SESSION_REQUIRED = "US_COMPLETED_SESSION_REQUIRED"
 PRODUCTION_CANDIDATE_ACCOUNT_ROUTING_REQUIRED = (
@@ -525,7 +534,7 @@ def _default_short_history_loader(
                 actions=False,
                 repair=False,
                 group_by="ticker",
-                threads=False,
+                threads=YFINANCE_BATCH_THREADS,
                 progress=False,
             )
             for seed, ticker in zip(chunk, tickers):
@@ -549,13 +558,9 @@ def _default_deep_qfq_history_loader(
 ) -> HistoryLoadResult:
     """Reuse the existing formal yfinance QFQ provider per selected symbol."""
 
-    from providers import fetch_with_retry
+    def load_one(seed: Any) -> tuple[str, tuple[Quote, ...], str | None]:
+        from providers import fetch_with_retry
 
-    histories: dict[str, tuple[Quote, ...]] = {}
-    errors: list[str] = []
-    requests = 0
-    rows = 0
-    for seed in seeds:
         symbol = str(seed.symbol).strip().upper()
         try:
             quotes = fetch_with_retry(
@@ -568,12 +573,28 @@ def _default_deep_qfq_history_loader(
                 retry_wait_seconds=0.0,
                 target_trade_date=end_date,
             )
-            histories[symbol] = tuple(quotes)
-            rows += len(quotes)
+            return symbol, tuple(quotes), None
         except Exception as exc:
-            errors.append(f"{symbol}:{type(exc).__name__}")
-        requests += 1
-    return HistoryLoadResult(histories, requests, rows, tuple(errors))
+            return symbol, (), f"{symbol}:{type(exc).__name__}"
+
+    # executor.map() yields results in input order even when requests finish
+    # out of order, preserving the old deterministic histories/error contract.
+    with ThreadPoolExecutor(
+        max_workers=YFINANCE_DEEP_HISTORY_WORKERS,
+        thread_name_prefix="candidate-qfq",
+    ) as executor:
+        completed = tuple(executor.map(load_one, seeds))
+
+    histories: dict[str, tuple[Quote, ...]] = {}
+    errors: list[str] = []
+    rows = 0
+    for symbol, quotes, error in completed:
+        if error is not None:
+            errors.append(error)
+            continue
+        histories[symbol] = quotes
+        rows += len(quotes)
+    return HistoryLoadResult(histories, len(seeds), rows, tuple(errors))
 
 
 def _latest_completed_us_session(now: datetime) -> date:
@@ -788,6 +809,7 @@ class ProductionCandidateRuntime:
                 source="yfinance",
                 history_bars=MIN_HISTORY_BARS,
                 batch_chunk_size=YFINANCE_BATCH_CHUNK,
+                batch_threads=YFINANCE_BATCH_THREADS,
             )
         except Exception as exc:
             error = f"CANDIDATE_SHORT_HISTORY_{type(exc).__name__}:{exc}"
@@ -940,6 +962,7 @@ class ProductionCandidateRuntime:
                     source="yfinance",
                     requested_bars=STRATEGY_HISTORY_BARS,
                     minimum_bars=MIN_HISTORY_BARS,
+                    worker_count=YFINANCE_DEEP_HISTORY_WORKERS,
                     qfq_as_of_gate="SUCCESS" if normalized_market != "US" else "SUCCESS",
                 )
             except Exception as exc:
@@ -1032,5 +1055,7 @@ __all__ = [
     "US_COMPLETED_SESSION_REQUIRED",
     "US_HISTORICAL_QFQ_ASOF_UNVERIFIED",
     "YFINANCE_BATCH_CHUNK",
+    "YFINANCE_BATCH_THREADS",
+    "YFINANCE_DEEP_HISTORY_WORKERS",
     "canonical_key",
 ]
