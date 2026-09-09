@@ -37,11 +37,9 @@
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支 `main`。
-- PR #74 与 PR #75 已 squash merge 到 `main`；本轮工作分支为
-  `codex/production-candidate-runtime-performance-v1`，branch、PR、HEAD、working
-  tree 与 GitHub CI 动态状态仍须以实时结果为准，不信任本文件中的历史描述。
-- 本轮 PR #76 已创建并保持 OPEN、clean、可合并；exact-head CI 已通过，且不启用
-  auto-merge。最终是否 merge 由用户决定。
+- PR #74、PR #75 与 PR #76 已 squash merge 到 `main`；本轮 performance transport
+  V1 已进入 `main`。branch、PR、HEAD、working tree 与 GitHub CI 动态状态仍须以
+  实时结果为准，不信任本文件中的历史描述。
 - 治理文件职责现为（详见 `AGENTS.md`）：
   - Git/GitHub = 动态工程事实源；
   - `HANDOFF.md` = 当前开发现场恢复；
@@ -144,7 +142,7 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 保持 PR #76 OPEN，等待用户决定是否 merge；不要自动 merge。
+1. PR #76 已 squash merge；本轮 performance transport 与本地迁移已完成。
 2. Candidate-only 结果仅供人工查看；如需进入正式生命周期，必须人工 promotion
   到正式 `策略股票池` 后再运行正式前置检查。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
@@ -210,6 +208,8 @@
 - `docs/TRADING_SYSTEM_SPEC.md`：总体策略唯一正式事实源。
 - `docs/ARCHITECTURE.md`：真实代码架构；`docs/FROZEN_ARTIFACT_REGISTRY.json`：
   非 Git frozen artifact 的机器可读登记。
+- 本地推荐开发路径（仅本机便利，不构成生产 contract）：
+  `D:\Dev\stock-data-pipeline`。
 
 ---
 
