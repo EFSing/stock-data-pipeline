@@ -40,6 +40,8 @@
 - PR #74 与 PR #75 已 squash merge 到 `main`；本轮工作分支为
   `codex/production-candidate-runtime-performance-v1`，branch、PR、HEAD、working
   tree 与 GitHub CI 动态状态仍须以实时结果为准，不信任本文件中的历史描述。
+- 本轮 PR #76 已创建并保持 OPEN、clean、可合并；exact-head CI 已通过，且不启用
+  auto-merge。最终是否 merge 由用户决定。
 - 治理文件职责现为（详见 `AGENTS.md`）：
   - Git/GitHub = 动态工程事实源；
   - `HANDOFF.md` = 当前开发现场恢复；
@@ -49,8 +51,8 @@
   系统能力无实质矛盾、长期 Decision 无已知冲突、无会让下一设备错误继续的重大
   状态错误。它不要求本文件保存实时 main SHA / CI run ID，也不要求 docs-only
   commit 后重新完整验证。
-- 当前不存在 `PROJECT_GOVERNANCE_STATE_CONFLICT`。本轮 PR/CI 尚未完成时，不得把
-  本文件标记为最终 ready；实时 PR 状态以 GitHub 与 `git fetch origin` 结果为准。
+- 当前不存在 `PROJECT_GOVERNANCE_STATE_CONFLICT`；实时 PR 状态以 GitHub 与
+  `git fetch origin` 结果为准。
 
 ## 3. Completed（已完成事项 — 当前任务上下文）
 
@@ -142,13 +144,10 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 将当前三文件改动提交到 `codex/production-candidate-runtime-performance-v1`，
-   push 并创建唯一 PR；不自动 merge。
-2. 等待该 PR 的 exact-head CI；只有 CI 通过且 PR head 未漂移，才把最终 marker
-   更新为 `PR_FULLY_READY`；否则保留真实 blocker。
-3. Candidate-only 结果仅供人工查看；如需进入正式生命周期，必须人工 promotion
+1. 保持 PR #76 OPEN，等待用户决定是否 merge；不要自动 merge。
+2. Candidate-only 结果仅供人工查看；如需进入正式生命周期，必须人工 promotion
   到正式 `策略股票池` 后再运行正式前置检查。
-4. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
+3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
@@ -216,6 +215,6 @@
 
 状态标记：
 
-`PRODUCTION_CANDIDATE_SMOKE_CLEAN_PASS`
+`PR_FULLY_READY`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
