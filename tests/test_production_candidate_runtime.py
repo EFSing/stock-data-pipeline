@@ -3,6 +3,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import pandas as pd
+
 from core import Quote
 from scripts.run_production_daily_decision import run_production_daily_decision
 from tests.test_production_prerequisites import (
@@ -25,6 +27,10 @@ from trading.setup01_replay import Setup01ReplayDay, Setup01ReplayEvent, Setup01
 from trading.production_candidate_runtime import (
     HistoryLoadResult,
     ProductionCandidateRuntime,
+    YFINANCE_BATCH_THREADS,
+    YFINANCE_DEEP_HISTORY_WORKERS,
+    _default_deep_qfq_history_loader,
+    _default_short_history_loader,
 )
 
 
@@ -194,6 +200,110 @@ def _identity(market: str) -> CompletedSessionIdentity:
 
 
 class ProductionCandidateRuntimeTests(unittest.TestCase):
+    def test_short_history_loader_uses_bounded_threads_and_preserves_fixture_quotes(self):
+        start = T_DAY - timedelta(days=1)
+        seeds = (_seed("US", "AAA"), _seed("US", "BBB"))
+        frame = pd.DataFrame(
+            {
+                ("AAA", "Open"): [10.0, 11.0],
+                ("AAA", "High"): [11.0, 12.0],
+                ("AAA", "Low"): [9.0, 10.0],
+                ("AAA", "Close"): [10.5, 11.5],
+                ("AAA", "Volume"): [100.0, 110.0],
+                ("BBB", "Open"): [20.0, 21.0],
+                ("BBB", "High"): [21.0, 22.0],
+                ("BBB", "Low"): [19.0, 20.0],
+                ("BBB", "Close"): [20.5, 21.5],
+                ("BBB", "Volume"): [200.0, 210.0],
+            },
+            index=pd.to_datetime([start, T_DAY]),
+        )
+        frame.columns = pd.MultiIndex.from_tuples(
+            frame.columns, names=["Ticker", "Price"]
+        )
+        calls = []
+
+        def download(**kwargs):
+            calls.append(kwargs)
+            return frame
+
+        with patch.dict("sys.modules", {"yfinance": SimpleNamespace(download=download)}):
+            result = _default_short_history_loader(seeds, start, T_DAY)
+
+        self.assertEqual(calls[0]["threads"], YFINANCE_BATCH_THREADS)
+        self.assertEqual(calls[0]["start"], start.isoformat())
+        self.assertEqual(calls[0]["end"], (T_DAY + timedelta(days=1)).isoformat())
+        self.assertEqual(calls[0]["auto_adjust"], False)
+        self.assertEqual(calls[0]["actions"], False)
+        self.assertEqual(calls[0]["repair"], False)
+        self.assertEqual(calls[0]["group_by"], "ticker")
+        self.assertEqual(result.api_requests, 1)
+        self.assertEqual(result.rows, 4)
+        self.assertEqual(
+            tuple(result.histories),
+            ("AAA", "BBB"),
+        )
+        self.assertEqual(
+            [(item.trade_date, item.close, item.volume) for item in result.histories["AAA"]],
+            [(start, 10.5, 100.0), (T_DAY, 11.5, 110.0)],
+        )
+        self.assertEqual(
+            [(item.trade_date, item.close, item.volume) for item in result.histories["BBB"]],
+            [(start, 20.5, 200.0), (T_DAY, 21.5, 210.0)],
+        )
+
+    def test_deep_loader_bounded_pool_preserves_provider_contract_and_order(self):
+        seeds = (
+            _seed("US", "AAA"),
+            _seed("US", "BBB"),
+            _seed("US", "CCC"),
+        )
+        calls = []
+
+        def fetch(source, watch, adjust, start, end, retry_count, retry_wait_seconds, target_trade_date):
+            calls.append(
+                {
+                    "source": source,
+                    "symbol": watch["统一代码"],
+                    "adjust": adjust,
+                    "start": start,
+                    "end": end,
+                    "retry_count": retry_count,
+                    "retry_wait_seconds": retry_wait_seconds,
+                    "target_trade_date": target_trade_date,
+                }
+            )
+            if watch["统一代码"] == "BBB":
+                raise RuntimeError("synthetic provider failure")
+            return _history(watch["统一代码"], "US", "USD")
+
+        with patch("providers.fetch_with_retry", side_effect=fetch):
+            result = _default_deep_qfq_history_loader(
+                seeds,
+                T_DAY - timedelta(days=999),
+                T_DAY,
+            )
+
+        self.assertEqual(YFINANCE_DEEP_HISTORY_WORKERS, 4)
+        self.assertEqual(result.api_requests, 3)
+        self.assertEqual(result.rows, 120)
+        self.assertEqual(tuple(result.histories), ("AAA", "CCC"))
+        self.assertEqual(result.errors, ("BBB:RuntimeError",))
+        self.assertEqual(
+            {call["symbol"] for call in calls},
+            {"AAA", "BBB", "CCC"},
+        )
+        self.assertTrue(
+            all(
+                call["source"] == "yfinance"
+                and call["adjust"] == "qfq"
+                and call["retry_count"] == 1
+                and call["retry_wait_seconds"] == 0.0
+                and call["target_trade_date"] == T_DAY
+                for call in calls
+            )
+        )
+
     def test_stage_b_requests_only_included_candidates(self):
         seeds = (
             _seed("CN", "600001.SH", sector="BANK"),
