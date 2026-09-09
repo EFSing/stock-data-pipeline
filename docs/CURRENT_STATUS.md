@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-06（治理体系瘦身）。
+> 最后实质更新：2026-09-07（Dynamic Candidate 生命周期边界修正）。
 
 ## 项目身份
 
@@ -54,7 +54,7 @@
   `history_rows_written=480`）成功。该路径只操作行情覆盖与 watchlist 身份，
   不进入策略 / 决策 / 研究语义。
 
-### Candidate Universe（已实现，未接入生产策略链）
+### Candidate Universe（已接入 Production Daily Decision Chain V1）
 
 - `trading/candidate_universe_sources.py` + `candidate_universe.py`：
   CN seed = `HS300 ∪ CSI500`（BaoStock basic/industry）；US seed = iShares
@@ -63,8 +63,18 @@
   US 一股 `>1,000 USD` 排除）、20D/60D traded-notional 流动性 proxy、
   history/data-quality gate、sector-aware `TOP_N_PER_SECTOR=20` 与
   included/excluded 审计行。
-- Candidate 层不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；尚未接入
-  正式每日 production Strategy / Daily Decision Chain。
+- Candidate selector 仍不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；
+  `scripts/run_production_daily_decision.py --run` 在真实 `SheetsClient` 上按 CN/US
+  独立运行两阶段输入：Stage A 用固定 yfinance batch 获取至少 60 bars 并调用现有
+  selector，Stage B 只对 included Candidate（已存在正式池/持仓输入的标的复用已有
+  QFQ）加载深历史并交给同一套 Strategy/Daily 分析。
+- 动态集合只存在于当日内存和 JSON/Markdown 报告中，按 market-aware identity 与
+  正式 `策略股票池`、`策略持仓` 去重；报告保留
+  `FORMAL_STRATEGY_POOL` / `ACTIVE_STRATEGY_POSITION` / `DYNAMIC_CANDIDATE`
+  provenance。正式池输入组成 stateful group；Candidate-only 强制为
+  `READ_ONLY_DISCOVERY`，`state_persistence_eligible=false`、
+  `promotion_required=true`，不产生 state/pending/settlement/Portfolio allocation
+  或 production execution。Candidate overlap 正式池时按正式池生命周期处理。
 
 ### 策略核心计算层（Wave / Swing / Structure / Fibonacci）
 
@@ -141,9 +151,14 @@
   替代）、risk-group metadata、authoritative position origin、exact
   exchange-calendar session 与持久
   `DecisionStateStore`；缺失时 fail closed。`scripts/run_production_daily_decision.py`
-  提供 `--preflight` 与默认只读 `--run`；只有显式 `--write-state` 才追加
-  系统-owned `策略决策状态`，并可用显式 `--approve-event`、
-  `--allocation-budget ACCOUNT_ID=AMOUNT` 完成人工在环输入。
+  提供 `--preflight` 与默认只读 `--run`；`--run` 会将 Candidate→Daily 的动态输入
+  并入去重后的当日分析 universe，但把正式池与非正式池输入分成 stateful/read-only
+  两组后合并展示结果。只有正式池输入在显式 `--write-state` 下才追加 system-owned
+  `策略决策状态`；`--approve-event`、`--allocation-budget ACCOUNT_ID=AMOUNT` 对
+  Candidate-only 不会绕过晋级边界。
+- 启用持仓即使不在正式股票池或 Candidate 中也会继续进入 Position Management；
+  多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
+  `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。
 
 ### Portfolio Risk（已实现并合并，未自动生产运行）
 
@@ -200,13 +215,16 @@
 
 ## 研究中的能力 / 明确未接入生产
 
-- Candidate Universe：未接入 production strategy chain。
+- Candidate Universe：已接入人工触发的 production Daily Decision Chain V1；动态
+  Candidate-only 仍是 discovery-only，进入正式生命周期必须人工加入
+  `策略股票池` 并重新满足 production prerequisites；没有自动调度、自动批准、自动
+  state write 或 broker execution。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
 - Daily Decision Chain / Portfolio Risk / Position Management：策略语义已实现并
-  frozen，已支持人工触发的 account-isolated 只读生产报告，但未作为每日自动
-  production 决策链运行。
+  frozen，支持 Candidate + 正式池 + 持仓的 account-isolated 人工触发只读生产报告；
+  仍未作为自动调度任务运行。
 - 真实账户持仓 shadow 属 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，未运行时
   status=`NOT_RUN_USER_PRIVACY`；缺少真实持仓不是 SETUP_01 等核心开发 blocker。
 

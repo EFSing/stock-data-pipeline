@@ -7,7 +7,7 @@ proposal, infer entry/risk metadata, or call a broker.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 import json
@@ -199,6 +199,10 @@ class ProductionAccountRun:
     inputs: tuple[DailySymbolInput, ...]
     existing_positions: tuple[OpenPortfolioPosition, ...]
     state_store: DecisionStateStore | None = None
+    # These are reporting/provenance facts only.  They do not change the
+    # Daily Chain transaction semantics or create a second universe source.
+    formal_strategy_pool: tuple[str, ...] = ()
+    active_strategy_positions: tuple[str, ...] = ()
 
     @property
     def reference_nav(self) -> float | None:
@@ -1135,6 +1139,24 @@ class ProductionInputAdapter:
             account_positions = tuple(item for item in positions if item.account_id == account.account_id)
             if not account_universe:
                 account_errors.append(PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED)
+            formal_keys = {item.key for item in account_universe}
+            # An active position is an independent management input.  It is
+            # still validated against the same latest/QFQ and PositionOrigin
+            # contracts, but it must not disappear merely because its symbol
+            # is absent from today's formal pool or Candidate set.
+            position_only_entries = tuple(
+                StrategyUniverseEntry(
+                    True,
+                    account.account_id,
+                    position.market,
+                    position.symbol,
+                    position.symbol,
+                    "ACTIVE_POSITION_OUTSIDE_FORMAL_POOL",
+                )
+                for position in account_positions
+                if position.key not in formal_keys
+            )
+            analysis_entries = account_universe + position_only_entries
             nav_status = "NOT_REQUIRED_FOR_STRATEGY_PROPOSAL"
             try:
                 current_now = self._current_now()
@@ -1154,7 +1176,7 @@ class ProductionInputAdapter:
             missing_groups: list[str] = []
             missing_origins: list[str] = []
             position_by_key = {item.key: item for item in account_positions}
-            for item in account_universe:
+            for item in analysis_entries:
                 group = risk_groups.get(item.key)
                 if group is None or group.risk_group == UNKNOWN_RISK_GROUP:
                     missing_groups.append(item.symbol)
@@ -1165,6 +1187,10 @@ class ProductionInputAdapter:
                         item, as_of_date=self.as_of_date, account_currency=account.currency,
                         latest_rows=latest_rows, history_rows=history_rows,
                         calendar_identity=calendar_identity,
+                    )
+                    symbol_input = replace(
+                        symbol_input,
+                        risk_group=group.risk_group if group else None,
                     )
                     if status != DATA_OK:
                         account_errors.append(f"{PRODUCTION_DATA_QUALITY_REQUIRED}:{item.symbol}:{status}:{detail}")
@@ -1212,12 +1238,9 @@ class ProductionInputAdapter:
                         )
                 except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
                     account_errors.append(f"{PRODUCTION_DATA_QUALITY_REQUIRED}:{item.symbol}:{exc}")
-            for position in account_positions:
-                if position.key not in {item.key for item in account_universe}:
-                    account_errors.append(f"PRODUCTION_OPEN_POSITION_OUTSIDE_UNIVERSE:{position.symbol}")
             scoped_store = state_stores.get(account.account_id)
             pending_values = tuple(getattr(scoped_store, "pending", {}).values())
-            universe_keys = {item.key for item in account_universe}
+            universe_keys = formal_keys
             for pending in pending_values:
                 pending_key = (
                     str(getattr(pending.event, "market", "")).upper(),
@@ -1235,8 +1258,15 @@ class ProductionInputAdapter:
             store_for_run = scoped_store
             if store_for_run is None:
                 readiness = "NOT_READY"
-            if calendar_identity is not None and account_universe and store_for_run is not None:
-                runs.append(ProductionAccountRun(account, tuple(inputs), tuple(existing_positions), store_for_run))
+            if calendar_identity is not None and analysis_entries and store_for_run is not None:
+                runs.append(ProductionAccountRun(
+                    account,
+                    tuple(inputs),
+                    tuple(existing_positions),
+                    store_for_run,
+                    tuple(item.symbol for item in account_universe),
+                    tuple(item.symbol for item in account_positions),
+                ))
             summaries.append(AccountPreflightSummary(
                 account_id=account.account_id, market=account.market, currency=account.currency,
                 trade_date=self.as_of_date, nav_status=nav_status,

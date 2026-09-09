@@ -18,8 +18,28 @@ trading/candidate_universe.py
         → sector-aware TOP_N_PER_SECTOR selection
         ↓
 lightweight candidate rows / fixture (no production state, no Sheets)
+
+Production manual --run (read-only by default)
         ↓
-existing Data Quality → Weekly / Daily → Swing → Wave → Fibonacci → Setup chain
+ProductionInputAdapter
+        → formal 策略股票池 + active 策略持仓 + account-scoped state reads
+        ↓
+trading/production_candidate_runtime.py (one independent market runtime)
+        → CN: BaoStock HS300 ∪ CSI500 seed; US: official IWB seed
+        → Stage A: batched yfinance raw history for 60-bar Candidate screening
+        → existing Candidate selector only
+        → Stage B: deep QFQ only for included Candidates not already in the
+          formal/position input (existing formal yfinance QFQ path)
+        ↓
+formal strategy pool ∪ active strategy positions ∪ dynamic Candidate Set
+        → de-duplicated in-memory DailySymbolInput values with provenance
+        → formal strategy-pool group: existing state store / approval / budget path
+        → non-formal Candidate-only and active-position-only group: read-only path
+        ↓
+existing Data Quality → Weekly / Daily → Swing → Wave → Fibonacci →
+SETUP_01 / SETUP_02 → Decision → Portfolio Risk → Position Management
+        → merged JSON/Markdown funnel; only formal group may persist state
+        → Candidate-only cannot allocate or enter production execution
 
 Candidate Strategy Shadow Bridge (manual/local read-only runtime)
         ↓
@@ -94,6 +114,21 @@ inclusion/exclusion reason, sector, rank, affordability tier, documented minimum
 20D/60D liquidity proxy and history freshness.  It intentionally has no Strategy action
 field and cannot produce `ENTRY_ALLOWED`.
 
+The production Candidate runtime is a manual/local production input path. It is invoked by
+`scripts/run_production_daily_decision.py --run` when the real `SheetsClient` is used; injected
+test clients can supply a deterministic runtime. CN and US are run independently and a market
+with multiple enabled strategy accounts is rejected as
+`READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING` rather than guessed. Stage A uses fixed
+yfinance batches and Stage B calls the existing yfinance QFQ provider only for included
+symbols; formal/position inputs are reused and the final union is analyzed once. Candidate
+data failures become ordinary DATA_* fail-closed Daily Chain rows. The union is analyzed once,
+then the runner evaluates the formal strategy-pool group with the existing account-scoped
+state store and evaluates non-formal Candidate/position inputs with an empty read-only state
+view before merging the report. Candidate-only inputs cannot publish events, create/settle
+T+1 pending, reserve Portfolio Risk, or become production-execution eligible; manual promotion
+into `策略股票池` is required. The runtime does not approve events, write strategy input
+worksheets, or submit orders.
+
 The Candidate Strategy Shadow Bridge is a manual/local development path. `--market cn` and
 `--market us` execute independently; `--market all` aggregates both only for convenience and
 is not the runtime acceptance standard. It preserves the Candidate selector and frozen
@@ -103,6 +138,27 @@ Tushare-compatible gateway is not part of the production provider fallback chain
 long-term provider decision; US remains IWB plus yfinance auto-adjusted history only for the
 latest completed XNYS session, with historical as-of replay fail-closed before deep fetch.
 All bridge execution is read-only.
+
+### trading/production_candidate_runtime.py / scripts/run_production_daily_decision.py
+
+- Production `--run` obtains the formal strategy pool, account-scoped state and
+  active positions from `ProductionInputAdapter`, then runs one Candidate runtime
+  per market/account. CN uses `BaoStockCandidateSeedAdapter` (HS300 ∪ CSI500), US
+  uses `IwbOfficialHoldingsAdapter` (official IWB holdings).
+- Stage A requests only a 60-session raw-history window in fixed yfinance batches,
+  then calls the existing `select_candidate_universe()` unchanged. Stage B requests
+  the existing yfinance QFQ path only for included Candidate symbols not already
+  present in the formal/position input; the deep history must contain at least the
+  existing 60-bar minimum and end exactly at completed T.
+- The runner forms the in-memory union
+  `formal_strategy_pool ∪ active_strategy_positions ∪ dynamic_candidate_set`,
+  de-duplicates by one shared market-aware canonical identity, preserves per-symbol
+  provenance in the report, and evaluates the existing Daily Chain once per symbol.
+  Formal-pool rows keep the existing stateful lifecycle; Candidate-only rows use
+  `READ_ONLY_DISCOVERY`, so even an approval, budget, or `--write-state` flag cannot
+  publish/persist/allocate them. Active-only rows remain read-only Position Management.
+  Candidate data failures become DATA_* fail-closed rows. No Candidate row is written
+  to `策略股票池` or any other Sheet, and no broker order is submitted automatically.
 
 ### Execution modes
 
@@ -179,6 +235,7 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
   │   ├── setup01.py            # SETUP_01 Wave 2 → Wave 3 v1 evaluator
   │   ├── setup01_replay.py     # SETUP_01 strict as-of structural replay
   │   └── setup01_decision.py   # SETUP_01 independent Decision/Risk v1
+  ├── production_candidate_runtime.py # read-only Candidate→Daily input runtime
   ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
   ├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
   ├── docs/SETUP_01_DECISION_RISK_V1.md # SETUP_01 Decision/Risk v1 protocol
