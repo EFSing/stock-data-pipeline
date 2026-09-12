@@ -12,8 +12,8 @@
 - 已完成最小 report rendering 改动：只投影既有 Candidate/Daily Chain result，按
   candidate-only `DYNAMIC_CANDIDATE` 的 Primary Wave→Setup 状态展示 `ARMED` / `WATCH`；
   原 JSON、完整 Markdown detail 与既有 machine-readable contract 保留。
-- 当前 feature branch 的 PR 已创建并通过 GitHub checks，等待用户 review/merge；不自动
-  merge。实现未改变 Candidate selector、Wave、Setup、Decision/Risk、persistence、
+- PR #77 已完成 squash merge；merge 后 main 已同步且 main CI 已通过，本轮完成
+  merge closeout，不启动新的功能开发。实现未改变 Candidate selector、Wave、Setup、Decision/Risk、persistence、
   promotion、Portfolio Risk、scheduler、broker 或 execution semantics。
 - 基线 `main` 已包含 Production Daily Decision Chain V1；本轮新增 Candidate
   runtime 仍保持人工触发、account-isolated、默认只读。
@@ -109,16 +109,15 @@
 - 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
-- 当前无业务语义 blocker；本轮报告展示改动已完成并通过 focused/full/GitHub checks，
-  当前只剩用户对 PR #77 的 review/merge 决策。
-- 当前没有已知的业务语义 blocker。若同一 market 存在多个 enabled strategy
+- 当前无业务语义 blocker；本轮报告展示改动已完成，PR #77 已合并并完成 closeout。
+  若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
   `READY_FOR_DECISION` 请求用户选择；普通代码接线、测试和文档处理不构成 blocker。
 
 ## 5. Next Action（下一步动作）
 
-1. 用户 review/merge PR #77；不自动 merge。
+1. 本轮 merge closeout 已完成；等待用户明确下一项任务，不启动新的功能开发。
 2. 如需进入正式生命周期，Candidate-only 必须人工 promotion 到正式 `策略股票池`
    后再运行正式前置检查。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
@@ -191,6 +190,6 @@
 
 状态标记：
 
-`PR_FULLY_READY`
+`PR77_MERGED_AND_CLOSED_OUT`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
