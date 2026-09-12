@@ -6,7 +6,11 @@ from unittest.mock import patch
 import pandas as pd
 
 from core import Quote
-from scripts.run_production_daily_decision import run_production_daily_decision
+from scripts.run_production_daily_decision import (
+    _candidate_review_rows,
+    _production_markdown,
+    run_production_daily_decision,
+)
 from tests.test_production_prerequisites import (
     AFTER_CLOSE,
     T_DAY,
@@ -199,7 +203,201 @@ def _identity(market: str) -> CompletedSessionIdentity:
     )
 
 
+def _review_result(
+    symbol: str,
+    *,
+    primary_wave: str = "WAVE_2_TO_3_CANDIDATE",
+    setup01: str = "NONE",
+    setup02: str = "NONE",
+    final_status: str = "NO_TRADE",
+    primary_action: str = "WAIT_CONFIRMATION",
+    reasons: tuple[str, ...] = ("等待新的 CONFIRMED event",),
+):
+    return SimpleNamespace(
+        symbol=symbol,
+        market="US",
+        primary_wave_scenario=primary_wave,
+        setup01_state=setup01,
+        setup02_state=setup02,
+        primary_action=primary_action,
+        final_status=final_status,
+        individual_decision=None,
+        reasons=reasons,
+        blocking_prerequisites=(),
+    )
+
+
+def _review_universe(*dynamic_symbols: str):
+    return {
+        "dynamic_candidate_only": list(dynamic_symbols),
+        "provenance_metadata": {
+            symbol: {
+                "source": "DYNAMIC_CANDIDATE",
+                "promotion_required": True,
+                "state_persistence_eligible": False,
+                "production_execution_eligible": False,
+            }
+            for symbol in dynamic_symbols
+        },
+    }
+
+
+def _review_report(*results):
+    return SimpleNamespace(
+        results=tuple(results),
+        to_markdown=lambda: "# Daily Trading Decision Report\n\n## NO_TRADE\n\n无\n",
+    )
+
+
 class ProductionCandidateRuntimeTests(unittest.TestCase):
+    def test_candidate_review_armed_and_watch_use_primary_setup(self):
+        armed = _review_result(
+            "ARMED",
+            primary_wave="WAVE_3_CONTINUATION_CANDIDATE",
+            setup01="WATCH",
+            setup02="ARMED",
+        )
+        watch = _review_result(
+            "WATCH",
+            primary_wave="WAVE_2_TO_3_CANDIDATE",
+            setup01="WATCH",
+            setup02="ARMED",
+        )
+
+        rows = _candidate_review_rows(
+            _review_report(armed, watch),
+            _review_universe("ARMED", "WATCH"),
+        )
+
+        self.assertEqual(
+            [(row["ticker"], row["setup"], row["setup_state"]) for row in rows],
+            [
+                ("ARMED", "SETUP_02", "ARMED"),
+                ("WATCH", "SETUP_01", "WATCH"),
+            ],
+        )
+
+    def test_candidate_review_primary_wave_wins_over_other_setup_state(self):
+        result = _review_result(
+            "PRIMARY",
+            primary_wave="WAVE_2_TO_3_CANDIDATE",
+            setup01="WATCH",
+            setup02="ARMED",
+        )
+
+        rows = _candidate_review_rows(
+            _review_report(result),
+            _review_universe("PRIMARY"),
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["setup"], "SETUP_01")
+        self.assertEqual(rows[0]["setup_state"], "WATCH")
+
+    def test_candidate_review_excludes_persistent_confirmed_candidate(self):
+        result = _review_result(
+            "CONFIRMED",
+            primary_wave="WAVE_2_TO_3_CANDIDATE",
+            setup01="CONFIRMED",
+            setup02="WATCH",
+        )
+
+        rows = _candidate_review_rows(
+            _review_report(result),
+            _review_universe("CONFIRMED"),
+        )
+
+        self.assertEqual(rows, ())
+
+    def test_candidate_review_excludes_formal_pool_and_active_position(self):
+        dynamic = _review_result("DYNAMIC", setup01="ARMED")
+        formal = _review_result("FORMAL", setup01="ARMED")
+        position = _review_result("POSITION", setup01="WATCH")
+        universe = _review_universe("DYNAMIC")
+        universe["provenance_metadata"].update({
+            "FORMAL": {
+                "source": "FORMAL_STRATEGY_POOL",
+                "promotion_required": False,
+                "state_persistence_eligible": True,
+                "production_execution_eligible": True,
+            },
+            "POSITION": {
+                "source": "ACTIVE_STRATEGY_POSITION",
+                "promotion_required": False,
+                "state_persistence_eligible": False,
+                "production_execution_eligible": False,
+            },
+        })
+
+        rows = _candidate_review_rows(
+            _review_report(dynamic, formal, position),
+            universe,
+        )
+
+        self.assertEqual([row["ticker"] for row in rows], ["DYNAMIC"])
+
+    def test_candidate_review_order_is_deterministic_and_report_is_projection_only(self):
+        results = (
+            _review_result("WATCH_Z", setup01="WATCH"),
+            _review_result("ARMED_Z", setup01="ARMED"),
+            _review_result("WATCH_A", setup01="WATCH"),
+            _review_result("ARMED_A", setup01="ARMED"),
+        )
+        report = _review_report(*results)
+        universe = _review_universe(*(result.symbol for result in results))
+        before_results = report.results
+        before_markdown = report.to_markdown()
+
+        rows = _candidate_review_rows(report, universe)
+        markdown = _production_markdown(
+            report,
+            {"stage_timings": {}},
+            universe,
+            {
+                "seed": 0,
+                "candidate_data_qualified": 0,
+                "candidate_included": 4,
+                "deep_analysis": 4,
+                "WATCH": 2,
+                "ARMED": 2,
+                "new_CONFIRMED": 0,
+                "STRATEGY_PROPOSAL": 0,
+                "individual_ENTRY_ALLOWED": 0,
+                "Portfolio_allowed": 0,
+                "NO_TRADE": 4,
+                "DATA_BLOCKED": 0,
+            },
+            0.0,
+        )
+
+        self.assertEqual(
+            [row["ticker"] for row in rows],
+            ["ARMED_A", "ARMED_Z", "WATCH_A", "WATCH_Z"],
+        )
+        review = markdown.split("## Candidate Review", 1)[1].split(
+            "## NO_TRADE", 1
+        )[0]
+        for header in (
+            "ticker",
+            "market",
+            "provenance",
+            "primary Wave scenario",
+            "Setup",
+            "Setup state",
+            "final action",
+            "current status",
+            "promotion_required",
+            "state_persistence_eligible",
+            "production_execution_eligible",
+        ):
+            self.assertIn(header, review)
+        self.assertIn("true | false | false", review)
+        self.assertLess(review.index("ARMED_A"), review.index("ARMED_Z"))
+        self.assertLess(review.index("ARMED_Z"), review.index("### WATCH"))
+        self.assertLess(review.index("WATCH_A"), review.index("WATCH_Z"))
+        self.assertEqual(report.results, before_results)
+        self.assertEqual(report.to_markdown(), before_markdown)
+
     def test_short_history_loader_uses_bounded_threads_and_preserves_fixture_quotes(self):
         start = T_DAY - timedelta(days=1)
         seeds = (_seed("US", "AAA"), _seed("US", "BBB"))

@@ -307,6 +307,150 @@ def _funnel(
     }
 
 
+_PRIMARY_SETUP_BY_WAVE = {
+    "WAVE_2_TO_3_CANDIDATE": "SETUP_01",
+    "WAVE_3_CONTINUATION_CANDIDATE": "SETUP_02",
+}
+_CANDIDATE_REVIEW_PRIORITY = {"ARMED": 0, "WATCH": 1}
+
+
+def _candidate_review_rows(
+    report,
+    universe_report: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    """Project the existing result into a compact candidate-only review list."""
+
+    dynamic_candidate_only = {
+        str(symbol).strip().upper()
+        for symbol in universe_report.get("dynamic_candidate_only", ())
+    }
+    metadata_by_symbol = universe_report.get("provenance_metadata", {})
+    results_by_symbol = {
+        result.symbol.upper(): result
+        for result in report.results
+    }
+    rows: list[dict[str, object]] = []
+    for symbol in dynamic_candidate_only:
+        metadata = metadata_by_symbol.get(symbol, {})
+        if not isinstance(metadata, Mapping):
+            continue
+        # dynamic_candidate_only is the existing candidate-only identity; the
+        # source check keeps this projection fail-closed if its metadata is
+        # incomplete or accidentally mixed with another provenance.
+        if (
+            metadata.get("source") != "DYNAMIC_CANDIDATE"
+            or metadata.get("promotion_required") is not True
+            or metadata.get("state_persistence_eligible") is not False
+            or metadata.get("production_execution_eligible") is not False
+        ):
+            continue
+        result = results_by_symbol.get(symbol)
+        if result is None:
+            continue
+        setup_type = _PRIMARY_SETUP_BY_WAVE.get(result.primary_wave_scenario)
+        if setup_type is None:
+            continue
+        state_attribute = (
+            "setup01_state" if setup_type == "SETUP_01" else "setup02_state"
+        )
+        setup_state = getattr(result, state_attribute, None)
+        if setup_state not in _CANDIDATE_REVIEW_PRIORITY:
+            continue
+        waiting_reason = "；".join(
+            str(value)
+            for value in (*result.reasons, *result.blocking_prerequisites)
+            if value
+        ) or "—"
+        rows.append({
+            "ticker": result.symbol.upper(),
+            "market": result.market.upper(),
+            "provenance": metadata.get("source"),
+            "primary_wave_scenario": result.primary_wave_scenario,
+            "setup": setup_type,
+            "setup_state": setup_state,
+            "final_action": result.primary_action,
+            "current_status": result.final_status,
+            "promotion_required": metadata.get("promotion_required"),
+            "state_persistence_eligible": metadata.get("state_persistence_eligible"),
+            "production_execution_eligible": metadata.get(
+                "production_execution_eligible"
+            ),
+            "waiting_reason": waiting_reason,
+        })
+    return tuple(
+        sorted(
+            rows,
+            key=lambda row: (
+                _CANDIDATE_REVIEW_PRIORITY[row["setup_state"]],
+                str(row["ticker"]),
+            ),
+        )
+    )
+
+
+def _markdown_cell(value: object) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def _candidate_review_markdown(
+    report,
+    universe_report: Mapping[str, object],
+) -> str:
+    rows = _candidate_review_rows(report, universe_report)
+    lines = [
+        "## Candidate Review",
+        "",
+        "- 仅展示 candidate-only 的 `DYNAMIC_CANDIDATE`；Primary Wave 只映射到对应的 SETUP。",
+        "- 展示优先级：`ARMED` → `WATCH`；persistent `CONFIRMED`、正式策略池和已有持仓不进入本节。",
+        "",
+    ]
+    headers = (
+        "ticker",
+        "market",
+        "provenance",
+        "primary Wave scenario",
+        "Setup",
+        "Setup state",
+        "final action",
+        "current status",
+        "promotion_required",
+        "state_persistence_eligible",
+        "production_execution_eligible",
+        "waiting reason",
+    )
+    for state in ("ARMED", "WATCH"):
+        lines.extend([f"### {state}", ""])
+        group = tuple(row for row in rows if row["setup_state"] == state)
+        if not group:
+            lines.extend(["无", ""])
+            continue
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("| " + " | ".join("---" for _ in headers) + " |")
+        for row in group:
+            lines.append(
+                "| " + " | ".join(
+                    _markdown_cell(row[field]) for field in (
+                        "ticker",
+                        "market",
+                        "provenance",
+                        "primary_wave_scenario",
+                        "setup",
+                        "setup_state",
+                        "final_action",
+                        "current_status",
+                        "promotion_required",
+                        "state_persistence_eligible",
+                        "production_execution_eligible",
+                        "waiting_reason",
+                    )
+                ) + " |"
+            )
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
 def _production_markdown(
     report,
     candidate_report: Mapping[str, object],
@@ -320,8 +464,20 @@ def _production_markdown(
         for name, values in timings.items()
         if name != "total" and isinstance(values, Mapping)
     )
+    report_markdown = report.to_markdown()
+    candidate_review = _candidate_review_markdown(report, universe_report)
+    first_detail_section = report_markdown.find("\n## ")
+    if first_detail_section >= 0:
+        report_markdown = (
+            report_markdown[:first_detail_section].rstrip()
+            + "\n\n"
+            + candidate_review
+            + report_markdown[first_detail_section:]
+        )
+    else:
+        report_markdown = report_markdown.rstrip() + "\n\n" + candidate_review
     lines = [
-        report.to_markdown(),
+        report_markdown,
         "## Candidate → Daily Chain",
         "",
         f"- Seed：{funnel['seed']}；Candidate 数据合格：{funnel['candidate_data_qualified']}；Candidate included：{funnel['candidate_included']}；进入深度策略分析：{funnel['deep_analysis']}",
