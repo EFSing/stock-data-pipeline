@@ -8,4 +8,5 @@ local_tushare_config.py
 service-account*.json
 .workbuddy/
 artifacts/
+reports/daily_dashboard/*.html
 

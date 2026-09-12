@@ -156,6 +156,11 @@
   两组后合并展示结果。只有正式池输入在显式 `--write-state` 下才追加 system-owned
   `策略决策状态`；`--approve-event`、`--allocation-budget ACCOUNT_ID=AMOUNT` 对
   Candidate-only 不会绕过晋级边界。
+- `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
+  它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
+  enum/protocol/交易语义。`scripts/render_daily_dashboard.py` 可将已保存 JSON 写为
+  `reports/daily_dashboard/latest.html` 及日期版本；runner 通过显式
+  `--dashboard-output DIR` 选择性生成相同输出。
 - 启用持仓即使不在正式股票池或 Candidate 中也会继续进入 Position Management；
   多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
   `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。

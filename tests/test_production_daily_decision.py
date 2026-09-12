@@ -1,4 +1,6 @@
 from datetime import date
+from pathlib import Path
+import tempfile
 import unittest
 
 from scripts.run_production_daily_decision import run_production_daily_decision
@@ -64,6 +66,33 @@ class ProductionDailyDecisionRunnerTests(unittest.TestCase):
         self.assertFalse(result["NO STATE WRITE"])
         self.assertTrue(client.writes)
         self.assertTrue(all(write[0] == "策略决策状态" for write in client.writes))
+
+    def test_run_can_write_dashboard_without_changing_result_or_sheet_writes(self):
+        client = _rows()
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_production_daily_decision(
+                client,
+                as_of_date=T_DAY,
+                preflight=False,
+                now=AFTER_CLOSE,
+                dashboard_output=directory,
+            )
+
+            self.assertEqual(result["read behavior"], "READ_ONLY")
+            self.assertTrue(result["NO Sheets mutation"])
+            self.assertEqual(client.writes, [])
+            self.assertNotIn(
+                "symbol_metadata",
+                next(item for item in result["reports"] if item["市场"] == "CN")["universe"],
+            )
+            self.assertEqual(
+                {path.name for path in Path(directory).glob("*.html")},
+                {"latest.html", f"{T_DAY.isoformat()}.html"},
+            )
+            html = (Path(directory) / "latest.html").read_text(encoding="utf-8")
+            self.assertIn("每日交易决策工作台", html)
+            self.assertIn(">CN<", html)
 
 
 if __name__ == "__main__":

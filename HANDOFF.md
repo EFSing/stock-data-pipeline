@@ -7,14 +7,16 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`PRODUCTION_CANDIDATE_REVIEW_METADATA_V1`；在已合并的 Candidate Review
-  中展示既有 Candidate metadata 的股票名称和行业／板块。
+- 当前任务：`DAILY_TRADING_DASHBOARD_V1`；将现有 Production Daily Decision
+  Chain 结果投影为只读 standalone HTML 仪表盘。
+- 当前 feature branch：`feat/daily-trading-dashboard-v1`；Dashboard 实现、synthetic
+  fixture、focused/full tests 与文档同步已完成，尚待提交、推送和创建 PR。
 - 已完成最小 presentation-only metadata propagation：CN/US included Candidate 的
   `name` / `sector` 进入现有 universe report，Candidate Review 新增两列；缺失值展示
   `—`，不改变 Candidate-only 过滤、Primary Wave→Setup 映射或 `ARMED > WATCH > ticker`
   排序。
-- 当前 feature branch `feat/candidate-review-metadata-v1` 已推送并创建开放 PR；不自动
-  merge，最终停在 `PR_FULLY_READY`。实现未改变 Candidate selector、Wave、Setup、
+- PR #78 已由用户侧 squash merge；Candidate metadata 的 `name` / `sector` 已进入
+  `main`。该 presentation-only 改动未改变 Candidate selector、Wave、Setup、
   Decision/Risk、persistence、promotion、Portfolio Risk、scheduler、broker 或 execution
   semantics。
 - 基线 `main` 已包含 Production Daily Decision Chain V1；本轮新增 Candidate
@@ -111,8 +113,8 @@
 - 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
-- 当前无业务语义 blocker；本轮 Candidate Review metadata 展示改动已完成，开放 PR 等待
-  review，不自动合并。
+- 当前无业务语义 blocker；PR #78 merge closeout 已完成，Dashboard 仍保持
+  presentation-only，不改变内部 JSON contract、交易语义或写入边界。
   若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
@@ -120,7 +122,8 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 等待当前 feature PR review 与用户明确的 merge 决策；本轮不自动合并。
+1. 提交并推送当前 `feat/daily-trading-dashboard-v1`，创建 PR（不自动 merge），
+   等待并核对 CI。
 2. 如需进入正式生命周期，Candidate-only 必须人工 promotion 到正式 `策略股票池`
    后再运行正式前置检查。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
@@ -193,6 +196,6 @@
 
 状态标记：
 
-`PR78_OPEN_NO_AUTO_MERGE`
+`PR78_MERGED_MAIN_SYNCED`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
