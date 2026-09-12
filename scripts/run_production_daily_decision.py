@@ -163,6 +163,13 @@ def _merge_candidate_inputs(
         if identity in dynamic_keys:
             labels.append("DYNAMIC_CANDIDATE")
     provenance_metadata: dict[str, dict[str, object]] = {}
+    candidate_metadata = {
+        str(record.symbol).strip().upper(): {
+            "name": record.name,
+            "sector": record.sector,
+        }
+        for record in candidate_result.included_records
+    }
     dynamic_candidate_only: list[str] = []
     for symbol, labels in sorted(provenance.items()):
         is_formal = "FORMAL_STRATEGY_POOL" in labels
@@ -199,6 +206,7 @@ def _merge_candidate_inputs(
             symbol: labels for symbol, labels in sorted(provenance.items())
         },
         "provenance_metadata": provenance_metadata,
+        "candidate_metadata": candidate_metadata,
     }
 
 
@@ -325,6 +333,7 @@ def _candidate_review_rows(
         for symbol in universe_report.get("dynamic_candidate_only", ())
     }
     metadata_by_symbol = universe_report.get("provenance_metadata", {})
+    candidate_metadata_by_symbol = universe_report.get("candidate_metadata", {})
     results_by_symbol = {
         result.symbol.upper(): result
         for result in report.results
@@ -344,6 +353,13 @@ def _candidate_review_rows(
             or metadata.get("production_execution_eligible") is not False
         ):
             continue
+        candidate_metadata = (
+            candidate_metadata_by_symbol.get(symbol, {})
+            if isinstance(candidate_metadata_by_symbol, Mapping)
+            else {}
+        )
+        if not isinstance(candidate_metadata, Mapping):
+            candidate_metadata = {}
         result = results_by_symbol.get(symbol)
         if result is None:
             continue
@@ -363,6 +379,8 @@ def _candidate_review_rows(
         ) or "—"
         rows.append({
             "ticker": result.symbol.upper(),
+            "name": _candidate_review_metadata(candidate_metadata.get("name")),
+            "sector": _candidate_review_metadata(candidate_metadata.get("sector")),
             "market": result.market.upper(),
             "provenance": metadata.get("source"),
             "primary_wave_scenario": result.primary_wave_scenario,
@@ -394,6 +412,13 @@ def _markdown_cell(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
+def _candidate_review_metadata(value: object) -> str:
+    if value is None:
+        return "—"
+    text = str(value).strip()
+    return text or "—"
+
+
 def _candidate_review_markdown(
     report,
     universe_report: Mapping[str, object],
@@ -408,6 +433,8 @@ def _candidate_review_markdown(
     ]
     headers = (
         "ticker",
+        "股票名称",
+        "行业／板块",
         "market",
         "provenance",
         "primary Wave scenario",
@@ -433,6 +460,8 @@ def _candidate_review_markdown(
                 "| " + " | ".join(
                     _markdown_cell(row[field]) for field in (
                         "ticker",
+                        "name",
+                        "sector",
                         "market",
                         "provenance",
                         "primary_wave_scenario",

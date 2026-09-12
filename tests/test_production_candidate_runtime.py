@@ -8,6 +8,7 @@ import pandas as pd
 from core import Quote
 from scripts.run_production_daily_decision import (
     _candidate_review_rows,
+    _merge_candidate_inputs,
     _production_markdown,
     run_production_daily_decision,
 )
@@ -18,7 +19,7 @@ from tests.test_production_prerequisites import (
     _latest,
     _rows,
 )
-from trading.candidate_universe import SeedSecurity
+from trading.candidate_universe import SeedSecurity, select_candidate_universe
 from trading.daily_decision_chain import (
     CompletedSessionIdentity,
     DATA_UNAVAILABLE,
@@ -38,14 +39,27 @@ from trading.production_candidate_runtime import (
 )
 
 
-def _seed(market: str, symbol: str, *, price: float = 100.0, sector: str = "TECH"):
+def _seed(
+    market: str,
+    symbol: str,
+    *,
+    price: float = 100.0,
+    name: str | None = None,
+    sector: str = "TECH",
+):
     return SeedSecurity(
         market=market,
         symbol=symbol,
-        name=symbol,
+        name=symbol if name is None else name,
         sector=sector,
         asset_class="Equity",
-        exchange="SH" if market == "CN" else "NYSE",
+        exchange=(
+            "SZ"
+            if market == "CN" and symbol.upper().endswith(".SZ")
+            else "SH"
+            if market == "CN"
+            else "NYSE"
+        ),
         currency="CNY" if market == "CN" else "USD",
         source="synthetic",
         source_as_of=T_DAY,
@@ -206,6 +220,7 @@ def _identity(market: str) -> CompletedSessionIdentity:
 def _review_result(
     symbol: str,
     *,
+    market: str = "US",
     primary_wave: str = "WAVE_2_TO_3_CANDIDATE",
     setup01: str = "NONE",
     setup02: str = "NONE",
@@ -215,7 +230,7 @@ def _review_result(
 ):
     return SimpleNamespace(
         symbol=symbol,
-        market="US",
+        market=market,
         primary_wave_scenario=primary_wave,
         setup01_state=setup01,
         setup02_state=setup02,
@@ -227,7 +242,7 @@ def _review_result(
     )
 
 
-def _review_universe(*dynamic_symbols: str):
+def _review_universe(*dynamic_symbols: str, candidate_metadata=None):
     return {
         "dynamic_candidate_only": list(dynamic_symbols),
         "provenance_metadata": {
@@ -239,6 +254,7 @@ def _review_universe(*dynamic_symbols: str):
             }
             for symbol in dynamic_symbols
         },
+        "candidate_metadata": dict(candidate_metadata or {}),
     }
 
 
@@ -249,7 +265,85 @@ def _review_report(*results):
     )
 
 
+def _review_rows_for_seed(seed: SeedSecurity, *, setup_state: str = "ARMED"):
+    history = _history(seed.symbol, seed.market, seed.currency)
+    record = select_candidate_universe(
+        [seed], {seed.symbol: history}, T_DAY
+    ).included[0]
+    candidate_result = SimpleNamespace(
+        included_symbols=(record.symbol,),
+        included_records=(record,),
+        daily_inputs=lambda _session: (
+            SimpleNamespace(symbol=record.symbol, market=record.market),
+        ),
+    )
+    account_run = SimpleNamespace(
+        inputs=(),
+        formal_strategy_pool=(),
+        active_strategy_positions=(),
+        account=SimpleNamespace(market=seed.market),
+    )
+    _inputs, universe = _merge_candidate_inputs(
+        account_run, candidate_result, _identity(seed.market)
+    )
+    return _candidate_review_rows(
+        _review_report(
+            _review_result(
+                record.symbol,
+                market=seed.market,
+                setup01=setup_state,
+            )
+        ),
+        universe,
+    )
+
+
 class ProductionCandidateRuntimeTests(unittest.TestCase):
+    def test_candidate_review_projects_cn_existing_name_and_sector(self):
+        rows = _review_rows_for_seed(
+            _seed(
+                "CN",
+                "002008.SZ",
+                name="大族激光",
+                sector="专用设备",
+            )
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["ticker"], "002008.SZ")
+        self.assertEqual(rows[0]["name"], "大族激光")
+        self.assertEqual(rows[0]["sector"], "专用设备")
+
+    def test_candidate_review_projects_us_existing_name_and_sector(self):
+        rows = _review_rows_for_seed(
+            _seed(
+                "US",
+                "NVDA",
+                name="NVIDIA Corp",
+                sector="Information Technology",
+            ),
+            setup_state="WATCH",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["ticker"], "NVDA")
+        self.assertEqual(rows[0]["name"], "NVIDIA Corp")
+        self.assertEqual(rows[0]["sector"], "Information Technology")
+
+    def test_candidate_review_missing_metadata_shows_dash_without_dropping_candidate(self):
+        rows = _candidate_review_rows(
+            _review_report(_review_result("MISSING", setup01="WATCH")),
+            _review_universe(
+                "MISSING",
+                candidate_metadata={"MISSING": {"name": None, "sector": ""}},
+            ),
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "—")
+        self.assertEqual(rows[0]["sector"], "—")
+        self.assertEqual(rows[0]["setup_state"], "WATCH")
+
     def test_candidate_review_armed_and_watch_use_primary_setup(self):
         armed = _review_result(
             "ARMED",
@@ -379,6 +473,8 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         )[0]
         for header in (
             "ticker",
+            "股票名称",
+            "行业／板块",
             "market",
             "provenance",
             "primary Wave scenario",
