@@ -854,6 +854,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
     sectors = sorted({row["sector"] for row in rows if row["sector"] != "—"}, key=str.casefold)
     return {
         "title": "每日交易决策工作台",
+        "demo_label": _text(payload.get("demo_label")),
         "as_of_date": _display(as_of_date),
         "generated_at": _display(generated_at),
         "summary": summary,
@@ -1065,6 +1066,12 @@ def render_dashboard_html(value: Any) -> str:
         for stage in projection["stage_order"][:6]
     )
     cards = "".join(_render_row(row) for row in projection["rows"])
+    demo_label = _text(projection.get("demo_label"))
+    demo_banner = (
+        f'<div class="demo-banner">{_escape(demo_label)}</div>'
+        if demo_label
+        else ""
+    )
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1076,6 +1083,7 @@ def render_dashboard_html(value: Any) -> str:
 * {{ box-sizing:border-box; }} body {{ margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 "Segoe UI","Microsoft YaHei",sans-serif; }}
 .shell {{ width:min(1440px,calc(100% - 32px)); margin:0 auto; padding:28px 0 56px; }}
 .hero {{ background:linear-gradient(135deg,#12263d,#21516c); color:#fff; border-radius:22px; padding:30px 34px; box-shadow:0 16px 36px #13263d24; }}
+.demo-banner {{ display:inline-block; margin-bottom:10px; border:1px solid #f4d28f; border-radius:999px; padding:4px 10px; background:#fff0d5; color:#7a4300; font-size:12px; font-weight:750; letter-spacing:.02em; }}
 .eyebrow {{ color:#b8e5dc; font-size:12px; letter-spacing:.12em; text-transform:uppercase; }} h1 {{ margin:8px 0 4px; font-size:clamp(28px,4vw,44px); letter-spacing:-.03em; }}
 .hero-meta {{ color:#d9e8f2; display:flex; gap:18px; flex-wrap:wrap; }} .readonly-note {{ margin:20px 0 0; color:#e9f4f8; font-size:13px; }}
 .summary-grid {{ display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:10px; margin:18px 0 12px; }} .metric {{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:13px 14px; min-height:88px; }}
@@ -1086,7 +1094,7 @@ def render_dashboard_html(value: Any) -> str:
 .filters {{ display:flex; gap:10px; flex-wrap:wrap; background:#eaf0f6; border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:18px; }} .filters label {{ display:flex; align-items:center; gap:7px; color:var(--muted); font-size:13px; }} select {{ border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:7px 30px 7px 9px; font:inherit; }}
 .cards {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:16px; }} .stock-card {{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:19px; box-shadow:0 8px 22px #18324b0c; }} .stock-card[hidden] {{ display:none; }}
 .card-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .ticker {{ font-size:20px; font-weight:800; letter-spacing:.02em; }} .market-chip {{ color:var(--muted); font-size:12px; margin-left:8px; }} .stage {{ white-space:nowrap; border-radius:999px; padding:4px 10px; font-size:13px; font-weight:750; }} .stage-watch,.stage-armed {{ background:var(--amber-soft); color:var(--amber); }} .stage-confirmed,.stage-strategy-proposal,.stage-entry-allowed {{ background:var(--blue-soft); color:var(--blue); }} .stage-position-management {{ background:var(--teal-soft); color:var(--teal); }} .stage-failed,.stage-data-blocked {{ background:var(--red-soft); color:var(--red); }} .stage-no-trade {{ background:#edf1f6; color:var(--muted); }}
-.stock-card h2 {{ margin:12px 0 0; font-size:22px; }} .sector {{ color:var(--muted); min-height:24px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .card-facts {{ margin:16px 0; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .highlight .field-value {{ color:var(--teal); }}
+.stock-card h2 {{ margin:12px 0 0; font-size:22px; font-weight:800; }} .sector {{ color:var(--muted); min-height:24px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .card-facts {{ margin:16px 0; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .highlight .field-value {{ color:var(--teal); }}
 .identity-row {{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 14px; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:3px 8px; color:#486074; font-size:12px; background:#f7fafc; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
 .waiting {{ display:flex; gap:9px; align-items:flex-start; padding:11px 12px; background:#f1f6fa; border-radius:11px; margin-bottom:12px; }} .waiting strong {{ white-space:nowrap; color:var(--blue); }} .waiting span {{ overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:13px; margin-top:13px; }} .panel h3 {{ margin:0 0 9px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .details {{ border-top:1px solid var(--line); margin-top:14px; padding-top:10px; }} .details summary {{ cursor:pointer; color:var(--blue); font-weight:700; }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; }} .detail-grid section {{ background:#f8fafc; border-radius:10px; padding:10px 12px; }} .detail-grid h4,.details h4 {{ margin:0 0 5px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:10px; padding:12px; font:12px/1.5 Consolas,monospace; }}
 .empty {{ color:var(--muted); text-align:center; padding:40px; background:#fff; border:1px dashed #c5d1df; border-radius:14px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:22px; }}
@@ -1095,7 +1103,7 @@ def render_dashboard_html(value: Any) -> str:
 </head>
 <body>
 <main class="shell">
-<header class="hero"><div class="eyebrow">READ-ONLY · PRODUCTION DAILY DECISION CHAIN</div><h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有 Daily Decision、Risk 和 Position Management 结果；中文阶段名称属于展示映射，不会产生新信号或订单。</div></header>
+<header class="hero"><div class="eyebrow">READ-ONLY · PRODUCTION DAILY DECISION CHAIN</div>{demo_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有 Daily Decision、Risk 和 Position Management 结果；中文阶段名称属于展示映射，不会产生新信号或订单。</div></header>
 <section class="summary-grid" aria-label="今日摘要">
 {_metric('Candidate 总数', summary['candidate_total'])}
 {_metric('观察中', summary['watch_count'])}

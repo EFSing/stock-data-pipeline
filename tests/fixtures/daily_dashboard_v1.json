@@ -1,4 +1,5 @@
 {
+  "demo_label": "示例数据 / Synthetic Demo",
   "preflight": {
     "T": "2026-09-03",
     "accounts": [
@@ -58,10 +59,10 @@
         },
         "candidate_metadata": {
           "600001.SH": {"name": "示例科技<&", "sector": "专用设备"},
-          "600002.SH": {"name": "确认候选", "sector": "软件服务"}
+          "600002.SH": {"name": "示例软件", "sector": "软件服务"}
         },
         "symbol_metadata": {
-          "600003.SH": {"name": "持仓示例", "sector": "工业制造"}
+          "600003.SH": {"name": "示例制造", "sector": "工业制造"}
         },
         "position_metadata": {
           "600003.SH": {
@@ -180,11 +181,11 @@
           }
         },
         "candidate_metadata": {
-          "AAA": {"name": "美国观察标的", "sector": "半导体"}
+          "AAA": {"name": "示例半导体", "sector": "半导体"}
         },
         "symbol_metadata": {
-          "BBB": {"name": "方案示例", "sector": "云计算"},
-          "CCC": {"name": "入场示例", "sector": "网络安全"}
+          "BBB": {"name": "示例云计算", "sector": "云计算"},
+          "CCC": {"name": "示例安全科技", "sector": "网络安全"}
         }
       },
       "Candidate": {
