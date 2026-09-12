@@ -10,7 +10,8 @@
 - 当前任务：`DAILY_TRADING_DASHBOARD_V1`；将现有 Production Daily Decision
   Chain 结果投影为只读 standalone HTML 仪表盘。
 - 当前 feature branch：`feat/daily-trading-dashboard-v1`；Dashboard 实现、synthetic
-  fixture、focused/full tests 与文档同步已完成，尚待提交、推送和创建 PR。
+  fixture、focused/full tests 与文档同步已完成，PR #79 已创建且 CI 通过，不自动
+  merge，等待 review。
 - 已完成最小 presentation-only metadata propagation：CN/US included Candidate 的
   `name` / `sector` 进入现有 universe report，Candidate Review 新增两列；缺失值展示
   `—`，不改变 Candidate-only 过滤、Primary Wave→Setup 映射或 `ARMED > WATCH > ticker`
@@ -103,6 +104,10 @@
 - 已完成 `PRODUCTION_CANDIDATE_REVIEW_REPORT_V1` 与当前 metadata 增量：Candidate Review
   仅投影既有 `DailyDecisionResult`、Candidate metadata 与 provenance，不新增评分、排序
   模型、reason taxonomy 或第二套事件/状态判断；Candidate-only 仍为 `READ_ONLY_DISCOVERY`。
+- 已完成 `DAILY_TRADING_DASHBOARD_V1`：`trading/daily_dashboard.py` 提供纯标准库的
+  presentation projection/standalone HTML，runner 可选输出 `latest.html` 与日期版本，
+  saved JSON 可由 `scripts/render_daily_dashboard.py` 渲染；WATCH/ARMED 不伪造入场价，
+  Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
 - 本地 service-account env 缺失，但通过已连接 Google Drive 的只读 snapshot 完成了
@@ -113,7 +118,7 @@
 - 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
-- 当前无业务语义 blocker；PR #78 merge closeout 已完成，Dashboard 仍保持
+- 当前无业务语义 blocker；PR #79 已通过 CI 并等待 review，Dashboard 仍保持
   presentation-only，不改变内部 JSON contract、交易语义或写入边界。
   若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
@@ -122,8 +127,7 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 提交并推送当前 `feat/daily-trading-dashboard-v1`，创建 PR（不自动 merge），
-   等待并核对 CI。
+1. 等待用户 review PR #79 并决定是否 merge；本轮不自动 merge。
 2. 如需进入正式生命周期，Candidate-only 必须人工 promotion 到正式 `策略股票池`
    后再运行正式前置检查。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
@@ -196,6 +200,6 @@
 
 状态标记：
 
-`PR78_MERGED_MAIN_SYNCED`
+`PR_FULLY_READY`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
