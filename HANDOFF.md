@@ -7,11 +7,14 @@
 
 ## 1. Current Task（当前任务）
 
-- 本轮唯一任务：**Production Candidate runtime performance V1**；基线为 PR #75
-  squash merge 后的 `main`。本轮只允许
-  两个独立 transport/performance 变更：Stage A bounded yfinance batch threads，
-  Stage B bounded stdlib QFQ worker pool；Candidate/Wave/Setup/trading semantics
-  保持冻结。
+- 本轮唯一任务：`PRODUCTION_CANDIDATE_REVIEW_REPORT_V1`；在现有 Production Daily
+  Decision Markdown 报告中增加 presentation-only 的紧凑 `Candidate Review`。
+- 已完成最小 report rendering 改动：只投影既有 Candidate/Daily Chain result，按
+  candidate-only `DYNAMIC_CANDIDATE` 的 Primary Wave→Setup 状态展示 `ARMED` / `WATCH`；
+  原 JSON、完整 Markdown detail 与既有 machine-readable contract 保留。
+- 当前 feature branch 的 PR 已创建并通过 GitHub checks，等待用户 review/merge；不自动
+  merge。实现未改变 Candidate selector、Wave、Setup、Decision/Risk、persistence、
+  promotion、Portfolio Risk、scheduler、broker 或 execution semantics。
 - 基线 `main` 已包含 Production Daily Decision Chain V1；本轮新增 Candidate
   runtime 仍保持人工触发、account-isolated、默认只读。
 - 本轮已将现有 frozen Wave / SETUP_01 / SETUP_02 Decision/Risk / Portfolio Risk /
@@ -93,48 +96,21 @@
 - 已按 bounded smoke 结论记录 HiThink Financial API（同花顺金融数据服务）仍是
   未完成验证的未来辅助源，本 V1 不依赖、不接入，也不把它描述成已验证的 iFinD
   替代品。
-- PR #75 已按既定边界 squash merge；`ExactExchangeCalendarProvider` 已解析出
-  CN/XSHG 与 US/XNYS 的最近共同 completed T=`2026-09-08`。对应 scheduled
-  workflow 的 QFQ refresh 因 provider 返回 `2026-09-04` 而 fail closed，root cause
-  分类为 `QFQ_REFRESH_PROVIDER_STALE`；不是 target selection 或代码漏写。
-- 已按现有 `scripts/refresh_production_qfq.py --group us` contract 补齐 QFQ：BABA
-  与 RKLB latest 均为 `2026-09-08`；随后真实 preflight 为 CN=`READY`、US=`READY`，
-  两者均 `DATA_OK`。
-- 同一 T 的 Production Candidate smoke 已重新以严格 `READ_ONLY` 完成：US Candidate
-  status=`SUCCESS`、US `DATA_BLOCKED=0`；CN/US 的策略股票池、策略决策状态、策略持仓
-  与 legacy 决策表前后均未变化，Sheets mutation=`0`，broker orders=`NONE`。
-  本次 CN Candidate 阶段另有 Yahoo transient rate-limit，产生 `DATA_BLOCKED=40`；
-  这不影响 BABA/RKLB QFQ gate，未绕过任何门禁，也未引入代码修改。
-- 本轮 performance change 已完成：Stage A 仅把固定 chunk=80 的现有
-  `yfinance.download` `threads=False` 改为显式 `threads=8`；Stage B 仅把现有
-  `fetch_with_retry("yfinance", ..., "qfq", retry_count=1, target_trade_date=T)`
-  放入 `ThreadPoolExecutor(max_workers=4)`，用 `executor.map` 保留输入顺序、错误
-  顺序、QFQ/as-of/fail-closed contract 与 request accounting。
-- Stage A 同一 transport fixture parity：CN 20 symbols `9.691s→4.323s`（2.24x），
-  US 80 symbols `35.497s→14.217s`（2.50x）；close/volume/date digest 相同。
-- 本轮真实 Candidate smoke（T=`2026-09-08`）阶段耗时：CN short=`124.933s`、deep
-  `103.264s`；US short=`158.129s`、deep=`36.907s`。CN seed=`800`、qualified=`799`、
-  included=`515`、deep requested/ready=`514/514`；US seed=`1018`、qualified=`1008`、
-  included=`220`、deep requested/ready=`219/219`；两市场 status=`SUCCESS`、errors=0。
-- 真实 smoke runner total=`800.766s`，相对原 baseline runner=`2472.063s` 约
-  `3.09x`；strategy semantics/metrics funnel 仍由既有 Daily Chain 生成，Candidate
-  remains discovery-only。provider 当前数据计数如 qualified/included 仅作运行观测，
-  不视为语义变化。
-- 现有 unit tests 新增 Stage A 参数/fixture parity 与 Stage B provider contract/order
-  coverage；full unittest=`638 passed`，py_compile 与 `git diff --check` 均通过。
-
+- 已完成 `PRODUCTION_CANDIDATE_REVIEW_REPORT_V1`：Candidate Review 仅使用现有
+  `DailyDecisionResult` 与 provenance metadata，不新增评分、排序模型、reason taxonomy
+  或第二套事件/状态判断；Candidate-only 仍为 `READ_ONLY_DISCOVERY`。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
 - 本地 service-account env 缺失，但通过已连接 Google Drive 的只读 snapshot 完成了
   同一现有 runner 与 Candidate runtime 的真实数据 smoke；不构成代码 blocker。
-- 本轮正式 production QFQ blocker 已清除：US `BABA` / `RKLB` latest 均为
-  `T=2026-09-08`，US formal preflight=`READY`，两者 `DATA_OK`；现有 fail-closed
-  gate 未被放宽。
-- 本轮真实 smoke 的 CN/US Candidate deep errors=0、DATA_BLOCKED=0；yfinance/Pandas
-  产生依赖内部弃用 warning，另有外部 provider 的个别 failed-download 被既有
-  fail-closed 计数吸收，不改变成功/安全门禁。
-- CN 与 US 的 exact exchange-calendar completed T 均为 `2026-09-08`，可作为下次
-  运行的共同 T；不使用旧测试日期 `2026-09-04`。
+- 本次验收中的 US `BABA` / `RKLB` QFQ freshness blocker 已按既有 contract 清除；
+  CN/XSHG 与 US/XNYS 的 exact completed T 均为当前动态 T，CN/US formal preflight
+  均 `READY`，fail-closed gate 未被放宽。
+- 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
+  仍保持 discovery-only，不进入 state write、published event、allocation 或
+  production execution。
+- 当前无业务语义 blocker；本轮报告展示改动已完成并通过 focused/full/GitHub checks，
+  当前只剩用户对 PR #77 的 review/merge 决策。
 - 当前没有已知的业务语义 blocker。若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
@@ -142,9 +118,9 @@
 
 ## 5. Next Action（下一步动作）
 
-1. PR #76 已 squash merge；本轮 performance transport 与本地迁移已完成。
-2. Candidate-only 结果仅供人工查看；如需进入正式生命周期，必须人工 promotion
-  到正式 `策略股票池` 后再运行正式前置检查。
+1. 用户 review/merge PR #77；不自动 merge。
+2. 如需进入正式生命周期，Candidate-only 必须人工 promotion 到正式 `策略股票池`
+   后再运行正式前置检查。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
@@ -157,9 +133,9 @@
   研究决策 + 新 protocol/version。
 - SETUP_04：未实现。
 - Candidate Universe 已接入人工触发的 production strategy chain；Candidate-only
-  需要人工 promotion 才能进入正式生命周期；T=`2026-09-08` 的真实 Candidate
-  production smoke 已完成，CN/US `DATA_BLOCKED=0`。本轮仅改变 transport overlap，
-  不改变 formal QFQ refresh、strategy pool、broker 或 scheduler 能力。
+  需要人工 promotion 才能进入正式生命周期；本次真实日常验收已确认 CN/US
+  Candidate 与 Daily Chain 均可只读运行；当前报告另有紧凑 Candidate Review 摘要，
+  且不改变 formal QFQ refresh、strategy pool、broker 或 scheduler 能力。
 - HiThink Financial API 只有 bounded transport smoke，财务字段、复权公式/as-of
   与长历史覆盖仍未验证；继续保持未接入状态。
 - （治理层）GitHub CI 的 `ci.yml` 仍对所有 PR/main push 跑完整 unittest；本次未
