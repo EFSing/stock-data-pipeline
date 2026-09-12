@@ -7,14 +7,16 @@
 
 ## 1. Current Task（当前任务）
 
-- 本轮唯一任务：`PRODUCTION_CANDIDATE_REVIEW_REPORT_V1`；在现有 Production Daily
-  Decision Markdown 报告中增加 presentation-only 的紧凑 `Candidate Review`。
-- 已完成最小 report rendering 改动：只投影既有 Candidate/Daily Chain result，按
-  candidate-only `DYNAMIC_CANDIDATE` 的 Primary Wave→Setup 状态展示 `ARMED` / `WATCH`；
-  原 JSON、完整 Markdown detail 与既有 machine-readable contract 保留。
-- PR #77 已完成 squash merge；merge 后 main 已同步且 main CI 已通过，本轮完成
-  merge closeout，不启动新的功能开发。实现未改变 Candidate selector、Wave、Setup、Decision/Risk、persistence、
-  promotion、Portfolio Risk、scheduler、broker 或 execution semantics。
+- 当前任务：`PRODUCTION_CANDIDATE_REVIEW_METADATA_V1`；在已合并的 Candidate Review
+  中展示既有 Candidate metadata 的股票名称和行业／板块。
+- 已完成最小 presentation-only metadata propagation：CN/US included Candidate 的
+  `name` / `sector` 进入现有 universe report，Candidate Review 新增两列；缺失值展示
+  `—`，不改变 Candidate-only 过滤、Primary Wave→Setup 映射或 `ARMED > WATCH > ticker`
+  排序。
+- 当前 feature branch `feat/candidate-review-metadata-v1` 已推送并创建开放 PR；不自动
+  merge，最终停在 `PR_FULLY_READY`。实现未改变 Candidate selector、Wave、Setup、
+  Decision/Risk、persistence、promotion、Portfolio Risk、scheduler、broker 或 execution
+  semantics。
 - 基线 `main` 已包含 Production Daily Decision Chain V1；本轮新增 Candidate
   runtime 仍保持人工触发、account-isolated、默认只读。
 - 本轮已将现有 frozen Wave / SETUP_01 / SETUP_02 Decision/Risk / Portfolio Risk /
@@ -96,9 +98,9 @@
 - 已按 bounded smoke 结论记录 HiThink Financial API（同花顺金融数据服务）仍是
   未完成验证的未来辅助源，本 V1 不依赖、不接入，也不把它描述成已验证的 iFinD
   替代品。
-- 已完成 `PRODUCTION_CANDIDATE_REVIEW_REPORT_V1`：Candidate Review 仅使用现有
-  `DailyDecisionResult` 与 provenance metadata，不新增评分、排序模型、reason taxonomy
-  或第二套事件/状态判断；Candidate-only 仍为 `READ_ONLY_DISCOVERY`。
+- 已完成 `PRODUCTION_CANDIDATE_REVIEW_REPORT_V1` 与当前 metadata 增量：Candidate Review
+  仅投影既有 `DailyDecisionResult`、Candidate metadata 与 provenance，不新增评分、排序
+  模型、reason taxonomy 或第二套事件/状态判断；Candidate-only 仍为 `READ_ONLY_DISCOVERY`。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
 - 本地 service-account env 缺失，但通过已连接 Google Drive 的只读 snapshot 完成了
@@ -109,7 +111,8 @@
 - 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
-- 当前无业务语义 blocker；本轮报告展示改动已完成，PR #77 已合并并完成 closeout。
+- 当前无业务语义 blocker；本轮 Candidate Review metadata 展示改动已完成，开放 PR 等待
+  review，不自动合并。
   若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
@@ -117,7 +120,7 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 本轮 merge closeout 已完成；等待用户明确下一项任务，不启动新的功能开发。
+1. 等待当前 feature PR review 与用户明确的 merge 决策；本轮不自动合并。
 2. 如需进入正式生命周期，Candidate-only 必须人工 promotion 到正式 `策略股票池`
    后再运行正式前置检查。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
@@ -190,6 +193,6 @@
 
 状态标记：
 
-`PR77_MERGED_AND_CLOSED_OUT`
+`PR78_OPEN_NO_AUTO_MERGE`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
