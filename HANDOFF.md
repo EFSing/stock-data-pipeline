@@ -7,13 +7,15 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`DAILY_TRADING_DASHBOARD_V1`；将现有 Production Daily Decision
-  Chain 结果投影为只读 standalone HTML 仪表盘。
-- 当前 feature branch：`feat/daily-trading-dashboard-v1`；Dashboard 的信息架构/视觉密度
-  整改已完成：默认“今日重点”、紧凑股票行、sticky 阶段导航、前端搜索、按需详情与
-  观察中/全部诊断视图均已接入；synthetic fixture、focused/full tests、真实
-  2026-09-11 HTML 重新生成与视觉验收已完成。PR #79 保持 OPEN，不自动 merge，等待
-  review。
+- 当前任务：`TRADE_LIFECYCLE_DASHBOARD_AND_PAPER_TRACKING_V1`；在 PR #79 的只读
+  Dashboard 基础上完成前瞻 Paper Trade Lifecycle、账本、续载、统计与展示。
+- 当前 feature branch：`feat/paper-trade-lifecycle-v1`；PR #79
+  `feat/daily-trading-dashboard-v1` → `main` 保持 OPEN，PR #80
+  `feat/paper-trade-lifecycle-v1` → `feat/daily-trading-dashboard-v1` 已创建并保持
+  OPEN；两者均不自动 merge，动态 head / CI 以 GitHub 实时事实为准。
+- PR #79 的信息架构/视觉密度整改与 presentation-only 状态措辞已完成：默认“今日重点”、
+  紧凑股票行、sticky 阶段导航、前端搜索、按需详情与观察中/全部诊断视图均已接入；
+  Dashboard 不改变内部 JSON contract、交易语义或写入边界。
 - 已完成最小 presentation-only metadata propagation：CN/US included Candidate 的
   `name` / `sector` 进入现有 universe report，Candidate Review 新增两列；缺失值展示
   `—`，不改变 Candidate-only 过滤、Primary Wave→Setup 映射或 `ARMED > WATCH > ticker`
@@ -121,8 +123,11 @@
 - 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
-- 当前无业务语义 blocker；PR #79 已通过 CI 并等待 review，Dashboard 仍保持
-  presentation-only，不改变内部 JSON contract、交易语义或写入边界。
+- 当前无业务语义 blocker；PR #79 CI 已通过并等待 review，PR #80 正在等待 CI / review。
+  Paper V1 仍保持独立账本、显式 `--paper-track`、前瞻 exact-session 与 fail-closed
+  数据边界，不改变生产 state、portfolio risk、broker 或 order。
+- 视觉截图验收受当前浏览器禁止打开本地 `file://` HTML 的工具策略阻塞；已生成并可直接
+  复核 standalone HTML/JSON artifact，且 deterministic dashboard/render tests 已通过。
   若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
@@ -130,10 +135,13 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 等待用户 review PR #79 并决定是否 merge；本轮不自动 merge。
-2. 如需进入正式生命周期，Candidate-only 必须人工 promotion 到正式 `策略股票池`
-   后再运行正式前置检查。
-3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
+1. 等待 PR #79 与 stacked PR #80 的 CI / review 完成；本轮不自动 merge，保持 stacked
+   base 关系不变。
+2. 如需进入 Paper tracking，用户需在完整 exact completed session 与 QFQ coverage
+   就绪后显式运行 `--paper-track`；普通 `--run` 继续只读。
+3. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；Paper
+   tracking 也不等于 promotion、production approval 或 broker execution。
+4. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
@@ -148,6 +156,14 @@
   需要人工 promotion 才能进入正式生命周期；本次真实日常验收已确认 CN/US
   Candidate 与 Daily Chain 均可只读运行；当前报告另有紧凑 Candidate Review 摘要，
   且不改变 formal QFQ refresh、strategy pool、broker 或 scheduler 能力。
+- Paper Trade Lifecycle V1 已在独立 `策略模拟账本` 中实现：仅显式 `--paper-track` 写入，
+  只接受新的 exact-session `SETUP_01`/`SETUP_02` `CONFIRMED` + individual
+  `ENTRY_ALLOWED`；事件按 `event_identity + lifecycle_event_type` 幂等追加，并复用既有
+  Decision / T+1 executor / `PositionOrigin` / replay。支持 pending/open/closed/skipped、
+  CN/US coverage、Candidate-only active continuation、normalized R/return statistics 与
+  Paper Dashboard；不做历史回填、真实 holdings、portfolio P&L、broker 或生产 state 写入。
+- Generic operational shadow 已覆盖 formal closed 与 dynamic-candidate skipped 路径，并
+  生成 synthetic JSON/HTML artifact；真实账户与凭证继续不进入 generic shadow。
 - HiThink Financial API 只有 bounded transport smoke，财务字段、复权公式/as-of
   与长历史覆盖仍未验证；继续保持未接入状态。
 - （治理层）GitHub CI 的 `ci.yml` 仍对所有 PR/main push 跑完整 unittest；本次未
@@ -168,6 +184,12 @@
   `allocation_budget` 总预算语义与 Portfolio Risk 公式均为 frozen，不随意改。
 - 生产写入边界：无券商 / order；策略 state write 需显式授权；Google Sheets 凭证
   只经 Secrets / 本机环境变量注入，不写入仓库或文档。
+- Paper 写入边界：`策略模拟账本` 与 production sheets/state 独立；普通 `--run` 只读，
+  只有显式 `--paper-track` 才能 append；Paper auto-approval 仅表示 technical paper
+  tracking，不提升为 production approval、allocation 或 candidate promotion。
+- Paper 数据边界：必须使用 completed exchange-calendar T、exact T+1、`DATA_OK` QFQ，
+  缺失/跨市场账户路由/不连续覆盖时 fail-closed；active paper symbols 在 candidate
+  dropout 后仍需继续进入 QFQ refresh。
 - 真实持仓 shadow 属 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，未运行时
   `NOT_RUN_USER_PRIVACY`；缺少真实持仓不是 SETUP_01 等核心开发的默认 blocker。
 - docs-only 更新只做轻量检查（`git diff --check`、Markdown/JSON 语法、必要 grep），
