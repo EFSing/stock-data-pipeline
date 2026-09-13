@@ -9,10 +9,10 @@
 
 - 当前任务：`TRADE_LIFECYCLE_DASHBOARD_AND_PAPER_TRACKING_V1`；在 PR #79 的只读
   Dashboard 基础上完成前瞻 Paper Trade Lifecycle、账本、续载、统计与展示。
-- 当前 feature branch：`feat/paper-trade-lifecycle-v1`；PR #79
-  `feat/daily-trading-dashboard-v1` → `main` 保持 OPEN，PR #80
-  `feat/paper-trade-lifecycle-v1` → `feat/daily-trading-dashboard-v1` 已创建并保持
-  OPEN；两者均不自动 merge，动态 head / CI 以 GitHub 实时事实为准。
+- 当前 feature branch：`feat/paper-trade-lifecycle-v1`；PR #79 的
+  `feat/daily-trading-dashboard-v1` → `main` 已 squash merge，PR #80
+  `feat/paper-trade-lifecycle-v1` → `main` 保持 OPEN；PR #80 已从原 stacked
+  base 安全 rebase，动态 head / CI / merge 状态以 GitHub 实时事实为准。
 - PR #79 的信息架构/视觉密度整改与 presentation-only 状态措辞已完成：默认“今日重点”、
   紧凑股票行、sticky 阶段导航、前端搜索、按需详情与观察中/全部诊断视图均已接入；
   Dashboard 不改变内部 JSON contract、交易语义或写入边界。
@@ -127,8 +127,8 @@
 - 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
-- 当前无业务语义 blocker；PR #79 与 PR #80 的 exact-head CI 均已通过，等待 review；两者
-  仍保持 stacked 关系，不自动 merge。
+- 当前无业务语义 blocker；PR #79 已完成 merge closeout，PR #80 已完成回到 `main`
+  的 rebase，等待新 exact-head CI 与最终 merge gate。
   Paper V1 仍保持独立账本、显式 `--paper-track`、前瞻 exact-session 与 fail-closed
   数据边界，不改变生产 state、portfolio risk、broker 或 order。
 - 视觉截图验收受当前浏览器禁止打开本地 `file://` HTML 的工具策略阻塞；已生成并可直接
@@ -140,8 +140,8 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 等待 PR #79 与 stacked PR #80 的 review；本轮不自动 merge，保持 stacked base
-   关系不变。
+1. 完成 PR #80 回到 `main` 后的 exact-head CI、Paper correctness gate 与 squash
+   merge；随后只读核验首次 live Paper tracking 前置条件。
 2. 如需进入 Paper tracking，用户需在完整 exact completed session 与 QFQ coverage
    就绪后显式运行 `--paper-track`；普通 `--run` 继续只读。
 3. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；Paper
