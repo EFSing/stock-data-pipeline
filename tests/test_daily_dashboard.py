@@ -129,6 +129,48 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual({rows["LOW1"]["stage_key"], rows["LOW2"]["stage_key"]}, {"NO_TRADE", "FAILED"})
         self.assertEqual({row["symbol"] for row in projection["rows"]}, set(rows))
 
+    def test_setup_local_failure_does_not_invalidate_whole_symbol(self):
+        payload = deepcopy(self.payload)
+        payload["reports"][0]["报告"]["results"].append(
+            {
+                "symbol": "MIXED1",
+                "market": "CN",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_3_CONTINUATION_CANDIDATE",
+                "setup01_state": "FAILED",
+                "setup02_state": "CONFIRMED",
+                "primary_action": "NO_TRADE",
+                "event_was_new": False,
+                "individual_decision": None,
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": ["T 日没有新的 CONFIRMED event"],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+            }
+        )
+
+        row = next(
+            row for row in build_dashboard_projection(payload)["rows"]
+            if row["symbol"] == "MIXED1"
+        )
+
+        self.assertEqual(row["stage_key"], "NO_TRADE")
+        self.assertEqual(row["stage_label"], "今天不交易")
+        self.assertNotEqual(row["waiting"], "结构已失效，今天不交易")
+
+    def test_new_confirmation_without_entry_plan_is_explained_as_not_trade(self):
+        rows = {
+            row["symbol"]: row
+            for row in build_dashboard_projection(self.payload)["rows"]
+        }
+
+        self.assertEqual(
+            rows["AAA"]["waiting"],
+            "今天出现确认，但当前价格/风险条件不适合交易",
+        )
+        self.assertNotIn("等待交易方案形成", rows["AAA"]["waiting"])
+
     def test_watch_and_armed_never_invent_entry(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
 

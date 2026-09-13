@@ -103,6 +103,9 @@ WAVE_SHORT_LABELS = {
     "UPTREND_UNKNOWN_WAVE": "上升趋势·浪型未定",
     "DOWNTREND_OR_INVALID_FOR_LONG": "下行／不适合做多",
     "NO_VALID_SCENARIO": "暂无有效浪型",
+    "RANGE": "结构整理中",
+    "TRANSITION": "结构过渡中",
+    "UNKNOWN": "波浪尚未确定",
 }
 
 MARKET_LABELS = {
@@ -440,6 +443,16 @@ def _setup(result: Mapping[str, Any], decision: Mapping[str, Any]) -> str:
     return " / ".join(states)
 
 
+def _setup_label(setup: str) -> str:
+    """Return a compact Chinese setup label for the default stock row."""
+
+    labels = {
+        "SETUP_01": "2浪→3浪",
+        "SETUP_02": "3浪延续",
+    }
+    return " / ".join(labels.get(item, item) for item in setup.split(" / ") if item)
+
+
 def _stage(
     result: Mapping[str, Any],
     decision: Mapping[str, Any],
@@ -459,7 +472,9 @@ def _stage(
         return "STRATEGY_PROPOSAL"
     if event_is_new:
         return "CONFIRMED"
-    if _text(result.get("final_status")) == "FAILED" or _text(result.get("setup01_state")) == "FAILED" or _text(result.get("setup02_state")) == "FAILED":
+    # A setup-local failure is not a whole-symbol failure.  Only the formal
+    # result's explicit final FAILED status may project a symbol-level failure.
+    if _text(result.get("final_status")) == "FAILED":
         return "FAILED"
     states = {_text(result.get("setup01_state")), _text(result.get("setup02_state"))}
     if "ARMED" in states:
@@ -545,7 +560,11 @@ def _waiting(
             return f"确认价：{_display(confirmation)}"
         return _reason_text(result) or "等待确认条件"
     if stage == "CONFIRMED":
-        return _reason_text(result) or "等待交易方案形成"
+        # T-day confirmation is already followed by the existing individual
+        # Decision calculation.  Do not imply that a plan is still forming.
+        if _event_is_new(result):
+            return "今天出现确认，但当前价格/风险条件不适合交易"
+        return _reason_text(result) or "今天没有新的交易信号"
     if stage == "STRATEGY_PROPOSAL":
         if candidate_only:
             return "候选观察池：尚未进入正式策略池"
@@ -720,13 +739,14 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
             primary_wave,
             f"波浪状态：{primary_wave}",
         ),
-        "primary_wave_short_label": WAVE_SHORT_LABELS.get(primary_wave, primary_wave),
+        "primary_wave_short_label": WAVE_SHORT_LABELS.get(primary_wave, "波浪尚未确定"),
         "alternate_wave": _text(result.get("alternate_wave_scenario"), "UNKNOWN"),
         "alternate_wave_label": WAVE_LABELS.get(
             _text(result.get("alternate_wave_scenario")),
             f"波浪状态：{_text(result.get('alternate_wave_scenario'), 'UNKNOWN')}",
         ),
         "setup": setup or "—",
+        "setup_label": _setup_label(setup) or "—",
         "setup01_state": _text(result.get("setup01_state"), "NONE"),
         "setup02_state": _text(result.get("setup02_state"), "NONE"),
         "identity_labels": _identity_labels(labels, candidate_only, is_position),
@@ -1164,7 +1184,7 @@ def _render_row(row: Mapping[str, Any]) -> str:
         f'<span class="stage stage-{stage_class}">{_escape(row["stage_label"])}</span></div>'
         '<div class="row-bottom"><div class="row-signals">'
         f'<span class="row-wave">{_escape(row["primary_wave_short_label"])}</span>'
-        f'<span class="row-setup">{_escape(row["setup"])}</span>'
+        f'<span class="row-setup">{_escape(row["setup_label"])}</span>'
         f'<span class="row-next">{_escape(row["waiting"])}</span>'
         + price_block
         + '</div><div class="row-actions"><div class="identity-row">'
