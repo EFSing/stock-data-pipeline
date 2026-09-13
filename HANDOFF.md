@@ -7,8 +7,9 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：完成 PR #79 / #80 merge closeout，并完成首次真实 Paper Tracking 前的
-  只读 prerequisite 核验；本轮不启动 `--paper-track`。
+- 当前任务：`FIRST_LIVE_PAPER_TRACK_2026-09-11` 已完成；下一步在下一个 exact
+  completed session 单独运行 `--run --paper-track --date ...`。本轮不启动
+  scheduler、broker 或 production state write。
 - 当前工作分支：`main`；PR #79 与 PR #80 均已 squash merge；后续 branch / HEAD /
   CI / merge 状态以 GitHub 实时事实为准，不新开第三个 PR。
 - PR #79 的信息架构/视觉密度整改与 presentation-only 状态措辞已完成：默认“今日重点”、
@@ -117,8 +118,9 @@
   不伪造入场价，Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- 本地 service-account env 缺失，但通过已连接 Google Drive 的只读 snapshot 完成了
-  同一现有 runner 与 Candidate runtime 的真实数据 smoke；不构成代码 blocker。
+- 本地 service-account env 仍缺失；本轮通过已授权 Google Drive snapshot 复核同一
+  现有 runner/CLI logic 与 Candidate runtime，并仅经连接器写入允许的 Paper ledger，
+  不构成生产代码 blocker。若后续要直接在本机运行 CLI，仍需注入既有两个环境变量。
 - 本次验收中的 US `BABA` / `RKLB` QFQ freshness blocker 已按既有 contract 清除；
   CN/XSHG 与 US/XNYS 的 exact completed T 均为当前动态 T，CN/US formal preflight
   均 `READY`，fail-closed gate 未被放宽。
@@ -126,8 +128,11 @@
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
 - 当前无业务语义 blocker；PR #79 / #80 merge closeout、main CI 与 Paper generic
-  shadow 均已完成。已连接工作簿中不存在 `策略模拟账本`，状态为
-  `PAPER_LEDGER_NOT_YET_CREATED`，无需迁移或重建空表。
+  shadow 均已完成。`FIRST_LIVE_PAPER_TRACK_2026-09-11` 已完成：已连接工作簿已
+  创建当前 schema 的 `策略模拟账本`，写入 2 条 `PAPER_COVERAGE`（CN/US），
+  `PAPER_PLAN_CREATED=0`，无成交/跳过/结束事件；CN/US coverage 起点与最新处理
+  session 均为 `2026-09-11`，状态 `CONTINUOUS`，下一 exact session 为
+  `2026-09-14`。
   Paper V1 仍保持独立账本、显式 `--paper-track`、前瞻 exact-session 与 fail-closed
   数据边界，不改变生产 state、portfolio risk、broker 或 order。
 - 视觉截图验收受当前浏览器禁止打开本地 `file://` HTML 的工具策略阻塞；已生成并可直接
@@ -139,9 +144,8 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 如需开始 Paper tracking，先在新的完整 exact completed session 上完成既有
-   preflight / QFQ coverage gate，再由用户显式运行 `--paper-track`；普通 `--run`
-   继续只读。本轮不执行该命令。
+1. 在下一 completed session 上重新完成既有 preflight / QFQ coverage gate，再单独
+   显式运行 `--run --paper-track --date YYYY-MM-DD`；普通 `--run` 继续只读。
 2. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；Paper
    tracking 也不等于 promotion、production approval 或 broker execution。
 3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
@@ -228,6 +232,6 @@
 
 状态标记：
 
-`READY_FOR_FIRST_LIVE_PAPER_TRACK`
+`FIRST_LIVE_PAPER_TRACK_INITIALIZED_NO_PLAN`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
