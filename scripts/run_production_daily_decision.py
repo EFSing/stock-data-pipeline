@@ -29,6 +29,10 @@ from trading.daily_decision_chain import (
     InMemoryDecisionStateStore,
     STRATEGY_PROPOSAL,
 )
+from trading.daily_dashboard import (
+    dashboard_universe_metadata,
+    write_dashboard_html,
+)
 from trading.production_candidate_runtime import (
     CandidateMarketRuntimeResult,
     PRODUCTION_CANDIDATE_ACCOUNT_ROUTING_REQUIRED,
@@ -649,6 +653,7 @@ def run_production_daily_decision(
     allocation_budgets: Mapping[str, float] | None = None,
     approved_event_identities: Iterable[str] | None = None,
     candidate_runtime=None,
+    dashboard_output: str | Path | None = None,
 ):
     run_started = time.perf_counter()
     adapter = ProductionInputAdapter(client, as_of_date=as_of_date, now=now)
@@ -674,6 +679,7 @@ def run_production_daily_decision(
         )
     approvals = tuple(approved_event_identities or ())
     reports = []
+    dashboard_reports = []
     candidate_results_by_market: dict[str, CandidateMarketRuntimeResult] = {}
     candidate_runtime_errors: dict[str, str] = {}
     for account_run in snapshot.account_runs:
@@ -773,7 +779,7 @@ def run_production_daily_decision(
             funnel,
             strategy_elapsed_seconds,
         )
-        reports.append({
+        report_entry = {
             "账户ID": account_run.account.account_id,
             "市场": market,
             "read behavior": "STATE_WRITE_AUTHORIZED" if write_state else "READ_ONLY",
@@ -789,7 +795,14 @@ def run_production_daily_decision(
             },
             "报告": _report_payload(report, universe_report),
             "Markdown": markdown,
-        })
+        }
+        reports.append(report_entry)
+        dashboard_report_entry = dict(report_entry)
+        dashboard_report_entry["universe"] = {
+            **universe_report,
+            **dashboard_universe_metadata(inputs),
+        }
+        dashboard_reports.append(dashboard_report_entry)
     candidate_payload = {
         market: result.to_dict()
         for market, result in sorted(candidate_results_by_market.items())
@@ -797,7 +810,7 @@ def run_production_daily_decision(
     funnel_payload = {
         item["市场"]: item["Funnel"] for item in reports
     }
-    return {
+    result = {
         "preflight": snapshot.preflight.to_dict(),
         "read behavior": "STATE_WRITE_AUTHORIZED" if write_state else "READ_ONLY",
         "NO STATE WRITE": not write_state,
@@ -824,6 +837,11 @@ def run_production_daily_decision(
         },
         "reports": reports,
     }
+    if dashboard_output is not None:
+        dashboard_payload = dict(result)
+        dashboard_payload["reports"] = dashboard_reports
+        write_dashboard_html(dashboard_payload, dashboard_output)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -845,9 +863,15 @@ def main(argv: list[str] | None = None) -> int:
         metavar="ACCOUNT_ID=AMOUNT",
         help="显式提供账户策略风险账本总预算；可重复传入，不读取 NAV 替代",
     )
+    parser.add_argument(
+        "--dashboard-output", type=Path, default=None, metavar="DIR",
+        help="将本次既有 Daily Decision 结果写成只读 HTML dashboard；DIR 默认由调用方指定",
+    )
     args = parser.parse_args(argv)
-    if args.preflight and (args.write_state or args.approve_event or args.allocation_budget):
-        parser.error("--preflight 不接受 state write、event approval 或 allocation budget")
+    if args.preflight and (
+        args.write_state or args.approve_event or args.allocation_budget or args.dashboard_output
+    ):
+        parser.error("--preflight 不接受 state write、event approval、allocation budget 或 dashboard output")
     budgets = dict(args.allocation_budget)
     if len(budgets) != len(args.allocation_budget):
         parser.error("每个 ACCOUNT_ID 只能提供一次 allocation budget")
@@ -860,6 +884,7 @@ def main(argv: list[str] | None = None) -> int:
             write_state=args.write_state,
             allocation_budgets=budgets,
             approved_event_identities=args.approve_event,
+            dashboard_output=args.dashboard_output,
         )
     except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
         readiness = (

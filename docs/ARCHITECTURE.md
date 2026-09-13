@@ -40,6 +40,8 @@ existing Data Quality → Weekly / Daily → Swing → Wave → Fibonacci →
 SETUP_01 / SETUP_02 → Decision → Portfolio Risk → Position Management
         → merged JSON/Markdown funnel; only formal group may persist state
         → Candidate-only cannot allocate or enter production execution
+        → optional presentation-only projection
+        → standalone reports/daily_dashboard/latest.html (+ date copy)
 
 Candidate Strategy Shadow Bridge (manual/local read-only runtime)
         ↓
@@ -160,6 +162,18 @@ All bridge execution is read-only.
   Candidate data failures become DATA_* fail-closed rows. No Candidate row is written
   to `策略股票池` or any other Sheet, and no broker order is submitted automatically.
 
+### trading/daily_dashboard.py / scripts/render_daily_dashboard.py
+
+- `build_dashboard_projection()` consumes the existing production result mapping or a
+  saved `DailyTradingDecisionReport.to_dict()` payload and returns a deterministic,
+  presentation-only view. Stage/status and Wave labels are display mappings only;
+  WATCH/ARMED never receive a derived entry price, and plan/position values are copied
+  only from existing Decision/Risk/Position Management fields.
+- `render_dashboard_html()` uses only Python standard-library HTML/CSS/inline JavaScript
+  and provides market/stage/setup/sector filters plus expandable professional details.
+  `write_dashboard_html()` writes `latest.html` and an optional date-versioned copy;
+  `scripts/render_daily_dashboard.py` is the saved-JSON command-line entry point.
+
 ### Execution modes
 
 `--mode latest` 是亚洲/欧美 scheduled workflow 的生产路径：只读取自选清单，使用短窗口 latest quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、双源校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar guard 时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市且不推断节假日。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且 `history_rows_written=0`。
@@ -199,7 +213,8 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 │       └── SKILL.md           # 上层 Skill 薄 contract，不承载业务实现
 ├── scripts/
 │   ├── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
-│   └── holdings_data_manager_smoke.py # provider-only raw/qfq coverage smoke
+│   ├── holdings_data_manager_smoke.py # provider-only raw/qfq coverage smoke
+│   └── render_daily_dashboard.py # saved Daily Decision JSON → standalone HTML
 ├── research/
 │   ├── replay_input.py      # canonical input hash / manifest / frozen replay
 │   ├── frozen_validation.py # Phase 5E 固定数据集描述性验证
@@ -236,6 +251,7 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
   │   ├── setup01_replay.py     # SETUP_01 strict as-of structural replay
   │   └── setup01_decision.py   # SETUP_01 independent Decision/Risk v1
   ├── production_candidate_runtime.py # read-only Candidate→Daily input runtime
+  ├── daily_dashboard.py       # read-only Daily Decision presentation projection
   ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
   ├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
   ├── docs/SETUP_01_DECISION_RISK_V1.md # SETUP_01 Decision/Risk v1 protocol

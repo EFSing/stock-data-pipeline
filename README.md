@@ -41,6 +41,25 @@ JSON/CSV artifact，不写 Sheet、交易决策、ENTRY 或生产配置。
 
 `workflow_dispatch` 默认是 `latest`，仅手动选择 `full`；daily schedule 始终强制 `latest`。
 
+需要每天查看现有 Production Daily Decision 结果时，可在只读 `--run` 中显式生成
+standalone HTML dashboard：
+
+```bash
+python scripts/run_production_daily_decision.py --run --date YYYY-MM-DD \
+  --dashboard-output reports/daily_dashboard
+```
+
+然后直接用浏览器打开 `reports/daily_dashboard/latest.html`。如果已有保存的
+Production Daily Decision JSON，也可以单独渲染：
+
+```bash
+python scripts/render_daily_dashboard.py path/to/daily_decision.json \
+  --output-dir reports/daily_dashboard
+```
+
+Dashboard 只读展示既有 Decision、Risk 和 Position Management 字段，不产生新信号、
+不自动晋级 Candidate、不下单；运行生成的 HTML 默认不提交 Git。
+
 ## 持仓数据生命周期 Skill
 
 上层 ChatGPT/Codex Skill 的规范位于 [`skills/holdings-data-manager/SKILL.md`](skills/holdings-data-manager/SKILL.md)，业务实现位于 [`holdings_data_manager.py`](holdings_data_manager.py)。它只处理单一标的的 `ADD`、`REENTER`、`CLOSE`、`SYNC`：

@@ -1,0 +1,277 @@
+{
+  "demo_label": "示例数据 / Synthetic Demo",
+  "preflight": {
+    "T": "2026-09-03",
+    "accounts": [
+      {
+        "账户ID": "CN-1",
+        "市场": "CN",
+        "production readiness": "READY"
+      },
+      {
+        "账户ID": "US-1",
+        "市场": "US",
+        "production readiness": "READY"
+      }
+    ]
+  },
+  "candidate_markets": {
+    "CN": {
+      "status": "SUCCESS",
+      "candidate_included_count": 3,
+      "candidate_included_symbols": ["600001.SH", "600002.SH", "600003.SH"]
+    },
+    "US": {
+      "status": "SUCCESS",
+      "candidate_included_count": 3,
+      "candidate_included_symbols": ["AAA", "BBB", "CCC"]
+    }
+  },
+  "reports": [
+    {
+      "账户ID": "CN-1",
+      "市场": "CN",
+      "universe": {
+        "provenance": {
+          "600001.SH": ["DYNAMIC_CANDIDATE"],
+          "600002.SH": ["DYNAMIC_CANDIDATE"],
+          "600003.SH": ["FORMAL_STRATEGY_POOL", "ACTIVE_STRATEGY_POSITION"]
+        },
+        "provenance_metadata": {
+          "600001.SH": {
+            "source": "DYNAMIC_CANDIDATE",
+            "state_persistence_eligible": false,
+            "promotion_required": true,
+            "production_execution_eligible": false
+          },
+          "600002.SH": {
+            "source": "DYNAMIC_CANDIDATE",
+            "state_persistence_eligible": false,
+            "promotion_required": true,
+            "production_execution_eligible": false
+          },
+          "600003.SH": {
+            "source": "FORMAL_STRATEGY_POOL+ACTIVE_STRATEGY_POSITION",
+            "state_persistence_eligible": true,
+            "promotion_required": false,
+            "production_execution_eligible": true
+          }
+        },
+        "candidate_metadata": {
+          "600001.SH": {"name": "示例科技<&", "sector": "专用设备"},
+          "600002.SH": {"name": "示例软件", "sector": "软件服务"}
+        },
+        "symbol_metadata": {
+          "600003.SH": {"name": "示例制造", "sector": "工业制造"}
+        },
+        "position_metadata": {
+          "600003.SH": {
+            "actual_entry": 100.0,
+            "current_price": 112.0,
+            "active_protective_stop": 104.0,
+            "targets": [120.0, 130.0, 140.0]
+          }
+        }
+      },
+      "Candidate": {
+        "candidate_included_count": 3,
+        "candidate_included_symbols": ["600001.SH", "600002.SH", "600003.SH"]
+      },
+      "报告": {
+        "as_of_date": "2026-09-03",
+        "generated_at": "2026-09-03T16:00:00+08:00",
+        "results": [
+          {
+            "symbol": "600001.SH",
+            "market": "CN",
+            "as_of_date": "2026-09-03",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "WATCH",
+            "setup02_state": "NONE",
+            "primary_action": "WATCH",
+            "event_was_new": false,
+            "individual_decision": null,
+            "portfolio_result": null,
+            "position_management": null,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "NO_TRADE"
+          },
+          {
+            "symbol": "600002.SH",
+            "market": "CN",
+            "as_of_date": "2026-09-03",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_3_CONTINUATION_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "NONE",
+            "setup02_state": "ARMED",
+            "primary_action": "WAIT_CONFIRMATION",
+            "confirmation_level": 123.45,
+            "event_was_new": false,
+            "individual_decision": null,
+            "portfolio_result": null,
+            "position_management": null,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "NO_TRADE"
+          },
+          {
+            "symbol": "600003.SH",
+            "market": "CN",
+            "as_of_date": "2026-09-03",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_3_CONTINUATION_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "NONE",
+            "setup02_state": "NONE",
+            "primary_action": "HOLD",
+            "event_was_new": false,
+            "individual_decision": null,
+            "portfolio_result": null,
+            "position_management": {
+              "status": "POSITION_MANAGEMENT_OBSERVED",
+              "action": "HOLD",
+              "current_r": 1.2,
+              "mfe_r": 1.8,
+              "mae_r": -0.2,
+              "mfe_drawdown_r": 0.6,
+              "active_stop_at_open": 104.0,
+              "active_stop_next_session": 106.0,
+              "target_status": "NONE_REACHED",
+              "wave5_context": "NOT_APPLICABLE",
+              "reasons": []
+            },
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "NO_TRADE"
+          }
+        ]
+      }
+    },
+    {
+      "账户ID": "US-1",
+      "市场": "US",
+      "universe": {
+        "provenance": {
+          "AAA": ["DYNAMIC_CANDIDATE"],
+          "BBB": ["FORMAL_STRATEGY_POOL"],
+          "CCC": ["FORMAL_STRATEGY_POOL"]
+        },
+        "provenance_metadata": {
+          "AAA": {
+            "source": "DYNAMIC_CANDIDATE",
+            "state_persistence_eligible": false,
+            "promotion_required": true,
+            "production_execution_eligible": false
+          },
+          "BBB": {
+            "source": "FORMAL_STRATEGY_POOL",
+            "state_persistence_eligible": true,
+            "promotion_required": false,
+            "production_execution_eligible": true
+          },
+          "CCC": {
+            "source": "FORMAL_STRATEGY_POOL",
+            "state_persistence_eligible": true,
+            "promotion_required": false,
+            "production_execution_eligible": true
+          }
+        },
+        "candidate_metadata": {
+          "AAA": {"name": "示例半导体", "sector": "半导体"}
+        },
+        "symbol_metadata": {
+          "BBB": {"name": "示例云计算", "sector": "云计算"},
+          "CCC": {"name": "示例安全科技", "sector": "网络安全"}
+        }
+      },
+      "Candidate": {
+        "candidate_included_count": 3,
+        "candidate_included_symbols": ["AAA", "BBB", "CCC"]
+      },
+      "报告": {
+        "as_of_date": "2026-09-03",
+        "generated_at": "2026-09-03T16:00:00+08:00",
+        "results": [
+          {
+            "symbol": "AAA",
+            "market": "US",
+            "as_of_date": "2026-09-03",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "WATCH",
+            "setup02_state": "NONE",
+            "primary_action": "WATCH",
+            "event_was_new": true,
+            "new_confirmed_event_identities": ["SETUP_01|US|AAA|2026-09-03"],
+            "individual_decision": null,
+            "portfolio_result": null,
+            "position_management": null,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "NO_TRADE"
+          },
+          {
+            "symbol": "BBB",
+            "market": "US",
+            "as_of_date": "2026-09-03",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "NONE",
+            "primary_action": "ENTRY_ALLOWED",
+            "event_was_new": false,
+            "individual_decision": {
+              "action": "ENTRY_ALLOWED",
+              "confirmation_level": 210.0,
+              "planned_entry": 200.0,
+              "execution_stop": 190.0,
+              "entry_zone_low": 198.0,
+              "entry_zone_high": 202.0,
+              "targets": [220.0, 230.0, 240.0],
+              "rr": {"rr_ratios": [2.0, 3.0, 4.0], "quality": "PASS"}
+            },
+            "portfolio_result": {"status": "STRATEGY_PROPOSAL", "reason": "等待人工批准"},
+            "position_management": null,
+            "reasons": ["STRATEGY_PROPOSAL_APPROVAL_REQUIRED"],
+            "blocking_prerequisites": [],
+            "final_status": "STRATEGY_PROPOSAL"
+          },
+          {
+            "symbol": "CCC",
+            "market": "US",
+            "as_of_date": "2026-09-03",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_3_CONTINUATION_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "NONE",
+            "setup02_state": "CONFIRMED",
+            "primary_action": "ENTRY_ALLOWED",
+            "event_was_new": false,
+            "individual_decision": {
+              "action": "ENTRY_ALLOWED",
+              "confirmation_level": 310.0,
+              "planned_entry": 300.0,
+              "execution_stop": 285.0,
+              "entry_zone_low": 298.0,
+              "entry_zone_high": 302.0,
+              "targets": [330.0, 345.0, 360.0],
+              "rr": {"rr_ratios": [2.0, 3.0, 4.0], "quality": "PASS"},
+              "earliest_execution_session": "2026-09-04 US"
+            },
+            "portfolio_result": {"status": "PORTFOLIO_ALLOWED", "reason": "risk budget available"},
+            "position_management": null,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "PORTFOLIO_ALLOWED"
+          }
+        ]
+      }
+    }
+  ]
+}
