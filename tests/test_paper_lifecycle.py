@@ -27,6 +27,7 @@ from trading.paper_lifecycle import (
     paper_ledger_schema,
     paper_trades,
 )
+from trading.position_management import PositionAction, PositionExitReason, TargetReachStatus
 from trading.setup01_decision import evaluate_setup01_decision
 from trading.setup02_decision import evaluate_setup02_decision
 from trading.trade_logic_explanation import build_trade_logic_explanation
@@ -104,7 +105,10 @@ class PaperLifecycleTests(unittest.TestCase):
         self.assertEqual(store.event_count, 1)
         schema = paper_ledger_schema()
         self.assertEqual(schema["identity"], "event_identity + lifecycle_event_type")
-        self.assertTrue(set(("position_origin_json", "realized_r", "coverage_gap")).issubset(PAPER_LEDGER_HEADERS))
+        self.assertTrue(
+            set(("position_origin_json", "planned_risk_per_share", "initial_risk_per_share", "realized_r", "coverage_gap"))
+            .issubset(PAPER_LEDGER_HEADERS)
+        )
 
     def test_new_entry_allowed_event_creates_plan_then_reuses_exact_t1_and_origin(self):
         event, quotes = _fixture()
@@ -139,6 +143,64 @@ class PaperLifecycleTests(unittest.TestCase):
         repeated = engine.process_daily((), (item_t1,), as_of_date=t1)
         self.assertEqual(repeated.trades[0].status, PAPER_OPEN_STATUS)
         self.assertEqual(store.event_count, before)
+
+    def test_actual_entry_based_one_r_is_separate_from_planned_risk(self):
+        event, quotes = _fixture()
+        decision = evaluate_setup01_decision(event, quotes)
+        t = event.trade_date
+        t1 = t + timedelta(days=1)
+        t2 = t + timedelta(days=2)
+        quotes = [
+            *quotes,
+            replace(quotes[-1], trade_date=t2, open=115.0, high=116.0, low=114.0, close=115.0),
+        ]
+        store = InMemoryPaperLedgerStore()
+        engine = PaperLifecycleEngine(store)
+        engine.process_daily(
+            (_result(event, decision),), (_input(event, quotes, t, t1),), as_of_date=t,
+        )
+        opened = engine.process_daily(
+            (), (_input(event, quotes, t1, t2),), as_of_date=t1,
+        )
+        plan_row = next(row for row in store.events if row["lifecycle_event_type"] == PAPER_PLAN_CREATED)
+        executed_row = next(row for row in store.events if row["lifecycle_event_type"] == PAPER_T1_EXECUTED)
+        planned_risk = float(plan_row["planned_risk_per_share"])
+        actual_risk = float(executed_row["initial_risk_per_share"])
+        self.assertNotEqual(planned_risk, actual_risk)
+        self.assertAlmostEqual(actual_risk, 110.75 - float(decision.execution_stop))
+        self.assertAlmostEqual(
+            opened.trades[0].current_r,
+            (110.0 - 110.75) / actual_risk,
+        )
+
+        day = SimpleNamespace(
+            close=115.0,
+            current_r=(115.0 - 110.75) / actual_risk,
+            mfe_r=1.5,
+            mae_r=-0.2,
+            mfe_drawdown_r=0.1,
+            target_status=TargetReachStatus.T1_REACHED,
+            action=PositionAction.EXIT,
+            secondary_reasons=(),
+            exit_reason=PositionExitReason.EXIT_STOP_TRIGGERED,
+        )
+        replay = SimpleNamespace(
+            days=(day,),
+            final_active_stop=float(decision.execution_stop),
+            exit_date=t2,
+            exit_reason=PositionExitReason.EXIT_STOP_TRIGGERED,
+            exit_price=115.0,
+            position_days=2,
+        )
+        with patch("trading.paper_lifecycle.replay_position", return_value=replay):
+            closed = engine.process_daily(
+                (), (_input(event, quotes, t2, t2 + timedelta(days=1)),), as_of_date=t2,
+            )
+        trade = closed.trades[0]
+        expected_r = (115.0 - 110.75) / actual_risk
+        self.assertAlmostEqual(trade.realized_r, expected_r)
+        self.assertAlmostEqual(trade.current_r, expected_r)
+        self.assertNotAlmostEqual(trade.realized_r, (115.0 - 110.75) / planned_risk)
 
     def test_persistent_confirmation_and_no_trade_do_not_create_plan(self):
         event, quotes = _fixture()

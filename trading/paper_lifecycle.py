@@ -92,6 +92,7 @@ PAPER_LEDGER_HEADERS = (
     "entry_zone_high",
     "structural_invalidation",
     "execution_stop",
+    "planned_risk_per_share",
     "initial_risk_per_share",
     "initial_rr",
     "T1",
@@ -192,6 +193,11 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return result if math.isfinite(result) else None
+
+
+def _planned_risk_value(value: Mapping[str, Any]) -> Any:
+    planned = value.get("planned_risk_per_share")
+    return planned if _number(planned) is not None else value.get("initial_risk_per_share")
 
 
 def _serialise(value: Any) -> Any:
@@ -425,7 +431,7 @@ class PaperPlan:
     entry_zone_high: float | None
     structural_invalidation: float | None
     execution_stop: float | None
-    initial_risk_per_share: float | None
+    planned_risk_per_share: float | None
     initial_rr: float | None
     targets: tuple[float, ...]
     target_provenance: tuple[Any, ...]
@@ -463,7 +469,7 @@ class PaperPlan:
             "entry_zone_high": self.entry_zone_high,
             "structural_invalidation": self.structural_invalidation,
             "execution_stop": self.execution_stop,
-            "initial_risk_per_share": self.initial_risk_per_share,
+            "planned_risk_per_share": self.planned_risk_per_share,
             "initial_rr": self.initial_rr,
             "targets": self.targets,
             "target_provenance": self.target_provenance,
@@ -523,6 +529,9 @@ class PaperTrade:
     entry_zone_high: float | None = None
     structural_invalidation: float | None = None
     execution_stop: float | None = None
+    planned_risk_per_share: float | None = None
+    # This is populated only after T+1 execution from PositionOrigin.  It is
+    # the actual-entry-based 1R denominator used by all later replay metrics.
     initial_risk_per_share: float | None = None
     initial_rr: float | None = None
     targets: tuple[Any, ...] = ()
@@ -553,6 +562,8 @@ class PaperTrade:
     max_mfe_drawdown: float | None = None
     result: str | None = None
     current_r: float | None = None
+    current_price: float | None = None
+    current_return_pct: float | None = None
     current_mfe: float | None = None
     current_mae: float | None = None
     current_mfe_drawdown: float | None = None
@@ -805,7 +816,7 @@ def _build_plan(
         entry_zone_high=_number(_field(decision, "entry_zone_high")),
         structural_invalidation=_number(_field(decision, "structural_invalidation")),
         execution_stop=_number(_field(decision, "execution_stop")),
-        initial_risk_per_share=_number(_field(rr, "risk_per_share")),
+        planned_risk_per_share=_number(_field(rr, "risk_per_share")),
         initial_rr=_number(rr_values[0] if rr_values else None),
         targets=_target_values(decision),
         target_provenance=_target_provenance(decision),
@@ -850,7 +861,7 @@ def _plan_from_payload(payload: Mapping[str, Any]) -> PaperPlan:
         entry_zone_high=_number(payload.get("entry_zone_high")),
         structural_invalidation=_number(payload.get("structural_invalidation")),
         execution_stop=_number(payload.get("execution_stop")),
-        initial_risk_per_share=_number(payload.get("initial_risk_per_share")),
+        planned_risk_per_share=_number(_planned_risk_value(payload)),
         initial_rr=_number(payload.get("initial_rr")),
         targets=targets,
         target_provenance=tuple(_sequence(payload.get("target_provenance"))),
@@ -885,7 +896,7 @@ def _decision_for_plan(plan: PaperPlan) -> Any:
         ]
     rr = SimpleNamespace(
         rr_ratios=(plan.initial_rr,) if plan.initial_rr is not None else (),
-        risk_per_share=plan.initial_risk_per_share,
+        risk_per_share=plan.planned_risk_per_share,
     )
     return SimpleNamespace(
         protocol_version=plan.decision_protocol_version,
@@ -1052,6 +1063,7 @@ def _trade_from_group(
         entry_zone_high=_number(data.get("entry_zone_high")),
         structural_invalidation=_number(data.get("structural_invalidation")),
         execution_stop=_number(data.get("execution_stop")),
+        planned_risk_per_share=_number(_planned_risk_value(data)),
         initial_risk_per_share=_number(data.get("initial_risk_per_share")),
         initial_rr=_number(data.get("initial_rr")),
         targets=tuple(_sequence(data.get("targets"))),
@@ -1084,6 +1096,8 @@ def _trade_from_group(
         max_mfe_drawdown=_number(data.get("max_mfe_drawdown")),
         result=_text(data.get("result")) or None,
         current_r=_number(data.get("current_r")),
+        current_price=_number(data.get("current_price")),
+        current_return_pct=_number(data.get("current_return_pct")),
         current_mfe=_number(data.get("current_mfe")),
         current_mae=_number(data.get("current_mae")),
         current_mfe_drawdown=_number(data.get("current_mfe_drawdown")),
@@ -1191,14 +1205,21 @@ def _trade_from_mapping(value: Mapping[str, Any]) -> PaperTrade | None:
     data = {key: item for key, item in data.items() if key in allowed}
     if not data.get("signal_date"):
         data["signal_date"] = date.min
+    if (
+        _number(data.get("planned_risk_per_share")) is None
+        and _number(data.get("initial_risk_per_share")) is not None
+    ):
+        data["planned_risk_per_share"] = data["initial_risk_per_share"]
     for key in ("signal_date", "expected_execution_date", "execution_date", "exit_date"):
         if key in data:
             data[key] = _date(data[key])
     for key in (
         "confirmation_level", "planned_entry", "entry_zone_low", "entry_zone_high",
-        "structural_invalidation", "execution_stop", "initial_risk_per_share",
+        "structural_invalidation", "execution_stop", "planned_risk_per_share",
+        "initial_risk_per_share",
         "initial_rr", "t1_open", "actual_entry", "exit_price", "realized_r",
         "return_pct", "final_mfe", "final_mae", "max_mfe_drawdown", "current_r",
+        "current_price", "current_return_pct",
         "current_mfe", "current_mae", "current_mfe_drawdown", "current_stop",
     ):
         if key in data:
@@ -1430,6 +1451,7 @@ class PaperLifecycleEngine:
             "execution_outcome": execution.outcome,
             "actual_entry": execution.actual_entry,
             "actual_rr": actual_rr,
+            "initial_risk_per_share": origin.initial_risk_per_share,
             "position_origin_json": _json(_origin_to_dict(origin)),
             "why_execution": explain_execution_outcome(execution.outcome),
         }
@@ -1476,6 +1498,12 @@ class PaperLifecycleEngine:
         day = replay.days[-1]
         self._overrides[identity] = {
             "current_r": day.current_r,
+            "current_price": day.close,
+            "current_return_pct": (
+                float(day.close) / origin.actual_entry - 1.0
+                if day.close is not None and origin.actual_entry
+                else None
+            ),
             "current_mfe": day.mfe_r,
             "current_mae": day.mae_r,
             "current_mfe_drawdown": day.mfe_drawdown_r,
@@ -1489,8 +1517,11 @@ class PaperLifecycleEngine:
         }
         if replay.exit_date is None:
             return
-        actual_entry = _number(executed.get("actual_entry"))
-        risk = _number(_group_events(self.store)[identity].get(PAPER_PLAN_CREATED, {}).get("initial_risk_per_share"))
+        actual_entry = origin.actual_entry
+        # The executed PositionOrigin is the sole source of truth for 1R after
+        # T+1.  Planned risk can differ whenever actual_entry differs from the
+        # T-day planned entry and must never leak into CLOSED statistics.
+        risk = origin.initial_risk_per_share
         exit_price = replay.exit_price
         if actual_entry is None or risk is None or risk <= 0 or exit_price is None:
             errors.append(f"{identity}:CLOSED_PERFORMANCE_FACTS_MISSING")

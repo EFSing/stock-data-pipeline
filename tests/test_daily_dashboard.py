@@ -540,9 +540,13 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(projection["paper"]["status_counts"], {"CLOSED": 1})
         self.assertFalse(projection["paper"]["coverage_warning"])
         html = render_dashboard_html(payload)
-        for label in ("模拟交易", "绩效统计", "策略规则", "为什么入场", "为什么执行／跳过", "为什么持有", "为什么保护", "为什么退出"):
+        for label in ("模拟交易", "绩效统计", "策略规则", "为什么买／为什么关注", "有没有真正模拟成交", "现在怎么样", "目标价只记录状态，不自动止盈"):
             self.assertIn(label, html)
-        self.assertIn("Target reached 只记录目标状态，不自动止盈", html)
+        self.assertIn("样本连续", html)
+        self.assertIn("平均收益", html)
+        self.assertIn("2浪调整结束后，价格重新突破1浪高点", html)
+        self.assertIn("上涨趋势中的3浪延续结构完成", html)
+        self.assertIn("结构失效是波浪结构被破坏的底线", html)
         self.assertIn("DYNAMIC_CANDIDATE", html)
 
 

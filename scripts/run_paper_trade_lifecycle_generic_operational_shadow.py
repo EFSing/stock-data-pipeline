@@ -87,7 +87,7 @@ def _bar(source: Quote, day: date, opening: float, high: float, low: float, clos
     )
 
 
-def _run_executed_path() -> tuple[InMemoryPaperLedgerStore, Any, Any, list[Quote]]:
+def _run_executed_path() -> tuple[InMemoryPaperLedgerStore, Any, Any, Any, list[Quote]]:
     event, base_quotes = _confirmed_event(
         "GENERIC.PAPER.EXEC", "US", event_suffix="paper-executed", t1_open=110.75
     )
@@ -104,7 +104,7 @@ def _run_executed_path() -> tuple[InMemoryPaperLedgerStore, Any, Any, list[Quote
     store = InMemoryPaperLedgerStore()
     engine = PaperLifecycleEngine(store)
     result = _result(event, decision, "FORMAL_STRATEGY_POOL")
-    engine.process_daily(
+    planned = engine.process_daily(
         (result,),
         (_input(event, quotes, signal_date, t1),),
         as_of_date=signal_date,
@@ -125,7 +125,7 @@ def _run_executed_path() -> tuple[InMemoryPaperLedgerStore, Any, Any, list[Quote
         (_input(event, quotes, t3, t3 + timedelta(days=1)),),
         as_of_date=t3,
     )
-    return store, opened, closed, quotes
+    return store, planned, opened, closed, quotes
 
 
 def _run_skipped_path() -> tuple[InMemoryPaperLedgerStore, Any]:
@@ -154,10 +154,12 @@ def _run_skipped_path() -> tuple[InMemoryPaperLedgerStore, Any]:
 def run_paper_trade_lifecycle_generic_operational_shadow(
     output_dir: str | Path = DEFAULT_OUTPUT,
 ) -> dict[str, Any]:
-    executed_store, opened, closed, _ = _run_executed_path()
+    executed_store, planned, opened, closed, _ = _run_executed_path()
     skipped_store, skipped = _run_skipped_path()
-    executed_trade = closed.trades[0]
-    skipped_trade = skipped.trades[0]
+    executed_trade = replace(closed.trades[0], name="示例科技")
+    pending_trade = replace(planned.trades[0], name="示例科技")
+    open_trade = replace(opened.trades[0], name="示例科技")
+    skipped_trade = replace(skipped.trades[0], name="示例制造")
     checks = {
         "plan_created": any(
             row["lifecycle_event_type"] == "PAPER_PLAN_CREATED"
@@ -220,12 +222,14 @@ def run_paper_trade_lifecycle_generic_operational_shadow(
         "skipped_events": list(skipped_store.events),
         "closed_trade": executed_trade.to_dict(),
         "skipped_trade": skipped_trade.to_dict(),
+        "pending_trade": pending_trade.to_dict(),
+        "open_trade": open_trade.to_dict(),
         "performance": closed.performance.to_dict(),
         "status": "SUCCESS" if all(checks_for_status.values()) else "FAILED",
     }
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    dashboard_trades = (executed_trade, skipped_trade)
+    dashboard_trades = (pending_trade, open_trade, executed_trade, skipped_trade)
     dashboard_coverage = {
         item.market: item
         for item in (*closed.coverage, *skipped.coverage)
@@ -246,7 +250,7 @@ def run_paper_trade_lifecycle_generic_operational_shadow(
     dashboard_payload = {
         "as_of_date": executed_trade.exit_date,
         "generated_at": "CONTROLLED_SYNTHETIC_SHADOW",
-        "demo_label": "Synthetic Paper Lifecycle Shadow",
+        "demo_label": "示例数据 / Synthetic Demo · Paper Lifecycle Shadow",
         "reports": [],
         "paper_tracking": {"enabled": True, "result": dashboard_result},
     }

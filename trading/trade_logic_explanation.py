@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
+import math
 from typing import Any
 
 
@@ -78,7 +79,30 @@ def _text(value: Any, default: str = "") -> str:
 
 
 def _number(value: Any, default: str = "未提供") -> str:
-    return _text(value, default)
+    raw = _text(value, "")
+    if not raw:
+        return default
+    try:
+        numeric = float(raw)
+    except (TypeError, ValueError):
+        return raw
+    if not math.isfinite(numeric):
+        return default
+    rendered = f"{numeric:.4f}".rstrip("0").rstrip(".")
+    return "0" if rendered in {"", "-0"} else rendered
+
+
+def _ratio(value: Any, default: str = "未提供") -> str:
+    raw = _text(value, "")
+    if not raw:
+        return default
+    try:
+        numeric = float(raw)
+    except (TypeError, ValueError):
+        return raw
+    if not math.isfinite(numeric):
+        return default
+    return f"{numeric:.2f}"
 
 
 def _sequence(value: Any) -> tuple[Any, ...]:
@@ -121,7 +145,7 @@ def _target_sources(decision: Any) -> str:
 def _first_rr(decision: Any) -> str:
     rr = _field(decision, "rr")
     ratios = _sequence(_field(rr, "rr_ratios"))
-    return _number(ratios[0] if ratios else None, "未提供")
+    return _ratio(ratios[0] if ratios else None, "未提供")
 
 
 def _planned_entry_sentence(decision: Any) -> str:
@@ -270,13 +294,16 @@ def strategy_rules_for_dashboard() -> tuple[tuple[str, str], ...]:
     """Static rule copy for the dashboard; no runtime values are calculated."""
 
     return (
-        ("我们什么时候会形成入场方案？", "只有当T日出现新的 CONFIRMED event，且既有 SETUP_01/SETUP_02 Decision 的 action 为 ENTRY_ALLOWED。"),
+        ("SETUP_01 为什么会进入候选？", "2浪调整结束后，价格重新突破1浪高点，并满足价格区间与盈亏比要求。"),
+        ("SETUP_02 为什么会进入候选？", "上涨趋势中的3浪延续结构完成，并重新突破确认高点，同时满足价格区间与盈亏比要求。"),
+        ("为什么今天有信号却不买？", "可能是确认事件不是今天新出现、收盘价仍不在允许入场区间、第一目标 R/R 不足2、数据或交易日历不完整，或组合风控没有放行。"),
+        ("我们什么时候会形成入场方案？", "只有当T日出现新的确认事件，且既有 SETUP_01/SETUP_02 Decision 的 action 为 ENTRY_ALLOWED。"),
         ("什么时候真正模拟买入？", "最早 exact T+1 market-session OPEN；只有真实开盘再次通过既有执行检查才记录模拟成交。"),
         ("什么情况下会取消入场？", "T+1 开盘跌破失效位、回到确认价下方、超过允许入场区间、实际开盘 R/R 不足2，或缺少精确 T+1 bar。"),
-        ("初始止损怎么来的？", "沿用既有 Decision 的 execution stop；它与 structural invalidation 分开，1R=actual_entry−execution_stop。"),
+        ("结构失效和执行止损有什么区别？", "结构失效是波浪结构被破坏的底线；执行止损是成交后用于模拟风控的初始止损。两者分开保存，成交后的1R=actual_entry−execution_stop。"),
         ("保护止损什么时候会上移？", "confirmed higher low 或 MFE≥2R 形成合法保护线时，沿用 Position Management 只上移、不下移的规则。"),
-        ("什么时候真正退出？", "只有既有 Position Management 产生 EXIT：开盘/盘中止损，或收盘触发结构/利润保护后的下一交易日开盘退出。"),
-        ("T1/T2/T3 是不是自动止盈？", "不是。Target 只记录到达状态、风险提示和利润保护上下文；Target reached 不等于已止盈。"),
+        ("什么时候真正卖出？为什么？", "只有既有 Position Management 产生 EXIT：开盘/盘中触发保护止损，或收盘确认结构／利润保护失效后在下一交易日开盘退出。"),
+        ("T1/T2/T3 是不是自动止盈？", "不是。Target 只记录到达状态、风险提示和利润保护上下文；到达目标价不等于自动止盈，真正退出仍由持仓管理规则产生。"),
     )
 
 

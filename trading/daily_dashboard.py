@@ -13,14 +13,10 @@ from datetime import date
 import html
 import json
 from pathlib import Path
+import re
 from typing import Any
 
-from trading.trade_logic_explanation import (
-    explain_execution_outcome,
-    explain_exit_reason,
-    explain_target_status,
-    strategy_rules_for_dashboard,
-)
+from trading.trade_logic_explanation import strategy_rules_for_dashboard
 
 
 STAGE_ORDER = (
@@ -1472,6 +1468,58 @@ def _paper_source_label(value: Any) -> str:
     }.get(_text(value), _display(value))
 
 
+def _paper_human_text(value: Any, default: str = "—") -> str:
+    """Shorten persisted numeric prose without changing the audit payload."""
+
+    text = _text(value)
+    if not text:
+        return default
+    return re.sub(
+        r"(?<![A-Za-z])[-+]?\d+\.\d{5,}",
+        lambda match: _format_number(match.group(), 4),
+        text,
+    )
+
+
+def _paper_percent(value: Any, *, signed: bool = False, default: str = "—") -> str:
+    number = _numeric(value)
+    if number is None:
+        return default
+    return f"{_format_number(number * 100, 2, signed=signed, trim=False)}%"
+
+
+def _paper_actual_rr(value: Any, default: str = "—") -> str:
+    mapping = _mapping(value)
+    ratios = _sequence(mapping.get("rr_ratios"))
+    return _format_rr(ratios[0], default) if ratios else default
+
+
+def _paper_targets(trade: Mapping[str, Any]) -> str:
+    values = tuple(_sequence(trade.get("targets")))[:3]
+    labels = [f"T{index} {_format_price(value)}" for index, value in enumerate(values, start=1)]
+    return " / ".join(labels) or "尚未提供"
+
+
+def _paper_target_status_label(value: Any) -> str:
+    return {
+        "T1_REACHED": "已触及 T1，但当前规则不是到价自动止盈。",
+        "T2_REACHED": "已触及 T2，但当前规则不是到价自动止盈。",
+        "T3_REACHED": "已触及 T3，但当前规则不是到价自动止盈。",
+        "NOT_REACHED": "尚未触及目标价。",
+    }.get(_text(value), "尚未记录目标状态。")
+
+
+def _paper_action_text(trade: Mapping[str, Any]) -> str:
+    action = _text(trade.get("action"))
+    label = ACTION_LABELS.get(action, action or "继续观察")
+    reason = _paper_human_text(
+        trade.get("why_protect") if action == "PROFIT_PROTECTION" else trade.get("why_hold")
+    )
+    if reason and reason != "—":
+        return f"{label}。{reason}"
+    return label
+
+
 def _render_paper_trade(trade: Mapping[str, Any]) -> str:
     status = _text(trade.get("status"), "UNKNOWN")
     status_label = _PAPER_STATUS_LABELS.get(status, status)
@@ -1485,89 +1533,119 @@ def _render_paper_trade(trade: Mapping[str, Any]) -> str:
     result = _text(trade.get("result"))
     symbol = _escape(trade.get("symbol"))
     name = _escape(trade.get("name"))
-    plan_fields = (
-        ("Setup", source_setup_label),
-        ("信号日", trade.get("signal_date")),
-        ("预计执行日", trade.get("expected_execution_date")),
-        ("计划入场", trade.get("planned_entry")),
-        ("入场区间", f"{_display(trade.get('entry_zone_low'))} — {_display(trade.get('entry_zone_high'))}"),
-        ("结构失效", trade.get("structural_invalidation")),
-        ("执行止损", trade.get("execution_stop")),
-        ("初始风险 1R", trade.get("initial_risk_per_share")),
-        ("初始 R/R", trade.get("initial_rr")),
-        ("T1 / T2 / T3", " / ".join(_display(item) for item in _sequence(trade.get("targets"))[:3])),
-        ("Target 来源", _json_text(trade.get("target_provenance")) if trade.get("target_provenance") else None),
-        ("Decision gate", trade.get("decision_gate_detail") or trade.get("decision_gate_reason")),
-        ("source_provenance", trade.get("source_provenance")),
-        ("Paper Tracking 自动纳入", trade.get("paper_tracking_approval_policy")),
-        ("技术 ENTRY_ALLOWED 自动批准", trade.get("paper_approval_policy")),
-        ("promotion_required", trade.get("promotion_required")),
-        ("state_persistence_eligible", trade.get("state_persistence_eligible")),
-        ("production_execution_eligible", trade.get("production_execution_eligible")),
-    )
-    execution_fields = (
-        ("执行日", trade.get("execution_date")),
-        ("T+1 OPEN", trade.get("t1_open")),
-        ("执行结果", explain_execution_outcome(execution_outcome) if execution_outcome else None),
-        ("实际入场", trade.get("actual_entry")),
-        ("实际 R/R", trade.get("actual_rr")),
-        ("跳过原因", trade.get("skip_reason")),
-    )
-    position_fields = (
-        ("当前 R", trade.get("current_r")),
-        ("当前 MFE", trade.get("current_mfe")),
-        ("当前 MAE", trade.get("current_mae")),
-        ("当前保护止损", trade.get("current_stop")),
-        ("Target 状态", explain_target_status(target_status) if target_status else None),
-        ("管理动作", ACTION_LABELS.get(action, action) if action else None),
-        ("退出日期", trade.get("exit_date")),
-        ("退出价格", trade.get("exit_price")),
-        ("退出原因", explain_exit_reason(exit_reason) if exit_reason else None),
-        ("结果", _PAPER_RESULT_LABELS.get(result, result) if result else None),
-        ("实现 R", trade.get("realized_r")),
-        ("return %", trade.get("return_pct")),
-        ("持有天数", trade.get("holding_days")),
-        ("最终 MFE / MAE", f"{_display(trade.get('final_mfe'))} / {_display(trade.get('final_mae'))}"),
-    )
     logic = _mapping(trade.get("logic_explanation"))
-    logic_html = ""
-    if logic:
-        logic_html = (
-            '<section class="paper-explanation"><h4>为什么这样处理</h4>'
-            f'<p><span>为什么形成计划：</span>{_escape(logic.get("why_plan") or trade.get("why_entry"))}</p>'
-            f'<p><span>何时执行：</span>{_escape(logic.get("when_execute"))}</p>'
-            f'<p><span>执行检查：</span>{_escape(logic.get("execution_checks"))}</p>'
-            f'<p><span>Target 规则：</span>{_escape(logic.get("target_policy"))}</p>'
-            '</section>'
+    why_entry = _paper_human_text(trade.get("why_entry") or logic.get("why_plan"))
+    actual_rr = _paper_actual_rr(trade.get("actual_rr"))
+    targets = _paper_targets(trade)
+    entry_zone = f"{_format_price(trade.get('entry_zone_low'))} — {_format_price(trade.get('entry_zone_high'))}"
+    if status == "PENDING_T1":
+        fill_text = f"计划已形成，等待 {_display(trade.get('expected_execution_date'), '下一交易日')} 开盘检查；现在还没有模拟成交。"
+        state_fields = (
+            ("计划入场", _format_price(trade.get("planned_entry"))),
+            ("允许入场区间", entry_zone),
+            ("执行止损", _format_price(trade.get("execution_stop"))),
+            ("第一目标计划 R/R", _format_rr(trade.get("initial_rr"))),
+            ("目标价", targets),
+            ("目标规则", "目标价只记录状态，不自动止盈。"),
         )
-    explanations = _render_field_grid(
-        (
-            ("为什么入场", trade.get("why_entry")),
-            ("为什么执行／跳过", trade.get("why_execution")),
-            ("为什么持有", trade.get("why_hold")),
-            ("为什么保护", trade.get("why_protect")),
-            ("为什么退出", trade.get("why_exit")),
-        ),
-        extra_class="paper-explanation-grid",
+        next_text = "等待下一交易日开盘，暂不把计划当成已成交。"
+    elif status == "OPEN":
+        fill_text = (
+            f"{_display(trade.get('execution_date'))} 开盘 {_format_price(trade.get('actual_entry'))}，"
+            f"已通过 T+1 执行检查；实际第一目标 R/R 为 {actual_rr}，模拟成交已成立。"
+        )
+        state_fields = (
+            ("实际买入价", _format_price(trade.get("actual_entry"))),
+            ("当前价格", _format_price(trade.get("current_price"))),
+            ("当前收益", _paper_percent(trade.get("current_return_pct"), signed=True)),
+            ("当前 R", _format_r(trade.get("current_r"))),
+            ("MFE / MAE", f"{_format_r(trade.get('current_mfe'))} / {_format_r(trade.get('current_mae'))}"),
+            ("当前保护止损", _format_price(trade.get("current_stop"))),
+            ("目标价", targets),
+            ("目标状态", _paper_target_status_label(target_status)),
+            ("目标规则", "目标价只记录状态，不自动止盈。"),
+        )
+        next_text = _paper_action_text(trade)
+    elif status == "SKIPPED":
+        fill_text = f"T+1 开盘 {_format_price(trade.get('t1_open'))}，没有模拟成交；{_paper_human_text(trade.get('why_execution') or trade.get('skip_reason'))}"
+        state_fields = (
+            ("计划入场", _format_price(trade.get("planned_entry"))),
+            ("T+1 开盘", _format_price(trade.get("t1_open"))),
+            ("跳过原因", _paper_human_text(trade.get("skip_reason") or trade.get("why_execution"))),
+        )
+        next_text = "继续观察后续新的确认事件；这笔计划不会补记为成交。"
+    elif status == "CLOSED":
+        result_label = _PAPER_RESULT_LABELS.get(result, result or "已结束")
+        fill_text = (
+            f"{_display(trade.get('execution_date'))} 开盘 {_format_price(trade.get('actual_entry'))} 模拟买入，"
+            f"{_display(trade.get('exit_date'))} 以 {_format_price(trade.get('exit_price'))} 模拟卖出。"
+        )
+        state_fields = (
+            ("交易结果", result_label),
+            ("实现 R", _format_r(trade.get("realized_r"))),
+            ("本次收益", _paper_percent(trade.get("return_pct"), signed=True)),
+            ("持有天数", trade.get("holding_days")),
+            ("目标状态", _paper_target_status_label(target_status)),
+            ("目标规则", "目标价只记录状态，不自动止盈。"),
+        )
+        next_text = _paper_human_text(trade.get("why_exit"), "已按现有持仓管理规则结束。")
+    else:
+        fill_text = "当前状态尚未形成完整的模拟成交记录。"
+        state_fields = (("状态", status_label),)
+        next_text = "等待完整的 T+1 或持仓管理记录。"
+    default_html = (
+        '<section class="paper-human-grid">'
+        f'<section><h4>为什么买／为什么关注</h4><p>{_escape(why_entry)}</p></section>'
+        f'<section><h4>有没有真正模拟成交</h4><p>{_escape(fill_text)}</p></section>'
+        f'<section><h4>现在怎么样</h4>{_render_field_grid(state_fields)}</section>'
+        f'<section><h4>{"为什么卖" if status == "CLOSED" else "现在要做什么"}</h4><p>{_escape(next_text)}</p></section>'
+        '</section>'
     )
     origin = trade.get("position_origin_json")
-    origin_html = (
-        '<details class="paper-origin"><summary>查看序列化 PositionOrigin</summary>'
-        f'<pre>{html.escape(_display(origin), quote=False)}</pre></details>'
-        if origin else ""
-    )
     technical = {
+        "event_identity": _text(trade.get("event_identity")),
+        "signal_date": _text(trade.get("signal_date")),
+        "expected_execution_date": _text(trade.get("expected_execution_date")),
         "source_setup": source_setup,
         "source_provenance": _text(trade.get("source_provenance")),
+        "planned_entry": trade.get("planned_entry"),
+        "entry_zone": [trade.get("entry_zone_low"), trade.get("entry_zone_high")],
+        "structural_invalidation": trade.get("structural_invalidation"),
+        "execution_stop": trade.get("execution_stop"),
+        "planned_risk_per_share": trade.get("planned_risk_per_share"),
+        "initial_risk_per_share_actual": trade.get("initial_risk_per_share"),
+        "initial_rr": trade.get("initial_rr"),
         "execution_outcome": execution_outcome,
+        "actual_rr": trade.get("actual_rr"),
         "target_status": target_status,
         "action": action,
         "exit_reason": exit_reason,
         "result": result,
+        "paper_approval_policy": trade.get("paper_approval_policy"),
+        "paper_tracking_approval_policy": trade.get("paper_tracking_approval_policy"),
+        "promotion_required": trade.get("promotion_required"),
+        "state_persistence_eligible": trade.get("state_persistence_eligible"),
+        "production_execution_eligible": trade.get("production_execution_eligible"),
+        "logic_explanation": logic,
     }
     technical_html = (
-        '<details class="paper-origin"><summary>查看技术细节</summary>'
-        f'<pre>{html.escape(_json_text(technical), quote=False)}</pre></details>'
+        '<details class="paper-technical-details"><summary>查看技术详情 / 审计信息</summary>'
+        '<section class="paper-technical-fields">'
+        + _render_field_grid(
+            (
+                ("事件 identity", trade.get("event_identity")),
+                ("计划风险 / 计划 1R", trade.get("planned_risk_per_share")),
+                ("实际成交 1R", trade.get("initial_risk_per_share")),
+                ("PositionOrigin", "已冻结" if origin else None),
+                ("来源标记", trade.get("source_provenance")),
+                ("决策与状态原值", status),
+            )
+        )
+        + '</section><pre>'
+        + html.escape(_json_text(technical), quote=False)
+        + '</pre>'
+        + (f'<pre>{html.escape(_display(origin), quote=False)}</pre>' if origin else "")
+        + '</details>'
     )
     return (
         f'<article class="paper-trade paper-status-{_escape(status)}" '
@@ -1575,19 +1653,10 @@ def _render_paper_trade(trade: Mapping[str, Any]) -> str:
         '<div class="paper-trade-top">'
         f'<div><span class="ticker">{symbol}</span> <span class="company">{name}</span>'
         f'<div class="paper-trade-meta"><span>{_escape(trade.get("market"))}</span>'
-        f'<span>{_escape(source_setup_label)}</span><span>{_escape(source)}</span>'
-        f'<code>{_escape(trade.get("event_identity"))}</code></div></div>'
+        f'<span>{_escape(source_setup_label)}</span><span>{_escape(source)}</span></div></div>'
         f'<span class="paper-status">{_escape(status_label)}</span></div>'
-        '<div class="paper-grid">'
-        '<section><h4>计划事实</h4>' + _render_field_grid(plan_fields) + '</section>'
-        '<section><h4>执行／持仓／结束事实</h4>'
-        + _render_field_grid(execution_fields + position_fields)
-        + '</section></div>'
-        + logic_html
-        + explanations
-        + '<p class="paper-target-note">Target reached 只记录目标状态，不自动止盈；真实退出只来自既有 Position Management。</p>'
+        + default_html
         + technical_html
-        + origin_html
         + '</article>'
     )
 
@@ -1619,8 +1688,8 @@ def _render_paper_workspace(paper: Mapping[str, Any]) -> str:
         '<div class="coverage-card">'
         f'<strong>{_escape(item.get("market"))}</strong>'
         f'<span>{_escape(item.get("tracking_start_date"))} → {_escape(item.get("latest_processed_session"))}</span>'
-        f'<span class="coverage-{_escape(_text(item.get("coverage_status"), "GAP_DETECTED"))}">{_escape(item.get("coverage_status"))}</span>'
-        f'<span>{_escape(item.get("coverage_gap"))}</span></div>'
+        f'<span class="coverage-{_escape(_text(item.get("coverage_status"), "GAP_DETECTED"))}">{_escape("样本连续" if _text(item.get("coverage_status")) == "CONTINUOUS" else "样本存在缺口")}</span>'
+        f'<span>{_escape("记录连续，可正常参考。" if _text(item.get("coverage_status")) == "CONTINUOUS" and not _text(item.get("coverage_gap")) else "该市场的模拟记录不是完整连续样本，当前胜率仅供参考。")}</span></div>'
         for item in (_mapping(value) for value in _sequence(paper.get("coverage")))
     )
     warning = (
@@ -1666,9 +1735,9 @@ def _render_today_paper_focus(paper: Mapping[str, Any], as_of_date: Any) -> str:
         f'<span>{_escape(item.get("name"))}</span> '
         f'<span class="paper-focus-meta">{_escape(item.get("market"))} · {_escape(_setup_label(_text(item.get("source_setup"))))} · {_escape(_paper_source_label(item.get("source_provenance")))}</span></div>'
         f'<span class="paper-status">{_escape(_PAPER_STATUS_LABELS.get(_text(item.get("status")), _text(item.get("status"))))}</span>'
-        f'<div class="paper-focus-values"><span>计划入场：{_escape(item.get("planned_entry"))}</span>'
-        f'<span>实际入场：{_escape(item.get("actual_entry"))}</span>'
-        f'<span>R：{_escape(item.get("realized_r") if _text(item.get("status")) == "CLOSED" else item.get("current_r"))}</span>'
+        f'<div class="paper-focus-values"><span>计划入场：{_escape(_format_price(item.get("planned_entry")))}</span>'
+        f'<span>实际入场：{_escape(_format_price(item.get("actual_entry")))}</span>'
+        f'<span>R：{_escape(_format_r(item.get("realized_r") if _text(item.get("status")) == "CLOSED" else item.get("current_r")))}</span>'
         '</div></article>'
         for item in trades
     )
@@ -1679,10 +1748,18 @@ def _render_today_paper_focus(paper: Mapping[str, Any], as_of_date: Any) -> str:
     )
 
 
-def _format_stat(value: Any, *, suffix: str = "") -> str:
+def _format_stat(value: Any, *, kind: str = "text") -> str:
     if value is None or value == "":
-        return "—"
-    return f"{value}{suffix}"
+        return "样本不足"
+    if kind == "percent":
+        return _paper_percent(value, default="样本不足")
+    if kind == "percent_signed":
+        return _paper_percent(value, signed=True, default="样本不足")
+    if kind == "r":
+        return _format_r(value, "样本不足")
+    if kind == "days":
+        return f"{_format_number(value, 1)} 天"
+    return _display(value, "样本不足")
 
 
 def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
@@ -1694,12 +1771,12 @@ def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
         ("跳过", performance.get("skipped", 0)),
         ("当前持仓", performance.get("open", 0)),
         ("已结束", performance.get("closed", 0)),
-        ("胜率", _format_stat(performance.get("win_rate"))),
-        ("平均 R", _format_stat(performance.get("average_r"))),
-        ("平均持有天数", _format_stat(performance.get("average_holding_days"))),
-        ("中位数 R", _format_stat(performance.get("median_r"))),
-        ("平均 return %", _format_stat(performance.get("average_return_pct"))),
-        ("平均 MFE / MAE", f"{_format_stat(performance.get('average_mfe'))} / {_format_stat(performance.get('average_mae'))}"),
+        ("胜率", _format_stat(performance.get("win_rate"), kind="percent")),
+        ("平均 R", _format_stat(performance.get("average_r"), kind="r")),
+        ("平均持有天数", _format_stat(performance.get("average_holding_days"), kind="days")),
+        ("中位数 R", _format_stat(performance.get("median_r"), kind="r")),
+        ("平均收益", _format_stat(performance.get("average_return_pct"), kind="percent_signed")),
+        ("平均 MFE / MAE", f"{_format_stat(performance.get('average_mfe'), kind='r')} / {_format_stat(performance.get('average_mae'), kind='r')}"),
     )
     summary = _render_field_grid(fields, extra_class="performance-summary-grid")
     tables: list[str] = []
@@ -1712,15 +1789,15 @@ def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
                 '<tr>'
                 f'<th>{_escape(_paper_source_label(key) if dimension == "provenance" else key)}</th>'
                 f'<td>{_escape(stats.get("plans", 0))}</td><td>{_escape(stats.get("executed", 0))}</td>'
-                f'<td>{_escape(stats.get("closed", 0))}</td><td>{_escape(_format_stat(stats.get("win_rate")))}</td>'
-                f'<td>{_escape(_format_stat(stats.get("average_r")))}</td>'
-                f'<td>{_escape(_format_stat(stats.get("median_r")))}</td>'
-                f'<td>{_escape(_format_stat(stats.get("average_return_pct")))}</td>'
+                f'<td>{_escape(stats.get("closed", 0))}</td><td>{_escape(_format_stat(stats.get("win_rate"), kind="percent"))}</td>'
+                f'<td>{_escape(_format_stat(stats.get("average_r"), kind="r"))}</td>'
+                f'<td>{_escape(_format_stat(stats.get("median_r"), kind="r"))}</td>'
+                f'<td>{_escape(_format_stat(stats.get("average_return_pct"), kind="percent_signed"))}</td>'
                 '</tr>'
             )
         table = (
             f'<section class="performance-table"><h3>{_escape(label)}</h3>'
-            '<table><thead><tr><th>分组</th><th>计划</th><th>执行</th><th>结束</th><th>胜率</th><th>平均 R</th><th>中位数 R</th><th>平均 return %</th></tr></thead>'
+            '<table><thead><tr><th>分组</th><th>计划</th><th>执行</th><th>结束</th><th>胜率</th><th>平均 R</th><th>中位数 R</th><th>平均收益</th></tr></thead>'
             f'<tbody>{"".join(rows) or "<tr><td colspan=8>尚无已记录样本</td></tr>"}</tbody></table></section>'
         )
         tables.append(table)
@@ -1731,8 +1808,9 @@ def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
     return (
         '<section id="performance-workspace" class="workspace-panel" hidden>'
         '<div class="workspace-heading"><h2>绩效统计</h2>'
-        '<p>所有绩效按单笔初始风险归一化为 R 与 return %；不汇总组合盈亏。</p></div>'
+        '<p>只统计已经结束的模拟交易；未成交方案和当前持仓不进入胜率分母。</p></div>'
         f'{summary}{warning}{"".join(tables)}'
+        '<p class="paper-stat-note">胜率只统计已结束的盈利／亏损交易；模拟持仓中和未成交方案不进入胜率分母。样本不足时不显示误导性的 0%。</p>'
         '</section>'
     )
 
@@ -1831,11 +1909,11 @@ def render_dashboard_html(value: Any) -> str:
 .row-top {{ display:flex; justify-content:space-between; align-items:center; gap:10px; min-width:0; }} .row-identity {{ display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 9px; min-width:0; }} .ticker {{ font-size:16px; font-weight:800; letter-spacing:.02em; }} .company {{ font-weight:750; }} .sector {{ color:var(--muted); font-size:13px; }} .market-chip {{ color:var(--muted); font-size:12px; border-left:1px solid var(--line); padding-left:9px; }} .stage {{ white-space:nowrap; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; }} .stage-watch,.stage-armed {{ background:var(--amber-soft); color:var(--amber); }} .stage-confirmed,.stage-strategy-proposal,.stage-entry-allowed {{ background:var(--blue-soft); color:var(--blue); }} .stage-position-management {{ background:var(--teal-soft); color:var(--teal); }} .stage-failed,.stage-data-blocked {{ background:var(--red-soft); color:var(--red); }} .stage-no-trade {{ background:#edf1f6; color:var(--muted); }}
 .row-bottom {{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:5px; }} .row-signals {{ display:flex; flex:1 1 420px; flex-wrap:wrap; align-items:center; gap:4px 11px; min-width:0; }} .row-signals > span {{ font-size:13px; }} .row-why {{ color:#53687b; font-weight:650; overflow-wrap:anywhere; }} .row-wave {{ color:var(--blue); font-weight:750; }} .row-setup {{ color:#53687b; font:12px Consolas,monospace; }} .row-next {{ color:var(--muted); overflow-wrap:anywhere; }} .row-price {{ color:var(--teal); font-weight:700; }} .row-actions {{ display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; }} .identity-row {{ display:flex; flex-wrap:wrap; gap:4px; margin:0; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:2px 6px; color:#486074; font-size:11px; background:#f7fafc; white-space:nowrap; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
 .details {{ flex:0 0 auto; margin:0; border:0; padding:0; }} .details[open] {{ flex-basis:100%; }} .details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; white-space:nowrap; list-style:none; }} .details summary::-webkit-details-marker {{ display:none; }} .details summary::before {{ content:"＋ "; }} .details[open] summary::before {{ content:"− "; }} .detail-body {{ border-top:1px solid var(--line); margin-top:8px; padding-top:10px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:11px; margin-top:11px; }} .panel h3 {{ margin:0 0 8px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }} .detail-grid section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .detail-grid h4,.details h4 {{ margin:0 0 4px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:9px; padding:11px; font:12px/1.5 Consolas,monospace; }}
-.workspace-nav {{ display:flex; gap:5px; overflow-x:auto; margin:10px 0 8px; padding:6px; background:#e8eef5; border:1px solid var(--line); border-radius:12px; }} .workspace-link {{ border:1px solid transparent; border-radius:9px; background:transparent; color:var(--blue); font:inherit; font-weight:750; padding:8px 12px; cursor:pointer; white-space:nowrap; }} .workspace-link:hover,.workspace-link[aria-pressed="true"] {{ color:#fff; background:var(--blue); border-color:var(--blue); }} .workspace-panel {{ margin-top:10px; }} .workspace-panel[hidden] {{ display:none; }} .workspace-heading {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin:13px 2px 8px; }} .workspace-heading h2 {{ margin:0; font-size:21px; }} .workspace-heading p {{ margin:0; color:var(--muted); font-size:13px; }} .workspace-subheading {{ margin:17px 2px 7px; font-size:16px; }} .paper-summary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }} .paper-summary .metric {{ min-height:61px; }} .paper-trades {{ display:flex; flex-direction:column; gap:9px; }} .paper-trade {{ background:#fff; border:1px solid var(--line); border-left:4px solid #8ca9c2; border-radius:12px; padding:12px 14px; }} .paper-status-OPEN {{ border-left-color:var(--teal); }} .paper-status-CLOSED {{ border-left-color:var(--blue); }} .paper-status-SKIPPED {{ border-left-color:var(--muted); }} .paper-status-PENDING_T1 {{ border-left-color:var(--amber); }} .paper-trade-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .paper-trade-meta {{ display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); font-size:12px; margin-top:3px; }} .paper-status {{ background:#edf1f6; color:#506276; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; white-space:nowrap; }} .paper-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; margin-top:11px; }} .paper-grid > section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .paper-grid h4,.paper-explanation h4 {{ margin:0 0 5px; font-size:13px; }} .paper-explanation {{ border-top:1px solid var(--line); margin-top:10px; padding-top:9px; }} .paper-explanation p {{ margin:4px 0; font-size:13px; overflow-wrap:anywhere; }} .paper-explanation p span {{ color:var(--muted); font-weight:700; }} .paper-explanation-grid {{ margin-top:9px; }} .paper-target-note {{ color:var(--muted); font-size:12px; margin:10px 0 0; }} .paper-origin {{ margin-top:9px; }} .paper-origin summary {{ cursor:pointer; color:var(--blue); font-size:12px; }} .paper-warning {{ background:var(--amber-soft); color:#7a4300; border:1px solid #f2ca8c; border-radius:9px; padding:8px 10px; margin:8px 0; font-size:13px; }} .coverage-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .coverage-card {{ display:flex; flex-direction:column; gap:2px; background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:13px; }} .coverage-card span {{ color:var(--muted); }} .coverage-CONTINUOUS {{ color:var(--teal) !important; font-weight:750; }} .coverage-GAP_DETECTED {{ color:var(--amber) !important; font-weight:750; }} .performance-summary-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); margin-bottom:13px; }} .performance-table {{ margin-top:12px; overflow-x:auto; }} .performance-table h3 {{ margin:0 0 5px; font-size:15px; }} table {{ width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); font-size:13px; }} th,td {{ text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }} th {{ background:#f1f5f9; color:var(--muted); font-weight:750; }} .rules-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .rule-card {{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; }} .rule-card h3 {{ margin:0 0 4px; font-size:14px; color:var(--blue); }} .rule-card p {{ margin:0; font-size:13px; }} .empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
+.workspace-nav {{ display:flex; gap:5px; overflow-x:auto; margin:10px 0 8px; padding:6px; background:#e8eef5; border:1px solid var(--line); border-radius:12px; }} .workspace-link {{ border:1px solid transparent; border-radius:9px; background:transparent; color:var(--blue); font:inherit; font-weight:750; padding:8px 12px; cursor:pointer; white-space:nowrap; }} .workspace-link:hover,.workspace-link[aria-pressed="true"] {{ color:#fff; background:var(--blue); border-color:var(--blue); }} .workspace-panel {{ margin-top:10px; }} .workspace-panel[hidden] {{ display:none; }} .workspace-heading {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin:13px 2px 8px; }} .workspace-heading h2 {{ margin:0; font-size:21px; }} .workspace-heading p {{ margin:0; color:var(--muted); font-size:13px; }} .workspace-subheading {{ margin:17px 2px 7px; font-size:16px; }} .paper-summary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }} .paper-summary .metric {{ min-height:61px; }} .paper-trades {{ display:flex; flex-direction:column; gap:9px; }} .paper-trade {{ background:#fff; border:1px solid var(--line); border-left:4px solid #8ca9c2; border-radius:12px; padding:12px 14px; }} .paper-status-OPEN {{ border-left-color:var(--teal); }} .paper-status-CLOSED {{ border-left-color:var(--blue); }} .paper-status-SKIPPED {{ border-left-color:var(--muted); }} .paper-status-PENDING_T1 {{ border-left-color:var(--amber); }} .paper-trade-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .paper-trade-meta {{ display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); font-size:12px; margin-top:3px; }} .paper-status {{ background:#edf1f6; color:#506276; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; white-space:nowrap; }} .paper-human-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:11px; }} .paper-human-grid > section {{ background:#f8fafc; border-radius:9px; padding:10px 12px; }} .paper-human-grid h4 {{ margin:0 0 5px; font-size:13px; color:var(--blue); }} .paper-human-grid p {{ margin:0; font-size:13px; overflow-wrap:anywhere; }} .paper-technical-details {{ margin-top:10px; border-top:1px solid var(--line); padding-top:8px; }} .paper-technical-details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; }} .paper-technical-fields {{ margin-top:8px; }} .paper-technical-details pre {{ margin-top:8px; }} .paper-stat-note {{ color:var(--muted); font-size:12px; margin:12px 2px 0; }} .paper-warning {{ background:var(--amber-soft); color:#7a4300; border:1px solid #f2ca8c; border-radius:9px; padding:8px 10px; margin:8px 0; font-size:13px; }} .coverage-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .coverage-card {{ display:flex; flex-direction:column; gap:2px; background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:13px; }} .coverage-card span {{ color:var(--muted); }} .coverage-CONTINUOUS {{ color:var(--teal) !important; font-weight:750; }} .coverage-GAP_DETECTED {{ color:var(--amber) !important; font-weight:750; }} .performance-summary-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); margin-bottom:13px; }} .performance-table {{ margin-top:12px; overflow-x:auto; }} .performance-table h3 {{ margin:0 0 5px; font-size:15px; }} table {{ width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); font-size:13px; }} th,td {{ text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }} th {{ background:#f1f5f9; color:var(--muted); font-weight:750; }} .rules-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .rule-card {{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; }} .rule-card h3 {{ margin:0 0 4px; font-size:14px; color:var(--blue); }} .rule-card p {{ margin:0; font-size:13px; }} .empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
 @media (max-width:1050px) {{ .summary-primary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:18px 20px; border-radius:15px; }} .summary-primary {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .summary-secondary {{ flex-direction:column; }} .market-grid {{ grid-template-columns:1fr; }} .row-top {{ align-items:flex-start; }} .stage {{ margin-top:1px; }} .row-signals {{ flex-basis:100%; }} .row-actions {{ width:100%; justify-content:space-between; margin-left:0; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:7px; }} .ticker {{ font-size:15px; }} }}
 .today-paper-focus {{ margin-bottom:12px; }} .paper-focus-cards {{ display:flex; flex-direction:column; gap:7px; }} .paper-focus-card {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 10px; align-items:center; background:#fff; border:1px solid var(--line); border-left:4px solid var(--teal); border-radius:10px; padding:9px 12px; }} .paper-focus-card span {{ color:var(--muted); font-size:13px; }} .paper-focus-meta {{ display:block; font-size:12px !important; }} .paper-focus-values {{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 14px; }}
 @media (max-width:1050px) {{ .paper-summary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} .performance-summary-grid {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }}
-@media (max-width:620px) {{ .paper-summary,.performance-summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .paper-grid,.rules-grid {{ grid-template-columns:1fr; }} .coverage-grid {{ grid-template-columns:1fr; }} }}
+@media (max-width:620px) {{ .paper-summary,.performance-summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .paper-grid,.paper-human-grid,.rules-grid {{ grid-template-columns:1fr; }} .coverage-grid {{ grid-template-columns:1fr; }} }}
 </style>
 </head>
 <body>

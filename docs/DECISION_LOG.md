@@ -550,6 +550,11 @@ R、return %、持有与 MFE/MAE；SKIPPED/OPEN 不计胜负，胜率使用 WIN/
 Paper Tracking 从启用日起 forward-only，不历史回填 Candidate-only；active Paper
 symbols 即使掉出 Candidate / Formal / Position 仍须经现有 exact completed-session
 QFQ provider 续载，缺数据时 fail closed，并显式报告 coverage gap。
+计划风险只用于 T 日方案展示；一旦 T+1 模拟成交，冻结的 `PositionOrigin` 是唯一
+1R 来源，固定为 `actual_entry - initial_execution_stop`。当前 R、最终 realized R
+与其余 Position Management 指标必须使用同一实际成交风险，不能回退到计划入场价
+对应的风险列；账本同时保留 `planned_risk_per_share` 与成交后的
+`initial_risk_per_share` 以便审计。
 
 **Reason:** 这为策略方案提供可审计的 prospective feedback loop，同时把模拟事实、
 正式 state、组合风险、真实持仓和 broker 执行保持在不同权限边界内，避免把

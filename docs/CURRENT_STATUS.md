@@ -174,6 +174,11 @@
    与 `replay_position`；计划、T+1 执行/跳过、真实 Position Management exit、coverage 与
    normalized R/return 统计均不复制交易公式。active Paper symbols 会续载同一 QFQ provider，
    Candidate dropout 不会让既有 Paper plan 消失；缺失 exact completed session 时 fail closed。
+ - Paper workspace 已采用面向人的生命周期卡片：默认回答“为什么买／为什么关注、是否
+   真正模拟成交、现在怎么样、下一步／为什么卖”，计划风险与成交后实际 1R 分开显示，
+   当前 R 与最终 R 均来自成交后的 `PositionOrigin`；原始 identity、policy、provenance、
+   PositionOrigin 与完整数值只在折叠的技术审计区显示。绩效页将胜率、R、收益率与样本
+   不足明确区分，Coverage 缺口以用户可读警告呈现。
 - 启用持仓即使不在正式股票池或 Candidate 中也会继续进入 Position Management；
   多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
   `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。
