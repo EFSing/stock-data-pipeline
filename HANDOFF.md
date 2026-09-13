@@ -9,9 +9,11 @@
 
 - 当前任务：`DAILY_TRADING_DASHBOARD_V1`；将现有 Production Daily Decision
   Chain 结果投影为只读 standalone HTML 仪表盘。
-- 当前 feature branch：`feat/daily-trading-dashboard-v1`；Dashboard 实现、synthetic
-  fixture、focused/full tests 与文档同步已完成，PR #79 已创建且 CI 通过，不自动
-  merge，等待 review。
+- 当前 feature branch：`feat/daily-trading-dashboard-v1`；Dashboard 的信息架构/视觉密度
+  整改已完成：默认“今日重点”、紧凑股票行、sticky 阶段导航、前端搜索、按需详情与
+  观察中/全部诊断视图均已接入；synthetic fixture、focused/full tests、真实
+  2026-09-11 HTML 重新生成与视觉验收已完成。PR #79 保持 OPEN，不自动 merge，等待
+  review。
 - 已完成最小 presentation-only metadata propagation：CN/US included Candidate 的
   `name` / `sector` 进入现有 universe report，Candidate Review 新增两列；缺失值展示
   `—`，不改变 Candidate-only 过滤、Primary Wave→Setup 映射或 `ARMED > WATCH > ticker`
@@ -105,9 +107,10 @@
   仅投影既有 `DailyDecisionResult`、Candidate metadata 与 provenance，不新增评分、排序
   模型、reason taxonomy 或第二套事件/状态判断；Candidate-only 仍为 `READ_ONLY_DISCOVERY`。
 - 已完成 `DAILY_TRADING_DASHBOARD_V1`：`trading/daily_dashboard.py` 提供纯标准库的
-  presentation projection/standalone HTML，runner 可选输出 `latest.html` 与日期版本，
-  saved JSON 可由 `scripts/render_daily_dashboard.py` 渲染；WATCH/ARMED 不伪造入场价，
-  Decision/Risk/Position Management 只展示现有字段。
+  presentation projection/standalone HTML，默认“今日重点”只显示需要处理的既有阶段，
+  股票以 compact row 展示，完整诊断按“查看详情”展开；runner 可选输出 `latest.html`
+  与日期版本，saved JSON 可由 `scripts/render_daily_dashboard.py` 渲染；WATCH/ARMED
+  不伪造入场价，Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
 - 本地 service-account env 缺失，但通过已连接 Google Drive 的只读 snapshot 完成了

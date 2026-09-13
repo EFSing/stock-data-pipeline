@@ -5,6 +5,7 @@ import unittest
 
 from trading.daily_dashboard import (
     build_dashboard_projection,
+    dashboard_search_matches,
     load_dashboard_json,
     render_dashboard_html,
     write_dashboard_html,
@@ -60,6 +61,74 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["CCC"]["stage_label"], "可入场")
         self.assertEqual(rows["600003.SH"]["stage_label"], "持仓管理")
 
+    def test_default_focus_contains_only_actionable_or_exception_rows(self):
+        projection = build_dashboard_projection(self.payload)
+        focus_rows = [row for row in projection["rows"] if row["default_focus"]]
+
+        self.assertEqual(
+            {row["stage_key"] for row in focus_rows},
+            {
+                "ARMED",
+                "CONFIRMED",
+                "STRATEGY_PROPOSAL",
+                "ENTRY_ALLOWED",
+                "POSITION_MANAGEMENT",
+            },
+        )
+        self.assertFalse(
+            any(row["stage_key"] in {"WATCH", "NO_TRADE", "FAILED"} for row in focus_rows)
+        )
+        self.assertEqual(len(focus_rows), 5)
+        self.assertEqual(len(projection["rows"]), 6)
+
+    def test_low_priority_rows_remain_in_all_data_and_diagnostics(self):
+        payload = deepcopy(self.payload)
+        results = payload["reports"][0]["报告"]["results"]
+        results.extend(
+            [
+                {
+                    "symbol": "LOW1",
+                    "market": "CN",
+                    "data_status": "DATA_OK",
+                    "primary_wave_scenario": "NO_VALID_SCENARIO",
+                    "setup01_state": "NONE",
+                    "setup02_state": "NONE",
+                    "primary_action": "NO_TRADE",
+                    "event_was_new": False,
+                    "individual_decision": None,
+                    "portfolio_result": None,
+                    "position_management": None,
+                    "reasons": ["not today"],
+                    "blocking_prerequisites": [],
+                    "final_status": "NO_TRADE",
+                },
+                {
+                    "symbol": "LOW2",
+                    "market": "CN",
+                    "data_status": "DATA_OK",
+                    "primary_wave_scenario": "NO_VALID_SCENARIO",
+                    "setup01_state": "FAILED",
+                    "setup02_state": "NONE",
+                    "primary_action": "NO_TRADE",
+                    "event_was_new": False,
+                    "individual_decision": None,
+                    "portfolio_result": None,
+                    "position_management": None,
+                    "reasons": ["failed"],
+                    "blocking_prerequisites": [],
+                    "final_status": "FAILED",
+                },
+            ]
+        )
+
+        projection = build_dashboard_projection(payload)
+        rows = {row["symbol"]: row for row in projection["rows"]}
+
+        self.assertFalse(rows["LOW1"]["default_focus"])
+        self.assertFalse(rows["LOW2"]["default_focus"])
+        self.assertEqual({rows["LOW1"]["stage_key"], rows["LOW2"]["stage_key"]}, {"NO_TRADE", "FAILED"})
+        self.assertEqual({row["symbol"] for row in projection["rows"]}, set(rows))
+
     def test_watch_and_armed_never_invent_entry(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
 
@@ -68,6 +137,14 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["600002.SH"]["waiting"], "确认价：123.45")
         self.assertEqual(rows["600002.SH"]["plan"]["planned_entry"], "尚未形成")
         self.assertEqual(rows["600002.SH"]["plan"]["execution_stop"], "—")
+
+    def test_search_matches_ticker_and_company_name(self):
+        rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
+
+        self.assertTrue(dashboard_search_matches(rows["600001.SH"], "600001.sh"))
+        self.assertTrue(dashboard_search_matches(rows["600001.SH"], "示例科技"))
+        self.assertTrue(dashboard_search_matches(rows["600001.SH"], ""))
+        self.assertFalse(dashboard_search_matches(rows["600001.SH"], "不存在的股票"))
 
     def test_data_blocked_is_visible_without_fabricated_plan(self):
         payload = deepcopy(self.payload)
@@ -95,6 +172,7 @@ class DailyDashboardTests(unittest.TestCase):
         blocked = next(row for row in projection["rows"] if row["symbol"] == "600099.SH")
         self.assertEqual(blocked["stage_key"], "DATA_BLOCKED")
         self.assertEqual(blocked["stage_label"], "数据异常")
+        self.assertTrue(blocked["default_focus"])
         self.assertEqual(blocked["plan"]["planned_entry"], "尚未形成")
         self.assertEqual(projection["summary"]["data_blocked_count"], 1)
         self.assertEqual(
@@ -176,22 +254,48 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("专用设备", html)
         self.assertNotIn("示例科技<&", html)
         self.assertIn("计划入场", html)
-        self.assertIn("尚未形成", html)
         self.assertIn("候选观察池", html)
         self.assertIn("尚未进入正式策略池", html)
         self.assertIn("今日确认", html)
+        self.assertIn("查看详情", html)
+        self.assertIn("id=\"search-filter\"", html)
+        self.assertIn("data-view=\"focus\"", html)
+        self.assertIn("data-view=\"WATCH\"", html)
+        self.assertIn("data-view=\"all\"", html)
+        self.assertIn("querySelectorAll('.stock-row')", html)
+        self.assertIn("toLocaleLowerCase", html)
         self.assertIn("data-market=\"CN\"", html)
         self.assertIn("data-stage=\"ARMED\"", html)
         self.assertIn("data-setup=\"SETUP_01\"", html)
         self.assertIn("data-sector=\"专用设备\"", html)
-        card_start = html.index('<span class="ticker">600002.SH</span>')
-        card_end = html.index("</article>", card_start)
-        card = html[card_start:card_end]
-        self.assertLess(card.index('<span class="ticker">600002.SH</span>'), card.index("<h2>示例软件</h2>"))
-        self.assertLess(card.index("<h2>示例软件</h2>"), card.index('<div class="sector">软件服务</div>'))
-        self.assertIn(".stock-card h2 { margin:12px 0 0; font-size:22px; font-weight:800; }", html)
+        watch_start = html.index('<article class="stock-row" hidden data-market="CN" data-stage="WATCH"')
+        watch_end = html.index("</article>", watch_start)
+        watch_card = html[watch_start:watch_end]
+        armed_start = html.index('<article class="stock-row" data-market="CN" data-stage="ARMED"')
+        armed_end = html.index("</article>", armed_start)
+        armed_card = html[armed_start:armed_end]
+        self.assertLess(armed_card.index('<span class="ticker">600002.SH</span>'), armed_card.index('<span class="company">示例软件</span>'))
+        self.assertNotIn('<section class="panel plan-panel">', watch_card)
+        self.assertIn('data-focus="0"', watch_card)
+        self.assertIn('data-search="600001.SH 示例科技&lt;&amp;"', watch_card)
         self.assertIn("${visible}", html)
         self.assertIn("${cards.length}", html)
+
+    def test_compact_rows_only_render_formal_plan_fields_for_decision_stages(self):
+        html = render_dashboard_html(self.payload)
+
+        watch_start = html.index('<article class="stock-row" hidden data-market="CN" data-stage="WATCH"')
+        watch_end = html.index("</article>", watch_start)
+        proposal_start = html.index('<article class="stock-row" data-market="US" data-stage="STRATEGY_PROPOSAL"')
+        proposal_end = html.index("</article>", proposal_start)
+        armed_start = html.index('<article class="stock-row" data-market="CN" data-stage="ARMED"')
+        armed_end = html.index("</article>", armed_start)
+
+        self.assertNotIn("交易方案", html[watch_start:watch_end])
+        self.assertNotIn("交易方案", html[armed_start:armed_end])
+        self.assertIn("交易方案", html[proposal_start:proposal_end])
+        self.assertIn("200.0", html[proposal_start:proposal_end])
+        self.assertIn("Target 1", html[proposal_start:proposal_end])
 
     def test_same_input_is_deterministic_and_writer_creates_latest_and_date_copy(self):
         first = render_dashboard_html(self.payload)

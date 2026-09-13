@@ -28,6 +28,26 @@ STAGE_ORDER = (
     "NO_TRADE",
 )
 
+DEFAULT_FOCUS_STAGES = (
+    "ENTRY_ALLOWED",
+    "STRATEGY_PROPOSAL",
+    "CONFIRMED",
+    "ARMED",
+    "POSITION_MANAGEMENT",
+    "DATA_BLOCKED",
+)
+
+NAV_VIEW_ORDER = (
+    "focus",
+    "ARMED",
+    "WATCH",
+    "CONFIRMED",
+    "STRATEGY_PROPOSAL",
+    "ENTRY_ALLOWED",
+    "POSITION_MANAGEMENT",
+    "all",
+)
+
 STAGE_LABELS = {
     "WATCH": "观察中",
     "ARMED": "接近确认",
@@ -74,6 +94,15 @@ WAVE_LABELS = {
     "UPTREND_UNKNOWN_WAVE": "上升趋势，浪型未确定",
     "DOWNTREND_OR_INVALID_FOR_LONG": "下行趋势或不适合做多",
     "NO_VALID_SCENARIO": "暂无有效波浪情景",
+}
+
+WAVE_SHORT_LABELS = {
+    "WAVE_2_TO_3_CANDIDATE": "2浪→3浪",
+    "WAVE_3_CONTINUATION_CANDIDATE": "3浪延续",
+    "ABC_CORRECTION_CANDIDATE": "ABC调整",
+    "UPTREND_UNKNOWN_WAVE": "上升趋势·浪型未定",
+    "DOWNTREND_OR_INVALID_FOR_LONG": "下行／不适合做多",
+    "NO_VALID_SCENARIO": "暂无有效浪型",
 }
 
 MARKET_LABELS = {
@@ -671,6 +700,8 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
     setup = _setup(result, decision)
     final_status = _text(result.get("final_status"))
     action = _text(result.get("primary_action")) or _decision_action(decision)
+    primary_wave = _text(result.get("primary_wave_scenario"), "UNKNOWN")
+    confirmation = _confirmation_value(result, decision)
     return {
         "account_id": _text(entry.get("account_id"), "—"),
         "symbol": symbol,
@@ -684,11 +715,12 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "status_label": STATUS_LABELS.get(final_status, STAGE_LABELS.get(stage, final_status or "—")),
         "action_key": action or "—",
         "action_label": ACTION_LABELS.get(action, STATUS_LABELS.get(action, action or "—")),
-        "primary_wave": _text(result.get("primary_wave_scenario"), "UNKNOWN"),
+        "primary_wave": primary_wave,
         "primary_wave_label": WAVE_LABELS.get(
-            _text(result.get("primary_wave_scenario")),
-            f"波浪状态：{_text(result.get('primary_wave_scenario'), 'UNKNOWN')}",
+            primary_wave,
+            f"波浪状态：{primary_wave}",
         ),
+        "primary_wave_short_label": WAVE_SHORT_LABELS.get(primary_wave, primary_wave),
         "alternate_wave": _text(result.get("alternate_wave_scenario"), "UNKNOWN"),
         "alternate_wave_label": WAVE_LABELS.get(
             _text(result.get("alternate_wave_scenario")),
@@ -703,6 +735,8 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "is_position": is_position,
         "data_blocked": data_blocked,
         "event_is_new": event_is_new,
+        "default_focus": stage in DEFAULT_FOCUS_STAGES or event_is_new,
+        "confirmation_level": _display(confirmation),
         "waiting": _waiting(
             stage,
             result,
@@ -814,7 +848,10 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
             projected = _make_row(entry, result)
             if projected is not None:
                 rows.append(projected)
-    stage_rank = {stage: index for index, stage in enumerate(STAGE_ORDER)}
+    presentation_order = DEFAULT_FOCUS_STAGES + tuple(
+        stage for stage in STAGE_ORDER if stage not in DEFAULT_FOCUS_STAGES
+    )
+    stage_rank = {stage: index for index, stage in enumerate(presentation_order)}
     rows.sort(key=lambda row: (stage_rank.get(row["stage_key"], len(STAGE_ORDER)), row["market"], row["symbol"], row["account_id"]))
 
     preflight = _mapping(payload.get("preflight"))
@@ -883,6 +920,14 @@ def _metric(label: str, value: Any, tone: str = "") -> str:
     )
 
 
+def _metric_link(label: str, value: Any, view: str, tone: str = "") -> str:
+    return (
+        f'<button type="button" class="metric metric-link {tone}" '
+        f'data-view="{_escape(view)}"><span class="metric-label">{_escape(label)}</span>'
+        f'<span class="metric-value">{_escape(value)}</span></button>'
+    )
+
+
 def _field(label: str, value: Any, *, extra_class: str = "") -> str:
     return (
         f'<div class="field {extra_class}"><div class="field-label">{_escape(label)}</div>'
@@ -890,31 +935,51 @@ def _field(label: str, value: Any, *, extra_class: str = "") -> str:
     )
 
 
+def _has_display_value(value: Any) -> bool:
+    return _raw_text(value) not in {"", "—", "-", "尚未形成"}
+
+
+def _render_field_grid(
+    fields: Sequence[tuple[str, Any]], *, extra_class: str = ""
+) -> str:
+    visible_fields = tuple((label, value) for label, value in fields if _has_display_value(value))
+    if not visible_fields:
+        return ""
+    return '<div class="field-grid {0}">{1}</div>'.format(
+        extra_class,
+        "".join(_field(label, value) for label, value in visible_fields),
+    )
+
+
 def _render_plan(row: Mapping[str, Any]) -> str:
     plan = _mapping(row.get("plan"))
+    if row.get("stage_key") not in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}:
+        return ""
+    if not plan.get("has_decision"):
+        return ""
+    fields = (
+        ("计划入场", plan.get("planned_entry")),
+        ("Execution Stop", plan.get("execution_stop")),
+        ("Target 1", plan.get("target_1")),
+        ("Target 2", plan.get("target_2")),
+        ("Target 3", plan.get("target_3")),
+        ("R/R", plan.get("rr")),
+    )
+    field_grid = _render_field_grid(fields, extra_class="plan-grid")
+    if not field_grid:
+        return ""
     return (
-        '<section class="panel plan-panel"><h3>交易方案</h3><div class="field-grid plan-grid">'
-        + "".join(
-            _field(label, plan.get(key), extra_class="highlight" if key == "planned_entry" else "")
-            for label, key in (
-                ("计划入场", "planned_entry"),
-                ("Execution Stop", "execution_stop"),
-                ("Target 1", "target_1"),
-                ("Target 2", "target_2"),
-                ("Target 3", "target_3"),
-                ("R/R", "rr"),
-            )
-        )
-        + "</div></section>"
+        '<section class="panel plan-panel"><h3>交易方案</h3>'
+        + field_grid
+        + "</section>"
     )
 
 
 def _render_position(row: Mapping[str, Any]) -> str:
     position = _mapping(row.get("position"))
-    return (
-        '<section class="panel position-panel"><h3>持仓管理</h3><div class="field-grid">'
-        + "".join(
-            _field(label, position.get(key))
+    field_grid = _render_field_grid(
+        tuple(
+            (label, position.get(key))
             for label, key in (
                 ("实际入场", "actual_entry"),
                 ("当前价格", "current_price"),
@@ -929,7 +994,13 @@ def _render_position(row: Mapping[str, Any]) -> str:
                 ("管理动作", "action_label"),
             )
         )
-        + "</div></section>"
+    )
+    if not field_grid:
+        return ""
+    return (
+        '<section class="panel position-panel"><h3>持仓管理</h3>'
+        + field_grid
+        + "</section>"
     )
 
 
@@ -942,6 +1013,41 @@ def _position_fields(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_2": _display(targets[1] if len(targets) > 1 else None),
         "target_3": _display(targets[2] if len(targets) > 2 else None),
     }
+
+
+def _compact_price(row: Mapping[str, Any]) -> str:
+    stage = _text(row.get("stage_key"))
+    plan = _mapping(row.get("plan"))
+    if stage in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"} and plan.get("has_decision"):
+        values = []
+        if _has_display_value(plan.get("planned_entry")):
+            values.append(f"计划入场：{_display(plan.get('planned_entry'))}")
+        if _has_display_value(plan.get("execution_stop")):
+            values.append(f"Stop：{_display(plan.get('execution_stop'))}")
+        return " · ".join(values)
+    if stage == "POSITION_MANAGEMENT":
+        position = _mapping(row.get("position"))
+        values = []
+        if _has_display_value(position.get("current_price")):
+            values.append(f"当前价：{_display(position.get('current_price'))}")
+        if _has_display_value(position.get("active_protective_stop")):
+            values.append(f"保护止损：{_display(position.get('active_protective_stop'))}")
+        return " · ".join(values)
+    return ""
+
+
+def _dashboard_search_text(row: Mapping[str, Any]) -> str:
+    return f'{_raw_text(row.get("symbol"))} {_raw_text(row.get("name"))}'
+
+
+def dashboard_search_matches(row: Mapping[str, Any], query: Any) -> bool:
+    """Return whether a UI search query matches a ticker or company name."""
+
+    needle = _raw_text(query).casefold()
+    if not needle:
+        return True
+    haystack = _dashboard_search_text(row).casefold()
+    return needle in haystack
 
 
 def _render_details(row: Mapping[str, Any]) -> str:
@@ -973,9 +1079,31 @@ def _render_details(row: Mapping[str, Any]) -> str:
         if isinstance(fibonacci_regions, (Mapping, list, tuple))
         else _display(fibonacci_regions)
     )
+    confirmation = _first_value(
+        decision.get("confirmation_level"),
+        decision.get("confirmation_threshold"),
+        result.get("confirmation_level"),
+        result.get("confirmation_threshold"),
+    )
+    reason_values = [
+        *(_sequence(result.get("reasons"))),
+        *(_sequence(_mapping(result.get("position_management")).get("reasons"))),
+    ]
+    reasons_text = "；".join(
+        translated
+        for value in reason_values
+        if (translated := _translate_reason(value))
+    )
+    blocking_text = "；".join(
+        translated
+        for value in _sequence(result.get("blocking_prerequisites"))
+        if (translated := _translate_reason(value))
+    )
     return (
-        '<details class="details"><summary>查看专业详情</summary>'
-        '<div class="detail-grid">'
+        '<details class="details"><summary>查看详情</summary><div class="detail-body">'
+        + _render_plan(row)
+        + (_render_position({**row, "position": position}) if row.get("is_position") else "")
+        + '<div class="detail-grid">'
         '<section><h4>Primary / Alternate Wave</h4>'
         f'<p>{_escape(row.get("primary_wave_label"))} <code>{_escape(row.get("primary_wave"))}</code></p>'
         f'<p>{_escape(row.get("alternate_wave_label"))} <code>{_escape(row.get("alternate_wave"))}</code></p>'
@@ -986,7 +1114,7 @@ def _render_details(row: Mapping[str, Any]) -> str:
         '<section><h4>Setup / Decision</h4>'
         f'<p>SETUP_01：{_escape(row.get("setup01_state"))}；SETUP_02：{_escape(row.get("setup02_state"))}</p>'
         f'<p>Setup：{_escape(row.get("setup"))}</p>'
-        f'<p>Gate / confirmation：{_escape(_mapping(row.get("decision")).get("gate_reason"))} / {_escape(_mapping(row.get("decision")).get("confirmation_level"))}</p>'
+        f'<p>Gate / confirmation：{_escape(_mapping(row.get("decision")).get("gate_reason"))} / {_escape(confirmation)}</p>'
         f'<p>Entry zone：{_escape(_mapping(row.get("plan")).get("entry_zone_low"))} — {_escape(_mapping(row.get("plan")).get("entry_zone_high"))}</p></section>'
         '<section><h4>Risk / Portfolio Risk</h4>'
         f'<p>R/R quality：{_escape(_mapping(row.get("plan")).get("rr_quality"))}</p>'
@@ -995,10 +1123,12 @@ def _render_details(row: Mapping[str, Any]) -> str:
         '<section><h4>Position Management</h4>'
         f'<p>状态：{_escape(_mapping(row.get("position_management")).get("status"))}</p>'
         f'<p>Wave5：{_escape(position.get("wave5_context"))}；Target status：{_escape(position.get("target_status"))}</p>'
-        f'<p>Waiting / blocking：{_escape(row.get("waiting"))}</p></section>'
+        f'<p>Waiting / blocking：{_escape(row.get("waiting"))}</p>'
+        f'<p>Reasons：{_escape(reasons_text)}</p>'
+        f'<p>Blockers：{_escape(blocking_text)}</p></section>'
         '</div>'
         f'<h4>原始 Daily Decision 字段</h4><pre>{html.escape(_json_text(result), quote=False)}</pre>'
-        '</details>'
+        '</div></details>'
     )
 
 
@@ -1009,30 +1139,39 @@ def _render_row(row: Mapping[str, Any]) -> str:
     )
     if row["event_is_new"]:
         identity += '<span class="badge positive">今日确认</span>'
-    position = _position_fields(row)
-    position_block = _render_position({**row, "position": position}) if row["is_position"] else ""
     stage_class = row["stage_key"].lower().replace("_", "-")
+    compact_price = _compact_price(row)
+    search_text = _dashboard_search_text(row)
+    price_block = (
+        f'<span class="row-price">{_escape(compact_price)}</span>'
+        if compact_price
+        else ""
+    )
     return (
-        f'<article class="stock-card" data-market="{_escape(row["market"])}" '
+        f'<article class="stock-row"{"" if row["default_focus"] else " hidden"} '
+        f'data-market="{_escape(row["market"])}" '
         f'data-stage="{_escape(row["stage_key"])}" data-setup="{_escape(row["setup"])}" '
-        f'data-sector="{_escape(row["sector"] if row["sector"] != "—" else "")}">'
-        '<div class="card-top"><div>'
+        f'data-sector="{_escape(row["sector"] if row["sector"] != "—" else "")}" '
+        f'data-focus="{"1" if row["default_focus"] else "0"}" '
+        f'data-confirmed="{"1" if row["event_is_new"] else "0"}" '
+        f'data-search="{_escape(search_text)}">'
+        '<div class="row-top"><div class="row-identity">'
         f'<span class="ticker">{_escape(row["symbol"])}</span>'
-        f'<span class="market-chip">{_escape(row["market"])} · {_escape(row["market_label"])}</span>'
+        f'<span class="company">{_escape(row["name"])}</span>'
+        f'<span class="sector">{_escape(row["sector"])}</span>'
+        f'<span class="market-chip">{_escape(row["market"])}</span>'
         '</div>'
         f'<span class="stage stage-{stage_class}">{_escape(row["stage_label"])}</span></div>'
-        f'<h2>{_escape(row["name"])}</h2><div class="sector">{_escape(row["sector"])}</div>'
-        '<div class="field-grid card-facts">'
-        + _field("当前阶段", row["stage_label"])
-        + _field("Primary Wave", row["primary_wave_label"])
-        + _field("Setup", row["setup"])
-        + _field("决策动作", row["action_label"])
-        + '</div><div class="identity-row">'
+        '<div class="row-bottom"><div class="row-signals">'
+        f'<span class="row-wave">{_escape(row["primary_wave_short_label"])}</span>'
+        f'<span class="row-setup">{_escape(row["setup"])}</span>'
+        f'<span class="row-next">{_escape(row["waiting"])}</span>'
+        + price_block
+        + '</div><div class="row-actions"><div class="identity-row">'
         + identity
-        + f'</div><div class="waiting"><strong>下一步</strong><span>{_escape(row["waiting"])}</span></div>'
-        + _render_plan(row)
-        + position_block
+        + '</div></div>'
         + _render_details(row)
+        + '</div>'
         + '</article>'
     )
 
@@ -1061,9 +1200,20 @@ def render_dashboard_html(value: Any) -> str:
         f'<option value="{_escape(stage)}">{_escape(STAGE_LABELS.get(stage, stage))}</option>'
         for stage in projection["stage_order"]
     )
+    nav_specs = (
+        ("focus", "今日重点", sum(row["default_focus"] for row in projection["rows"])),
+        ("ARMED", "接近确认", summary["armed_count"]),
+        ("WATCH", "观察中", summary["watch_count"]),
+        ("confirmed", "今日确认", summary["new_confirmed_count"]),
+        ("STRATEGY_PROPOSAL", "交易方案", summary["strategy_proposal_count"]),
+        ("ENTRY_ALLOWED", "可入场", summary["entry_allowed_count"]),
+        ("POSITION_MANAGEMENT", "持仓", summary["position_count"]),
+        ("all", "全部/诊断", len(projection["rows"])),
+    )
     stage_nav = "".join(
-        f'<button type="button" class="stage-link" data-stage="{_escape(stage)}">{_escape(STAGE_LABELS.get(stage, stage))}</button>'
-        for stage in projection["stage_order"][:6]
+        f'<button type="button" class="stage-link" data-view="{_escape(view)}" '
+        f'aria-pressed="false">{_escape(label)} <span class="nav-count">{_escape(count)}</span></button>'
+        for view, label, count in nav_specs
     )
     cards = "".join(_render_row(row) for row in projection["rows"])
     demo_label = _text(projection.get("demo_label"))
@@ -1079,61 +1229,100 @@ def render_dashboard_html(value: Any) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{_escape(projection['title'])} · {_escape(projection['as_of_date'])}</title>
 <style>
-:root {{ color-scheme: light; --ink:#162334; --muted:#66758a; --line:#dce4ee; --paper:#f5f7fb; --card:#fff; --teal:#0f766e; --teal-soft:#d9f2ed; --amber:#b45309; --amber-soft:#fff0d5; --red:#b42318; --red-soft:#fee4e2; --blue:#275dad; --blue-soft:#e4efff; }}
-* {{ box-sizing:border-box; }} body {{ margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 "Segoe UI","Microsoft YaHei",sans-serif; }}
-.shell {{ width:min(1440px,calc(100% - 32px)); margin:0 auto; padding:28px 0 56px; }}
-.hero {{ background:linear-gradient(135deg,#12263d,#21516c); color:#fff; border-radius:22px; padding:30px 34px; box-shadow:0 16px 36px #13263d24; }}
-.demo-banner {{ display:inline-block; margin-bottom:10px; border:1px solid #f4d28f; border-radius:999px; padding:4px 10px; background:#fff0d5; color:#7a4300; font-size:12px; font-weight:750; letter-spacing:.02em; }}
-.eyebrow {{ color:#b8e5dc; font-size:12px; letter-spacing:.12em; text-transform:uppercase; }} h1 {{ margin:8px 0 4px; font-size:clamp(28px,4vw,44px); letter-spacing:-.03em; }}
-.hero-meta {{ color:#d9e8f2; display:flex; gap:18px; flex-wrap:wrap; }} .readonly-note {{ margin:20px 0 0; color:#e9f4f8; font-size:13px; }}
-.summary-grid {{ display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:10px; margin:18px 0 12px; }} .metric {{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:13px 14px; min-height:88px; }}
-.metric-label,.field-label {{ color:var(--muted); font-size:12px; }} .metric-value {{ margin-top:5px; font-size:26px; font-weight:750; }} .metric:nth-child(4) .metric-value,.metric:nth-child(5) .metric-value {{ color:var(--teal); }} .metric:nth-child(8) .metric-value {{ color:var(--red); }}
-.market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:20px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }}
-.market-name {{ font-weight:750; font-size:19px; margin-right:10px; }} .market-label {{ color:var(--muted); font-size:13px; }} .data-status {{ border-radius:999px; padding:4px 11px; font-weight:700; font-size:13px; }} .status-DATA_OK {{ background:var(--teal-soft); color:var(--teal); }} .status-DATA_BLOCKED {{ background:var(--red-soft); color:var(--red); }} .status-NOT_RUN {{ background:#edf1f6; color:var(--muted); }}
-.stage-nav {{ display:flex; gap:8px; flex-wrap:wrap; margin:4px 0 14px; align-items:center; }} .stage-nav-label {{ color:var(--muted); font-weight:700; margin-right:3px; }} .stage-link {{ border:0; background:transparent; color:var(--blue); font:inherit; font-weight:700; cursor:pointer; padding:6px 2px; }} .stage-link:not(:last-child)::after {{ content:"→"; color:#aab6c5; margin-left:9px; }} .stage-link:hover {{ color:var(--teal); }}
-.filters {{ display:flex; gap:10px; flex-wrap:wrap; background:#eaf0f6; border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:18px; }} .filters label {{ display:flex; align-items:center; gap:7px; color:var(--muted); font-size:13px; }} select {{ border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:7px 30px 7px 9px; font:inherit; }}
-.cards {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:16px; }} .stock-card {{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:19px; box-shadow:0 8px 22px #18324b0c; }} .stock-card[hidden] {{ display:none; }}
-.card-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .ticker {{ font-size:20px; font-weight:800; letter-spacing:.02em; }} .market-chip {{ color:var(--muted); font-size:12px; margin-left:8px; }} .stage {{ white-space:nowrap; border-radius:999px; padding:4px 10px; font-size:13px; font-weight:750; }} .stage-watch,.stage-armed {{ background:var(--amber-soft); color:var(--amber); }} .stage-confirmed,.stage-strategy-proposal,.stage-entry-allowed {{ background:var(--blue-soft); color:var(--blue); }} .stage-position-management {{ background:var(--teal-soft); color:var(--teal); }} .stage-failed,.stage-data-blocked {{ background:var(--red-soft); color:var(--red); }} .stage-no-trade {{ background:#edf1f6; color:var(--muted); }}
-.stock-card h2 {{ margin:12px 0 0; font-size:22px; font-weight:800; }} .sector {{ color:var(--muted); min-height:24px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .card-facts {{ margin:16px 0; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .highlight .field-value {{ color:var(--teal); }}
-.identity-row {{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 14px; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:3px 8px; color:#486074; font-size:12px; background:#f7fafc; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
-.waiting {{ display:flex; gap:9px; align-items:flex-start; padding:11px 12px; background:#f1f6fa; border-radius:11px; margin-bottom:12px; }} .waiting strong {{ white-space:nowrap; color:var(--blue); }} .waiting span {{ overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:13px; margin-top:13px; }} .panel h3 {{ margin:0 0 9px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .details {{ border-top:1px solid var(--line); margin-top:14px; padding-top:10px; }} .details summary {{ cursor:pointer; color:var(--blue); font-weight:700; }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; }} .detail-grid section {{ background:#f8fafc; border-radius:10px; padding:10px 12px; }} .detail-grid h4,.details h4 {{ margin:0 0 5px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:10px; padding:12px; font:12px/1.5 Consolas,monospace; }}
-.empty {{ color:var(--muted); text-align:center; padding:40px; background:#fff; border:1px dashed #c5d1df; border-radius:14px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:22px; }}
-@media (max-width:1050px) {{ .summary-grid {{ grid-template-columns:repeat(4,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:24px 20px; border-radius:16px; }} .summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .market-grid {{ grid-template-columns:1fr; }} .cards {{ grid-template-columns:1fr; }} .stock-card {{ padding:15px; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:8px; }} .ticker {{ font-size:18px; }} }}
+:root {{ color-scheme:light; --ink:#162334; --muted:#66758a; --line:#dce4ee; --paper:#f5f7fb; --card:#fff; --teal:#0f766e; --teal-soft:#d9f2ed; --amber:#b45309; --amber-soft:#fff0d5; --red:#b42318; --red-soft:#fee4e2; --blue:#275dad; --blue-soft:#e4efff; }}
+* {{ box-sizing:border-box; }} body {{ margin:0; background:var(--paper); color:var(--ink); font:15px/1.5 "Segoe UI","Microsoft YaHei",sans-serif; }}
+.shell {{ width:min(1440px,calc(100% - 32px)); margin:0 auto; padding:18px 0 48px; }}
+.hero {{ background:linear-gradient(135deg,#12263d,#21516c); color:#fff; border-radius:18px; padding:22px 28px; box-shadow:0 12px 28px #13263d20; }}
+.demo-banner {{ display:inline-block; margin-bottom:7px; border:1px solid #f4d28f; border-radius:999px; padding:3px 9px; background:#fff0d5; color:#7a4300; font-size:12px; font-weight:750; }}
+.eyebrow {{ color:#b8e5dc; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }} h1 {{ margin:5px 0 3px; font-size:clamp(26px,3.4vw,38px); letter-spacing:-.03em; }}
+.hero-meta {{ color:#d9e8f2; display:flex; gap:16px; flex-wrap:wrap; font-size:13px; }} .readonly-note {{ margin:11px 0 0; color:#e9f4f8; font-size:12px; }}
+.summary-primary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; margin:12px 0 7px; }} .summary-secondary {{ display:flex; gap:8px; margin:0 0 9px; }}
+.metric {{ appearance:none; background:var(--card); border:1px solid var(--line); border-radius:11px; padding:10px 12px; min-height:66px; color:var(--ink); text-align:left; }} .metric-link {{ cursor:pointer; font:inherit; }} .metric-link:hover {{ border-color:#8ca9c2; box-shadow:0 3px 10px #18324b12; }}
+.metric-label,.field-label {{ color:var(--muted); font-size:12px; }} .metric-value {{ display:block; margin-top:3px; font-size:23px; line-height:1.1; font-weight:750; }} .summary-primary .metric:nth-child(1) .metric-value,.summary-primary .metric:nth-child(2) .metric-value {{ color:var(--teal); }} .summary-primary .metric:nth-child(6) .metric-value {{ color:var(--red); }}
+.summary-secondary .metric {{ min-height:48px; padding:8px 12px; display:flex; align-items:center; gap:10px; }} .summary-secondary .metric-value {{ margin:0; font-size:20px; }}
+.market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:8px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:8px 13px; display:flex; justify-content:space-between; align-items:center; }}
+.market-name {{ font-weight:750; margin-right:8px; }} .market-label {{ color:var(--muted); font-size:12px; }} .data-status {{ border-radius:999px; padding:3px 9px; font-weight:700; font-size:12px; }} .status-DATA_OK {{ background:var(--teal-soft); color:var(--teal); }} .status-DATA_BLOCKED {{ background:var(--red-soft); color:var(--red); }} .status-NOT_RUN {{ background:#edf1f6; color:var(--muted); }}
+.stage-nav {{ position:sticky; top:0; z-index:20; display:flex; gap:4px; overflow-x:auto; margin:8px 0 9px; padding:7px 8px; align-items:center; background:#f5f7fbeF; border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 14px #18324b12; backdrop-filter:blur(8px); }} .stage-nav-label {{ color:var(--muted); font-weight:700; margin-right:2px; white-space:nowrap; }} .stage-link {{ border:1px solid transparent; border-radius:8px; background:transparent; color:var(--blue); font:inherit; font-size:13px; font-weight:700; cursor:pointer; padding:6px 8px; white-space:nowrap; }} .stage-link:hover,.stage-link[aria-pressed="true"] {{ color:var(--teal); background:#e8f5f2; border-color:#b9ddd5; }} .nav-count {{ color:var(--muted); font-weight:650; }}
+.filters {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:#eaf0f6; border:1px solid var(--line); border-radius:11px; padding:9px 10px; margin-bottom:10px; }} .filters label {{ display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }} .search-field {{ flex:1 1 250px; }} select,input[type="search"] {{ border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:6px 9px; font:inherit; min-width:100px; }} input[type="search"] {{ width:100%; min-width:200px; }}
+.results-heading {{ display:flex; align-items:baseline; gap:10px; margin:13px 2px 7px; }} .results-heading h2 {{ margin:0; font-size:20px; }} .results-heading span {{ color:var(--muted); font-size:12px; }} .cards {{ display:flex; flex-direction:column; gap:7px; }} .stock-row {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 13px; box-shadow:0 3px 12px #18324b08; }} .stock-row[hidden] {{ display:none; }}
+.row-top {{ display:flex; justify-content:space-between; align-items:center; gap:10px; min-width:0; }} .row-identity {{ display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 9px; min-width:0; }} .ticker {{ font-size:16px; font-weight:800; letter-spacing:.02em; }} .company {{ font-weight:750; }} .sector {{ color:var(--muted); font-size:13px; }} .market-chip {{ color:var(--muted); font-size:12px; border-left:1px solid var(--line); padding-left:9px; }} .stage {{ white-space:nowrap; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; }} .stage-watch,.stage-armed {{ background:var(--amber-soft); color:var(--amber); }} .stage-confirmed,.stage-strategy-proposal,.stage-entry-allowed {{ background:var(--blue-soft); color:var(--blue); }} .stage-position-management {{ background:var(--teal-soft); color:var(--teal); }} .stage-failed,.stage-data-blocked {{ background:var(--red-soft); color:var(--red); }} .stage-no-trade {{ background:#edf1f6; color:var(--muted); }}
+.row-bottom {{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:5px; }} .row-signals {{ display:flex; flex:1 1 420px; flex-wrap:wrap; align-items:center; gap:4px 11px; min-width:0; }} .row-signals > span {{ font-size:13px; }} .row-wave {{ color:var(--blue); font-weight:750; }} .row-setup {{ color:#53687b; font:12px Consolas,monospace; }} .row-next {{ color:var(--muted); overflow-wrap:anywhere; }} .row-price {{ color:var(--teal); font-weight:700; }} .row-actions {{ display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; }} .identity-row {{ display:flex; flex-wrap:wrap; gap:4px; margin:0; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:2px 6px; color:#486074; font-size:11px; background:#f7fafc; white-space:nowrap; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
+.details {{ flex:0 0 auto; margin:0; border:0; padding:0; }} .details[open] {{ flex-basis:100%; }} .details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; white-space:nowrap; list-style:none; }} .details summary::-webkit-details-marker {{ display:none; }} .details summary::before {{ content:"＋ "; }} .details[open] summary::before {{ content:"− "; }} .detail-body {{ border-top:1px solid var(--line); margin-top:8px; padding-top:10px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:11px; margin-top:11px; }} .panel h3 {{ margin:0 0 8px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }} .detail-grid section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .detail-grid h4,.details h4 {{ margin:0 0 4px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:9px; padding:11px; font:12px/1.5 Consolas,monospace; }}
+.empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
+@media (max-width:1050px) {{ .summary-primary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:18px 20px; border-radius:15px; }} .summary-primary {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .summary-secondary {{ flex-direction:column; }} .market-grid {{ grid-template-columns:1fr; }} .row-top {{ align-items:flex-start; }} .stage {{ margin-top:1px; }} .row-signals {{ flex-basis:100%; }} .row-actions {{ width:100%; justify-content:space-between; margin-left:0; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:7px; }} .ticker {{ font-size:15px; }} }}
 </style>
 </head>
 <body>
 <main class="shell">
 <header class="hero"><div class="eyebrow">READ-ONLY · PRODUCTION DAILY DECISION CHAIN</div>{demo_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有 Daily Decision、Risk 和 Position Management 结果；中文阶段名称属于展示映射，不会产生新信号或订单。</div></header>
-<section class="summary-grid" aria-label="今日摘要">
-{_metric('Candidate 总数', summary['candidate_total'])}
-{_metric('观察中', summary['watch_count'])}
-{_metric('接近确认', summary['armed_count'])}
-{_metric('今日新确认', summary['new_confirmed_count'], 'positive')}
-{_metric('已形成交易方案', summary['strategy_proposal_count'])}
+<section class="summary-primary" aria-label="今日重点摘要">
 {_metric('可入场', summary['entry_allowed_count'], 'positive')}
+{_metric('已形成交易方案', summary['strategy_proposal_count'])}
+{_metric('今日确认', summary['new_confirmed_count'], 'positive')}
+{_metric('接近确认', summary['armed_count'])}
 {_metric('当前持仓', summary['position_count'])}
 {_metric('数据异常', summary['data_blocked_count'], 'danger')}
 </section>
+<section class="summary-secondary" aria-label="次级摘要">
+{_metric_link('观察中', summary['watch_count'], 'WATCH')}
+{_metric('Candidate 总数', summary['candidate_total'])}
+</section>
 <section class="market-grid" aria-label="市场数据状态">{_render_market_cards(projection['markets'])}</section>
 <nav class="stage-nav" aria-label="阶段导航"><span class="stage-nav-label">阶段查看：</span>{stage_nav}</nav>
-<section class="filters" aria-label="股票筛选"><label>市场<select id="market-filter"><option value="">全部</option><option value="CN">CN</option><option value="US">US</option></select></label><label>当前阶段<select id="stage-filter"><option value="">全部</option>{stage_options}</select></label><label>Setup<select id="setup-filter"><option value="">全部</option><option value="SETUP_01">SETUP_01</option><option value="SETUP_02">SETUP_02</option></select></label><label>行业／板块<select id="sector-filter"><option value="">全部</option>{sector_options}</select></label><span id="visible-count" class="stage-nav-label"></span></section>
+<section class="filters" aria-label="股票筛选"><label class="search-field">搜索<input id="search-filter" type="search" placeholder="ticker 或公司名称" autocomplete="off"></label><label>市场<select id="market-filter"><option value="">全部</option><option value="CN">CN</option><option value="US">US</option></select></label><label>当前阶段<select id="stage-filter"><option value="">全部</option>{stage_options}</select></label><label>Setup<select id="setup-filter"><option value="">全部</option><option value="SETUP_01">SETUP_01</option><option value="SETUP_02">SETUP_02</option></select></label><label>行业／板块<select id="sector-filter"><option value="">全部</option>{sector_options}</select></label><span id="visible-count" class="stage-nav-label"></span></section>
+<div class="results-heading"><h2 id="results-title">今日重点</h2><span id="results-description">先处理可入场、方案、确认、接近确认、持仓与异常</span></div>
 <section id="cards" class="cards" aria-live="polite">{cards}</section><div id="empty" class="empty" hidden>没有符合当前筛选条件的股票。</div>
-<div class="footer">内部状态、协议和原始诊断字段请展开股票卡片查看。Dashboard 不替代用户最终交易决定。</div>
+<div class="footer">默认只展示今日重点；观察中与低优先级结果请通过顶部导航查看。点击“查看详情”展开完整诊断。Dashboard 不替代用户最终交易决定。</div>
 </main>
 <script>
 (() => {{
-  const cards = Array.from(document.querySelectorAll('.stock-card'));
+  const cards = Array.from(document.querySelectorAll('.stock-row'));
+  const search = document.getElementById('search-filter');
   const market = document.getElementById('market-filter');
   const stage = document.getElementById('stage-filter');
   const setup = document.getElementById('setup-filter');
   const sector = document.getElementById('sector-filter');
   const empty = document.getElementById('empty');
   const count = document.getElementById('visible-count');
+  const resultsTitle = document.getElementById('results-title');
+  const resultsDescription = document.getElementById('results-description');
+  const navButtons = Array.from(document.querySelectorAll('.stage-link'));
+  let activeView = 'focus';
+  const viewDescriptions = {{
+    focus: '先处理可入场、方案、确认、接近确认、持仓与异常',
+    ARMED: '只看接近确认的股票',
+    WATCH: '只看观察中的股票',
+    confirmed: '只看今天新确认的事件',
+    STRATEGY_PROPOSAL: '只看已经形成交易方案的股票',
+    ENTRY_ALLOWED: '只看可以入场的股票',
+    POSITION_MANAGEMENT: '只看当前持仓',
+    all: '包含全部结果，以及低优先级诊断状态',
+  }};
+  const normalise = value => String(value || '').trim().toLocaleLowerCase();
+  const matchesView = card => {{
+    if (activeView === 'focus') return card.dataset.focus === '1';
+    if (activeView === 'confirmed') return card.dataset.confirmed === '1';
+    if (activeView === 'all') return true;
+    return card.dataset.stage === activeView;
+  }};
+  const setActiveView = view => {{
+    activeView = view;
+    navButtons.forEach(button => {{
+      button.setAttribute('aria-pressed', button.dataset.view === activeView ? 'true' : 'false');
+    }});
+  }};
+  const requestedView = new URLSearchParams(window.location.search).get('view') || window.location.hash.slice(1);
+  const initialView = requestedView && navButtons.some(button => button.dataset.view === requestedView)
+    ? requestedView
+    : 'focus';
   const apply = () => {{
     let visible = 0;
+    const searchValue = normalise(search.value);
     cards.forEach(card => {{
       const setupValues = card.dataset.setup.split(/\s*\/\s*/);
-      const matches = (!market.value || card.dataset.market === market.value)
+      const matches = matchesView(card)
+        && (!searchValue || normalise(card.dataset.search).includes(searchValue))
+        && (!market.value || card.dataset.market === market.value)
         && (!stage.value || card.dataset.stage === stage.value)
         && (!setup.value || setupValues.includes(setup.value))
         && (!sector.value || card.dataset.sector === sector.value);
@@ -1141,10 +1330,28 @@ def render_dashboard_html(value: Any) -> str:
       if (matches) visible += 1;
     }});
     empty.hidden = visible !== 0;
-    count.textContent = `显示 ${{visible}} / ${{cards.length}}`;
+    const viewLabel = activeView === 'focus' ? '今日重点' : activeView === 'all' ? '全部/诊断' : activeView === 'confirmed' ? '今日确认' : ({{ARMED:'接近确认', WATCH:'观察中', STRATEGY_PROPOSAL:'交易方案', ENTRY_ALLOWED:'可入场', POSITION_MANAGEMENT:'持仓'}}[activeView] || activeView);
+    resultsTitle.textContent = viewLabel;
+    resultsDescription.textContent = viewDescriptions[activeView] || '';
+    count.textContent = `${{viewLabel}}：${{visible}} / ${{cards.length}}`;
   }};
-  [market, stage, setup, sector].forEach(input => input.addEventListener('change', apply));
-  document.querySelectorAll('.stage-link').forEach(button => button.addEventListener('click', () => {{ stage.value = button.dataset.stage; apply(); }}));
+  [market, setup, sector].forEach(input => input.addEventListener('change', apply));
+  stage.addEventListener('change', () => {{
+    setActiveView('all');
+    apply();
+  }});
+  search.addEventListener('input', apply);
+  navButtons.forEach(button => button.addEventListener('click', () => {{
+    stage.value = '';
+    setActiveView(button.dataset.view);
+    apply();
+  }}));
+  document.querySelectorAll('.metric-link').forEach(button => button.addEventListener('click', () => {{
+    stage.value = '';
+    setActiveView(button.dataset.view);
+    apply();
+  }}));
+  setActiveView(initialView);
   apply();
 }})();
 </script>
@@ -1186,12 +1393,16 @@ def write_dashboard_html(
 
 __all__ = [
     "ACTION_LABELS",
+    "DEFAULT_FOCUS_STAGES",
     "MARKET_LABELS",
+    "NAV_VIEW_ORDER",
     "STAGE_LABELS",
     "STAGE_ORDER",
     "STATUS_LABELS",
     "WAVE_LABELS",
+    "WAVE_SHORT_LABELS",
     "dashboard_universe_metadata",
+    "dashboard_search_matches",
     "build_dashboard_projection",
     "load_dashboard_json",
     "render_dashboard_html",
