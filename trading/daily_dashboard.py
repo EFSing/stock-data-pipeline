@@ -51,7 +51,7 @@ NAV_VIEW_ORDER = (
 STAGE_LABELS = {
     "WATCH": "观察中",
     "ARMED": "接近确认",
-    "CONFIRMED": "今日确认",
+    "CONFIRMED": "今天出现新的确认",
     "STRATEGY_PROPOSAL": "已形成交易方案",
     "ENTRY_ALLOWED": "可入场",
     "POSITION_MANAGEMENT": "持仓管理",
@@ -63,7 +63,7 @@ STAGE_LABELS = {
 STATUS_LABELS = {
     "WATCH": "观察中",
     "ARMED": "接近确认",
-    "CONFIRMED": "今日确认",
+    "CONFIRMED": "出现新的确认",
     "STRATEGY_PROPOSAL": "已形成交易方案",
     "ENTRY_ALLOWED": "可入场",
     "PORTFOLIO_ALLOWED": "可入场",
@@ -78,8 +78,8 @@ STATUS_LABELS = {
 ACTION_LABELS = {
     "WATCH": "观察中",
     "ARMED": "接近确认",
-    "WAIT_CONFIRMATION": "等待确认",
-    "ENTRY_ALLOWED": "可入场",
+    "WAIT_CONFIRMATION": "继续观察",
+    "ENTRY_ALLOWED": "当前满足入场条件",
     "NO_TRADE": "今天不交易",
     "HOLD": "继续持有",
     "NO_ADD": "暂不加仓",
@@ -158,6 +158,58 @@ def _text(value: Any, default: str = "") -> str:
 def _display(value: Any, default: str = "—") -> str:
     text = _text(value)
     return text if text else default
+
+
+def _numeric(value: Any) -> float | None:
+    """Return a finite number for presentation-only formatting."""
+
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number and abs(number) != float("inf") else None
+
+
+def _format_number(
+    value: Any,
+    decimals: int,
+    *,
+    signed: bool = False,
+    trim: bool = True,
+) -> str:
+    number = _numeric(value)
+    if number is None:
+        return _display(value)
+    if abs(number) < 0.5 * 10 ** (-decimals):
+        number = 0.0
+    text = f"{number:.{decimals}f}"
+    if trim:
+        text = text.rstrip("0").rstrip(".")
+    if text in {"-0", ""}:
+        text = "0"
+    if signed and number >= 0:
+        text = "+" + text
+    return text
+
+
+def _format_price(value: Any, default: str = "—") -> str:
+    if value is None or _raw_text(value) in {"", "—", "-"}:
+        return default
+    return _format_number(value, 4)
+
+
+def _format_r(value: Any, default: str = "—") -> str:
+    if value is None or _raw_text(value) in {"", "—", "-"}:
+        return default
+    return f"{_format_number(value, 2, signed=True, trim=False)}R"
+
+
+def _format_rr(value: Any, default: str = "—") -> str:
+    if value is None or _raw_text(value) in {"", "—", "-"}:
+        return default
+    return _format_number(value, 2, trim=False)
 
 
 def _first_value(*values: Any) -> Any:
@@ -427,6 +479,42 @@ def _is_entry_allowed(
     return final_status in {"ENTRY_ALLOWED", "PORTFOLIO_ALLOWED"} or portfolio_status == "PORTFOLIO_ALLOWED"
 
 
+def _setup_states(result: Mapping[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        state
+        for state in (
+            _text(result.get("setup01_state")),
+            _text(result.get("setup02_state")),
+        )
+        if state not in {"", "NONE"}
+    )
+
+
+def _is_overall_failure(result: Mapping[str, Any]) -> bool:
+    """Only project an explicit overall failure, never a setup-local failure."""
+
+    explicit = _text(
+        _first_value(
+            result.get("overall_status"),
+            result.get("overall_stage"),
+            result.get("overall_final_status"),
+        )
+    )
+    if explicit == "FAILED":
+        return True
+    if _text(result.get("final_status")) != "FAILED":
+        return False
+    states = _setup_states(result)
+    # A single SETUP_01/02 FAILED row is local by default.  An unscoped final
+    # failure is overall only when every reported setup has failed (or no setup
+    # state was supplied at all).
+    return not states or len(states) > 1 and all(state == "FAILED" for state in states)
+
+
+def _has_persistent_confirmation(result: Mapping[str, Any]) -> bool:
+    return not _event_is_new(result) and "CONFIRMED" in _setup_states(result)
+
+
 def _setup(result: Mapping[str, Any], decision: Mapping[str, Any]) -> str:
     primary_wave = _text(result.get("primary_wave_scenario"))
     mapped = _PRIMARY_SETUP_BY_WAVE.get(primary_wave)
@@ -472,11 +560,11 @@ def _stage(
         return "STRATEGY_PROPOSAL"
     if event_is_new:
         return "CONFIRMED"
-    # A setup-local failure is not a whole-symbol failure.  Only the formal
-    # result's explicit final FAILED status may project a symbol-level failure.
-    if _text(result.get("final_status")) == "FAILED":
+    # A setup-local failure is not a whole-symbol failure.  Only an explicit
+    # overall failure may project a symbol-level failure.
+    if _is_overall_failure(result):
         return "FAILED"
-    states = {_text(result.get("setup01_state")), _text(result.get("setup02_state"))}
+    states = set(_setup_states(result))
     if "ARMED" in states:
         return "ARMED"
     if "WATCH" in states:
@@ -553,42 +641,74 @@ def _waiting(
     position_management: Mapping[str, Any],
 ) -> str:
     if stage == "WATCH":
-        return "下一步：等待结构进一步形成"
+        return "继续观察，暂不买入"
     if stage == "ARMED":
         confirmation = _confirmation_value(result, decision)
         if confirmation is not None:
-            return f"确认价：{_display(confirmation)}"
-        return _reason_text(result) or "等待确认条件"
+            return f"等待收盘突破 {_format_price(confirmation)}。"
+        return _reason_text(result) or "等待确认条件。"
     if stage == "CONFIRMED":
         # T-day confirmation is already followed by the existing individual
         # Decision calculation.  Do not imply that a plan is still forming.
         if _event_is_new(result):
-            return "今天出现确认，但当前价格/风险条件不适合交易"
-        return _reason_text(result) or "今天没有新的交易信号"
+            return "今天出现确认，但当前入场条件没有通过。"
+        return _reason_text(result) or "今天没有新的交易信号。"
     if stage == "STRATEGY_PROPOSAL":
         if candidate_only:
-            return "候选观察池：尚未进入正式策略池"
-        return _reason_text(result) or "等待人工确认与后续执行条件"
+            return "候选观察池，尚未进入正式策略池。"
+        return _reason_text(result) or "交易方案已经形成，正式实盘仍需人工批准。"
     if stage == "ENTRY_ALLOWED":
         execution_session = _earliest_execution_session(result, decision)
         if execution_session is not None:
-            return f"最早执行 session：{_display(execution_session)}"
-        return "交易方案已具备，按现有执行阶段推进"
+            return f"当前满足入场条件，等待 {_display(execution_session)}。"
+        return "当前满足入场条件，按现有执行阶段推进。"
     if stage == "POSITION_MANAGEMENT":
         action = _text(position_management.get("action"))
         return {
-            "HOLD": "继续持有，观察保护止损与目标",
-            "NO_ADD": "暂不加仓，继续观察持仓管理结果",
-            "PROFIT_PROTECTION": "按现有持仓管理结果保护利润",
-            "EXIT": "按现有持仓管理结果执行退出",
-        }.get(action, _reason_text(result) or "按现有持仓管理结果处理")
+            "HOLD": "继续持有。",
+            "NO_ADD": "继续持有，暂不加仓。",
+            "PROFIT_PROTECTION": "保护利润，按现有持仓管理规则推进。",
+            "EXIT": "按现有持仓管理结果执行退出。",
+        }.get(action, _reason_text(result) or "按现有持仓管理结果处理。")
     if stage == "FAILED":
-        return "结构已失效，今天不交易"
+        return "当前交易结构已失效。"
     if stage == "DATA_BLOCKED":
-        return "等待数据恢复或补齐生产前置条件"
+        return "数据异常，暂不交易，等待数据恢复。"
     if _text(result.get("primary_action")) == "WAIT_CONFIRMATION":
-        return "等待确认"
-    return _reason_text(result) or "今天不交易"
+        return "继续观察，等待确认。"
+    if _has_persistent_confirmation(result):
+        return "今天没有新的交易信号。"
+    return _reason_text(result) or "今天不交易。"
+
+
+def _plain_why(
+    stage: str,
+    result: Mapping[str, Any],
+    *,
+    primary_wave_label: str,
+    candidate_only: bool,
+) -> str:
+    if stage == "WATCH":
+        return f"当前关注“{primary_wave_label}”结构，但确认条件还没有出现。"
+    if stage == "ARMED":
+        return f"当前接近“{primary_wave_label}”确认，仍需满足确认条件。"
+    if stage == "CONFIRMED":
+        return f"今天出现新的“{primary_wave_label}”确认信号。"
+    if stage == "STRATEGY_PROPOSAL":
+        if candidate_only:
+            return "候选标的已经形成技术方案，但还没有进入正式策略池。"
+        return "现有结构、入场区间和目标风险收益已经形成交易方案。"
+    if stage == "ENTRY_ALLOWED":
+        return "现有交易方案满足入场条件，仍需按 T+1 执行规则检查。"
+    if stage == "POSITION_MANAGEMENT":
+        return "该标的已经进入持仓管理，当前只评估持仓动作。"
+    if stage == "FAILED":
+        return "最终整体状态明确显示交易结构已经失效。"
+    if stage == "DATA_BLOCKED":
+        return "行情或生产前置数据没有达到可用要求。"
+    if _has_persistent_confirmation(result):
+        return "此前已经确认，但今天没有新的确认事件。"
+    return _reason_text(result) or "当前没有满足入场条件的交易方案。"
 
 
 def _targets(decision: Mapping[str, Any]) -> tuple[Any, ...]:
@@ -602,23 +722,23 @@ def _rr_display(decision: Mapping[str, Any]) -> str:
     rr = _mapping(decision.get("rr"))
     ratios = _sequence(rr.get("rr_ratios"))
     if ratios:
-        return " / ".join(f"{_display(value)}R" for value in ratios)
-    return _display(rr.get("rr"))
+        return " / ".join(_format_rr(value) for value in ratios)
+    return _format_rr(rr.get("rr"))
 
 
 def _price_plan(decision: Mapping[str, Any]) -> dict[str, Any]:
     target_values = _targets(decision)
     return {
-        "planned_entry": _display(decision.get("planned_entry"), "尚未形成"),
-        "execution_stop": _display(decision.get("execution_stop")),
-        "target_1": _display(target_values[0] if len(target_values) > 0 else None),
-        "target_2": _display(target_values[1] if len(target_values) > 1 else None),
-        "target_3": _display(target_values[2] if len(target_values) > 2 else None),
+        "planned_entry": _format_price(decision.get("planned_entry"), "尚未形成"),
+        "execution_stop": _format_price(decision.get("execution_stop")),
+        "target_1": _format_price(target_values[0] if len(target_values) > 0 else None),
+        "target_2": _format_price(target_values[1] if len(target_values) > 1 else None),
+        "target_3": _format_price(target_values[2] if len(target_values) > 2 else None),
         "rr": _rr_display(decision),
         "rr_quality": _display(_mapping(decision.get("rr")).get("quality")),
-        "confirmation_level": _display(decision.get("confirmation_level")),
-        "entry_zone_low": _display(decision.get("entry_zone_low")),
-        "entry_zone_high": _display(decision.get("entry_zone_high")),
+        "confirmation_level": _format_price(decision.get("confirmation_level")),
+        "entry_zone_low": _format_price(decision.get("entry_zone_low")),
+        "entry_zone_high": _format_price(decision.get("entry_zone_high")),
         "has_decision": bool(decision),
     }
 
@@ -636,21 +756,21 @@ def _position_projection(
     )
     target_values = _sequence(targets)
     return {
-        "actual_entry": _display(
+        "actual_entry": _format_price(
             _first_value(
                 position_management.get("actual_entry"),
                 position.get("actual_entry"),
                 stored.get("actual_entry"),
             )
         ),
-        "current_price": _display(
+        "current_price": _format_price(
             _first_value(
                 position_management.get("current_price"),
                 position.get("current_price"),
                 stored.get("current_price"),
             )
         ),
-        "active_protective_stop": _display(
+        "active_protective_stop": _format_price(
             _first_value(
                 position_management.get("active_protective_stop"),
                 position_management.get("active_stop_at_open"),
@@ -658,17 +778,17 @@ def _position_projection(
                 stored.get("active_protective_stop"),
             )
         ),
-        "targets": tuple(target_values[:3]),
-        "current_r": _display(
+        "targets": tuple(_format_price(value) for value in target_values[:3]),
+        "current_r": _format_r(
             _first_value(position_management.get("current_r"), position.get("current_r"), stored.get("current_r"))
         ),
-        "mfe_r": _display(
+        "mfe_r": _format_r(
             _first_value(position_management.get("mfe_r"), position.get("mfe_r"), stored.get("mfe_r"))
         ),
-        "mae_r": _display(
+        "mae_r": _format_r(
             _first_value(position_management.get("mae_r"), position.get("mae_r"), stored.get("mae_r"))
         ),
-        "mfe_drawdown_r": _display(
+        "mfe_drawdown_r": _format_r(
             _first_value(
                 position_management.get("mfe_drawdown_r"),
                 position.get("mfe_drawdown_r"),
@@ -721,6 +841,17 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
     action = _text(result.get("primary_action")) or _decision_action(decision)
     primary_wave = _text(result.get("primary_wave_scenario"), "UNKNOWN")
     confirmation = _confirmation_value(result, decision)
+    primary_wave_label = WAVE_LABELS.get(
+        primary_wave,
+        f"波浪状态：{primary_wave}",
+    )
+    next_step = _waiting(
+        stage,
+        result,
+        decision,
+        candidate_only=candidate_only,
+        position_management=position_management,
+    )
     return {
         "account_id": _text(entry.get("account_id"), "—"),
         "symbol": symbol,
@@ -731,14 +862,13 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "stage_key": stage,
         "stage_label": STAGE_LABELS.get(stage, stage),
         "status_key": final_status or stage,
-        "status_label": STATUS_LABELS.get(final_status, STAGE_LABELS.get(stage, final_status or "—")),
+        # The default view follows the projected overall stage.  Raw final
+        # status remains available below in the technical/audit section.
+        "status_label": STAGE_LABELS.get(stage, stage),
         "action_key": action or "—",
         "action_label": ACTION_LABELS.get(action, STATUS_LABELS.get(action, action or "—")),
         "primary_wave": primary_wave,
-        "primary_wave_label": WAVE_LABELS.get(
-            primary_wave,
-            f"波浪状态：{primary_wave}",
-        ),
+        "primary_wave_label": primary_wave_label,
         "primary_wave_short_label": WAVE_SHORT_LABELS.get(primary_wave, "波浪尚未确定"),
         "alternate_wave": _text(result.get("alternate_wave_scenario"), "UNKNOWN"),
         "alternate_wave_label": WAVE_LABELS.get(
@@ -756,14 +886,16 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "data_blocked": data_blocked,
         "event_is_new": event_is_new,
         "default_focus": stage in DEFAULT_FOCUS_STAGES or event_is_new,
-        "confirmation_level": _display(confirmation),
-        "waiting": _waiting(
+        "confirmation_level": _format_price(confirmation),
+        "today_conclusion": STAGE_LABELS.get(stage, stage),
+        "why": _plain_why(
             stage,
             result,
-            decision,
+            primary_wave_label=primary_wave_label,
             candidate_only=candidate_only,
-            position_management=position_management,
         ),
+        "waiting": next_step,
+        "next_step": next_step,
         "plan": _price_plan(decision),
         "position": _position_projection(result, universe, symbol, position_management),
         "decision": decision,
@@ -978,21 +1110,39 @@ def _render_plan(row: Mapping[str, Any]) -> str:
     if not plan.get("has_decision"):
         return ""
     fields = (
-        ("计划入场", plan.get("planned_entry")),
-        ("Execution Stop", plan.get("execution_stop")),
-        ("Target 1", plan.get("target_1")),
-        ("Target 2", plan.get("target_2")),
-        ("Target 3", plan.get("target_3")),
-        ("R/R", plan.get("rr")),
+        ("确认价", plan.get("confirmation_level")),
+        ("入场区间", _entry_zone_text(plan)),
+        ("执行止损", plan.get("execution_stop")),
+        ("目标价 T1", plan.get("target_1")),
+        ("目标价 T2", plan.get("target_2")),
+        ("目标价 T3", plan.get("target_3")),
+        ("第一目标 R/R", _first_rr_text(plan.get("rr"))),
     )
     field_grid = _render_field_grid(fields, extra_class="plan-grid")
     if not field_grid:
         return ""
     return (
-        '<section class="panel plan-panel"><h3>交易方案</h3>'
+        '<section class="panel plan-panel"><h3>关键价格</h3>'
         + field_grid
         + "</section>"
     )
+
+
+def _entry_zone_text(plan: Mapping[str, Any]) -> str:
+    low = plan.get("entry_zone_low")
+    high = plan.get("entry_zone_high")
+    if not _has_display_value(low) and not _has_display_value(high):
+        return ""
+    if _has_display_value(low) and _has_display_value(high):
+        return f"{low} – {high}"
+    return _display(low if _has_display_value(low) else high)
+
+
+def _first_rr_text(value: Any) -> str:
+    text = _raw_text(value)
+    if not text:
+        return ""
+    return _format_rr(text.split("/", 1)[0].strip())
 
 
 def _render_position(row: Mapping[str, Any]) -> str:
@@ -1004,14 +1154,14 @@ def _render_position(row: Mapping[str, Any]) -> str:
                 ("实际入场", "actual_entry"),
                 ("当前价格", "current_price"),
                 ("当前保护止损", "active_protective_stop"),
-                ("Target 1", "target_1"),
-                ("Target 2", "target_2"),
-                ("Target 3", "target_3"),
-                ("Current R", "current_r"),
-                ("MFE", "mfe_r"),
-                ("MAE", "mae_r"),
-                ("MFE Drawdown", "mfe_drawdown_r"),
-                ("管理动作", "action_label"),
+                ("目标价 T1", "target_1"),
+                ("目标价 T2", "target_2"),
+                ("目标价 T3", "target_3"),
+                ("当前 R", "current_r"),
+                ("最高浮盈 MFE", "mfe_r"),
+                ("最大不利 MAE", "mae_r"),
+                ("MFE 回撤", "mfe_drawdown_r"),
+                ("现在要做什么", "action_label"),
             )
         )
     )
@@ -1029,9 +1179,9 @@ def _position_fields(row: Mapping[str, Any]) -> dict[str, Any]:
     targets = _sequence(position.get("targets"))
     return {
         **position,
-        "target_1": _display(targets[0] if len(targets) > 0 else None),
-        "target_2": _display(targets[1] if len(targets) > 1 else None),
-        "target_3": _display(targets[2] if len(targets) > 2 else None),
+        "target_1": _format_price(targets[0] if len(targets) > 0 else None),
+        "target_2": _format_price(targets[1] if len(targets) > 1 else None),
+        "target_3": _format_price(targets[2] if len(targets) > 2 else None),
     }
 
 
@@ -1041,15 +1191,15 @@ def _compact_price(row: Mapping[str, Any]) -> str:
     if stage in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"} and plan.get("has_decision"):
         values = []
         if _has_display_value(plan.get("planned_entry")):
-            values.append(f"计划入场：{_display(plan.get('planned_entry'))}")
+            values.append(f"入场：{_display(plan.get('planned_entry'))}")
         if _has_display_value(plan.get("execution_stop")):
-            values.append(f"Stop：{_display(plan.get('execution_stop'))}")
+            values.append(f"止损：{_display(plan.get('execution_stop'))}")
         return " · ".join(values)
     if stage == "POSITION_MANAGEMENT":
         position = _mapping(row.get("position"))
         values = []
         if _has_display_value(position.get("current_price")):
-            values.append(f"当前价：{_display(position.get('current_price'))}")
+            values.append(f"当前价格：{_display(position.get('current_price'))}")
         if _has_display_value(position.get("active_protective_stop")):
             values.append(f"保护止损：{_display(position.get('active_protective_stop'))}")
         return " · ".join(values)
@@ -1121,12 +1271,18 @@ def _render_details(row: Mapping[str, Any]) -> str:
     )
     return (
         '<details class="details"><summary>查看详情</summary><div class="detail-body">'
+        '<section class="plain-summary">'
+        f'<section><h3>今天结论</h3><p>{_escape(row.get("today_conclusion"))}</p></section>'
+        f'<section><h3>为什么</h3><p>{_escape(row.get("why"))}</p></section>'
+        f'<section><h3>还差什么 / 现在要做什么</h3><p>{_escape(row.get("next_step"))}</p></section>'
+        '</section>'
         + _render_plan(row)
         + (_render_position({**row, "position": position}) if row.get("is_position") else "")
+        + '<details class="technical-details"><summary>查看技术详情 / 审计信息</summary><div class="detail-body">'
         + '<div class="detail-grid">'
-        '<section><h4>Primary / Alternate Wave</h4>'
-        f'<p>{_escape(row.get("primary_wave_label"))} <code>{_escape(row.get("primary_wave"))}</code></p>'
-        f'<p>{_escape(row.get("alternate_wave_label"))} <code>{_escape(row.get("alternate_wave"))}</code></p>'
+        '<section><h4>Wave / 结构</h4>'
+        f'<p>Primary：{_escape(row.get("primary_wave"))}</p>'
+        f'<p>Alternate：{_escape(row.get("alternate_wave"))}</p>'
         f'<p>Wave evidence：{_escape(wave_evidence)}</p>'
         f'<p>Invalidation：{_escape(wave_invalidation)}</p>'
         f'<p>周线／日线：{_escape(result.get("weekly_state"))} / {_escape(result.get("daily_state"))}</p>'
@@ -1147,7 +1303,9 @@ def _render_details(row: Mapping[str, Any]) -> str:
         f'<p>Reasons：{_escape(reasons_text)}</p>'
         f'<p>Blockers：{_escape(blocking_text)}</p></section>'
         '</div>'
+        f'<p>最终状态原值：{_escape(row.get("status_key"))}；动作原值：{_escape(row.get("action_key"))}</p>'
         f'<h4>原始 Daily Decision 字段</h4><pre>{html.escape(_json_text(result), quote=False)}</pre>'
+        '</div></details>'
         '</div></details>'
     )
 
@@ -1158,7 +1316,7 @@ def _render_row(row: Mapping[str, Any]) -> str:
         for value in row["identity_labels"]
     )
     if row["event_is_new"]:
-        identity += '<span class="badge positive">今日确认</span>'
+        identity += '<span class="badge positive">今天出现确认</span>'
     stage_class = row["stage_key"].lower().replace("_", "-")
     compact_price = _compact_price(row)
     search_text = _dashboard_search_text(row)
@@ -1183,9 +1341,8 @@ def _render_row(row: Mapping[str, Any]) -> str:
         '</div>'
         f'<span class="stage stage-{stage_class}">{_escape(row["stage_label"])}</span></div>'
         '<div class="row-bottom"><div class="row-signals">'
-        f'<span class="row-wave">{_escape(row["primary_wave_short_label"])}</span>'
-        f'<span class="row-setup">{_escape(row["setup_label"])}</span>'
-        f'<span class="row-next">{_escape(row["waiting"])}</span>'
+        f'<span class="row-why">{_escape(row["why"])}</span>'
+        f'<span class="row-next">{_escape(row["next_step"])}</span>'
         + price_block
         + '</div><div class="row-actions"><div class="identity-row">'
         + identity
@@ -1224,7 +1381,7 @@ def render_dashboard_html(value: Any) -> str:
         ("focus", "今日重点", sum(row["default_focus"] for row in projection["rows"])),
         ("ARMED", "接近确认", summary["armed_count"]),
         ("WATCH", "观察中", summary["watch_count"]),
-        ("confirmed", "今日确认", summary["new_confirmed_count"]),
+        ("confirmed", "新确认", summary["new_confirmed_count"]),
         ("STRATEGY_PROPOSAL", "交易方案", summary["strategy_proposal_count"]),
         ("ENTRY_ALLOWED", "可入场", summary["entry_allowed_count"]),
         ("POSITION_MANAGEMENT", "持仓", summary["position_count"]),
@@ -1266,7 +1423,7 @@ def render_dashboard_html(value: Any) -> str:
 .filters {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:#eaf0f6; border:1px solid var(--line); border-radius:11px; padding:9px 10px; margin-bottom:10px; }} .filters label {{ display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }} .search-field {{ flex:1 1 250px; }} select,input[type="search"] {{ border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:6px 9px; font:inherit; min-width:100px; }} input[type="search"] {{ width:100%; min-width:200px; }}
 .results-heading {{ display:flex; align-items:baseline; gap:10px; margin:13px 2px 7px; }} .results-heading h2 {{ margin:0; font-size:20px; }} .results-heading span {{ color:var(--muted); font-size:12px; }} .cards {{ display:flex; flex-direction:column; gap:7px; }} .stock-row {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 13px; box-shadow:0 3px 12px #18324b08; }} .stock-row[hidden] {{ display:none; }}
 .row-top {{ display:flex; justify-content:space-between; align-items:center; gap:10px; min-width:0; }} .row-identity {{ display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 9px; min-width:0; }} .ticker {{ font-size:16px; font-weight:800; letter-spacing:.02em; }} .company {{ font-weight:750; }} .sector {{ color:var(--muted); font-size:13px; }} .market-chip {{ color:var(--muted); font-size:12px; border-left:1px solid var(--line); padding-left:9px; }} .stage {{ white-space:nowrap; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; }} .stage-watch,.stage-armed {{ background:var(--amber-soft); color:var(--amber); }} .stage-confirmed,.stage-strategy-proposal,.stage-entry-allowed {{ background:var(--blue-soft); color:var(--blue); }} .stage-position-management {{ background:var(--teal-soft); color:var(--teal); }} .stage-failed,.stage-data-blocked {{ background:var(--red-soft); color:var(--red); }} .stage-no-trade {{ background:#edf1f6; color:var(--muted); }}
-.row-bottom {{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:5px; }} .row-signals {{ display:flex; flex:1 1 420px; flex-wrap:wrap; align-items:center; gap:4px 11px; min-width:0; }} .row-signals > span {{ font-size:13px; }} .row-wave {{ color:var(--blue); font-weight:750; }} .row-setup {{ color:#53687b; font:12px Consolas,monospace; }} .row-next {{ color:var(--muted); overflow-wrap:anywhere; }} .row-price {{ color:var(--teal); font-weight:700; }} .row-actions {{ display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; }} .identity-row {{ display:flex; flex-wrap:wrap; gap:4px; margin:0; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:2px 6px; color:#486074; font-size:11px; background:#f7fafc; white-space:nowrap; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
+.row-bottom {{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:5px; }} .row-signals {{ display:flex; flex:1 1 420px; flex-wrap:wrap; align-items:center; gap:4px 11px; min-width:0; }} .row-signals > span {{ font-size:13px; }} .row-why {{ color:#53687b; font-weight:650; overflow-wrap:anywhere; }} .row-wave {{ color:var(--blue); font-weight:750; }} .row-setup {{ color:#53687b; font:12px Consolas,monospace; }} .row-next {{ color:var(--muted); overflow-wrap:anywhere; }} .row-price {{ color:var(--teal); font-weight:700; }} .row-actions {{ display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; }} .identity-row {{ display:flex; flex-wrap:wrap; gap:4px; margin:0; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:2px 6px; color:#486074; font-size:11px; background:#f7fafc; white-space:nowrap; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
 .details {{ flex:0 0 auto; margin:0; border:0; padding:0; }} .details[open] {{ flex-basis:100%; }} .details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; white-space:nowrap; list-style:none; }} .details summary::-webkit-details-marker {{ display:none; }} .details summary::before {{ content:"＋ "; }} .details[open] summary::before {{ content:"− "; }} .detail-body {{ border-top:1px solid var(--line); margin-top:8px; padding-top:10px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:11px; margin-top:11px; }} .panel h3 {{ margin:0 0 8px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }} .detail-grid section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .detail-grid h4,.details h4 {{ margin:0 0 4px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:9px; padding:11px; font:12px/1.5 Consolas,monospace; }}
 .empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
 @media (max-width:1050px) {{ .summary-primary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:18px 20px; border-radius:15px; }} .summary-primary {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .summary-secondary {{ flex-direction:column; }} .market-grid {{ grid-template-columns:1fr; }} .row-top {{ align-items:flex-start; }} .stage {{ margin-top:1px; }} .row-signals {{ flex-basis:100%; }} .row-actions {{ width:100%; justify-content:space-between; margin-left:0; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:7px; }} .ticker {{ font-size:15px; }} }}

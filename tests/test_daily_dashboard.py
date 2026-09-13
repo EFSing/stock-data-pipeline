@@ -56,7 +56,7 @@ class DailyDashboardTests(unittest.TestCase):
         )
         self.assertEqual(rows["600001.SH"]["stage_label"], "观察中")
         self.assertEqual(rows["600002.SH"]["stage_label"], "接近确认")
-        self.assertEqual(rows["AAA"]["stage_label"], "今日确认")
+        self.assertEqual(rows["AAA"]["stage_label"], "今天出现新的确认")
         self.assertEqual(rows["BBB"]["stage_label"], "已形成交易方案")
         self.assertEqual(rows["CCC"]["stage_label"], "可入场")
         self.assertEqual(rows["600003.SH"]["stage_label"], "持仓管理")
@@ -116,6 +116,7 @@ class DailyDashboardTests(unittest.TestCase):
                     "position_management": None,
                     "reasons": ["failed"],
                     "blocking_prerequisites": [],
+                    "overall_status": "FAILED",
                     "final_status": "FAILED",
                 },
             ]
@@ -159,24 +160,127 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(row["stage_label"], "今天不交易")
         self.assertNotEqual(row["waiting"], "结构已失效，今天不交易")
 
+    def test_persistent_confirmed_is_not_rendered_as_a_new_confirmation(self):
+        payload = deepcopy(self.payload)
+        payload["reports"][0]["报告"]["results"].append(
+            {
+                "symbol": "PERSISTENT1",
+                "market": "CN",
+                "as_of_date": "2026-09-03",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "setup01_state": "CONFIRMED",
+                "setup02_state": "NONE",
+                "primary_action": "NO_TRADE",
+                "event_was_new": False,
+                "individual_decision": None,
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": [],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+            }
+        )
+
+        row = next(
+            row for row in build_dashboard_projection(payload)["rows"]
+            if row["symbol"] == "PERSISTENT1"
+        )
+
+        self.assertEqual(row["stage_key"], "NO_TRADE")
+        self.assertEqual(row["stage_label"], "今天不交易")
+        self.assertEqual(row["waiting"], "今天没有新的交易信号。")
+        self.assertNotEqual(row["status_label"], "今日确认")
+
+    def test_single_setup_failure_is_not_overall_failure_without_overall_status(self):
+        payload = deepcopy(self.payload)
+        payload["reports"][0]["报告"]["results"].append(
+            {
+                "symbol": "LOCALFAIL1",
+                "market": "CN",
+                "as_of_date": "2026-09-03",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "setup01_state": "FAILED",
+                "setup02_state": "NONE",
+                "primary_action": "NO_TRADE",
+                "event_was_new": False,
+                "individual_decision": None,
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": ["setup01 failed"],
+                "blocking_prerequisites": [],
+                "final_status": "FAILED",
+            }
+        )
+
+        row = next(
+            row for row in build_dashboard_projection(payload)["rows"]
+            if row["symbol"] == "LOCALFAIL1"
+        )
+
+        self.assertEqual(row["stage_key"], "NO_TRADE")
+        self.assertEqual(row["stage_label"], "今天不交易")
+        self.assertNotIn("已失效", row["waiting"])
+
+    def test_plain_view_formats_prices_and_keeps_long_float_in_audit_only(self):
+        payload = deepcopy(self.payload)
+        payload["reports"][1]["报告"]["results"].append(
+            {
+                "symbol": "FLOAT1",
+                "market": "US",
+                "as_of_date": "2026-09-03",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "setup01_state": "CONFIRMED",
+                "setup02_state": "NONE",
+                "primary_action": "ENTRY_ALLOWED",
+                "event_was_new": False,
+                "individual_decision": {
+                    "action": "ENTRY_ALLOWED",
+                    "planned_entry": 3.737499999999997,
+                    "execution_stop": 1.0658307210031355,
+                    "targets": [4.25],
+                    "rr": {"rr_ratios": [2.73456789]},
+                },
+                "portfolio_result": {"status": "PORTFOLIO_ALLOWED"},
+                "position_management": None,
+                "reasons": [],
+                "blocking_prerequisites": [],
+                "final_status": "PORTFOLIO_ALLOWED",
+            }
+        )
+
+        projection = build_dashboard_projection(payload)
+        row = next(row for row in projection["rows"] if row["symbol"] == "FLOAT1")
+        self.assertEqual(row["plan"]["planned_entry"], "3.7375")
+        self.assertEqual(row["plan"]["execution_stop"], "1.0658")
+        self.assertEqual(row["plan"]["rr"], "2.73")
+
+        rendered = render_dashboard_html(payload)
+        start = rendered.index('data-search="FLOAT1')
+        end = rendered.index("</article>", start)
+        float_card = rendered[start:end]
+        user_view = float_card.split('<details class="technical-details">', 1)[0]
+        self.assertIn("3.7375", user_view)
+        self.assertNotIn("3.737499999999997", user_view)
+        self.assertIn("查看技术详情 / 审计信息", rendered)
+
     def test_new_confirmation_without_entry_plan_is_explained_as_not_trade(self):
         rows = {
             row["symbol"]: row
             for row in build_dashboard_projection(self.payload)["rows"]
         }
 
-        self.assertEqual(
-            rows["AAA"]["waiting"],
-            "今天出现确认，但当前价格/风险条件不适合交易",
-        )
+        self.assertEqual(rows["AAA"]["waiting"], "今天出现确认，但当前入场条件没有通过。")
         self.assertNotIn("等待交易方案形成", rows["AAA"]["waiting"])
 
     def test_watch_and_armed_never_invent_entry(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
 
-        self.assertEqual(rows["600001.SH"]["waiting"], "下一步：等待结构进一步形成")
+        self.assertEqual(rows["600001.SH"]["waiting"], "继续观察，暂不买入")
         self.assertEqual(rows["600001.SH"]["plan"]["planned_entry"], "尚未形成")
-        self.assertEqual(rows["600002.SH"]["waiting"], "确认价：123.45")
+        self.assertEqual(rows["600002.SH"]["waiting"], "等待收盘突破 123.45。")
         self.assertEqual(rows["600002.SH"]["plan"]["planned_entry"], "尚未形成")
         self.assertEqual(rows["600002.SH"]["plan"]["execution_stop"], "—")
 
@@ -222,32 +326,32 @@ class DailyDashboardTests(unittest.TestCase):
             "DATA_BLOCKED",
         )
 
-    def test_existing_decision_and_position_fields_are_displayed_verbatim(self):
+    def test_existing_decision_and_position_fields_are_presented_with_safe_formatting(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
 
         proposal = rows["BBB"]["plan"]
-        self.assertEqual(proposal["planned_entry"], "200.0")
-        self.assertEqual(proposal["execution_stop"], "190.0")
-        self.assertEqual(proposal["target_1"], "220.0")
-        self.assertEqual(proposal["target_2"], "230.0")
-        self.assertEqual(proposal["target_3"], "240.0")
-        self.assertEqual(proposal["rr"], "2.0R / 3.0R / 4.0R")
+        self.assertEqual(proposal["planned_entry"], "200")
+        self.assertEqual(proposal["execution_stop"], "190")
+        self.assertEqual(proposal["target_1"], "220")
+        self.assertEqual(proposal["target_2"], "230")
+        self.assertEqual(proposal["target_3"], "240")
+        self.assertEqual(proposal["rr"], "2.00 / 3.00 / 4.00")
         self.assertEqual(rows["BBB"]["waiting"], "等待人工批准该交易方案")
 
         entry = rows["CCC"]["plan"]
         self.assertEqual(rows["CCC"]["stage_label"], "可入场")
-        self.assertEqual(entry["planned_entry"], "300.0")
-        self.assertEqual(rows["CCC"]["waiting"], "最早执行 session：2026-09-04 US")
+        self.assertEqual(entry["planned_entry"], "300")
+        self.assertEqual(rows["CCC"]["waiting"], "当前满足入场条件，等待 2026-09-04 US。")
 
         position = rows["600003.SH"]["position"]
-        self.assertEqual(position["actual_entry"], "100.0")
-        self.assertEqual(position["current_price"], "112.0")
-        self.assertEqual(position["active_protective_stop"], "104.0")
-        self.assertEqual(position["targets"], (120.0, 130.0, 140.0))
-        self.assertEqual(position["current_r"], "1.2")
-        self.assertEqual(position["mfe_r"], "1.8")
-        self.assertEqual(position["mae_r"], "-0.2")
-        self.assertEqual(position["mfe_drawdown_r"], "0.6")
+        self.assertEqual(position["actual_entry"], "100")
+        self.assertEqual(position["current_price"], "112")
+        self.assertEqual(position["active_protective_stop"], "104")
+        self.assertEqual(position["targets"], ("120", "130", "140"))
+        self.assertEqual(position["current_r"], "+1.20R")
+        self.assertEqual(position["mfe_r"], "+1.80R")
+        self.assertEqual(position["mae_r"], "-0.20R")
+        self.assertEqual(position["mfe_drawdown_r"], "+0.60R")
         self.assertEqual(position["action"], "HOLD")
         self.assertEqual(position["action_label"], "继续持有")
 
@@ -295,11 +399,13 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("示例数据 / Synthetic Demo", html)
         self.assertIn("专用设备", html)
         self.assertNotIn("示例科技<&", html)
-        self.assertIn("计划入场", html)
+        self.assertIn("关键价格", html)
         self.assertIn("候选观察池", html)
         self.assertIn("尚未进入正式策略池", html)
-        self.assertIn("今日确认", html)
+        self.assertIn("今天出现新的确认", html)
         self.assertIn("查看详情", html)
+        self.assertIn("查看技术详情 / 审计信息", html)
+        self.assertNotIn('<details class="technical-details" open>', html)
         self.assertIn("id=\"search-filter\"", html)
         self.assertIn("data-view=\"focus\"", html)
         self.assertIn("data-view=\"WATCH\"", html)
@@ -336,8 +442,9 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertNotIn("交易方案", html[watch_start:watch_end])
         self.assertNotIn("交易方案", html[armed_start:armed_end])
         self.assertIn("交易方案", html[proposal_start:proposal_end])
-        self.assertIn("200.0", html[proposal_start:proposal_end])
-        self.assertIn("Target 1", html[proposal_start:proposal_end])
+        self.assertIn("200", html[proposal_start:proposal_end])
+        self.assertIn("目标价 T1", html[proposal_start:proposal_end])
+        self.assertIn("已形成交易方案", html[proposal_start:proposal_end])
 
     def test_same_input_is_deterministic_and_writer_creates_latest_and_date_copy(self):
         first = render_dashboard_html(self.payload)
