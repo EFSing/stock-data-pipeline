@@ -462,6 +462,89 @@ class DailyDashboardTests(unittest.TestCase):
                 (Path(directory) / "2026-09-03.html").read_text(encoding="utf-8"),
             )
 
+    def test_paper_workspaces_project_lifecycle_stats_and_plain_language(self):
+        payload = deepcopy(self.payload)
+        payload["paper_tracking"] = {
+            "enabled": True,
+            "result": {
+                "trades": [{
+                    "event_identity": "E|SETUP_01|CONFIRMED",
+                    "symbol": "PAPER1",
+                    "market": "US",
+                    "name": "模拟示例",
+                    "source_provenance": "DYNAMIC_CANDIDATE",
+                    "source_setup": "SETUP_01",
+                    "signal_date": "2026-09-03",
+                    "expected_execution_date": "2026-09-04",
+                    "status": "CLOSED",
+                    "planned_entry": 100,
+                    "execution_date": "2026-09-04",
+                    "t1_open": 101,
+                    "execution_outcome": "EXECUTED",
+                    "actual_entry": 101,
+                    "exit_date": "2026-09-08",
+                    "exit_price": 110,
+                    "exit_reason": "PROFIT_PROTECTION_EXIT_PENDING",
+                    "realized_r": 1.8,
+                    "return_pct": 0.089,
+                    "holding_days": 3,
+                    "final_mfe": 2.2,
+                    "final_mae": -0.1,
+                    "current_r": 1.8,
+                    "why_entry": "T日收盘形成方案",
+                    "why_execution": "T+1开盘满足条件",
+                    "why_hold": "继续持有",
+                    "why_protect": "保护利润",
+                    "why_exit": "收盘触发利润保护，下一交易日退出",
+                    "logic_explanation": {
+                        "why_plan": "2浪调整结束 → 等待3浪启动",
+                        "when_execute": "最早 exact T+1 market-session OPEN",
+                        "execution_checks": "沿用现有执行检查",
+                        "target_policy": "不是机械到价自动卖出",
+                    },
+                    "promotion_required": True,
+                    "state_persistence_eligible": False,
+                    "production_execution_eligible": False,
+                }],
+                "coverage": [{
+                    "market": "US",
+                    "tracking_start_date": "2026-09-03",
+                    "latest_processed_session": "2026-09-08",
+                    "coverage_status": "CONTINUOUS",
+                    "coverage_gap": None,
+                }],
+                "performance": {
+                    "plans": 1,
+                    "executed": 1,
+                    "skipped": 0,
+                    "open": 0,
+                    "closed": 1,
+                    "wins": 1,
+                    "losses": 0,
+                    "flats": 0,
+                    "win_rate": 1.0,
+                    "average_r": 1.8,
+                    "median_r": 1.8,
+                    "average_return_pct": 0.089,
+                    "average_holding_days": 3.0,
+                    "average_mfe": 2.2,
+                    "average_mae": -0.1,
+                },
+                "grouped_performance": {},
+                "errors": [],
+            },
+        }
+
+        projection = build_dashboard_projection(payload)
+        self.assertTrue(projection["paper"]["enabled"])
+        self.assertEqual(projection["paper"]["status_counts"], {"CLOSED": 1})
+        self.assertFalse(projection["paper"]["coverage_warning"])
+        html = render_dashboard_html(payload)
+        for label in ("模拟交易", "绩效统计", "策略规则", "为什么入场", "为什么执行／跳过", "为什么持有", "为什么保护", "为什么退出"):
+            self.assertIn(label, html)
+        self.assertIn("Target reached 只记录目标状态，不自动止盈", html)
+        self.assertIn("DYNAMIC_CANDIDATE", html)
+
 
 if __name__ == "__main__":
     unittest.main()

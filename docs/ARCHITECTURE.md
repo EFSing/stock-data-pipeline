@@ -43,6 +43,17 @@ SETUP_01 / SETUP_02 → Decision → Portfolio Risk → Position Management
         → optional presentation-only projection
         → standalone reports/daily_dashboard/latest.html (+ date copy)
 
+Explicit Paper Tracking (--run --paper-track; never implicit)
+        ↓
+策略模拟账本 (system-owned, append-only, independent from production state)
+        → new CONFIRMED + existing SETUP_01/02 ENTRY_ALLOWED only
+        → PAPER_PLAN_CREATED → exact T+1 PAPER_T1_EXECUTED / PAPER_T1_SKIPPED
+        → existing position_origin_from_execution + replay_position
+        → PAPER_CLOSED only on an existing Position Management exit
+        → normalized trade-level performance / market coverage projection
+        → active Paper symbols are added to the same existing QFQ loading path
+        → no strategy-state write, production approval, allocation, holdings or broker order
+
 Candidate Strategy Shadow Bridge (manual/local read-only runtime)
         ↓
 scripts/run_candidate_strategy_shadow_bridge_v1_tushare_probe.py
@@ -131,6 +142,13 @@ T+1 pending, reserve Portfolio Risk, or become production-execution eligible; ma
 into `策略股票池` is required. The runtime does not approve events, write strategy input
 worksheets, or submit orders.
 
+When explicit Paper Tracking is enabled, the runner opens only the system-owned
+`策略模拟账本` append-only store. Active Paper symbols are passed to the same bounded
+runtime and existing yfinance QFQ provider even when they have dropped out of the current
+Candidate universe; a valid current completed-session QFQ input replaces only a paper-only
+missing/stale Sheet input. Missing or stale history stays DATA_* / fail-closed. Paper plans
+are prospective and are never created from a historical Candidate snapshot.
+
 The Candidate Strategy Shadow Bridge is a manual/local development path. `--market cn` and
 `--market us` execute independently; `--market all` aggregates both only for convenience and
 is not the runtime acceptance standard. It preserves the Candidate selector and frozen
@@ -174,6 +192,21 @@ All bridge execution is read-only.
   `write_dashboard_html()` writes `latest.html` and an optional date-versioned copy;
   `scripts/render_daily_dashboard.py` is the saved-JSON command-line entry point.
 
+### trading/paper_lifecycle.py / trading/trade_logic_explanation.py
+
+- `PaperLifecycleEngine` accepts a new confirmed event only when the existing individual
+  Decision is `ENTRY_ALLOWED` and the source setup is SETUP_01 or SETUP_02. It records
+  `PAPER_PLAN_CREATED`, exact T+1 executor outcome, serialized `PositionOrigin`, and a
+  terminal close event only when `replay_position()` produces a real exit.
+- The ledger key is `event_identity + lifecycle_event_type`; current open-day R/MFE/MAE,
+  stop, target status and action are replay projections rather than daily persisted rows.
+  Candidate-only provenance remains `DYNAMIC_CANDIDATE`, requires promotion for formal
+  lifecycle, and is never production-execution eligible. `PAPER_COVERAGE` exposes the
+  tracking start, latest processed session, continuity and gap warning.
+- The strategy explanation module is presentation-only: it maps existing Decision,
+  executor and Position Management fields to Chinese entry/execution/hold/protect/exit
+  explanations. It does not calculate a second target, stop, exit, or performance formula.
+
 ### Execution modes
 
 `--mode latest` 是亚洲/欧美 scheduled workflow 的生产路径：只读取自选清单，使用短窗口 latest quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、双源校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar guard 时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市且不推断节假日。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且 `history_rows_written=0`。
@@ -214,7 +247,8 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 ├── scripts/
 │   ├── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
 │   ├── holdings_data_manager_smoke.py # provider-only raw/qfq coverage smoke
-│   └── render_daily_dashboard.py # saved Daily Decision JSON → standalone HTML
+│   ├── render_daily_dashboard.py # saved Daily Decision JSON → standalone HTML
+│   └── run_paper_trade_lifecycle_generic_operational_shadow.py # synthetic-only Paper gate
 ├── research/
 │   ├── replay_input.py      # canonical input hash / manifest / frozen replay
 │   ├── frozen_validation.py # Phase 5E 固定数据集描述性验证
@@ -252,6 +286,8 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
   │   └── setup01_decision.py   # SETUP_01 independent Decision/Risk v1
   ├── production_candidate_runtime.py # read-only Candidate→Daily input runtime
   ├── daily_dashboard.py       # read-only Daily Decision presentation projection
+  ├── paper_lifecycle.py        # explicit prospective Paper ledger/replay projection
+  ├── trade_logic_explanation.py # existing-rule Chinese presentation mappings
   ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol
   ├── docs/SETUP_01_WAVE2_TO_WAVE3_V1.md # SETUP_01 v1 protocol
   ├── docs/SETUP_01_DECISION_RISK_V1.md # SETUP_01 Decision/Risk v1 protocol

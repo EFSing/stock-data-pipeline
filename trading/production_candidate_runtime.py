@@ -20,7 +20,7 @@ module never replaces that data.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 import math
 import time
@@ -31,6 +31,7 @@ from trading.candidate_universe import (
     CandidateRecord,
     CandidateUniverse,
     MIN_HISTORY_BARS,
+    SeedSecurity,
     TOP_N_PER_SECTOR,
     select_candidate_universe,
 )
@@ -119,6 +120,8 @@ class CandidateMarketRuntimeResult:
     status: str
     qfq_contract: Mapping[str, Any]
     deep_requested_symbols: tuple[str, ...] = ()
+    paper_active_symbols: tuple[str, ...] = ()
+    paper_seeds: tuple[Any, ...] = ()
 
     @property
     def seed_count(self) -> int:
@@ -155,6 +158,21 @@ class CandidateMarketRuntimeResult:
             == DATA_OK
         )
 
+    @property
+    def paper_deep_ready_symbols(self) -> tuple[str, ...]:
+        return tuple(
+            symbol
+            for symbol in self.paper_active_symbols
+            if _deep_data_status(
+                self.deep_histories.get(symbol, ()),
+                as_of_date=self.as_of_date,
+                expected_market=self.market,
+                expected_symbol=symbol,
+                expected_currency=_seed_currency(self.paper_seeds, symbol),
+            )
+            == DATA_OK
+        )
+
     def daily_inputs(
         self, session_identity: CompletedSessionIdentity
     ) -> tuple[DailySymbolInput, ...]:
@@ -168,8 +186,27 @@ class CandidateMarketRuntimeResult:
         seed_by_symbol = {
             str(seed.symbol).strip().upper(): seed for seed in self.seeds
         }
+        seed_by_symbol.update(
+            {str(seed.symbol).strip().upper(): seed for seed in self.paper_seeds}
+        )
+        paper_keys = {
+            canonical_key(self.market, symbol)
+            for symbol in self.paper_active_symbols
+        }
+        projected_symbols: list[tuple[str, bool]] = [
+            (record.symbol, canonical_key(self.market, record.symbol) in paper_keys)
+            for record in self.included_records
+        ]
+        projected_keys = {
+            canonical_key(self.market, symbol) for symbol, _ in projected_symbols
+        }
+        projected_symbols.extend(
+            (symbol, True)
+            for symbol in self.paper_active_symbols
+            if canonical_key(self.market, symbol) not in projected_keys
+        )
         values: list[DailySymbolInput] = []
-        for symbol in self.included_symbols:
+        for symbol, paper_tracked in projected_symbols:
             seed = seed_by_symbol.get(symbol.upper())
             history = tuple(self.deep_histories.get(symbol.upper(), ()))
             status = _deep_data_status(
@@ -189,6 +226,7 @@ class CandidateMarketRuntimeResult:
                     qfq_history=history,
                     data_quality_status=status,
                     completed_session_identity=session_identity,
+                    paper_tracked=paper_tracked,
                 )
             )
         return tuple(values)
@@ -211,11 +249,15 @@ class CandidateMarketRuntimeResult:
             "candidate_data_qualified_count": self.data_qualified_count,
             "candidate_included_count": len(self.included_records),
             "candidate_included_symbols": list(self.included_symbols),
+            "paper_active_count": len(self.paper_active_symbols),
+            "paper_active_symbols": list(self.paper_active_symbols),
             "candidate_exclusion_reason_counts": dict(sorted(reason_counts.items())),
             "deep_history_requested_count": len(self.deep_requested_symbols),
             "deep_history_requested_symbols": list(self.deep_requested_symbols),
             "deep_history_ready_count": len(deep_ready),
             "deep_history_ready_symbols": list(deep_ready),
+            "paper_deep_history_ready_count": len(self.paper_deep_ready_symbols),
+            "paper_deep_history_ready_symbols": list(self.paper_deep_ready_symbols),
             "deep_history_errors": {
                 symbol: list(errors)
                 for symbol, errors in sorted(self.deep_errors.items())
@@ -304,6 +346,66 @@ def canonical_key(market: str, symbol: str) -> tuple[str, str]:
             if suffix in {"SH", "SZ"}:
                 value = f"{code}.{suffix}"
     return normalized_market, value
+
+
+def _paper_continuation_seed(
+    market: str,
+    symbol: str,
+    official_seeds: Sequence[Any],
+) -> SeedSecurity:
+    """Create metadata-only continuation identity for an active paper plan.
+
+    The seed is not a price fixture and never bypasses the QFQ loader.  When
+    the symbol is present in the official seed set, retain its provider
+    metadata while preserving the ledger's exact symbol identity.
+    """
+
+    normalized_market = str(market).strip().upper()
+    normalized_symbol = str(symbol).strip().upper()
+    target_key = canonical_key(normalized_market, normalized_symbol)
+    matched = next(
+        (
+            seed
+            for seed in official_seeds
+            if canonical_key(normalized_market, str(seed.symbol).strip().upper())
+            == target_key
+        ),
+        None,
+    )
+    if matched is not None:
+        return replace(
+            matched,
+            symbol=normalized_symbol,
+            source="PAPER_TRACKED",
+            name=str(getattr(matched, "name", "") or normalized_symbol),
+        )
+    if normalized_market == "CN":
+        code, separator, exchange = normalized_symbol.partition(".")
+        if not separator:
+            exchange = "SH" if code.startswith(("5", "6", "9")) else "SZ"
+        elif exchange.upper() in {"SSE", "XSHG"}:
+            exchange = "SH"
+        elif exchange.upper() in {"SZSE", "XSHE"}:
+            exchange = "SZ"
+        source_symbol = f"{exchange.lower()}.{code}"
+        currency = "CNY"
+    else:
+        source_symbol = normalized_symbol
+        currency = "USD"
+        exchange = None
+    return SeedSecurity(
+        market=normalized_market,
+        symbol=normalized_symbol,
+        source_symbol=source_symbol,
+        name=normalized_symbol,
+        sector=None,
+        asset_class="Equity",
+        exchange=exchange,
+        currency=currency,
+        source="PAPER_TRACKED",
+        metadata_status="PAPER_CONTINUATION_IDENTITY_ONLY",
+        provenance=("策略模拟账本", "PAPER_TRACKED"),
+    )
 
 
 def _deep_data_status(
@@ -397,10 +499,13 @@ def _yfinance_ticker(seed: Any) -> str:
     market = str(seed.market).strip().upper()
     if market == "CN":
         code, _, exchange = symbol.partition(".")
-        if exchange == "SH":
+        exchange = exchange.upper()
+        if exchange in {"SH", "SSE", "XSHG"}:
             return f"{code}.SS"
-        if exchange == "SZ":
+        if exchange in {"SZ", "SZSE", "XSHE"}:
             return f"{code}.SZ"
+        if code.isdigit() and len(code) == 6:
+            return f"{code}.SS" if code.startswith(("5", "6", "9")) else f"{code}.SZ"
     return symbol.replace("/", "-").replace(".", "-")
 
 
@@ -704,6 +809,7 @@ class ProductionCandidateRuntime:
         completed_session_identity: CompletedSessionIdentity,
         now: datetime | None = None,
         reuse_symbols: Iterable[str] = (),
+        paper_active_symbols: Iterable[str] = (),
     ) -> CandidateMarketRuntimeResult:
         normalized_market = str(market).strip().upper()
         if normalized_market not in self.seed_loaders:
@@ -718,6 +824,17 @@ class ProductionCandidateRuntime:
         timings = _new_stage_timings()
         errors: list[str] = []
         qfq_contract = dict(self.SOURCE_CONTRACT[normalized_market])
+        paper_symbols = tuple(
+            dict.fromkeys(
+                str(symbol).strip().upper()
+                for symbol in paper_active_symbols
+                if str(symbol).strip()
+            )
+        )
+        paper_seeds = tuple(
+            _paper_continuation_seed(normalized_market, symbol, ())
+            for symbol in paper_symbols
+        )
 
         seed_started = time.perf_counter()
         try:
@@ -744,6 +861,8 @@ class ProductionCandidateRuntime:
                 source_as_of=source_as_of.isoformat() if source_as_of else None,
             )
         except Exception as exc:
+            source_as_of = None
+            seeds = ()
             error = f"SEED_METADATA_{type(exc).__name__}:{exc}"
             errors.append(error)
             _record_stage(
@@ -754,32 +873,12 @@ class ProductionCandidateRuntime:
                 status="FAILED",
                 error_code=error,
             )
-            empty = CandidateUniverse(as_of_date, TOP_N_PER_SECTOR, ())
-            timings["total"] = {
-                "elapsed_seconds": round(time.perf_counter() - run_started, 3),
-                "api_requests": timings["seed_metadata"]["api_requests"],
-                "symbols": 0,
-                "rows": 0,
-                "usable_count": 0,
-                "failed_count": 1,
-                "status": "FAILED",
-            }
-            return CandidateMarketRuntimeResult(
-                normalized_market,
-                as_of_date,
-                None,
-                (),
-                empty,
-                {},
-                {},
-                timings,
-                tuple(errors),
-                "FAILED",
-                qfq_contract,
-                (),
-            )
 
         symbols = tuple(str(seed.symbol).strip().upper() for seed in seeds)
+        paper_seeds = tuple(
+            _paper_continuation_seed(normalized_market, symbol, seeds)
+            for symbol in paper_symbols
+        )
         short_started = time.perf_counter()
         try:
             short_sessions = self.session_window_loader(
@@ -868,12 +967,22 @@ class ProductionCandidateRuntime:
             canonical_key(normalized_market, symbol)[1]
             for symbol in reuse_symbols
         }
-        deep_targets = tuple(
+        candidate_deep_targets = tuple(
             seed_by_symbol[record.symbol.upper()]
             for record in universe.included
             if canonical_key(normalized_market, record.symbol)[1] not in reuse
             and record.symbol.upper() in seed_by_symbol
         )
+        deep_target_values: list[Any] = list(candidate_deep_targets)
+        deep_target_symbols = {
+            str(seed.symbol).strip().upper() for seed in deep_target_values
+        }
+        deep_target_values.extend(
+            seed
+            for seed in paper_seeds
+            if str(seed.symbol).strip().upper() not in deep_target_symbols
+        )
+        deep_targets = tuple(deep_target_values)
         deep_started = time.perf_counter()
         deep_histories: dict[str, tuple[Quote, ...]] = {}
         deep_errors: dict[str, tuple[str, ...]] = {}
@@ -1042,6 +1151,8 @@ class ProductionCandidateRuntime:
             status,
             qfq_contract,
             tuple(str(seed.symbol).strip().upper() for seed in deep_targets),
+            paper_symbols,
+            paper_seeds,
         )
 
 

@@ -249,6 +249,23 @@ Wave 5 Candidate
 
 高位异常放量不能默认解释为洗盘。
 
+## 前瞻模拟交易跟踪 V1
+
+Paper Tracking 是 production Decision 之上的独立、前瞻、逐事件投影层，不改变
+总体策略主线，也不把 Candidate-only 晋级为正式策略池。只有新 `CONFIRMED` event
+与既有 SETUP_01/SETUP_02 `ENTRY_ALLOWED` Decision 才能在显式 `--paper-track` 下
+创建 Paper plan。`AUTO_APPROVE_FOR_PAPER_TRACKING` 和
+`AUTO_APPROVE_TECHNICAL_ENTRY_ALLOWED` 只代表技术条件满足模拟纳入，不代表正式
+批准、组合风险授权、账户资金收益或券商执行。
+
+Paper 生命周期必须使用 exact T+1 OPEN、已有 `PositionOrigin` 与现有
+Position Management replay；Target reached 只表示目标状态与风险管理上下文，
+不等于自动止盈。`策略模拟账本` 独立于策略决策状态、策略股票池、策略持仓和行情
+Sheets，以 append-only lifecycle events 记录计划、执行／跳过、结束与覆盖。统计以
+单笔 normalized R、return %、持有天数、MFE/MAE 为主，不计算组合 P&L；Paper
+Tracking forward-only，Candidate-only 计划在掉出 Candidate 后仍需由既有 exact QFQ
+路径续载，若缺少连续数据则 fail closed 并提示 coverage gap。
+
 ## 未来函数（最高等级技术风险）
 
 严格保证：

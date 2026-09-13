@@ -954,6 +954,7 @@ class DailyDecisionChainTests(unittest.TestCase):
         self.assertIn("## NO_TRADE", markdown)
         self.assertIn("protocol_versions", payload)
         self.assertIn("sections", payload)
+        self.assertNotIn("selected_event", payload["results"][0])
 
     def test_read_only_evaluation_never_persists_state(self):
         history, t_day, event, evaluators = _fixture()

@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-07（Dynamic Candidate 生命周期边界修正）。
+> 最后实质更新：2026-09-13（Prospective Paper Trade Lifecycle V1）。
 
 ## 项目身份
 
@@ -166,6 +166,14 @@
    ticker/公司名称前端搜索与既有 CN/US、Setup、行业筛选。`scripts/render_daily_dashboard.py`
    可将已保存 JSON 写为 `reports/daily_dashboard/latest.html` 及日期版本；runner 通过
    显式 `--dashboard-output DIR` 选择性生成相同输出。
+ - 前瞻模拟交易跟踪 V1 已接入显式 `--paper-track` 路径：只对新 `CONFIRMED` 且已有
+   individual `ENTRY_ALLOWED` 的 SETUP_01/02 事件创建 Paper plan，使用独立、append-only
+   `策略模拟账本`；正式池与 Candidate-only 均保留原 provenance，Candidate 仍不晋级、不
+   写策略状态、不进入 Portfolio Risk 或 production execution。普通 `--run` 继续只读。
+ - Paper lifecycle 严格复用现有 Decision evaluator、exact T+1 executor、`PositionOrigin`
+   与 `replay_position`；计划、T+1 执行/跳过、真实 Position Management exit、coverage 与
+   normalized R/return 统计均不复制交易公式。active Paper symbols 会续载同一 QFQ provider，
+   Candidate dropout 不会让既有 Paper plan 消失；缺失 exact completed session 时 fail closed。
 - 启用持仓即使不在正式股票池或 Candidate 中也会继续进入 Position Management；
   多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
   `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。
@@ -208,8 +216,9 @@
   session proof（`exchange_calendars`）。
 - 已具备严格只读 `--preflight` 与默认只读的人工 `--run` 报告；正式 daily
   chain 的 stateful `--run` 需要显式 `--write-state`，且当前没有自动 workflow
-  调用。生产 strategy state 写入、scheduled decision chain、broker order 尚未
-  自动启用；holdings 行情路径（上表）是已运行的例外。
+  调用。显式 `--paper-track` 只追加 `策略模拟账本` 的 Paper lifecycle rows，不写
+  `策略决策状态`、`策略股票池`、`策略持仓`，也不触发 Portfolio allocation、broker order
+  或 scheduled execution；holdings 行情路径（上表）是已运行的例外。
 
 - 现有 `HiThink Financial API（同花顺金融数据服务）` 仅完成有界 CN transport
   smoke：ticker/index constituents、market-dump signing、corporate-action
@@ -228,13 +237,16 @@
 - Candidate Universe：已接入人工触发的 production Daily Decision Chain V1；动态
   Candidate-only 仍是 discovery-only，进入正式生命周期必须人工加入
   `策略股票池` 并重新满足 production prerequisites；没有自动调度、自动批准、自动
-  state write 或 broker execution。
+  state write 或 broker execution。仅在显式 `--paper-track` 下，Candidate-only 的新
+  `CONFIRMED + ENTRY_ALLOWED` 才会进入独立 Paper ledger；这不改变其 discovery-only
+  production 身份。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
 - Daily Decision Chain / Portfolio Risk / Position Management：策略语义已实现并
   frozen，支持 Candidate + 正式池 + 持仓的 account-isolated 人工触发只读生产报告；
-  仍未作为自动调度任务运行。
+  仍未作为自动调度任务运行。Paper tracking 是独立、显式触发的 prospective ledger
+  与 replay projection，不是生产状态或 broker execution。
 - 真实账户持仓 shadow 属 `OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION`，未运行时
   status=`NOT_RUN_USER_PRIVACY`；缺少真实持仓不是 SETUP_01 等核心开发 blocker。
 

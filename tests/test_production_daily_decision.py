@@ -67,6 +67,37 @@ class ProductionDailyDecisionRunnerTests(unittest.TestCase):
         self.assertTrue(client.writes)
         self.assertTrue(all(write[0] == "策略决策状态" for write in client.writes))
 
+    def test_paper_track_is_explicit_and_isolated_from_production_state(self):
+        client = _rows()
+
+        result = run_production_daily_decision(
+            client,
+            as_of_date=T_DAY,
+            preflight=False,
+            paper_track=True,
+            now=AFTER_CLOSE,
+        )
+
+        self.assertEqual(result["read behavior"], "READ_ONLY")
+        self.assertTrue(result["NO STATE WRITE"])
+        self.assertFalse(result["NO Sheets mutation"])
+        self.assertTrue(result["paper_tracking"]["enabled"])
+        self.assertTrue(result["paper_tracking"]["schema"]["headers"])
+        self.assertTrue(client.writes)
+        self.assertTrue(all(write[0] == "策略模拟账本" for write in client.writes))
+        self.assertFalse(any(write[0] == "策略决策状态" for write in client.writes))
+
+        write_count = len(client.writes)
+        second = run_production_daily_decision(
+            client,
+            as_of_date=T_DAY,
+            preflight=False,
+            paper_track=True,
+            now=AFTER_CLOSE,
+        )
+        self.assertEqual(len(client.writes), write_count)
+        self.assertEqual(second["paper_tracking"]["result"]["created_plans"], [])
+
     def test_run_can_write_dashboard_without_changing_result_or_sheet_writes(self):
         client = _rows()
 

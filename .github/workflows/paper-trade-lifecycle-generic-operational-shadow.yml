@@ -1,0 +1,49 @@
+name: Paper trade lifecycle generic operational shadow
+
+on:
+  pull_request:
+    paths:
+      - "trading/paper_lifecycle.py"
+      - "trading/trade_logic_explanation.py"
+      - "trading/daily_dashboard.py"
+      - "trading/daily_decision_chain.py"
+      - "trading/production_candidate_runtime.py"
+      - "trading/production_prerequisites.py"
+      - "scripts/run_paper_trade_lifecycle_generic_operational_shadow.py"
+      - "scripts/run_production_daily_decision.py"
+      - "scripts/refresh_production_qfq.py"
+      - "sheets_client.py"
+      - "scripts/run_setup01_generic_operational_shadow.py"
+      - "tests/test_paper_lifecycle.py"
+      - "tests/test_paper_trade_lifecycle_generic_operational_shadow.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generic-shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run synthetic-only paper lifecycle shadow
+        run: |
+          python -m scripts.run_paper_trade_lifecycle_generic_operational_shadow \
+            --output-dir artifacts/paper_trade_lifecycle_generic_operational_shadow | tee generic-shadow-summary.txt
+      - name: Publish generic shadow summary
+        if: always()
+        run: |
+          {
+            echo "## Paper trade lifecycle generic operational shadow (synthetic-only)"
+            if [ -f generic-shadow-summary.txt ]; then cat generic-shadow-summary.txt; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-trade-lifecycle-generic-operational-shadow
+          path: artifacts/paper_trade_lifecycle_generic_operational_shadow/

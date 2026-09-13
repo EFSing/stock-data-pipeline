@@ -107,6 +107,8 @@ PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH = (
     "PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH"
 )
 STRATEGY_SYMBOL_MULTIPLE_ACCOUNTS = "STRATEGY_SYMBOL_MULTIPLE_ACCOUNTS"
+PAPER_SYMBOL_MULTIPLE_ACCOUNTS = "PAPER_SYMBOL_MULTIPLE_ACCOUNTS"
+PAPER_ACCOUNT_ROUTING_REQUIRED = "PAPER_ACCOUNT_ROUTING_REQUIRED"
 PRODUCTION_ACCOUNT_REQUIRED = "PRODUCTION_ACCOUNT_REQUIRED"
 PRODUCTION_SCHEMA_REQUIRED = "PRODUCTION_SCHEMA_REQUIRED"
 PRODUCTION_DATA_QUALITY_REQUIRED = "PRODUCTION_DATA_QUALITY_REQUIRED"
@@ -203,6 +205,7 @@ class ProductionAccountRun:
     # Daily Chain transaction semantics or create a second universe source.
     formal_strategy_pool: tuple[str, ...] = ()
     active_strategy_positions: tuple[str, ...] = ()
+    paper_tracked_symbols: tuple[str, ...] = ()
 
     @property
     def reference_nav(self) -> float | None:
@@ -722,7 +725,11 @@ def _encode_state(value: Any) -> Any:
         return {
             "__kind__": "dataclass",
             "type": value.__class__.__module__ + "." + value.__class__.__qualname__,
-            "fields": {field.name: _encode_state(getattr(value, field.name)) for field in fields(value)},
+            "fields": {
+                field.name: _encode_state(getattr(value, field.name))
+                for field in fields(value)
+                if field.name != "selected_event"
+            },
         }
     if isinstance(value, tuple):
         return {"__kind__": "tuple", "items": [_encode_state(item) for item in value]}
@@ -1020,6 +1027,7 @@ class ProductionInputAdapter:
         state_store: DecisionStateStore | None = None,
         now: datetime | None = None,
         clock: Callable[[], datetime] | None = None,
+        paper_active_symbols: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         self.client = client
         self.as_of_date = as_of_date
@@ -1027,6 +1035,14 @@ class ProductionInputAdapter:
         self.state_store = state_store
         self.now = now
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.paper_active_symbols = {
+            str(market).upper(): frozenset(
+                str(symbol).strip().upper()
+                for symbol in symbols
+                if str(symbol).strip()
+            )
+            for market, symbols in (paper_active_symbols or {}).items()
+        }
         self._snapshot: ProductionSnapshot | None = None
 
     def _current_now(self) -> datetime:
@@ -1156,7 +1172,21 @@ class ProductionInputAdapter:
                 for position in account_positions
                 if position.key not in formal_keys
             )
-            analysis_entries = account_universe + position_only_entries
+            paper_entries = tuple(
+                StrategyUniverseEntry(
+                    True,
+                    account.account_id,
+                    account.market.upper(),
+                    symbol,
+                    symbol,
+                    "PAPER_TRACKED",
+                )
+                for symbol in sorted(self.paper_active_symbols.get(account.market.upper(), ()))
+                if (account.market.upper(), symbol) not in formal_keys
+                and (account.market.upper(), symbol)
+                not in {entry.key for entry in position_only_entries}
+            )
+            analysis_entries = account_universe + position_only_entries + paper_entries
             nav_status = "NOT_REQUIRED_FOR_STRATEGY_PROPOSAL"
             try:
                 current_now = self._current_now()
@@ -1178,7 +1208,9 @@ class ProductionInputAdapter:
             position_by_key = {item.key: item for item in account_positions}
             for item in analysis_entries:
                 group = risk_groups.get(item.key)
-                if group is None or group.risk_group == UNKNOWN_RISK_GROUP:
+                if item.note != "PAPER_TRACKED" and (
+                    group is None or group.risk_group == UNKNOWN_RISK_GROUP
+                ):
                     missing_groups.append(item.symbol)
                 try:
                     if calendar_identity is None:
@@ -1191,6 +1223,7 @@ class ProductionInputAdapter:
                     symbol_input = replace(
                         symbol_input,
                         risk_group=group.risk_group if group else None,
+                        paper_tracked=item.note == "PAPER_TRACKED",
                     )
                     if status != DATA_OK:
                         account_errors.append(f"{PRODUCTION_DATA_QUALITY_REQUIRED}:{item.symbol}:{status}:{detail}")
@@ -1235,6 +1268,7 @@ class ProductionInputAdapter:
                             completed_session_identity=symbol_input.completed_session_identity,
                             risk_group=group.risk_group if group else None,
                             open_position_state=OpenPositionState(item.symbol, item.market, origin=origin, portfolio_position=portfolio_position),
+                            paper_tracked=False,
                         )
                 except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
                     account_errors.append(f"{PRODUCTION_DATA_QUALITY_REQUIRED}:{item.symbol}:{exc}")
@@ -1266,6 +1300,7 @@ class ProductionInputAdapter:
                     store_for_run,
                     tuple(item.symbol for item in account_universe),
                     tuple(item.symbol for item in account_positions),
+                    tuple(item.symbol for item in paper_entries),
                 ))
             summaries.append(AccountPreflightSummary(
                 account_id=account.account_id, market=account.market, currency=account.currency,
@@ -1324,11 +1359,12 @@ def build_production_snapshot(
     state_store: DecisionStateStore | None = None,
     now: datetime | None = None,
     clock: Callable[[], datetime] | None = None,
+    paper_active_symbols: Mapping[str, Sequence[str]] | None = None,
 ) -> ProductionSnapshot:
     return ProductionInputAdapter(
         client, as_of_date=as_of_date,
         calendar_provider=calendar_provider, state_store=state_store,
-        now=now, clock=clock,
+        now=now, clock=clock, paper_active_symbols=paper_active_symbols,
     ).snapshot()
 
 
@@ -1340,6 +1376,8 @@ __all__ = [
     "PRODUCTION_ACCOUNT_STRATEGY_UNIVERSE_REQUIRED", "PENDING_T1_SYMBOL_OUTSIDE_STRATEGY_UNIVERSE",
     "PERSISTED_STATE_INCOMPLETE", "PRODUCTION_STATE_ACCOUNT_REQUIRED",
     "PRODUCTION_RISK_BOOK_MARKET_CURRENCY_MISMATCH", "STRATEGY_SYMBOL_MULTIPLE_ACCOUNTS",
+    "PAPER_SYMBOL_MULTIPLE_ACCOUNTS",
+    "PAPER_ACCOUNT_ROUTING_REQUIRED",
     "LATEST_REQUIRED_HEADERS", "QFQ_HISTORY_REQUIRED_HEADERS",
     "SheetsDecisionStateStore", "StrategyAccount", "StrategyPositionFact",
     "StrategyRiskGroup", "StrategyUniverseEntry", "build_production_snapshot",
