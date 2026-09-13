@@ -16,6 +16,10 @@
 - PR #79 的信息架构/视觉密度整改与 presentation-only 状态措辞已完成：默认“今日重点”、
   紧凑股票行、sticky 阶段导航、前端搜索、按需详情与观察中/全部诊断视图均已接入；
   Dashboard 不改变内部 JSON contract、交易语义或写入边界。
+- PR #80 的 Paper correctness 与展示整改已完成：计划风险 `planned_risk_per_share`
+  与成交后 `PositionOrigin.initial_risk_per_share` 分开；当前 R、最终 R、收益率均沿用
+  实际成交风险；默认 Paper 卡片回答买入理由、是否成交、当前状态与下一步，原始审计字段
+  收进折叠技术区；generic shadow HTML 覆盖 PENDING_T1、OPEN、CLOSED、SKIPPED。
 - 已完成最小 presentation-only metadata propagation：CN/US included Candidate 的
   `name` / `sector` 进入现有 universe report，Candidate Review 新增两列；缺失值展示
   `—`，不改变 Candidate-only 过滤、Primary Wave→Setup 映射或 `ARMED > WATCH > ticker`
@@ -123,7 +127,8 @@
 - 本次 CN/US Candidate deep errors=0、Daily Chain `DATA_BLOCKED=0`；Candidate-only
   仍保持 discovery-only，不进入 state write、published event、allocation 或
   production execution。
-- 当前无业务语义 blocker；PR #79 CI 已通过并等待 review，PR #80 正在等待 CI / review。
+- 当前无业务语义 blocker；PR #79 与 PR #80 的 exact-head CI 均已通过，等待 review；两者
+  仍保持 stacked 关系，不自动 merge。
   Paper V1 仍保持独立账本、显式 `--paper-track`、前瞻 exact-session 与 fail-closed
   数据边界，不改变生产 state、portfolio risk、broker 或 order。
 - 视觉截图验收受当前浏览器禁止打开本地 `file://` HTML 的工具策略阻塞；已生成并可直接
@@ -135,8 +140,8 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 等待 PR #79 与 stacked PR #80 的 CI / review 完成；本轮不自动 merge，保持 stacked
-   base 关系不变。
+1. 等待 PR #79 与 stacked PR #80 的 review；本轮不自动 merge，保持 stacked base
+   关系不变。
 2. 如需进入 Paper tracking，用户需在完整 exact completed session 与 QFQ coverage
    就绪后显式运行 `--paper-track`；普通 `--run` 继续只读。
 3. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；Paper
