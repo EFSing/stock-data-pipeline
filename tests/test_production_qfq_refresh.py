@@ -234,6 +234,34 @@ class ProductionQfqRefreshTests(unittest.TestCase):
         self.assertEqual({call["symbol"] for call in calls}, {"000725.SZ", "BABA"})
         self.assertTrue(all(call["adjust"] == "qfq" for call in calls))
 
+    def test_active_paper_symbol_is_refreshed_after_candidate_dropout(self):
+        client = workbook(
+            symbols=(),
+            account_rows=[account("US_MAIN", "US")],
+            pool_rows=[],
+            latest_rows=[latest("OTHER", "US")],
+        )
+        client._records["策略模拟账本"] = [{
+            "event_key": "DROP|PAPER_PLAN_CREATED",
+            "lifecycle_event_type": "PAPER_PLAN_CREATED",
+            "paper_status": "PENDING_T1",
+            "event_identity": "DROP|SETUP_01|2026-09-02|CONFIRMED",
+            "symbol": "DROPPED",
+            "market": "US",
+            "name": "Dropped paper symbol",
+        }]
+        calls = []
+        summary = refresh_production_qfq(
+            "us", client=client, fetch_history=successful_fetch(calls), fetched_at=FETCHED_AT
+        )
+
+        self.assertEqual(summary["symbols_requested"], 1)
+        self.assertEqual(summary["symbols_updated"], 1)
+        self.assertEqual([call["symbol"] for call in calls], ["DROPPED"])
+        self.assertEqual(calls[0]["source"], "yfinance")
+        self.assertEqual(calls[0]["target"], TARGET)
+        self.assertEqual([sheet for sheet, _ in client.writes], ["历史行情_前复权"])
+
     def test_dram_disabled_is_skipped(self):
         client = workbook(
             symbols=(("DRAM", "US", "US_MAIN", "yfinance"),),

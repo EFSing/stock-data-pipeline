@@ -22,6 +22,7 @@ from tests.test_production_prerequisites import (
 from trading.candidate_universe import SeedSecurity, select_candidate_universe
 from trading.daily_decision_chain import (
     CompletedSessionIdentity,
+    DATA_OK,
     DATA_UNAVAILABLE,
     DailyChainEvaluators,
     DailyDecisionChain as RealDailyDecisionChain,
@@ -648,6 +649,95 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         self.assertEqual(result.included_symbols, ("600001.SH", "600002.SH"))
         self.assertEqual(deep_calls, [("600001.SH", "600002.SH")])
         self.assertEqual(result.to_dict()["deep_history_requested_count"], 2)
+
+    def test_active_paper_symbols_are_loaded_through_the_existing_qfq_stage(self):
+        seed = _seed("US", "AAPL")
+        paper_symbol = "DROPPED"
+        histories = {
+            seed.symbol: _history(seed.symbol, seed.market, seed.currency),
+            paper_symbol: _history(paper_symbol, "US", "USD"),
+        }
+        deep_calls = []
+
+        def deep_loader(values, start, end):
+            deep_calls.append(tuple(item.symbol for item in values))
+            return HistoryLoadResult(
+                {item.symbol: histories[item.symbol] for item in values}
+            )
+
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"US": lambda as_of: (T_DAY, (seed,))},
+            short_history_loader=lambda values, start, end: HistoryLoadResult(
+                {item.symbol: histories[item.symbol] for item in values}
+            ),
+            deep_history_loader=deep_loader,
+            session_window_loader=lambda market, end, bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+        result = runtime.run(
+            market="US",
+            as_of_date=T_DAY,
+            completed_session_identity=_identity("US"),
+            paper_active_symbols=(paper_symbol,),
+        )
+
+        self.assertEqual(result.paper_active_symbols, (paper_symbol,))
+        self.assertIn(paper_symbol, deep_calls[0])
+        paper_input = next(
+            item for item in result.daily_inputs(_identity("US"))
+            if item.symbol == paper_symbol
+        )
+        self.assertTrue(paper_input.paper_tracked)
+        self.assertEqual(paper_input.data_quality_status, DATA_OK)
+        existing_paper_input = SimpleNamespace(
+            symbol=paper_symbol,
+            market="US",
+            open_position_state=None,
+            paper_tracked=True,
+            data_quality_status=DATA_UNAVAILABLE,
+        )
+        account_run = SimpleNamespace(
+            inputs=(existing_paper_input,),
+            formal_strategy_pool=(),
+            active_strategy_positions=(),
+            paper_tracked_symbols=(paper_symbol,),
+            account=SimpleNamespace(market="US"),
+        )
+        merged, _ = _merge_candidate_inputs(
+            account_run, result, _identity("US")
+        )
+        merged_paper = next(item for item in merged if item.symbol == paper_symbol)
+        self.assertEqual(merged_paper.data_quality_status, DATA_OK)
+        self.assertTrue(merged_paper.paper_tracked)
+
+    def test_paper_qfq_continuation_is_independent_of_candidate_seed_failure(self):
+        paper_symbol = "DROPPED"
+        history = _history(paper_symbol, "US", "USD")
+        deep_calls = []
+
+        def deep_loader(values, start, end):
+            deep_calls.append(tuple(item.symbol for item in values))
+            return HistoryLoadResult({paper_symbol: history})
+
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"US": lambda as_of: (_ for _ in ()).throw(RuntimeError("seed down"))},
+            short_history_loader=lambda values, start, end: HistoryLoadResult({}),
+            deep_history_loader=deep_loader,
+            session_window_loader=lambda market, end, bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+        result = runtime.run(
+            market="US",
+            as_of_date=T_DAY,
+            completed_session_identity=_identity("US"),
+            paper_active_symbols=(paper_symbol,),
+        )
+
+        self.assertEqual(result.status, "FAILED")
+        self.assertEqual(deep_calls, [(paper_symbol,)])
+        paper_input = result.daily_inputs(_identity("US"))[0]
+        self.assertEqual(paper_input.data_quality_status, DATA_OK)
+        self.assertTrue(paper_input.paper_tracked)
 
     def test_missing_deep_history_projects_data_blocked_input(self):
         seed = _seed("US", "MSFT")

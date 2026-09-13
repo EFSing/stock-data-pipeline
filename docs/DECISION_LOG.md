@@ -529,3 +529,33 @@ provider 架构变化。
 **Reason:** 原治理文件把大量可复现历史与验证过程写入 docs，形成“docs commit →
 HEAD 变 → 重验 → 再 sync”的无限 reconcile 成本；Git 本身已是历史记录，治理文档
 应只承载恢复现场、能力地图与长期决策三类最低必要信息。
+
+## 2026-09-13 — Prospective Paper Trade Lifecycle V1
+
+**Decision:** 前瞻模拟跟踪使用独立 system-owned `策略模拟账本` append-only
+worksheet，以 `event_identity + lifecycle_event_type` exactly-once 记录
+`PAPER_PLAN_CREATED`、exact T+1 `PAPER_T1_EXECUTED` / `PAPER_T1_SKIPPED`、
+`PAPER_CLOSED` 与 `PAPER_COVERAGE`。只有新的 `CONFIRMED` event 且既有
+SETUP_01/02 individual Decision 为 `ENTRY_ALLOWED` 时，才允许在显式
+`--paper-track` 下自动纳入 Paper；`AUTO_APPROVE_FOR_PAPER_TRACKING` 与
+`AUTO_APPROVE_TECHNICAL_ENTRY_ALLOWED` 不等于 production approval，也不写正式
+strategy state、组合风险、账户 P&L 或 broker order。Candidate-only 可以进入
+Paper，但 `promotion_required=true` 且不获得 state persistence / production
+execution eligibility。
+
+Paper T+1 与 Position Management 必须复用现有 executor、
+`position_origin_from_execution`、`PositionOrigin` 和 `replay_position`；Target
+reach 只是状态／风险管理信息，不是机械止盈。统计只报告 trade-level normalized
+R、return %、持有与 MFE/MAE；SKIPPED/OPEN 不计胜负，胜率使用 WIN/(WIN+LOSS)。
+Paper Tracking 从启用日起 forward-only，不历史回填 Candidate-only；active Paper
+symbols 即使掉出 Candidate / Formal / Position 仍须经现有 exact completed-session
+QFQ provider 续载，缺数据时 fail closed，并显式报告 coverage gap。
+计划风险只用于 T 日方案展示；一旦 T+1 模拟成交，冻结的 `PositionOrigin` 是唯一
+1R 来源，固定为 `actual_entry - initial_execution_stop`。当前 R、最终 realized R
+与其余 Position Management 指标必须使用同一实际成交风险，不能回退到计划入场价
+对应的风险列；账本同时保留 `planned_risk_per_share` 与成交后的
+`initial_risk_per_share` 以便审计。
+
+**Reason:** 这为策略方案提供可审计的 prospective feedback loop，同时把模拟事实、
+正式 state、组合风险、真实持仓和 broker 执行保持在不同权限边界内，避免把
+Candidate discovery 或模拟成交误解为 production eligibility 或账户收益。

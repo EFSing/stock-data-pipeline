@@ -40,9 +40,18 @@ from trading.production_candidate_runtime import (
     canonical_key,
 )
 from trading.production_prerequisites import (
+    PAPER_ACCOUNT_ROUTING_REQUIRED,
+    PAPER_SYMBOL_MULTIPLE_ACCOUNTS,
     ProductionInputAdapter,
     ProductionPrerequisiteError,
     SheetsDecisionStateStore,
+)
+from trading.paper_lifecycle import (
+    PAPER_LEDGER_SHEET,
+    PaperLifecycleEngine,
+    SheetsPaperLedgerStore,
+    active_paper_symbols,
+    paper_ledger_schema,
 )
 
 
@@ -120,7 +129,7 @@ def _merge_candidate_inputs(
         formal_symbols = {
             item.symbol.upper()
             for item in account_run.inputs
-            if item.open_position_state is None
+            if item.open_position_state is None and not getattr(item, "paper_tracked", False)
         }
     position_symbols = {
         str(symbol).strip().upper()
@@ -135,9 +144,30 @@ def _merge_candidate_inputs(
         str(symbol).strip().upper()
         for symbol in candidate_result.included_symbols
     }
+    paper_symbols = {
+        str(symbol).strip().upper()
+        for symbol in getattr(account_run, "paper_tracked_symbols", ())
+    }
+    paper_symbols.update(
+        item.symbol.upper()
+        for item in account_run.inputs
+        if getattr(item, "paper_tracked", False)
+    )
     if session_identity is not None:
         for item in candidate_result.daily_inputs(session_identity):
-            values.setdefault(canonical_key(item.market, item.symbol), item)
+            key = canonical_key(item.market, item.symbol)
+            existing = values.get(key)
+            # A paper-only symbol may have dropped out of the manually
+            # refreshed QFQ sheet.  Let the same existing Candidate QFQ
+            # loader supply the current completed-session input, while never
+            # replacing a formal or open-position input with discovery data.
+            if existing is None or (
+                getattr(item, "paper_tracked", False)
+                and getattr(existing, "paper_tracked", False)
+                and getattr(item, "data_quality_status", "") == "DATA_OK"
+                and getattr(existing, "data_quality_status", "") != "DATA_OK"
+            ):
+                values[key] = item
 
     ordered = tuple(
         values[key]
@@ -155,6 +185,10 @@ def _merge_candidate_inputs(
         canonical_key(account_run.account.market, symbol)
         for symbol in dynamic_symbols
     }
+    paper_keys = {
+        canonical_key(account_run.account.market, symbol)
+        for symbol in paper_symbols
+    }
     provenance: dict[str, list[str]] = {}
     for item in ordered:
         symbol = item.symbol.upper()
@@ -166,6 +200,8 @@ def _merge_candidate_inputs(
             labels.append("ACTIVE_STRATEGY_POSITION")
         if identity in dynamic_keys:
             labels.append("DYNAMIC_CANDIDATE")
+        if identity in paper_keys or getattr(item, "paper_tracked", False):
+            labels.append("PAPER_TRACKED")
     provenance_metadata: dict[str, dict[str, object]] = {}
     candidate_metadata = {
         str(record.symbol).strip().upper(): {
@@ -179,7 +215,13 @@ def _merge_candidate_inputs(
         is_formal = "FORMAL_STRATEGY_POOL" in labels
         is_position = "ACTIVE_STRATEGY_POSITION" in labels
         is_dynamic = "DYNAMIC_CANDIDATE" in labels
-        candidate_only = is_dynamic and not is_formal and not is_position
+        is_paper_tracked = "PAPER_TRACKED" in labels
+        candidate_only = (
+            is_dynamic
+            and not is_formal
+            and not is_position
+            and not is_paper_tracked
+        )
         if candidate_only:
             dynamic_candidate_only.append(symbol)
         provenance_metadata[symbol] = {
@@ -191,15 +233,23 @@ def _merge_candidate_inputs(
                 if is_formal
                 else "READ_ONLY_DISCOVERY"
                 if candidate_only
+                else "PAPER_LEDGER_LIFECYCLE"
+                if is_paper_tracked
                 else "READ_ONLY_POSITION_MANAGEMENT"
             ),
             "production_execution_eligible": is_formal,
+            "paper_tracking": is_paper_tracked,
         }
     return ordered, {
         "formal_strategy_pool": sorted(formal_symbols),
         "active_strategy_positions": sorted(position_symbols),
         "dynamic_candidate_set": sorted(dynamic_symbols),
         "dynamic_candidate_only": dynamic_candidate_only,
+        "paper_tracked_symbols": sorted(paper_symbols),
+        "paper_tracked_only": sorted(
+            symbol for symbol in paper_symbols
+            if symbol not in formal_symbols and symbol not in position_symbols
+        ),
         "stateful_analysis_symbols": [
             item.symbol.upper()
             for item in ordered
@@ -228,7 +278,7 @@ def _split_persistence_inputs(
         formal_keys = {
             canonical_key(item.market, item.symbol)
             for item in account_run.inputs
-            if item.open_position_state is None
+            if item.open_position_state is None and not getattr(item, "paper_tracked", False)
         }
     formal_inputs = tuple(
         item for item in inputs if canonical_key(item.market, item.symbol) in formal_keys
@@ -573,6 +623,28 @@ def _check_candidate_account_routing(accounts) -> None:
         )
 
 
+def _check_paper_account_routing(accounts, symbols_by_market: Mapping[str, Iterable[str]]) -> None:
+    """Require one enabled strategy account for each paper market."""
+
+    by_market: dict[str, list[str]] = {}
+    for value in accounts:
+        account = getattr(value, "account", value)
+        by_market.setdefault(account.market.upper(), []).append(account.account_id)
+    for market, symbols in sorted(symbols_by_market.items()):
+        if not tuple(symbols):
+            continue
+        account_ids = tuple(sorted(set(by_market.get(str(market).upper(), ()))))
+        if not account_ids:
+            raise ProductionPrerequisiteError(
+                f"{PAPER_ACCOUNT_ROUTING_REQUIRED}:{str(market).upper()}"
+            )
+        if len(account_ids) > 1:
+            raise ProductionPrerequisiteError(
+                f"{PAPER_SYMBOL_MULTIPLE_ACCOUNTS}:{str(market).upper()}="
+                f"{','.join(account_ids)}"
+            )
+
+
 def _date(value: str) -> date:
     try:
         return date.fromisoformat(value)
@@ -654,15 +726,40 @@ def run_production_daily_decision(
     approved_event_identities: Iterable[str] | None = None,
     candidate_runtime=None,
     dashboard_output: str | Path | None = None,
+    paper_track: bool = False,
 ):
     run_started = time.perf_counter()
-    adapter = ProductionInputAdapter(client, as_of_date=as_of_date, now=now)
+    if preflight and paper_track:
+        raise ProductionPrerequisiteError(
+            "PAPER_TRACK_REQUIRES_RUN: paper ledger tracking is an explicit write path"
+        )
+    paper_store = None
+    paper_symbols_by_market: dict[str, tuple[str, ...]] = {}
+    if paper_track:
+        paper_store = SheetsPaperLedgerStore(client, write_enabled=True)
+        for market, symbol in active_paper_symbols(paper_store):
+            paper_symbols_by_market.setdefault(market, tuple())
+            paper_symbols_by_market[market] = tuple(
+                sorted(set(paper_symbols_by_market[market]) | {symbol})
+            )
+    adapter = ProductionInputAdapter(
+        client,
+        as_of_date=as_of_date,
+        now=now,
+        paper_active_symbols=paper_symbols_by_market,
+    )
     snapshot = adapter.snapshot()
     if preflight:
         return snapshot.preflight
     candidate_runtime = _resolve_candidate_runtime(client, candidate_runtime)
+    if paper_track:
+        _check_paper_account_routing(snapshot.preflight.accounts, paper_symbols_by_market)
     if candidate_runtime is not None:
         _check_candidate_account_routing(snapshot.preflight.accounts)
+    # Paper tracking is allowed to inspect a paper-only row whose Sheet QFQ
+    # has gone stale/missing: the continuation Candidate runtime may replace
+    # that input with the same provider's exact completed-session QFQ.  Formal
+    # state writes still require the complete production preflight.
     if write_state and not snapshot.preflight.ready:
         raise ProductionPrerequisiteError("production preflight is not ready")
     if not snapshot.account_runs:
@@ -682,6 +779,8 @@ def run_production_daily_decision(
     dashboard_reports = []
     candidate_results_by_market: dict[str, CandidateMarketRuntimeResult] = {}
     candidate_runtime_errors: dict[str, str] = {}
+    paper_engine = PaperLifecycleEngine(paper_store) if paper_store is not None else None
+    paper_context: list[tuple[DailyTradingDecisionReport, tuple, Mapping[str, object]]] = []
     for account_run in snapshot.account_runs:
         if write_state:
             store = SheetsDecisionStateStore(
@@ -721,8 +820,11 @@ def run_production_daily_decision(
                             completed_session_identity=session_identity,
                             now=now,
                             reuse_symbols=(
-                                item.symbol for item in account_run.inputs
+                                item.symbol
+                                for item in account_run.inputs
+                                if not getattr(item, "paper_tracked", False)
                             ),
+                            paper_active_symbols=paper_symbols_by_market.get(market, ()),
                         )
                     except Exception as exc:
                         candidate_runtime_errors[market] = str(exc)
@@ -757,6 +859,8 @@ def run_production_daily_decision(
             generated_at=generated_at,
             as_of_date=as_of_date,
         )
+        if paper_engine is not None:
+            paper_context.append((report, inputs, universe_report))
         strategy_elapsed_seconds = round(time.perf_counter() - strategy_started, 3)
         candidate_report = candidate_result.to_dict()
         candidate_report["deep_analysis_count"] = len(inputs)
@@ -782,9 +886,16 @@ def run_production_daily_decision(
         report_entry = {
             "账户ID": account_run.account.account_id,
             "市场": market,
-            "read behavior": "STATE_WRITE_AUTHORIZED" if write_state else "READ_ONLY",
+            "read behavior": (
+                "STATE_WRITE_AUTHORIZED"
+                if write_state
+                else "READ_ONLY"
+            ),
             "NO STATE WRITE": not write_state,
-            "NO Sheets mutation": not write_state,
+            "NO Sheets mutation": not (write_state or paper_track),
+            "paper tracking": "WRITE_AUTHORIZED" if paper_track else "NOT_ENABLED",
+            "paper ledger sheet": PAPER_LEDGER_SHEET if paper_track else None,
+            "paper ledger write": bool(paper_track),
             "candidate strategy pool mutation": False,
             "broker orders": "NONE",
             "universe": universe_report,
@@ -803,6 +914,36 @@ def run_production_daily_decision(
             **dashboard_universe_metadata(inputs),
         }
         dashboard_reports.append(dashboard_report_entry)
+    paper_result = None
+    if paper_engine is not None:
+        paper_results = tuple(
+            result
+            for report, _, _ in paper_context
+            for result in report.results
+        )
+        paper_inputs = tuple(
+            item
+            for _, inputs, _ in paper_context
+            for item in inputs
+        )
+        paper_provenance: dict[tuple[str, str], object] = {}
+        for _, inputs, universe_report in paper_context:
+            metadata = universe_report.get("provenance_metadata", {})
+            for item in inputs:
+                value = metadata.get(item.symbol.upper())
+                if value is not None:
+                    paper_provenance[(item.market.upper(), item.symbol.upper())] = value
+        paper_result = paper_engine.process_daily(
+            paper_results,
+            paper_inputs,
+            as_of_date=as_of_date,
+            provenance_by_symbol=paper_provenance,
+        )
+        paper_payload = paper_result.to_dict()
+        for entry in reports:
+            entry["模拟交易"] = paper_payload
+        for entry in dashboard_reports:
+            entry["模拟交易"] = paper_payload
     candidate_payload = {
         market: result.to_dict()
         for market, result in sorted(candidate_results_by_market.items())
@@ -814,7 +955,20 @@ def run_production_daily_decision(
         "preflight": snapshot.preflight.to_dict(),
         "read behavior": "STATE_WRITE_AUTHORIZED" if write_state else "READ_ONLY",
         "NO STATE WRITE": not write_state,
-        "NO Sheets mutation": not write_state,
+        "NO Sheets mutation": not (write_state or paper_track),
+        "paper_tracking": {
+            "enabled": bool(paper_track),
+            "write_enabled": bool(paper_track),
+            "sheet_name": PAPER_LEDGER_SHEET if paper_track else None,
+            "schema": paper_ledger_schema() if paper_track else None,
+            "policy": (
+                "EXPLICIT_FLAG_ONLY; AUTO_APPROVE_FOR_PAPER_TRACKING; "
+                "AUTO_APPROVE_TECHNICAL_ENTRY_ALLOWED; NO_PORTFOLIO_RISK; "
+                "NO_PRODUCTION_APPROVAL; NO_BROKER_ORDERS"
+                if paper_track
+                else "NOT_ENABLED"
+            ),
+        },
         "candidate strategy pool mutation": False,
         "broker orders": "NONE",
         "candidate_markets": candidate_payload,
@@ -837,6 +991,9 @@ def run_production_daily_decision(
         },
         "reports": reports,
     }
+    if paper_engine is not None:
+        result["paper_tracking"]["result"] = paper_engine.dashboard_payload(paper_result)
+        result["paper_tracking"]["updates"] = [paper_result.to_dict()]
     if dashboard_output is not None:
         dashboard_payload = dict(result)
         dashboard_payload["reports"] = dashboard_reports
@@ -855,6 +1012,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--date", "--trade-date", dest="trade_date", type=_date, default=date.today())
     parser.add_argument("--write-state", action="store_true", help="允许系统-owned 策略决策状态写入")
     parser.add_argument(
+        "--paper-track", action="store_true",
+        help="显式开启前瞻模拟交易账本写入；不启用组合风险、生产批准或券商下单",
+    )
+    parser.add_argument(
         "--approve-event", action="append", default=[],
         help="显式批准一个已发布 event identity；可重复传入，不接受 symbol shortcut",
     )
@@ -869,9 +1030,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     if args.preflight and (
-        args.write_state or args.approve_event or args.allocation_budget or args.dashboard_output
+        args.write_state or args.paper_track or args.approve_event or args.allocation_budget or args.dashboard_output
     ):
-        parser.error("--preflight 不接受 state write、event approval、allocation budget 或 dashboard output")
+        parser.error("--preflight 不接受 state write、paper tracking、event approval、allocation budget 或 dashboard output")
     budgets = dict(args.allocation_budget)
     if len(budgets) != len(args.allocation_budget):
         parser.error("每个 ACCOUNT_ID 只能提供一次 allocation budget")
@@ -885,6 +1046,7 @@ def main(argv: list[str] | None = None) -> int:
             allocation_budgets=budgets,
             approved_event_identities=args.approve_event,
             dashboard_output=args.dashboard_output,
+            paper_track=args.paper_track,
         )
     except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
         readiness = (

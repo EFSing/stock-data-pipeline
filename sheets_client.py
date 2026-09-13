@@ -45,6 +45,33 @@ class SheetsClient:
             if str(value).strip()
         ]
 
+    def ensure_worksheet(self, sheet_name: str, headers: list[str]) -> None:
+        """Create a system-owned worksheet only when an explicit writer asks.
+
+        Existing worksheets are never cleared or reshaped here.  A blank
+        worksheet receives its contract header; a non-blank incompatible
+        header fails closed so an append-only ledger cannot silently mix
+        schemas.
+        """
+        if not sheet_name or not headers:
+            raise ValueError("worksheet name and headers are required")
+        try:
+            worksheet = self.book.worksheet(sheet_name)
+        except Exception:
+            worksheet = self.book.add_worksheet(
+                title=sheet_name,
+                rows="1000",
+                cols=str(len(headers)),
+            )
+            worksheet.update([list(headers)], "A1", value_input_option="RAW")
+            return
+        current = [str(value).strip() for value in worksheet.row_values(1)]
+        if not current:
+            worksheet.update([list(headers)], "A1", value_input_option="RAW")
+            return
+        if current != list(headers):
+            raise RuntimeError(f"{sheet_name} worksheet header contract mismatch")
+
     def config(self) -> dict:
         return {str(row["参数"]): row["值"] for row in self.records("参数设置") if row.get("参数")}
 

@@ -82,6 +82,93 @@ def _formal_universe(client: Any, markets: frozenset[str]) -> list[dict[str, Any
     ]
 
 
+def _active_paper_plans(client: Any, markets: frozenset[str]) -> list[dict[str, Any]]:
+    """Return non-terminal Paper plans without creating historical backfill."""
+
+    try:
+        rows = client.records("策略模拟账本")
+    except Exception:
+        # The worksheet is created only by the explicit --paper-track path.
+        # No worksheet means no active Paper scope for the scheduled refresher.
+        return []
+    plans: dict[str, dict[str, Any]] = {}
+    terminal: set[str] = set()
+    for row in rows:
+        event_type = str(row.get("lifecycle_event_type") or "").strip()
+        market = str(row.get("market") or "").strip()
+        symbol = str(row.get("symbol") or "").strip()
+        identity = str(row.get("event_identity") or "").strip()
+        if market not in markets or not symbol:
+            continue
+        if not identity:
+            continue
+        if event_type == "PAPER_PLAN_CREATED":
+            plans[identity] = dict(row)
+        elif event_type in {"PAPER_T1_SKIPPED", "PAPER_CLOSED"}:
+            terminal.add(identity)
+    active = [plans[key] for key in sorted(plans) if key not in terminal]
+    # One QFQ refresh request per market/symbol is sufficient even when a
+    # symbol has more than one independent event identity.
+    selected: dict[tuple[str, str], dict[str, Any]] = {}
+    for plan in active:
+        key = _identity(plan)
+        selected.setdefault(key, plan)
+    return [selected[key] for key in sorted(selected)]
+
+
+def _default_paper_watch(plan: dict[str, Any]) -> dict[str, Any]:
+    """Build provider identity only; all prices still come from QFQ provider."""
+
+    market = str(plan.get("market") or "").strip().upper()
+    symbol = str(plan.get("symbol") or "").strip().upper()
+    if market == "CN":
+        code, separator, exchange = symbol.partition(".")
+        if not separator:
+            exchange = "SH" if code.startswith(("5", "6", "9")) else "SZ"
+        elif exchange.upper() in {"SSE", "XSHG"}:
+            exchange = "SH"
+        elif exchange.upper() in {"SZSE", "XSHE"}:
+            exchange = "SZ"
+        yfinance_symbol = f"{code}.SS" if exchange == "SH" else f"{code}.SZ"
+        baostock_symbol = f"{exchange.lower()}.{code}"
+        timezone_name = "Asia/Shanghai"
+        currency = "CNY"
+    else:
+        yfinance_symbol = symbol.replace("/", "-").replace(".", "-")
+        baostock_symbol = yfinance_symbol
+        timezone_name = "America/New_York"
+        currency = "USD"
+    return {
+        "启用": "TRUE",
+        "统一代码": symbol,
+        "名称": str(plan.get("name") or symbol),
+        "市场": market,
+        "历史数据源": "yfinance",
+        "yfinance代码": yfinance_symbol,
+        "BaoStock代码": baostock_symbol,
+        "币种": currency,
+        "时区": timezone_name,
+    }
+
+
+def _latest_market_target(
+    latest_rows: list[dict[str, Any]], market: str
+) -> date:
+    values: list[date] = []
+    for row in latest_rows:
+        if str(row.get("市场") or "").strip().upper() != market.upper():
+            continue
+        try:
+            values.append(_parse_trade_date(row.get("交易日期")))
+        except ValueError:
+            continue
+    if not values:
+        raise ProductionQfqRefreshError(
+            f"PRODUCTION_QFQ_LATEST_DATE_REQUIRED:{market}|PAPER_TRACKED"
+        )
+    return max(values)
+
+
 def _single_match(
     rows: list[dict[str, Any]],
     identity: tuple[str, str],
@@ -157,8 +244,17 @@ def refresh_production_qfq(
 
     markets = PRODUCTION_MARKETS[group]
     formal_rows = _formal_universe(client, markets)
-    symbols_requested = len(formal_rows)
-    identities = [_identity(row) for row in formal_rows]
+    formal_identities = {_identity(row) for row in formal_rows}
+    paper_plans = _active_paper_plans(client, markets)
+    paper_rows = [
+        _default_paper_watch(plan)
+        for plan in paper_plans
+        if _identity(plan) not in formal_identities
+    ]
+    requested_rows = formal_rows + paper_rows
+    paper_identities = {_identity(row) for row in paper_rows}
+    symbols_requested = len(requested_rows)
+    identities = [_identity(row) for row in requested_rows]
     duplicate_universe = sorted(
         {identity for identity in identities if identities.count(identity) > 1}
     )
@@ -172,7 +268,7 @@ def refresh_production_qfq(
                 for market, symbol in duplicate_universe
             ],
         )
-    if not formal_rows:
+    if not requested_rows:
         summary = _summary(group, 0, 0, 0, [], "SUCCESS")
         print("PRODUCTION_QFQ_SUMMARY " + json.dumps(summary, ensure_ascii=False))
         return summary
@@ -185,10 +281,43 @@ def refresh_production_qfq(
     for identity in identities:
         market, symbol = identity
         try:
-            watch = _single_match(
-                watchlist, identity, sheet_name="SOURCE_CONFIG"
-            )
-            latest = _single_match(latest_rows, identity, sheet_name="LATEST")
+            if identity in paper_identities:
+                configured = [row for row in watchlist if _identity(row) == identity]
+                if len(configured) > 1:
+                    raise ProductionQfqRefreshError(
+                        f"PRODUCTION_QFQ_SOURCE_CONFIG_DUPLICATE:{market}|{symbol}"
+                    )
+                watch = configured[0] if configured else next(
+                    row for row in paper_rows if _identity(row) == identity
+                )
+                matching_latest = [
+                    row for row in latest_rows if _identity(row) == identity
+                ]
+                if len(matching_latest) > 1:
+                    raise ProductionQfqRefreshError(
+                        f"PRODUCTION_QFQ_LATEST_DUPLICATE:{market}|{symbol}"
+                    )
+                try:
+                    target_trade_date = (
+                        _parse_trade_date(matching_latest[0].get("交易日期"))
+                        if matching_latest
+                        else _latest_market_target(latest_rows, market)
+                    )
+                except ValueError as exc:
+                    raise ProductionQfqRefreshError(
+                        f"PRODUCTION_QFQ_LATEST_DATE_REQUIRED:{market}|{symbol}:{exc}"
+                    ) from exc
+            else:
+                watch = _single_match(
+                    watchlist, identity, sheet_name="SOURCE_CONFIG"
+                )
+                latest = _single_match(latest_rows, identity, sheet_name="LATEST")
+                try:
+                    target_trade_date = _parse_trade_date(latest.get("交易日期"))
+                except ValueError as exc:
+                    raise ProductionQfqRefreshError(
+                        f"PRODUCTION_QFQ_LATEST_DATE_REQUIRED:{market}|{symbol}:{exc}"
+                    ) from exc
             source = str(watch.get("历史数据源") or "").strip()
             if not source:
                 raise ProductionQfqRefreshError(
@@ -198,12 +327,10 @@ def refresh_production_qfq(
                 raise ProductionQfqRefreshError(
                     f"PRODUCTION_QFQ_SOURCE_UNSUPPORTED:{market}|{symbol}:{source}"
                 )
-            try:
-                target_trade_date = _parse_trade_date(latest.get("交易日期"))
-            except ValueError as exc:
+            if not target_trade_date:
                 raise ProductionQfqRefreshError(
-                    f"PRODUCTION_QFQ_LATEST_DATE_REQUIRED:{market}|{symbol}:{exc}"
-                ) from exc
+                    f"PRODUCTION_QFQ_LATEST_DATE_REQUIRED:{market}|{symbol}"
+                )
             plans.append((watch, target_trade_date))
         except ProductionQfqRefreshError as exc:
             planning_errors.append(str(exc))

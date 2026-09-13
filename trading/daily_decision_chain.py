@@ -9,7 +9,7 @@ is only needed after a user approves a strategy proposal.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from datetime import date, datetime
 from enum import Enum
 from itertools import chain
@@ -145,6 +145,11 @@ class DailySymbolInput:
     completed_session_identity: CompletedSessionIdentity
     risk_group: str | None = None
     open_position_state: OpenPositionState | None = None
+    # An active prospective paper plan is an analysis input only.  It is kept
+    # separate from the formal strategy universe and production state store so
+    # that a Candidate dropout cannot stop an already-created paper plan from
+    # receiving the current exact-session QFQ history.
+    paper_tracked: bool = False
 
     def __post_init__(self) -> None:
         if not self.symbol or not self.market:
@@ -230,6 +235,10 @@ class DailyDecisionResult:
     protocol_versions: dict[str, str]
     generated_at: datetime
     final_status: str
+    # Retained as an internal bridge for explicit paper tracking and other
+    # read-only explainers.  It is the same selected replay event already
+    # used by this result; no second event identity or evaluation is created.
+    selected_event: Any | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True)
@@ -999,6 +1008,7 @@ class DailyDecisionChain:
             },
             generated_at=generated_at,
             final_status=final_status,
+            selected_event=selected_event,
         )
 
 
@@ -1166,7 +1176,11 @@ def require_production_universe(provider: UniverseProvider | None) -> tuple[Dail
 
 
 def daily_decision_result_to_dict(result: DailyDecisionResult) -> dict[str, Any]:
-    return _serialise(result)
+    payload = _serialise(result)
+    # ``selected_event`` is an internal bridge for the explicit Paper tracker;
+    # keep it out of the existing Daily JSON/state presentation contract.
+    payload.pop("selected_event", None)
+    return payload
 
 
 def daily_report_json(report: DailyTradingDecisionReport) -> str:
