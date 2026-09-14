@@ -200,7 +200,9 @@
   JSON 元数据包含市场/T、git SHA、session identity、data quality、Candidate seed/as-of、
   CandidateRecord 的轻量筛选审计、provider status、input fingerprint、协议版本和状态写入
   边界，不包含 raw/QFQ bars。
-  Bark 使用 `BARK_ENDPOINT`，SMTP 是可选标准库通知；通知失败不改变日报核心结果。
+  Bark 使用 `BARK_ENDPOINT`，SMTP 是可选标准库通知，并发送 text/plain fallback 加上
+  独立的静态 email-safe HTML；通知失败不改变日报核心结果。standalone
+  `daily-report.html` 仍只作为完整 Browser Dashboard artifact，不再作为邮件正文。
 - Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
   宽表、可点击区域至少 44px），首页优先展示数据异常、持仓、交易方案、新确认和接近
   确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。

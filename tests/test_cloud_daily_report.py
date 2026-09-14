@@ -9,6 +9,7 @@ from unittest.mock import patch
 from core import Quote
 from scripts.run_cloud_daily_report import run_cloud_daily_report
 from trading.daily_dashboard import build_dashboard_projection, render_dashboard_html
+from trading.daily_report_email import render_daily_report_email_html
 from trading.ephemeral_market_data import (
     EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION,
     EphemeralMarketDataSnapshot,
@@ -295,7 +296,7 @@ class CloudDailyReportTests(unittest.TestCase):
              patch("scripts.run_cloud_daily_report.load_ephemeral_market_data", return_value=fake_ephemeral), \
              patch("scripts.run_cloud_daily_report.run_production_daily_decision", return_value=fixture_payload), \
              patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}) as bark, \
-             patch("scripts.run_cloud_daily_report.send_optional_email", return_value={"status": "NOT_CONFIGURED"}):
+             patch("scripts.run_cloud_daily_report.send_optional_email", return_value={"status": "NOT_CONFIGURED"}) as email:
             payload = run_cloud_daily_report(
                 market="CN", as_of_date=T_DAY, output_dir=directory,
                 now=AFTER_CLOSE, client=object(), notify=True,
@@ -313,6 +314,12 @@ class CloudDailyReportTests(unittest.TestCase):
             self.assertNotIn("qfq_history", json_path.read_text(encoding="utf-8"))
             self.assertIn("收盘交易决策日报", html_path.read_text(encoding="utf-8"))
             bark.assert_called_once()
+            email.assert_called_once()
+            email_html = email.call_args.kwargs["html_body"]
+            self.assertEqual(email_html, render_daily_report_email_html(payload))
+            self.assertNotEqual(email_html, html_path.read_text(encoding="utf-8"))
+            self.assertNotIn("<script", email_html.lower())
+            self.assertNotIn("<select", email_html.lower())
             self.assertEqual(payload["cloud_daily_report"]["notifications"]["bark"]["status"], "SENT")
 
     def test_mobile_dashboard_uses_human_wave_mapping_and_collapsed_raw_data(self):

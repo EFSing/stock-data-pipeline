@@ -2228,6 +2228,16 @@ def load_dashboard_json(path: str | Path) -> Mapping[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def render_daily_report_email_html(value: Any) -> str:
+    """Render the independent static email presentation for a daily report."""
+
+    # Keep the email renderer in its own module while retaining a convenient
+    # presentation-layer import for callers already using this module.
+    from trading.daily_report_email import render_daily_report_email_html as render
+
+    return render(value)
+
+
 def write_dashboard_html(
     value: Any,
     output_dir: str | Path = "reports/daily_dashboard",
@@ -2267,6 +2277,7 @@ __all__ = [
     "dashboard_search_matches",
     "build_dashboard_projection",
     "load_dashboard_json",
+    "render_daily_report_email_html",
     "render_dashboard_html",
     "write_dashboard_html",
 ]
