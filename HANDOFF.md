@@ -10,8 +10,8 @@
 - 当前任务：Cloud Daily Report V1 + Mobile Dashboard V2 已实现，正在等待用户配置
   既有 Google Secrets 后进行 CN/US `workflow_dispatch` 安全 smoke；本轮运行始终
   read-only，不写 production state、paper ledger、策略输入或 broker。
-- 当前工作分支：`feat/cloud-daily-report-mobile-v1`；PR 尚未创建；branch / HEAD /
-  CI / merge 状态以 Git / GitHub 实时事实为准。
+- 当前工作分支：`feat/cloud-daily-report-mobile-v1`；PR #81 已创建，等待 review 与
+  Secrets/live smoke 验收；branch / HEAD / CI / merge 状态以 Git / GitHub 实时事实为准。
 - 本轮新增两个独立的 CN/US Cloud workflow、精确交易日 gate、内存 latest/QFQ
   边界、`daily-report.json` / `daily-report.html` 白名单产物、可选 Bark/SMTP 通知，
   并将 Dashboard 调整为移动优先的人类语言展示。
