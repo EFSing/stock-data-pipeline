@@ -4,13 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Execution mode (full is manual-only)"
+        description: "Execution mode (cloud-smoke is temporary manual-only)"
         required: true
         default: latest
         type: choice
         options:
           - latest
           - full
+          - cloud-smoke
+      trade_date:
+        description: "Optional exact completed US session date (YYYY-MM-DD; cloud-smoke only)"
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: "30 22 * * 1-5"
 
@@ -25,6 +31,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Run production market data pipeline
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode != 'cloud-smoke' }}
         env:
           DISPATCH_MODE: ${{ inputs.mode }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
@@ -44,6 +51,37 @@ jobs:
           if [ "$RUN_MODE" = "latest" ]; then
             python scripts/refresh_production_qfq.py --group us | tee -a run-summary.txt
           fi
+      - name: Run US cloud daily report smoke
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'cloud-smoke' }}
+        env:
+          REPORT_DATE: ${{ inputs.trade_date }}
+          BARK_ENDPOINT: ${{ secrets.BARK_ENDPOINT }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+          SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/cloud-daily-report/US"
+          mkdir -p "$report_dir"
+          args=(--market US --output "$report_dir")
+          if [ -n "${REPORT_DATE:-}" ]; then args+=(--date "$REPORT_DATE"); fi
+          python scripts/run_cloud_daily_report.py "${args[@]}" | tee cloud-smoke-summary.txt
+      - name: Upload US cloud smoke artifacts
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.mode == 'cloud-smoke' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: us-cloud-smoke-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/cloud-daily-report/US/daily-report.json
+            ${{ runner.temp }}/cloud-daily-report/US/daily-report.html
+          if-no-files-found: error
+          retention-days: 1
       - name: Publish run summary
         if: always()
         run: |
