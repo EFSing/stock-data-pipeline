@@ -7,11 +7,13 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：Cloud Daily Report V1 + Mobile Dashboard V2 已实现，正在等待用户配置
-  既有 Google Secrets 后进行 CN/US `workflow_dispatch` 安全 smoke；本轮运行始终
-  read-only，不写 production state、paper ledger、策略输入或 broker。
+- 当前任务：PR #81 的 Cloud Daily Report V1 + Mobile Dashboard V2 已完成 CN/US
+  pre-merge live smoke 验收；旧 asia/us workflow 上的临时 cloud-smoke harness 已移除，
+  旧 schedule 保持原样。等待用户决定是否 merge PR #81，以及 merge 后旧 schedule
+  与手工应急入口的保留策略；本轮运行始终 read-only，不写 production state、paper
+  ledger、策略输入或 broker。
 - 当前工作分支：`feat/cloud-daily-report-mobile-v1`；PR #81 已创建，等待 review 与
-  Secrets/live smoke 验收；branch / HEAD / CI / merge 状态以 Git / GitHub 实时事实为准。
+  用户决定；PR 未 merge。branch / HEAD / CI / merge 状态以 Git / GitHub 实时事实为准。
 - 本轮新增两个独立的 CN/US Cloud workflow、精确交易日 gate、内存 latest/QFQ
   边界、`daily-report.json` / `daily-report.html` 白名单产物、可选 Bark/SMTP 通知，
   并将 Dashboard 调整为移动优先的人类语言展示。
@@ -77,6 +79,10 @@
   `XSHG` / `XNYS` completed-session gate、目标市场内存 latest/QFQ 边界、既有
   Candidate→Daily Chain 只读复用、`daily-report.json` / `daily-report.html` final
   artifact 白名单、可选 Bark/SMTP 通知和移动优先人类语言 Dashboard 已接线。
+- PR #81 已通过 CN/US 独立 GitHub workflow live smoke：分别使用 exact completed
+  `XSHG` / `XNYS` session，Candidate Stage A/B、formal pool、active positions、
+  provider/data-quality 与 final artifact allowlist 均通过；production state、paper
+  ledger、broker orders、raw/QFQ persistence 均为零。
 - `scripts/run_production_daily_decision.py --market CN|US` 已加入市场隔离能力；省略
   `--market` 保留旧全市场手工行为。Cloud runner 显式不写 state、Paper ledger、策略
   输入或 broker，并在 provider/数据不完整时输出 fail-closed 诊断。
@@ -132,14 +138,14 @@
   不伪造入场价，Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- 当前交接节点：`READY_FOR_USER_SECRET_CONFIGURATION`。本地没有可用于 Cloud
-  workflow live smoke 的 Google service-account Secrets；不要索取或记录 secret
-  值。用户配置既有 `GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON` 后，下一步
-  仅通过 CN/US `workflow_dispatch` 验证只读、市场隔离、产物和通知。
+- 当前交接节点：`CLOUD_DAILY_REPORT_LIVE_SMOKE_PASSED`。GitHub workflow 已实际使用
+  既有 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` 完成 CN/US smoke；本地
+  service-account env 缺失不构成 blocker，也不记录或索取 secret 值。PR #81 仍未
+  merge，等待用户决定后续 GitHub 操作。
 
-- 本地 service-account env 仍缺失；本轮通过已授权 Google Drive snapshot 复核同一
-  现有 runner/CLI logic 与 Candidate runtime，并仅经连接器写入允许的 Paper ledger，
-  不构成生产代码 blocker。若后续要直接在本机运行 CLI，仍需注入既有两个环境变量。
+- 本轮 GitHub smoke 的 CN/US artifact 与 summary 均证明 read-only、market isolation、
+  exact-session 与 zero-write 边界；若后续要直接在本机运行 CLI，仍需注入既有两个
+  环境变量，但这不是本次 live acceptance 的配置节点。
 - 本次验收中的 US `BABA` / `RKLB` QFQ freshness blocker 已按既有 contract 清除；
   CN/XSHG 与 US/XNYS 的 exact completed T 均为当前动态 T，CN/US formal preflight
   均 `READY`，fail-closed gate 未被放宽。
@@ -154,20 +160,21 @@
   `2026-09-14`。
   Paper V1 仍保持独立账本、显式 `--paper-track`、前瞻 exact-session 与 fail-closed
   数据边界，不改变生产 state、portfolio risk、broker 或 order。
-- 视觉截图验收受当前浏览器禁止打开本地 `file://` HTML 的工具策略阻塞；已生成并可直接
-  复核 standalone HTML/JSON artifact，且 deterministic dashboard/render tests 已通过。
-  若同一 market 存在多个 enabled strategy
+- CN/US standalone HTML 实体文件已生成并在 Codex 文件预览中打开；viewport、responsive
+  media query、`overflow-x`、无 `<table>`、默认可见人类语言与无伪造 plan 值的 DOM/CSS
+  审计通过。当前 CUA Chrome 工具策略禁止打开本地 `file://`，因此 exact 390px/430px
+  浏览器 scrollWidth 未在该工具中直接测量；未启动本地 server、Pages 或 hosting，
+  这不是生产/交易语义 blocker。若同一 market 存在多个 enabled strategy
   accounts，Candidate runtime 必须停在 `READY_FOR_DECISION`，不猜账户归属。
 - 只有当现有 frozen semantics 无法推导、而实现会改变正式业务语义时，才停在
   `READY_FOR_DECISION` 请求用户选择；普通代码接线、测试和文档处理不构成 blocker。
 
 ## 5. Next Action（下一步动作）
 
-1. 配置既有 Google Secrets（不在聊天、仓库或 workflow 文件中保存值），然后安全地
-   手动运行 CN/US 新 workflow，确认 exact completed session、只读写入边界、两份
-   final artifact 和 Bark/SMTP 行为。
-2. live acceptance 通过后，删除 `asia-close.yml` / `us-close.yml` 的旧 scheduled
-   触发，仅保留其 `workflow_dispatch` 手工兼容路径；不要长期并行两套 schedule。
+1. 等待用户确认是否 merge PR #81；本轮已完成 CN/US live acceptance，不再等待
+  secret configuration。
+2. 用户确认 merge 后，再单独决定是否关闭旧 `asia-close.yml` / `us-close.yml`
+  schedule，以及是否保留旧 workflow_dispatch 手工应急入口；当前不删除 schedule。
 3. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；
    本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
 
@@ -176,8 +183,8 @@
 - Production Daily Decision Chain V1 已正式进入 `main`：人工触发、account-isolated、
   默认只读 production `--run` 已可用；state write 仍只允许显式 `--write-state`；
   人工批准仍通过明确 event identity；`allocation_budget` 仍由人工显式提供。
-  Cloud Daily Report workflow 已接线但尚未完成 Secrets/live acceptance；旧 scheduled
-  writer 仍保留作为迁移兼容。
+  Cloud Daily Report workflow 已完成 CN/US Secrets/live acceptance；旧 scheduled
+  writer 仍保留作为迁移兼容，等待用户在 merge 后决定其去留。
 - SETUP_03：formal validation 未重开（仍未执行），无 production tolerance；继续需新的明确
   研究决策 + 新 protocol/version。
 - SETUP_04：未实现。
@@ -254,6 +261,6 @@
 
 状态标记：
 
-`FIRST_LIVE_PAPER_TRACK_INITIALIZED_NO_PLAN`
+`CLOUD_DAILY_REPORT_LIVE_SMOKE_PASSED`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
