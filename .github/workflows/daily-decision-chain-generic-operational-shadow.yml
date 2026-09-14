@@ -8,8 +8,8 @@ jobs:
   generic-shadow:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -18,7 +18,7 @@ jobs:
         run: python scripts/run_daily_decision_chain_generic_operational_shadow.py
       - name: Upload read-only shadow artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: daily-decision-chain-generic-shadow
           path: artifacts/daily_decision_chain_generic_shadow/
