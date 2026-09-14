@@ -8,12 +8,13 @@
 ## 1. Current Task（当前任务）
 
 - 当前任务：PR #81 的 Cloud Daily Report V1 + Mobile Dashboard V2 已完成 CN/US
-  live smoke 验收并完成正式 cutover；旧 asia/us workflow 的 schedule 已移除，原有
-  workflow_dispatch、latest/full 手工维护能力、Google Sheets credentials contract
-  与 legacy 手工逻辑均保留。正在完成 PR #81 的 exact-head CI、merge 与 main closeout；
-  本轮运行始终 read-only，不写 production state、paper ledger、策略输入或 broker。
-- 当前工作分支：`feat/cloud-daily-report-mobile-v1`；PR #81 已创建，等待 review 与
-  用户决定；PR 未 merge。branch / HEAD / CI / merge 状态以 Git / GitHub 实时事实为准。
+  live smoke 验收、正式 cutover 并 squash merge 到 `main`；旧 asia/us workflow 的
+  schedule 已移除，原有 workflow_dispatch、latest/full 手工维护能力、Google Sheets
+  credentials contract 与 legacy 手工逻辑均保留。main 已完成 fetch/pull、merge commit、
+  main CI 与调度结构核对；本轮运行始终 read-only，不写 production state、paper ledger、
+  策略输入或 broker。
+- 当前工作分支：`main`；PR #81 已 squash merge。branch / HEAD / CI / merge 状态以
+  Git / GitHub 实时事实为准。
 - 本轮新增两个独立的 CN/US Cloud workflow、精确交易日 gate、内存 latest/QFQ
   边界、`daily-report.json` / `daily-report.html` 白名单产物、可选 Bark/SMTP 通知，
   并将 Dashboard 调整为移动优先的人类语言展示。
@@ -83,6 +84,9 @@
   `XSHG` / `XNYS` session，Candidate Stage A/B、formal pool、active positions、
   provider/data-quality 与 final artifact allowlist 均通过；production state、paper
   ledger、broker orders、raw/QFQ persistence 均为零。
+- PR #81 正式 cutover 与 main merge closeout 已完成：自动调度只保留 CN/US Daily
+  Report，旧 `asia-close` / `us-close` 仅保留 workflow_dispatch，且 latest/full、
+  credentials contract 与 legacy 手工逻辑未改。
 - `scripts/run_production_daily_decision.py --market CN|US` 已加入市场隔离能力；省略
   `--market` 保留旧全市场手工行为。Cloud runner 显式不写 state、Paper ledger、策略
   输入或 broker，并在 provider/数据不完整时输出 fail-closed 诊断。
@@ -140,8 +144,8 @@
 
 - 当前交接节点：`CLOUD_DAILY_REPORT_LIVE_SMOKE_PASSED`。GitHub workflow 已实际使用
   既有 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` 完成 CN/US smoke；本地
-  service-account env 缺失不构成 blocker，也不记录或索取 secret 值。正式 cutover
-  已完成，当前只剩 PR #81 的 exact-head CI、squash merge 与 main closeout。
+  service-account env 缺失不构成 blocker，也不记录或索取 secret 值。正式 cutover、
+  PR #81 squash merge 与 main closeout 均已完成，无业务语义 blocker。
 
 - 本轮 GitHub smoke 的 CN/US artifact 与 summary 均证明 read-only、market isolation、
   exact-session 与 zero-write 边界；若后续要直接在本机运行 CLI，仍需注入既有两个
@@ -171,12 +175,10 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 核对 PR #81 exact-head CI 与 mergeability，squash merge 后 fetch/pull `main` 并
-  核对 merge commit、main CI 与两个新 scheduled workflow。
-2. 确认旧 `asia-close.yml` / `us-close.yml` 仅保留 workflow_dispatch 手工应急入口，
-  且 latest/full 与 credentials contract 未改变。
-3. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；
-   本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
+1. PR #81 无遗留 merge 动作；继续保持 CN/US Daily Report 为唯一自动调度路径，旧
+  `asia-close.yml` / `us-close.yml` 仅作为 workflow_dispatch 手工应急入口。
+2. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；
+  本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
