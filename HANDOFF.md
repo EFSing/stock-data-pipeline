@@ -8,10 +8,10 @@
 ## 1. Current Task（当前任务）
 
 - 当前任务：PR #81 的 Cloud Daily Report V1 + Mobile Dashboard V2 已完成 CN/US
-  pre-merge live smoke 验收；旧 asia/us workflow 上的临时 cloud-smoke harness 已移除，
-  旧 schedule 保持原样。等待用户决定是否 merge PR #81，以及 merge 后旧 schedule
-  与手工应急入口的保留策略；本轮运行始终 read-only，不写 production state、paper
-  ledger、策略输入或 broker。
+  live smoke 验收并完成正式 cutover；旧 asia/us workflow 的 schedule 已移除，原有
+  workflow_dispatch、latest/full 手工维护能力、Google Sheets credentials contract
+  与 legacy 手工逻辑均保留。正在完成 PR #81 的 exact-head CI、merge 与 main closeout；
+  本轮运行始终 read-only，不写 production state、paper ledger、策略输入或 broker。
 - 当前工作分支：`feat/cloud-daily-report-mobile-v1`；PR #81 已创建，等待 review 与
   用户决定；PR 未 merge。branch / HEAD / CI / merge 状态以 Git / GitHub 实时事实为准。
 - 本轮新增两个独立的 CN/US Cloud workflow、精确交易日 gate、内存 latest/QFQ
@@ -140,8 +140,8 @@
 
 - 当前交接节点：`CLOUD_DAILY_REPORT_LIVE_SMOKE_PASSED`。GitHub workflow 已实际使用
   既有 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` 完成 CN/US smoke；本地
-  service-account env 缺失不构成 blocker，也不记录或索取 secret 值。PR #81 仍未
-  merge，等待用户决定后续 GitHub 操作。
+  service-account env 缺失不构成 blocker，也不记录或索取 secret 值。正式 cutover
+  已完成，当前只剩 PR #81 的 exact-head CI、squash merge 与 main closeout。
 
 - 本轮 GitHub smoke 的 CN/US artifact 与 summary 均证明 read-only、market isolation、
   exact-session 与 zero-write 边界；若后续要直接在本机运行 CLI，仍需注入既有两个
@@ -171,10 +171,10 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 等待用户确认是否 merge PR #81；本轮已完成 CN/US live acceptance，不再等待
-  secret configuration。
-2. 用户确认 merge 后，再单独决定是否关闭旧 `asia-close.yml` / `us-close.yml`
-  schedule，以及是否保留旧 workflow_dispatch 手工应急入口；当前不删除 schedule。
+1. 核对 PR #81 exact-head CI 与 mergeability，squash merge 后 fetch/pull `main` 并
+  核对 merge commit、main CI 与两个新 scheduled workflow。
+2. 确认旧 `asia-close.yml` / `us-close.yml` 仅保留 workflow_dispatch 手工应急入口，
+  且 latest/full 与 credentials contract 未改变。
 3. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；
    本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
 
@@ -183,8 +183,8 @@
 - Production Daily Decision Chain V1 已正式进入 `main`：人工触发、account-isolated、
   默认只读 production `--run` 已可用；state write 仍只允许显式 `--write-state`；
   人工批准仍通过明确 event identity；`allocation_budget` 仍由人工显式提供。
-  Cloud Daily Report workflow 已完成 CN/US Secrets/live acceptance；旧 scheduled
-  writer 仍保留作为迁移兼容，等待用户在 merge 后决定其去留。
+  Cloud Daily Report workflow 已完成 CN/US Secrets/live acceptance；正式 cutover 已
+  移除旧 scheduled writer，同时保留旧 workflow_dispatch 手工入口。
 - SETUP_03：formal validation 未重开（仍未执行），无 production tolerance；继续需新的明确
   研究决策 + 新 protocol/version。
 - SETUP_04：未实现。

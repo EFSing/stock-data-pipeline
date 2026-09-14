@@ -11,9 +11,6 @@ on:
         options:
           - latest
           - full
-  schedule:
-    - cron: "30 22 * * 1-5"
-
 jobs:
   update:
     runs-on: ubuntu-latest

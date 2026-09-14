@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-14（Cloud Daily Report V1 + Mobile Dashboard V2）。
+> 最后实质更新：2026-09-14（Cloud Daily Report V1 正式 cutover）。
 
 ## 项目身份
 
@@ -183,7 +183,7 @@
   多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
   `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。
 
-### Cloud Daily Report V1 / Mobile Dashboard V2（代码已实现，待 live acceptance）
+### Cloud Daily Report V1 / Mobile Dashboard V2（live acceptance 已通过，正式 cutover）
 
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
   `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
@@ -204,9 +204,12 @@
 - Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
   宽表、可点击区域至少 44px），首页优先展示数据异常、持仓、交易方案、新确认和接近
   确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。
-- 新 Cloud workflow 当前仍处于 Secrets/live smoke 之前；旧 `asia-close` / `us-close`
-  scheduled writer 暂保留以支持迁移和手工 dispatch。live acceptance 后应移除旧 schedule，
-  保留旧 workflow 的手工入口，避免长期两套定时路径并行。
+- CN/US live smoke 已通过，且 production state、paper ledger、broker order 与 raw/QFQ
+  persistence 均为零；final artifact allowlist 已通过。旧 `asia-close` / `us-close`
+  scheduled writer 已移除，仅保留原有 `workflow_dispatch`、latest/full 手工维护能力、
+  Google Sheets credentials contract 与 legacy 手工逻辑；自动调度只由 CN/US Cloud
+  Daily Report 承担，避免两套定时路径并行。Bark/SMTP 仍为可选通知，当前
+  `NOT_CONFIGURED`。
 
 ### Portfolio Risk（已实现并合并，未自动生产运行）
 

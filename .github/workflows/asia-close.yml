@@ -11,10 +11,6 @@ on:
         options:
           - latest
           - full
-  schedule:
-    # 北京时间17:30，给收盘后更新较慢的免费数据源预留同步时间。
-    - cron: "30 9 * * 1-5"
-
 jobs:
   update:
     runs-on: ubuntu-latest

@@ -501,15 +501,14 @@ class ProductionQfqRefreshTests(unittest.TestCase):
             self.assertIn("RUN_MODE=latest", source)
             self.assertIn("- full", source)
 
-    def test_scheduled_crons_are_unchanged(self):
-        self.assertIn(
-            'cron: "30 9 * * 1-5"',
-            (ROOT / ".github/workflows/asia-close.yml").read_text(encoding="utf-8"),
-        )
-        self.assertIn(
-            'cron: "30 22 * * 1-5"',
-            (ROOT / ".github/workflows/us-close.yml").read_text(encoding="utf-8"),
-        )
+    def test_legacy_workflows_no_longer_have_scheduled_triggers(self):
+        for relative_path in (
+            ".github/workflows/asia-close.yml",
+            ".github/workflows/us-close.yml",
+        ):
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("workflow_dispatch:", source)
+            self.assertNotIn("schedule:", source)
 
 
 if __name__ == "__main__":
