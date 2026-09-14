@@ -140,9 +140,10 @@
   不伪造入场价，Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- 当前交接节点：`ACTIONS_NODE24_RUNTIME_MAINTENANCE`。本轮只改第一方 GitHub
-  Actions runtime 引用；本地 YAML、diff 与完整 unittest 已通过，待以 GitHub CI
-  对独立 PR 做最终核验。无交易、数据、调度或策略语义 blocker。
+- 当前交接节点：`ACTIONS_NODE24_RUNTIME_PR_READY`。本轮只改第一方 GitHub
+  Actions runtime 引用；本地 YAML、diff、完整 unittest 与独立 PR 的 GitHub CI
+  均已通过，PR 日志未出现 Node.js 20 deprecation warning。无交易、数据、调度或
+  策略语义 blocker。
 
 - 本轮 GitHub smoke 的 CN/US artifact 与 summary 均证明 read-only、market isolation、
   exact-session 与 zero-write 边界；若后续要直接在本机运行 CLI，仍需注入既有两个
@@ -172,7 +173,7 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 完成独立 Node.js 24 maintenance PR 的 GitHub CI 核验后交由用户 review/merge；
+1. 将已通过 GitHub CI 的独立 Node.js 24 maintenance PR 交由用户 review/merge；
   保持所有生产、数据、调度与策略语义不变。
 2. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；
   本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
