@@ -26,6 +26,7 @@ except ModuleNotFoundError as exc:
     from run_production_daily_decision import run_production_daily_decision
 from sheets_client import SheetsClient
 from trading.daily_dashboard import build_dashboard_projection, render_dashboard_html
+from trading.daily_report_email import render_daily_report_email_html
 from trading.ephemeral_market_data import (
     EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION,
     EphemeralMarketDataSnapshot,
@@ -244,14 +245,18 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     status = str(cloud.get("status") or "FAILED")
     projection = build_dashboard_projection(payload)
     summary = projection.get("summary", {})
+    plan_count = int(summary.get("strategy_proposal_count", 0) or 0) + int(
+        summary.get("entry_allowed_count", 0) or 0
+    )
     if status in {"SUCCESS", "SKIPPED_NON_SESSION"}:
         title = f"{label}日报完成"
         body = (
+            f"市场：{label}\n"
             f"数据日期：{projection.get('as_of_date', '—')}\n"
+            f"数据状态：{status}\n"
             f"新确认：{summary.get('new_confirmed_count', 0)}\n"
             f"接近确认：{summary.get('armed_count', 0)}\n"
-            f"交易方案：{summary.get('strategy_proposal_count', 0)}\n"
-            f"可入场：{summary.get('entry_allowed_count', 0)}\n"
+            f"交易方案：{plan_count}\n"
             f"持仓：{summary.get('position_count', 0)}\n"
             f"数据异常：{summary.get('data_blocked_count', 0)}"
         )
@@ -280,13 +285,17 @@ def _write_artifacts(payload: Mapping[str, Any], output_dir: str | Path) -> tupl
     return json_path, html_path
 
 
-def _notify(payload: dict[str, Any], html: str) -> None:
+def _notify(payload: dict[str, Any]) -> None:
     cloud = payload.get("cloud_daily_report", {})
     try:
         title, body = _notification_text(payload)
         endpoint = os.environ.get("BARK_ENDPOINT", "")
         bark = send_bark(endpoint, title=title, body=body, url=cloud.get("github_run_url"))
-        email = send_optional_email(subject=title, body=body, html_body=html)
+        email = send_optional_email(
+            subject=title,
+            body=body,
+            html_body=render_daily_report_email_html(payload),
+        )
         cloud["notifications"] = {"bark": bark, "email": email}
     except Exception as exc:
         cloud["notifications"] = {
@@ -333,9 +342,9 @@ def run_cloud_daily_report(
                 result=result, errors=[error],
             ),
         }
-        _, html_path = _write_artifacts(payload, output_dir)
+        _write_artifacts(payload, output_dir)
         if notify:
-            _notify(payload, html_path.read_text(encoding="utf-8"))
+            _notify(payload)
             _write_artifacts(payload, output_dir)
         return payload
 
@@ -360,9 +369,9 @@ def run_cloud_daily_report(
                 ephemeral=ephemeral_meta, data_quality=quality, result=result, errors=[],
             ),
         }
-        _, html_path = _write_artifacts(payload, output_dir)
+        _write_artifacts(payload, output_dir)
         if notify:
-            _notify(payload, html_path.read_text(encoding="utf-8"))
+            _notify(payload)
             _write_artifacts(payload, output_dir)
         return payload
 
@@ -389,9 +398,9 @@ def run_cloud_daily_report(
                 result=result, errors=[error],
             ),
         }
-        _, html_path = _write_artifacts(payload, output_dir)
+        _write_artifacts(payload, output_dir)
         if notify:
-            _notify(payload, html_path.read_text(encoding="utf-8"))
+            _notify(payload)
             _write_artifacts(payload, output_dir)
         return payload
 
@@ -455,9 +464,9 @@ def run_cloud_daily_report(
             errors=errors,
         ),
     }
-    _, html_path = _write_artifacts(payload, output_dir)
+    _write_artifacts(payload, output_dir)
     if notify:
-        _notify(payload, html_path.read_text(encoding="utf-8"))
+        _notify(payload)
         _write_artifacts(payload, output_dir)
     return payload
 

@@ -240,6 +240,15 @@ scripts/run_cloud_daily_report.py
   a Cloud payload renders only its target-market status card; it remains presentation-only and
   does not invent a plan, stop, target, or signal.
 
+### trading/daily_report_email.py
+
+- `render_daily_report_email_html()` is an independent static, single-column Chinese email
+  projection. It reuses only the existing Dashboard projection, prioritizes data anomalies,
+  active positions, real Decision plans, new confirmations, and near confirmations, and caps
+  the displayed highlights at 20. It contains no JavaScript, controls, foldable sections,
+  high-risk layout dependencies, setup/status/provenance tokens, or raw JSON. The browser
+  Dashboard and the two Cloud final artifacts remain unchanged.
+
 ### trading/paper_lifecycle.py / trading/trade_logic_explanation.py
 
 - `PaperLifecycleEngine` accepts a new confirmed event only when the existing individual
@@ -262,7 +271,9 @@ Cloud Daily Report V1 是 CN/US 独立的 read-only scheduled path：先用 `XSH
 正式池、持仓和 Paper continuation 所需的 latest/QFQ rows。它复用既有
 `ProductionCandidateRuntime` 与 Daily Chain，不写 `最新行情`、QFQ、决策状态或 Paper
 ledger；最终每个 market/T 只上传 `daily-report.json` 与 `daily-report.html`，可选发送
-Bark/SMTP。旧 `asia-close` / `us-close` 的 `main.py --mode latest` scheduled writer
+Bark/SMTP。SMTP 同时发送 `text/plain` fallback 与独立的静态
+`render_daily_report_email_html()`，不复用 standalone Dashboard HTML 作为邮件正文。
+旧 `asia-close` / `us-close` 的 `main.py --mode latest` scheduled writer
 在 live acceptance 前保留以支持迁移；验收后只保留其手工 dispatch，避免长期两套 schedule。
 
 `--mode latest` 是旧亚洲/欧美 workflow 的兼容路径：只读取自选清单，使用短窗口 latest
@@ -352,6 +363,7 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
   ├── ephemeral_market_data.py # Cloud target-market latest/QFQ in-memory boundary
   ├── notifications.py       # optional Bark/SMTP notification adapters
   ├── daily_dashboard.py       # read-only Daily Decision presentation projection
+  ├── daily_report_email.py    # static email-safe Daily Report presentation
   ├── paper_lifecycle.py        # explicit prospective Paper ledger/replay projection
   ├── trade_logic_explanation.py # existing-rule Chinese presentation mappings
   ├── docs/WAVE_SCENARIO_ENGINE_V1.md # Wave Engine v1 protocol

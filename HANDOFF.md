@@ -7,17 +7,18 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：PR #81 的 Cloud Daily Report V1 + Mobile Dashboard V2 已完成 CN/US
-  live smoke 验收、正式 cutover 并 squash merge 到 `main`；旧 asia/us workflow 的
-  schedule 已移除，原有 workflow_dispatch、latest/full 手工维护能力、Google Sheets
-  credentials contract 与 legacy 手工逻辑均保留。main 已完成 fetch/pull、merge commit、
-  main CI 与调度结构核对；本轮运行始终 read-only，不写 production state、paper ledger、
-  策略输入或 broker。
-- 当前工作分支：`main`；PR #81 已 squash merge。branch / HEAD / CI / merge 状态以
-  Git / GitHub 实时事实为准。
-- 本轮新增两个独立的 CN/US Cloud workflow、精确交易日 gate、内存 latest/QFQ
-  边界、`daily-report.json` / `daily-report.html` 白名单产物、可选 Bark/SMTP 通知，
-  并将 Dashboard 调整为移动优先的人类语言展示。
+- 当前任务：`EMAIL_DAILY_REPORT_V1` 的 PR #83 presentation semantic correction 已完成：
+  邮件只有既有 `ENTRY_ALLOWED` / `STRATEGY_PROPOSAL` 且 Decision action 为
+  `ENTRY_ALLOWED` 时才称为交易计划；`NO_TRADE` Decision 改为展示拒绝原因与计算依据。
+  SMTP 仍发送 `text/plain` fallback + 静态 HTML；standalone `daily-report.html` 仍是
+  完整 Browser Dashboard artifact，不作为邮件正文。交易、数据、调度、Candidate、
+  Wave、Setup、Decision、Risk、Position Management 与 persistence 语义均未修改。
+- 当前工作分支：`fix/email-safe-daily-report`；PR #83 等待新的 CN SMTP smoke 与
+  QQ 邮箱手机端视觉/语义验收。branch / HEAD / CI / merge 状态以 Git / GitHub 实时事实为准。
+- 最新 CN manual workflow smoke 已使用既有 Secrets 完成，artifact 中
+  `cloud_daily_report.notifications.email.status=SENT`；未打印或持久化任何 secret 值。
+- 本轮保留 `daily-report.json`、`daily-report.html`、Browser Dashboard、Bark 与 CN/US
+  schedule；邮件摘要展示数据异常、持仓、真实交易方案、拒绝决策、新确认和接近确认，最多 20 个重点标的。
 - PR #79 的信息架构/视觉密度整改与 presentation-only 状态措辞已完成：默认“今日重点”、
   紧凑股票行、sticky 阶段导航、前端搜索、按需详情与观察中/全部诊断视图均已接入；
   Dashboard 不改变内部 JSON contract、交易语义或写入边界。
@@ -92,6 +93,10 @@
   输入或 broker，并在 provider/数据不完整时输出 fail-closed 诊断。
 - 新增 Cloud/mobile 回归测试并完成完整 unittest 验证；未改变 Wave、Setup、Decision、
   Risk、Position Management、T→T+1 或 Candidate promotion semantics。
+- `EMAIL_DAILY_REPORT_V1` 已完成：`trading/daily_report_email.py` 只复用既有 Dashboard
+  projection，生成无 JS/控件/折叠依赖的单列中文邮件 HTML；SMTP 不再接收 standalone
+  Dashboard HTML。邮件计划语义已与既有 `ENTRY_ALLOWED` / `STRATEGY_PROPOSAL` 对齐，
+  `NO_TRADE` 保留 Decision gate 的人话拒绝说明与计算依据。
 
 - Production Daily Decision Chain V1 已完成 PR #74 squash merge，并正式进入
   `main`；本轮 merge closeout 已完成。
@@ -142,10 +147,11 @@
   不伪造入场价，Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- 当前交接节点：`CLOUD_DAILY_REPORT_LIVE_SMOKE_PASSED`。GitHub workflow 已实际使用
-  既有 `GOOGLE_SHEET_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON` 完成 CN/US smoke；本地
-  service-account env 缺失不构成 blocker，也不记录或索取 secret 值。正式 cutover、
-  PR #81 squash merge 与 main closeout 均已完成，无业务语义 blocker。
+- 当前交接节点：`READY_FOR_EMAIL_VISUAL_ACCEPTANCE`。PR #83 的新 CN manual SMTP
+  smoke 已使用既有 workflow Secrets 返回 `notification result = SENT`；600941.SH 与
+  600803.SH 的拒绝语义已在同一 payload 的 email renderer 输出中核对。用户 QQ 邮箱
+  手机端视觉/语义验收尚待完成；本地 service-account env 缺失不构成 blocker，也不记录
+  或索取 secret 值。未获用户验收前不合并。
 
 - 本轮 GitHub smoke 的 CN/US artifact 与 summary 均证明 read-only、market isolation、
   exact-session 与 zero-write 边界；若后续要直接在本机运行 CLI，仍需注入既有两个
@@ -175,10 +181,9 @@
 
 ## 5. Next Action（下一步动作）
 
-1. PR #81 无遗留 merge 动作；继续保持 CN/US Daily Report 为唯一自动调度路径，旧
-  `asia-close.yml` / `us-close.yml` 仅作为 workflow_dispatch 手工应急入口。
-2. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；
-  本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
+1. 用户在 QQ 邮箱手机端完成 PR #83 最新 CN SMTP smoke 的最终视觉与语义验收；验收通过后再由用户决定是否合并。
+2. 继续保持 CN/US Daily Report 为唯一自动调度路径；Candidate-only 仍需人工 promotion
+   到正式 `策略股票池`，本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
@@ -263,6 +268,6 @@
 
 状态标记：
 
-`CLOUD_DAILY_REPORT_LIVE_SMOKE_PASSED`
+`READY_FOR_EMAIL_VISUAL_ACCEPTANCE`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
