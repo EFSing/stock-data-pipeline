@@ -8,8 +8,8 @@ jobs:
   generic-shadow:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - run: python -m scripts.run_portfolio_risk_generic_operational_shadow --output-dir artifacts/portfolio_risk_generic_operational_shadow
