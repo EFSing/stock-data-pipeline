@@ -1,0 +1,54 @@
+name: CN Daily Report
+
+on:
+  schedule:
+    - cron: "30 9 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      trade_date:
+        description: "Optional completed CN session date (YYYY-MM-DD)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    env:
+      REPORT_DATE: ${{ inputs.trade_date }}
+      BARK_ENDPOINT: ${{ secrets.BARK_ENDPOINT }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      SMTP_TO: ${{ secrets.SMTP_TO }}
+      SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Generate CN report
+        run: |
+          if [ -n "$REPORT_DATE" ]; then
+            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN"
+          else
+            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN"
+          fi
+      - name: Upload final CN artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cn-daily-report
+          path: |
+            ${{ runner.temp }}/cloud-daily-report/CN/daily-report.json
+            ${{ runner.temp }}/cloud-daily-report/CN/daily-report.html
+          if-no-files-found: error
+          retention-days: 30

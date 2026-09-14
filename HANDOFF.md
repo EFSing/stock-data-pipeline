@@ -7,11 +7,14 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`FIRST_LIVE_PAPER_TRACK_2026-09-11` 已完成；下一步在下一个 exact
-  completed session 单独运行 `--run --paper-track --date ...`。本轮不启动
-  scheduler、broker 或 production state write。
-- 当前工作分支：`main`；PR #79 与 PR #80 均已 squash merge；后续 branch / HEAD /
-  CI / merge 状态以 GitHub 实时事实为准，不新开第三个 PR。
+- 当前任务：Cloud Daily Report V1 + Mobile Dashboard V2 已实现，正在等待用户配置
+  既有 Google Secrets 后进行 CN/US `workflow_dispatch` 安全 smoke；本轮运行始终
+  read-only，不写 production state、paper ledger、策略输入或 broker。
+- 当前工作分支：`feat/cloud-daily-report-mobile-v1`；PR 尚未创建；branch / HEAD /
+  CI / merge 状态以 Git / GitHub 实时事实为准。
+- 本轮新增两个独立的 CN/US Cloud workflow、精确交易日 gate、内存 latest/QFQ
+  边界、`daily-report.json` / `daily-report.html` 白名单产物、可选 Bark/SMTP 通知，
+  并将 Dashboard 调整为移动优先的人类语言展示。
 - PR #79 的信息架构/视觉密度整改与 presentation-only 状态措辞已完成：默认“今日重点”、
   紧凑股票行、sticky 阶段导航、前端搜索、按需详情与观察中/全部诊断视图均已接入；
   Dashboard 不改变内部 JSON contract、交易语义或写入边界。
@@ -19,8 +22,9 @@
   与成交后 `PositionOrigin.initial_risk_per_share` 分开；当前 R、最终 R、收益率均沿用
   实际成交风险；默认 Paper 卡片回答买入理由、是否成交、当前状态与下一步，原始审计字段
   收进折叠技术区；generic shadow HTML 覆盖 PENDING_T1、OPEN、CLOSED、SKIPPED。
-- 已完成最小 presentation-only metadata propagation：CN/US included Candidate 的
-  `name` / `sector` 进入现有 universe report，Candidate Review 新增两列；缺失值展示
+- 已完成最小 presentation-only metadata propagation：CN/US CandidateRecord 的
+  `name` / `sector` / `rank` / inclusion-exclusion reason 进入现有 universe report，
+  Candidate Review 保留轻量筛选审计；缺失值展示
   `—`，不改变 Candidate-only 过滤、Primary Wave→Setup 映射或 `ARMED > WATCH > ticker`
   排序。
 - PR #78 已由用户侧 squash merge；Candidate metadata 的 `name` / `sector` 已进入
@@ -32,9 +36,9 @@
 - 本轮已将现有 frozen Wave / SETUP_01 / SETUP_02 Decision/Risk / Portfolio Risk /
   Position Management 接入正式 `策略股票池` 驱动的每日只读决策输出；用户保留最终
   交易决定。
-- 只做 `SETUP_01` / `SETUP_02`，不重开 `SETUP_03`、不做 `SETUP_03 formal
-  validation`、不开发 `SETUP_04`、不接 scheduler/HiThink/broker/order，不自动
-  批准交易；默认 read-only，state write 必须继续显式 `--write-state`。
+- 只复用既有 `SETUP_01` / `SETUP_02` 语义，未重开 `SETUP_03`、未做 `SETUP_03
+  formal validation`、未开发 `SETUP_04`，不接 HiThink/broker/order，不自动批准
+  交易；Cloud workflow 仍是 read-only，state write 必须继续显式 `--write-state`。
 - Dynamic Candidate 正式确定为 discovery-only：Candidate-only 只进入当日只读分析
   与报告，不进入 state write、published event、T→T+1 pending/settlement、Portfolio
   allocation 或 production execution；必须人工加入正式 `策略股票池` 并补齐现有
@@ -52,9 +56,9 @@
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支 `main`。
-- PR #74、PR #75 与 PR #76 已 squash merge 到 `main`；本轮 performance transport
-  V1 已进入 `main`。branch、PR、HEAD、working tree 与 GitHub CI 动态状态仍须以
-  实时结果为准，不信任本文件中的历史描述。
+- PR #74、PR #75 与 PR #76 已 squash merge 到 `main`；本轮工作位于独立 feature
+  branch，尚未进入 `main`。branch、PR、HEAD、working tree 与 GitHub CI 动态状态
+  仍须以实时结果为准，不信任本文件中的历史描述。
 - 治理文件职责现为（详见 `AGENTS.md`）：
   - Git/GitHub = 动态工程事实源；
   - `HANDOFF.md` = 当前开发现场恢复；
@@ -68,6 +72,16 @@
   `git fetch origin` 结果为准。
 
 ## 3. Completed（已完成事项 — 当前任务上下文）
+
+- Cloud Daily Report V1 + Mobile Dashboard V2 已实现：CN/US 独立 workflow、精确
+  `XSHG` / `XNYS` completed-session gate、目标市场内存 latest/QFQ 边界、既有
+  Candidate→Daily Chain 只读复用、`daily-report.json` / `daily-report.html` final
+  artifact 白名单、可选 Bark/SMTP 通知和移动优先人类语言 Dashboard 已接线。
+- `scripts/run_production_daily_decision.py --market CN|US` 已加入市场隔离能力；省略
+  `--market` 保留旧全市场手工行为。Cloud runner 显式不写 state、Paper ledger、策略
+  输入或 broker，并在 provider/数据不完整时输出 fail-closed 诊断。
+- 新增 Cloud/mobile 回归测试并完成完整 unittest 验证；未改变 Wave、Setup、Decision、
+  Risk、Position Management、T→T+1 或 Candidate promotion semantics。
 
 - Production Daily Decision Chain V1 已完成 PR #74 squash merge，并正式进入
   `main`；本轮 merge closeout 已完成。
@@ -118,6 +132,11 @@
   不伪造入场价，Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
+- 当前交接节点：`READY_FOR_USER_SECRET_CONFIGURATION`。本地没有可用于 Cloud
+  workflow live smoke 的 Google service-account Secrets；不要索取或记录 secret
+  值。用户配置既有 `GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_JSON` 后，下一步
+  仅通过 CN/US `workflow_dispatch` 验证只读、市场隔离、产物和通知。
+
 - 本地 service-account env 仍缺失；本轮通过已授权 Google Drive snapshot 复核同一
   现有 runner/CLI logic 与 Candidate runtime，并仅经连接器写入允许的 Paper ledger，
   不构成生产代码 blocker。若后续要直接在本机运行 CLI，仍需注入既有两个环境变量。
@@ -144,18 +163,21 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 在下一 completed session 上重新完成既有 preflight / QFQ coverage gate，再单独
-   显式运行 `--run --paper-track --date YYYY-MM-DD`；普通 `--run` 继续只读。
-2. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；Paper
-   tracking 也不等于 promotion、production approval 或 broker execution。
-3. 本轮结束后不启动 scheduler、HiThink、SETUP_03/04 或 broker 开发。
+1. 配置既有 Google Secrets（不在聊天、仓库或 workflow 文件中保存值），然后安全地
+   手动运行 CN/US 新 workflow，确认 exact completed session、只读写入边界、两份
+   final artifact 和 Bark/SMTP 行为。
+2. live acceptance 通过后，删除 `asia-close.yml` / `us-close.yml` 的旧 scheduled
+   触发，仅保留其 `workflow_dispatch` 手工兼容路径；不要长期并行两套 schedule。
+3. Candidate-only 仍需人工 promotion 到正式 `策略股票池` 才能进入正式生命周期；
+   本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
 
 ## 6. Important Unfinished / Deferred（重要未完成事项）
 
 - Production Daily Decision Chain V1 已正式进入 `main`：人工触发、account-isolated、
   默认只读 production `--run` 已可用；state write 仍只允许显式 `--write-state`；
   人工批准仍通过明确 event identity；`allocation_budget` 仍由人工显式提供。
-  无 broker、无自动下单、无自动 daily schedule。
+  Cloud Daily Report workflow 已接线但尚未完成 Secrets/live acceptance；旧 scheduled
+  writer 仍保留作为迁移兼容。
 - SETUP_03：formal validation 未重开（仍未执行），无 production tolerance；继续需新的明确
   研究决策 + 新 protocol/version。
 - SETUP_04：未实现。

@@ -249,6 +249,9 @@ class CandidateMarketRuntimeResult:
             "candidate_data_qualified_count": self.data_qualified_count,
             "candidate_included_count": len(self.included_records),
             "candidate_included_symbols": list(self.included_symbols),
+            # CandidateRecord is the lightweight discovery audit contract;
+            # expose it without serialising any raw or QFQ bars.
+            "candidate_records": [record.to_row() for record in self.universe.records],
             "paper_active_count": len(self.paper_active_symbols),
             "paper_active_symbols": list(self.paper_active_symbols),
             "candidate_exclusion_reason_counts": dict(sorted(reason_counts.items())),

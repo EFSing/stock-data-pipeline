@@ -204,10 +204,7 @@ def _merge_candidate_inputs(
             labels.append("PAPER_TRACKED")
     provenance_metadata: dict[str, dict[str, object]] = {}
     candidate_metadata = {
-        str(record.symbol).strip().upper(): {
-            "name": record.name,
-            "sector": record.sector,
-        }
+        str(record.symbol).strip().upper(): record.to_row()
         for record in candidate_result.included_records
     }
     dynamic_candidate_only: list[str] = []
@@ -435,6 +432,9 @@ def _candidate_review_rows(
             "ticker": result.symbol.upper(),
             "name": _candidate_review_metadata(candidate_metadata.get("name")),
             "sector": _candidate_review_metadata(candidate_metadata.get("sector")),
+            "rank": _candidate_review_metadata(candidate_metadata.get("rank")),
+            "inclusion_reason": _candidate_review_metadata(candidate_metadata.get("inclusion_reason")),
+            "exclusion_reason": _candidate_review_metadata(candidate_metadata.get("exclusion_reason")),
             "market": result.market.upper(),
             "provenance": metadata.get("source"),
             "primary_wave_scenario": result.primary_wave_scenario,
@@ -489,6 +489,9 @@ def _candidate_review_markdown(
         "ticker",
         "股票名称",
         "行业／板块",
+        "rank",
+        "进入 Candidate 原因",
+        "被过滤原因",
         "market",
         "provenance",
         "primary Wave scenario",
@@ -516,6 +519,9 @@ def _candidate_review_markdown(
                         "ticker",
                         "name",
                         "sector",
+                        "rank",
+                        "inclusion_reason",
+                        "exclusion_reason",
                         "market",
                         "provenance",
                         "primary_wave_scenario",
@@ -727,6 +733,12 @@ def run_production_daily_decision(
     candidate_runtime=None,
     dashboard_output: str | Path | None = None,
     paper_track: bool = False,
+    market: str | None = None,
+    ephemeral_latest_rows=None,
+    ephemeral_qfq_rows=None,
+    ephemeral_errors=None,
+    paper_active_symbols: Mapping[str, Iterable[str]] | None = None,
+    allow_no_runnable_account: bool = False,
 ):
     run_started = time.perf_counter()
     if preflight and paper_track:
@@ -735,18 +747,36 @@ def run_production_daily_decision(
         )
     paper_store = None
     paper_symbols_by_market: dict[str, tuple[str, ...]] = {}
+    for paper_market, symbols in (paper_active_symbols or {}).items():
+        normalized_paper_market = str(paper_market or "").strip().upper()
+        if not normalized_paper_market:
+            continue
+        paper_symbols_by_market[normalized_paper_market] = tuple(sorted({
+            str(symbol).strip().upper()
+            for symbol in symbols
+            if str(symbol).strip()
+        }))
     if paper_track:
         paper_store = SheetsPaperLedgerStore(client, write_enabled=True)
-        for market, symbol in active_paper_symbols(paper_store):
-            paper_symbols_by_market.setdefault(market, tuple())
-            paper_symbols_by_market[market] = tuple(
-                sorted(set(paper_symbols_by_market[market]) | {symbol})
-            )
+        for paper_market, symbol in active_paper_symbols(paper_store):
+            existing = set(paper_symbols_by_market.get(paper_market, ()))
+            existing.add(symbol.upper())
+            paper_symbols_by_market[paper_market] = tuple(sorted(existing))
+    market_scope = str(market or "").strip().upper() or None
+    if market_scope:
+        paper_symbols_by_market = {
+            key: value for key, value in paper_symbols_by_market.items()
+            if key.upper() == market_scope
+        }
     adapter = ProductionInputAdapter(
         client,
         as_of_date=as_of_date,
         now=now,
         paper_active_symbols=paper_symbols_by_market,
+        market=market_scope,
+        ephemeral_latest_rows=ephemeral_latest_rows,
+        ephemeral_qfq_rows=ephemeral_qfq_rows,
+        ephemeral_errors=ephemeral_errors,
     )
     snapshot = adapter.snapshot()
     if preflight:
@@ -762,7 +792,7 @@ def run_production_daily_decision(
     # state writes still require the complete production preflight.
     if write_state and not snapshot.preflight.ready:
         raise ProductionPrerequisiteError("production preflight is not ready")
-    if not snapshot.account_runs:
+    if not snapshot.account_runs and not allow_no_runnable_account:
         raise ProductionPrerequisiteError("production preflight has no runnable account")
     budgets = {
         str(account_id).strip(): float(value)
@@ -788,6 +818,7 @@ def run_production_daily_decision(
                 write_enabled=True,
                 account_id=account_run.account.account_id,
                 known_account_ids=known_account_ids,
+                market=market_scope,
             )
         else:
             store = account_run.state_store
@@ -952,6 +983,7 @@ def run_production_daily_decision(
         item["市场"]: item["Funnel"] for item in reports
     }
     result = {
+        "market": market_scope,
         "preflight": snapshot.preflight.to_dict(),
         "read behavior": "STATE_WRITE_AUTHORIZED" if write_state else "READ_ONLY",
         "NO STATE WRITE": not write_state,
@@ -1010,6 +1042,10 @@ def main(argv: list[str] | None = None) -> int:
         help="运行 Candidate→account-isolated Daily Chain；默认只读，--write-state 只对正式策略池输入追加系统状态",
     )
     parser.add_argument("--date", "--trade-date", dest="trade_date", type=_date, default=date.today())
+    parser.add_argument(
+        "--market", choices=("CN", "US"), default=None,
+        help="只运行一个市场；省略时保留旧的全市场手工路径",
+    )
     parser.add_argument("--write-state", action="store_true", help="允许系统-owned 策略决策状态写入")
     parser.add_argument(
         "--paper-track", action="store_true",
@@ -1047,6 +1083,7 @@ def main(argv: list[str] | None = None) -> int:
             approved_event_identities=args.approve_event,
             dashboard_output=args.dashboard_output,
             paper_track=args.paper_track,
+            market=args.market,
         )
     except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
         readiness = (
