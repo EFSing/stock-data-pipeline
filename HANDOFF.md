@@ -7,6 +7,7 @@
 
 - 当前任务：`TARGET_UPSIDE_GATE_V1` + `OPPORTUNITY_FRESHNESS_DIAGNOSTICS_V1`
   已实现并提交到 PR #84。PR #84 不在本轮合并，等待用户 review/merge 决策。
+- 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
 - 正式状态：`TARGET_UPSIDE_FRESHNESS_V1_PR_READY`。
 - `UPSIZE GATE` 是正式交易资格语义；`FRESHNESS DIAGNOSTICS` 只读观察，不能
   改变 `ENTRY_ALLOWED`、`NO_TRADE`、排序、仓位、组合分配、批准或 Candidate 晋级。
