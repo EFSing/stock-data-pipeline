@@ -9,7 +9,7 @@ metadata.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
@@ -217,6 +217,38 @@ def _quote_identity_is_valid(quote: Any, watch: Mapping[str, Any]) -> bool:
     )
 
 
+def _complete_latest_preclose(snapshot: Any) -> tuple[Any, str | None]:
+    """Fill only a missing selected-source preclose from the same-session peer.
+
+    The existing latest validation contract compares close/volume across the
+    two sources, while the production adapter requires the projected latest
+    row to carry ``昨收``.  Some bounded provider responses omit that optional
+    field on the selected source even though the same-date peer has it.  Use
+    that peer only for the missing field; never cross a session boundary or
+    replace the selected OHLC quote.
+    """
+
+    chosen = snapshot.chosen
+    if chosen is None or chosen.preclose is not None:
+        return snapshot, None
+    peers = (
+        snapshot.verifier if chosen is snapshot.primary else snapshot.primary,
+    )
+    peer = next(
+        (
+            quote
+            for quote in peers
+            if quote is not None
+            and quote.trade_date == chosen.trade_date
+            and quote.preclose is not None
+        ),
+        None,
+    )
+    if peer is None:
+        return snapshot, None
+    return replace(snapshot, chosen=replace(chosen, preclose=peer.preclose)), peer.source
+
+
 @dataclass(frozen=True)
 class EphemeralMarketDataSnapshot:
     market: str
@@ -376,7 +408,10 @@ def load_ephemeral_market_data(
                     if latest_snapshot.chosen is None:
                         symbol_errors.append("latest unavailable: no completed quote")
                     else:
-                        latest_rows.append(project_latest_row(latest_snapshot, fetched_at))
+                        projected_snapshot, preclose_source = _complete_latest_preclose(latest_snapshot)
+                        latest_rows.append(project_latest_row(projected_snapshot, fetched_at))
+                        if preclose_source:
+                            provider_detail["latest_preclose_source"] = preclose_source
                         status["latest"] = latest_snapshot.displayed_status or "UNAVAILABLE"
                         provider_detail["latest_status"] = status["latest"]
                         if latest_snapshot.chosen.trade_date != as_of_date:
