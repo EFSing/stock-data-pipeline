@@ -2,7 +2,7 @@
 
 Status: `PRODUCTION_DAILY_DECISION_CHAIN_V1_HUMAN_IN_LOOP_READY_FOR_REVIEW`
 
-Protocol identity: `PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-02-v1`
+Protocol identity: `PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-14-v2`
 
 Implementation: `trading/daily_decision_chain.py`
 
@@ -120,7 +120,9 @@ V1.
 ## Report surface
 
 `DailyTradingDecisionReport.to_dict()` emits machine enums and protocol
-versions. `to_markdown()` uses the required user-facing sections:
+versions. It also emits a non-overlapping `freshness_funnel` for new
+confirmation events and exact T+1 lifecycle outcomes. `to_markdown()` includes
+the same causal diagnostic summary and uses the required user-facing sections:
 
 1. `需要关注`
 2. `STRATEGY_PROPOSAL`
@@ -132,7 +134,11 @@ versions. `to_markdown()` uses the required user-facing sections:
 
 Each symbol shows date/data status, weekly/daily state, primary/alternate
 scenario, both Setup states, Decision geometry, Portfolio Risk,
-Position Management/Wave5 context, final status, and blocking reasons.
+Position Management/Wave5 context, target-upside/freshness diagnostics, final
+status, and blocking reasons. The 5% T1 gross-upside check is strategy
+eligibility; freshness fields and funnel counts are observation-only. Candidate
+only rows use the same technical gate but remain `READ_ONLY_DISCOVERY` with no
+state persistence, promotion, allocation, or production execution eligibility.
 
 ## Operational validation
 

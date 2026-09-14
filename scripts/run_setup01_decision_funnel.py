@@ -33,6 +33,7 @@ from trading.models import (
     SwingPoint,
 )
 from trading.setup01_decision import (
+    SETUP01_DECISION_PROTOCOL_VERSION,
     Setup01Decision,
     Setup01DecisionStream,
     Setup01Execution,
@@ -40,6 +41,7 @@ from trading.setup01_decision import (
     setup01_decision_to_dict,
     setup01_execution_to_dict,
     setup01_target_provenance_audit,
+    SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
 )
 from trading.setup01_replay import Setup01ReplayEvent, replay_setup01_history
 
@@ -58,6 +60,7 @@ DECISION_GATE_REASONS = (
     "ATR_UNAVAILABLE",
     "ABOVE_ENTRY_ZONE",
     "NO_VALID_TARGET",
+    "TARGET_UPSIDE_BELOW_MINIMUM",
     "RR_BELOW_MINIMUM",
     "INVALID_STRUCTURE",
     "ENTRY_ALLOWED",
@@ -68,6 +71,7 @@ EXECUTION_OUTCOMES = (
     "SKIP_GAP_ABOVE_ENTRY_ZONE",
     "SKIP_BELOW_INVALIDATION",
     "SKIP_NO_T1_BAR",
+    SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
     "SKIP_RR_BELOW_MINIMUM_AT_OPEN",
     "SKIP_DECISION_NOT_ENTRY_ALLOWED",
 )
@@ -416,7 +420,7 @@ def run_setup01_decision_funnel(
         raise AssertionError(f"SETUP_01 funnel conservation failed: {conservation}")
     output_path = Path(output_dir)
     document: dict[str, Any] = {
-        "protocol_version": "SETUP-01-DECISION-RISK-2026-08-30-v1",
+        "protocol_version": SETUP01_DECISION_PROTOCOL_VERSION,
         "mode": "DEVELOPMENT_EXPOSED_DECISION_EXECUTION_FUNNEL",
         "development_session_identity": DEVELOPMENT_SESSION_IDENTITY,
         "dataset_version": manifest["dataset_version"],

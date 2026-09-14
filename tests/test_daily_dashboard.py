@@ -381,6 +381,54 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertNotIn("关键价格", rejected_card)
         self.assertNotIn("入场区间", rejected_card)
 
+    def test_target_upside_rejection_is_humanized_in_opportunity_freshness_detail(self):
+        payload = {
+            "as_of_date": "2026-09-14",
+            "results": [{
+                "symbol": "600941.SH",
+                "market": "CN",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "alternate_wave_scenario": "UNKNOWN",
+                "setup01_state": "CONFIRMED",
+                "setup02_state": "NONE",
+                "primary_action": "NO_TRADE",
+                "event_was_new": True,
+                "individual_decision": {
+                    "action": "NO_TRADE",
+                    "gate_reason": "TARGET_UPSIDE_BELOW_MINIMUM",
+                    "planned_entry": 98.16,
+                    "execution_stop": 94.31,
+                    "targets": [98.6825],
+                    "target_upside_pct": (98.6825 - 98.16) / 98.16,
+                    "target_upside_band": "BELOW_MINIMUM",
+                    "minimum_target_upside_pct": 0.05,
+                    "entry_zone_upper_distance_pct": -0.01,
+                    "rr": {"rr_ratios": [0.14], "quality": "NO_TRADE"},
+                },
+                "opportunity_freshness": {
+                    "target_upside_pct": (98.6825 - 98.16) / 98.16,
+                    "target_upside_band": "BELOW_MINIMUM",
+                    "minimum_target_upside_pct": 0.05,
+                    "entry_zone_upper_distance_pct": -0.01,
+                },
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": [],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+            }],
+        }
+
+        projection = build_dashboard_projection(payload)
+        row = projection["rows"][0]
+        self.assertEqual(row["plan"]["target_upside_pct"], "0.53%")
+        rendered = render_dashboard_html(payload)
+        self.assertIn("机会新鲜度", rendered)
+        self.assertIn("目标空间不足", rendered)
+        self.assertIn("0.53%", rendered)
+        self.assertIn("5.00%", rendered)
+
     def test_identity_metadata_wave_mapping_and_input_immutability(self):
         original = deepcopy(self.payload)
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}

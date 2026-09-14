@@ -31,11 +31,17 @@ from trading.models import (
     validate_quote_series,
 )
 from trading.risk import HIGH_ASYMMETRY, NO_TRADE, position_size, risk_reward
+from trading.risk import (
+    MIN_TARGET_UPSIDE_PCT,
+    relative_distance_pct,
+    target_upside_band,
+    target_upside_pct,
+)
 from trading.setup02_replay import Setup02ReplayEvent
 from trading.swing import find_swings
 
 
-SETUP02_DECISION_PROTOCOL_VERSION = "SETUP-02-DECISION-RISK-2026-09-02-v2"
+SETUP02_DECISION_PROTOCOL_VERSION = "SETUP-02-DECISION-RISK-2026-09-14-v3"
 SETUP02_ATR_PERIOD = 14
 SETUP02_ENTRY_ZONE_ATR = 0.5
 SETUP02_EXECUTION_STOP_ATR = 0.5
@@ -48,6 +54,7 @@ class Setup02DecisionGateReason(str, Enum):
     ATR_UNAVAILABLE = "ATR_UNAVAILABLE"
     ABOVE_ENTRY_ZONE = "ABOVE_ENTRY_ZONE"
     NO_VALID_TARGET = "NO_VALID_TARGET"
+    TARGET_UPSIDE_BELOW_MINIMUM = "TARGET_UPSIDE_BELOW_MINIMUM"
     RR_BELOW_MINIMUM = "RR_BELOW_MINIMUM"
     STALE_CONFIRMATION_GEOMETRY = "STALE_CONFIRMATION_GEOMETRY"
     INVALID_STRUCTURE = "INVALID_STRUCTURE"
@@ -58,6 +65,7 @@ SKIP_GAP_BELOW_CONFIRMATION = "SKIP_GAP_BELOW_CONFIRMATION"
 SKIP_GAP_ABOVE_ENTRY_ZONE = "SKIP_GAP_ABOVE_ENTRY_ZONE"
 SKIP_BELOW_INVALIDATION = "SKIP_BELOW_INVALIDATION"
 SKIP_NO_T1_BAR = "SKIP_NO_T1_BAR"
+SKIP_TARGET_UPSIDE_BELOW_MINIMUM = "SKIP_TARGET_UPSIDE_BELOW_MINIMUM"
 SKIP_RR_BELOW_MINIMUM_AT_OPEN = "SKIP_RR_BELOW_MINIMUM_AT_OPEN"
 SKIP_DECISION_NOT_ENTRY_ALLOWED = "SKIP_DECISION_NOT_ENTRY_ALLOWED"
 EXECUTED = "EXECUTED"
@@ -116,6 +124,11 @@ class Setup02Decision:
     rr: RiskReward | None
     position_size: PositionSize | None
     position_size_required_input: str | None
+    target_upside_pct: float | None = None
+    target_upside_band: str | None = None
+    minimum_target_upside_pct: float = MIN_TARGET_UPSIDE_PCT
+    entry_zone_upper_distance_pct: float | None = None
+    confirmation_extension_pct: float | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +143,8 @@ class Setup02Execution:
     outcome: str
     actual_entry: float | None
     actual_rr: RiskReward | None = None
+    t1_gap_vs_planned_entry_pct: float | None = None
+    remaining_target_upside_pct: float | None = None
 
     def __post_init__(self) -> None:
         if (self.actual_entry is not None) != (self.outcome == EXECUTED):
@@ -171,6 +186,11 @@ def _empty_decision(
     rr: RiskReward | None = None,
     position_size_result: PositionSize | None = None,
     position_size_required_input: str | None = None,
+    target_upside_pct_value: float | None = None,
+    target_upside_band_value: str | None = None,
+    minimum_target_upside_pct: float = MIN_TARGET_UPSIDE_PCT,
+    entry_zone_upper_distance_pct: float | None = None,
+    confirmation_extension_pct: float | None = None,
 ) -> Setup02Decision:
     return Setup02Decision(
         protocol_version=SETUP02_DECISION_PROTOCOL_VERSION,
@@ -206,6 +226,11 @@ def _empty_decision(
         rr=rr,
         position_size=position_size_result,
         position_size_required_input=position_size_required_input,
+        target_upside_pct=target_upside_pct_value,
+        target_upside_band=target_upside_band_value,
+        minimum_target_upside_pct=minimum_target_upside_pct,
+        entry_zone_upper_distance_pct=entry_zone_upper_distance_pct,
+        confirmation_extension_pct=confirmation_extension_pct,
     )
 
 
@@ -661,6 +686,14 @@ def evaluate_setup02_decision(
     entry_zone_high = confirmation_level + SETUP02_ENTRY_ZONE_ATR * atr14
     execution_stop = structural_invalidation - SETUP02_EXECUTION_STOP_ATR * atr14
     common.update(atr14=atr14, entry_zone_high=entry_zone_high, execution_stop=execution_stop)
+    common.update(
+        entry_zone_upper_distance_pct=relative_distance_pct(
+            planned_entry, entry_zone_high
+        ),
+        confirmation_extension_pct=relative_distance_pct(
+            planned_entry, confirmation_level
+        ),
+    )
     if planned_entry > entry_zone_high:
         return _empty_decision(
             event,
@@ -692,6 +725,8 @@ def evaluate_setup02_decision(
 
     # Target candidates are complete before this shared R/R calculation.
     rr = risk_reward(planned_entry, execution_stop, targets)
+    planned_target_upside_pct = target_upside_pct(targets[0], planned_entry)
+    planned_target_upside_band = target_upside_band(planned_target_upside_pct)
     reasonableness_checked = rr.quality == HIGH_ASYMMETRY
     reasonableness_passed: bool | None = None
     if reasonableness_checked:
@@ -715,8 +750,29 @@ def evaluate_setup02_decision(
                 target_reasonableness_checked=True,
                 target_reasonableness_passed=False,
                 rr=rr,
+                target_upside_pct_value=planned_target_upside_pct,
+                target_upside_band_value=planned_target_upside_band,
                 **common,
             )
+
+    if planned_target_upside_pct < MIN_TARGET_UPSIDE_PCT:
+        return _empty_decision(
+            event,
+            decision_calculable=True,
+            gate_reason=Setup02DecisionGateReason.TARGET_UPSIDE_BELOW_MINIMUM,
+            gate_detail=(
+                "T1 相对 planned_entry 的 gross upside "
+                f"{planned_target_upside_pct:.2%} < 最低要求 {MIN_TARGET_UPSIDE_PCT:.2%}"
+            ),
+            target_candidates=candidates,
+            targets=targets,
+            target_reasonableness_checked=reasonableness_checked,
+            target_reasonableness_passed=reasonableness_passed,
+            rr=rr,
+            target_upside_pct_value=planned_target_upside_pct,
+            target_upside_band_value=planned_target_upside_band,
+            **common,
+        )
 
     if rr.quality == NO_TRADE or rr.rr_ratios[0] < SETUP02_MINIMUM_RR:
         return _empty_decision(
@@ -729,6 +785,8 @@ def evaluate_setup02_decision(
             target_reasonableness_checked=reasonableness_checked,
             target_reasonableness_passed=reasonableness_passed,
             rr=rr,
+            target_upside_pct_value=planned_target_upside_pct,
+            target_upside_band_value=planned_target_upside_band,
             **common,
         )
 
@@ -748,6 +806,8 @@ def evaluate_setup02_decision(
         target_reasonableness_checked=reasonableness_checked,
         target_reasonableness_passed=reasonableness_passed,
         rr=rr,
+        target_upside_pct_value=planned_target_upside_pct,
+        target_upside_band_value=planned_target_upside_band,
         position_size_result=size,
         position_size_required_input=required_input,
         **common,
@@ -813,6 +873,14 @@ def execute_setup02_t1_open(
 
     # Deliberately read no T+1 high/low/close.
     opening = float(t1.open)
+    assert decision.planned_entry is not None
+    assert decision.targets
+    t1_gap_vs_planned_entry_pct = relative_distance_pct(
+        opening, decision.planned_entry
+    )
+    remaining_target_upside_pct = target_upside_pct(
+        decision.targets[0], opening
+    )
     assert decision.entry_zone_low is not None
     assert decision.entry_zone_high is not None
     assert decision.confirmation_level is not None
@@ -832,7 +900,10 @@ def execute_setup02_t1_open(
         actual_rr = None
     else:
         actual_rr = risk_reward(opening, decision.execution_stop, decision.targets)
-        if actual_rr.rr_ratios[0] < SETUP02_MINIMUM_RR:
+        if remaining_target_upside_pct < MIN_TARGET_UPSIDE_PCT:
+            outcome = SKIP_TARGET_UPSIDE_BELOW_MINIMUM
+            actual_entry = None
+        elif actual_rr.rr_ratios[0] < SETUP02_MINIMUM_RR:
             outcome = SKIP_RR_BELOW_MINIMUM_AT_OPEN
             actual_entry = None
         else:
@@ -849,6 +920,8 @@ def execute_setup02_t1_open(
         outcome=outcome,
         actual_entry=actual_entry,
         actual_rr=actual_rr,
+        t1_gap_vs_planned_entry_pct=t1_gap_vs_planned_entry_pct,
+        remaining_target_upside_pct=remaining_target_upside_pct,
     )
 
 
@@ -1085,6 +1158,11 @@ def setup02_decision_to_dict(value: Setup02Decision) -> dict:
         "rr": _risk_reward_to_dict(value.rr),
         "position_size": _position_size_to_dict(value.position_size),
         "position_size_required_input": value.position_size_required_input,
+        "target_upside_pct": value.target_upside_pct,
+        "target_upside_band": value.target_upside_band,
+        "minimum_target_upside_pct": value.minimum_target_upside_pct,
+        "entry_zone_upper_distance_pct": value.entry_zone_upper_distance_pct,
+        "confirmation_extension_pct": value.confirmation_extension_pct,
     }
 
 
@@ -1102,6 +1180,8 @@ def setup02_execution_to_dict(value: Setup02Execution) -> dict:
         "outcome": value.outcome,
         "actual_entry": value.actual_entry,
         "actual_rr": _risk_reward_to_dict(value.actual_rr),
+        "t1_gap_vs_planned_entry_pct": value.t1_gap_vs_planned_entry_pct,
+        "remaining_target_upside_pct": value.remaining_target_upside_pct,
     }
 
 
@@ -1111,6 +1191,7 @@ __all__ = [
     "SETUP02_DECISION_PROTOCOL_VERSION",
     "SETUP02_ENTRY_ZONE_ATR",
     "SETUP02_EXECUTION_STOP_ATR",
+    "SKIP_TARGET_UPSIDE_BELOW_MINIMUM",
     "SETUP02_MINIMUM_RR",
     "SKIP_BELOW_INVALIDATION",
     "SKIP_DECISION_NOT_ENTRY_ALLOWED",

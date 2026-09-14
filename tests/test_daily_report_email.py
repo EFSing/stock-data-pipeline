@@ -174,16 +174,41 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("目标（Targets）：T1：220；T2：230；T3：240", rendered)
         self.assertIn("风险收益比（RR）：2.00 / 3.00 / 4.00", rendered)
 
-    def test_rr_rejected_decision_is_not_a_trade_plan_and_shows_calculation_basis(self):
+    def test_real_plan_displays_upside_band_without_changing_plan_semantics(self):
+        payload = _cloud_payload("US")
+        payload["reports"] = [payload["reports"][1]]
+        result = payload["reports"][0]["报告"]["results"][1]
+        result["individual_decision"].update({
+            "target_upside_pct": 0.064,
+            "target_upside_band": "LOW_UPSIDE",
+            "minimum_target_upside_pct": 0.05,
+        })
+        payload["candidate_markets"] = {
+            "US": {
+                "status": "SUCCESS",
+                "candidate_included_count": 1,
+                "candidate_included_symbols": ["BBB"],
+            }
+        }
+
+        rendered = render_daily_report_email_html(payload)
+
+        self.assertIn("目标上涨空间：6.40%", rendered)
+        self.assertIn("空间评价：偏小，但达到最低交易门槛", rendered)
+
+    def test_600941_target_upside_rejection_preserves_rr_calculation_basis(self):
         rendered = render_daily_report_email_html(
             _no_trade_payload(
                 "600941.SH",
                 {
                     "action": "NO_TRADE",
-                    "gate_reason": "RR_BELOW_MINIMUM",
+                    "gate_reason": "TARGET_UPSIDE_BELOW_MINIMUM",
                     "planned_entry": 98.16,
                     "execution_stop": 94.31,
                     "targets": [98.6825],
+                    "target_upside_pct": (98.6825 - 98.16) / 98.16,
+                    "target_upside_band": "BELOW_MINIMUM",
+                    "minimum_target_upside_pct": 0.05,
                     "rr": {"rr_ratios": [0.14], "quality": "NO_TRADE"},
                 },
                 "中国移动",
@@ -192,10 +217,11 @@ class DailyReportEmailTests(unittest.TestCase):
 
         self.assertIn("今日不交易（1）", rendered)
         self.assertIn("今日结论：</span>不交易", rendered)
-        self.assertIn("收益风险比不足", rendered)
+        self.assertIn("目标上涨空间不足", rendered)
         self.assertIn("参考价格：98.16", rendered)
-        self.assertIn("结构止损：94.31", rendered)
         self.assertIn("第一目标候选：98.6825", rendered)
+        self.assertIn("目标上涨空间：0.53%", rendered)
+        self.assertIn("系统最低要求：5.00%", rendered)
         self.assertIn("对应 RR：0.14R", rendered)
         self.assertIn("最低 RR 要求：2.00R", rendered)
         self.assertIn("这些是本次 Decision gate 的计算依据，不是买入/止盈建议。", rendered)

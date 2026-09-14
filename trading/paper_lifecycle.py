@@ -20,6 +20,7 @@ from types import SimpleNamespace
 from typing import Any, Protocol
 
 from trading.models import DecisionAction, SetupState
+from trading.risk import MIN_TARGET_UPSIDE_PCT
 from trading.position_management import (
     PositionAnchor,
     PositionOrigin,
@@ -47,7 +48,7 @@ from trading.trade_logic_explanation import (
 )
 
 
-PAPER_PROTOCOL_VERSION = "PROSPECTIVE-PAPER-TRADE-LIFECYCLE-2026-09-13-v1"
+PAPER_PROTOCOL_VERSION = "PROSPECTIVE-PAPER-TRADE-LIFECYCLE-2026-09-14-v2"
 PAPER_LEDGER_SHEET = "策略模拟账本"
 PAPER_TRACKING_APPROVAL_POLICY = "AUTO_APPROVE_FOR_PAPER_TRACKING"
 PAPER_APPROVAL_POLICY = "AUTO_APPROVE_TECHNICAL_ENTRY_ALLOWED"
@@ -437,6 +438,13 @@ class PaperPlan:
     target_provenance: tuple[Any, ...]
     decision_gate_reason: str
     decision_gate_detail: str
+    target_upside_pct: float | None = None
+    target_upside_band: str | None = None
+    minimum_target_upside_pct: float = MIN_TARGET_UPSIDE_PCT
+    entry_zone_upper_distance_pct: float | None = None
+    confirmation_extension_pct: float | None = None
+    t1_gap_vs_planned_entry_pct: float | None = None
+    remaining_target_upside_pct: float | None = None
     paper_approval_policy: str = PAPER_APPROVAL_POLICY
     paper_tracking_approval_policy: str = PAPER_TRACKING_APPROVAL_POLICY
     promotion_required: bool = False
@@ -475,6 +483,13 @@ class PaperPlan:
             "target_provenance": self.target_provenance,
             "decision_gate_reason": self.decision_gate_reason,
             "decision_gate_detail": self.decision_gate_detail,
+            "target_upside_pct": self.target_upside_pct,
+            "target_upside_band": self.target_upside_band,
+            "minimum_target_upside_pct": self.minimum_target_upside_pct,
+            "entry_zone_upper_distance_pct": self.entry_zone_upper_distance_pct,
+            "confirmation_extension_pct": self.confirmation_extension_pct,
+            "t1_gap_vs_planned_entry_pct": self.t1_gap_vs_planned_entry_pct,
+            "remaining_target_upside_pct": self.remaining_target_upside_pct,
             "paper_approval_policy": self.paper_approval_policy,
             "paper_tracking_approval_policy": self.paper_tracking_approval_policy,
             "promotion_required": self.promotion_required,
@@ -538,6 +553,13 @@ class PaperTrade:
     target_provenance: tuple[Any, ...] = ()
     decision_gate_reason: str = ""
     decision_gate_detail: str = ""
+    target_upside_pct: float | None = None
+    target_upside_band: str | None = None
+    minimum_target_upside_pct: float = MIN_TARGET_UPSIDE_PCT
+    entry_zone_upper_distance_pct: float | None = None
+    confirmation_extension_pct: float | None = None
+    t1_gap_vs_planned_entry_pct: float | None = None
+    remaining_target_upside_pct: float | None = None
     paper_approval_policy: str = PAPER_APPROVAL_POLICY
     paper_tracking_approval_policy: str = PAPER_TRACKING_APPROVAL_POLICY
     promotion_required: bool = False
@@ -822,6 +844,17 @@ def _build_plan(
         target_provenance=_target_provenance(decision),
         decision_gate_reason=_text(_field(decision, "gate_reason")),
         decision_gate_detail=_text(_field(decision, "gate_detail")),
+        target_upside_pct=_number(_field(decision, "target_upside_pct")),
+        target_upside_band=_text(_field(decision, "target_upside_band")) or None,
+        minimum_target_upside_pct=_number(
+            _field(decision, "minimum_target_upside_pct")
+        ) or MIN_TARGET_UPSIDE_PCT,
+        entry_zone_upper_distance_pct=_number(
+            _field(decision, "entry_zone_upper_distance_pct")
+        ),
+        confirmation_extension_pct=_number(
+            _field(decision, "confirmation_extension_pct")
+        ),
         promotion_required=bool(metadata.get("promotion_required", source_provenance == CANDIDATE_PROVENANCE)),
         state_persistence_eligible=bool(metadata.get("state_persistence_eligible", source_provenance == FORMAL_PROVENANCE)),
         production_execution_eligible=bool(metadata.get("production_execution_eligible", source_provenance == FORMAL_PROVENANCE)),
@@ -867,6 +900,23 @@ def _plan_from_payload(payload: Mapping[str, Any]) -> PaperPlan:
         target_provenance=tuple(_sequence(payload.get("target_provenance"))),
         decision_gate_reason=_text(payload.get("decision_gate_reason")),
         decision_gate_detail=_text(payload.get("decision_gate_detail")),
+        target_upside_pct=_number(payload.get("target_upside_pct")),
+        target_upside_band=_text(payload.get("target_upside_band")) or None,
+        minimum_target_upside_pct=_number(
+            payload.get("minimum_target_upside_pct")
+        ) or MIN_TARGET_UPSIDE_PCT,
+        entry_zone_upper_distance_pct=_number(
+            payload.get("entry_zone_upper_distance_pct")
+        ),
+        confirmation_extension_pct=_number(
+            payload.get("confirmation_extension_pct")
+        ),
+        t1_gap_vs_planned_entry_pct=_number(
+            payload.get("t1_gap_vs_planned_entry_pct")
+        ),
+        remaining_target_upside_pct=_number(
+            payload.get("remaining_target_upside_pct")
+        ),
         paper_approval_policy=_text(payload.get("paper_approval_policy"), PAPER_APPROVAL_POLICY),
         paper_tracking_approval_policy=_text(
             payload.get("paper_tracking_approval_policy"), PAPER_TRACKING_APPROVAL_POLICY
@@ -914,6 +964,11 @@ def _decision_for_plan(plan: PaperPlan) -> Any:
         execution_stop=plan.execution_stop,
         targets=plan.targets,
         target_candidates=tuple(candidates),
+        target_upside_pct=plan.target_upside_pct,
+        target_upside_band=plan.target_upside_band,
+        minimum_target_upside_pct=plan.minimum_target_upside_pct,
+        entry_zone_upper_distance_pct=plan.entry_zone_upper_distance_pct,
+        confirmation_extension_pct=plan.confirmation_extension_pct,
         rr=rr,
     )
 
@@ -1070,6 +1125,23 @@ def _trade_from_group(
         target_provenance=tuple(_sequence(data.get("target_provenance"))),
         decision_gate_reason=_text(data.get("decision_gate_reason")),
         decision_gate_detail=_text(data.get("decision_gate_detail")),
+        target_upside_pct=_number(data.get("target_upside_pct")),
+        target_upside_band=_text(data.get("target_upside_band")) or None,
+        minimum_target_upside_pct=_number(
+            data.get("minimum_target_upside_pct")
+        ) or MIN_TARGET_UPSIDE_PCT,
+        entry_zone_upper_distance_pct=_number(
+            data.get("entry_zone_upper_distance_pct")
+        ),
+        confirmation_extension_pct=_number(
+            data.get("confirmation_extension_pct")
+        ),
+        t1_gap_vs_planned_entry_pct=_number(
+            data.get("t1_gap_vs_planned_entry_pct")
+        ),
+        remaining_target_upside_pct=_number(
+            data.get("remaining_target_upside_pct")
+        ),
         paper_approval_policy=_text(data.get("paper_approval_policy"), PAPER_APPROVAL_POLICY),
         paper_tracking_approval_policy=_text(
             data.get("paper_tracking_approval_policy"), PAPER_TRACKING_APPROVAL_POLICY
@@ -1221,6 +1293,9 @@ def _trade_from_mapping(value: Mapping[str, Any]) -> PaperTrade | None:
         "return_pct", "final_mfe", "final_mae", "max_mfe_drawdown", "current_r",
         "current_price", "current_return_pct",
         "current_mfe", "current_mae", "current_mfe_drawdown", "current_stop",
+        "target_upside_pct", "minimum_target_upside_pct",
+        "entry_zone_upper_distance_pct", "confirmation_extension_pct",
+        "t1_gap_vs_planned_entry_pct", "remaining_target_upside_pct",
     ):
         if key in data:
             data[key] = _number(data[key])
@@ -1419,6 +1494,8 @@ class PaperLifecycleEngine:
                 "execution_date": execution.execution_date,
                 "t1_open": execution.t1_open,
                 "execution_outcome": execution.outcome,
+                "t1_gap_vs_planned_entry_pct": execution.t1_gap_vs_planned_entry_pct,
+                "remaining_target_upside_pct": execution.remaining_target_upside_pct,
                 "skip_reason": explain_execution_outcome(execution.outcome),
                 "terminal_status": PAPER_SKIPPED_STATUS,
                 "why_execution": explain_execution_outcome(execution.outcome),
@@ -1451,6 +1528,8 @@ class PaperLifecycleEngine:
             "execution_outcome": execution.outcome,
             "actual_entry": execution.actual_entry,
             "actual_rr": actual_rr,
+            "t1_gap_vs_planned_entry_pct": execution.t1_gap_vs_planned_entry_pct,
+            "remaining_target_upside_pct": execution.remaining_target_upside_pct,
             "initial_risk_per_share": origin.initial_risk_per_share,
             "position_origin_json": _json(_origin_to_dict(origin)),
             "why_execution": explain_execution_outcome(execution.outcome),
@@ -1701,6 +1780,15 @@ def paper_ledger_schema() -> dict[str, Any]:
         "sheet_name": PAPER_LEDGER_SHEET,
         "headers": list(PAPER_LEDGER_HEADERS),
         "identity": "event_identity + lifecycle_event_type",
+        "diagnostic_fields_in_payload_json": [
+            "target_upside_pct",
+            "target_upside_band",
+            "minimum_target_upside_pct",
+            "entry_zone_upper_distance_pct",
+            "confirmation_extension_pct",
+            "t1_gap_vs_planned_entry_pct",
+            "remaining_target_upside_pct",
+        ],
         "events": [
             PAPER_PLAN_CREATED,
             PAPER_T1_EXECUTED,

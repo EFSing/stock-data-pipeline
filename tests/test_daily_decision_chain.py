@@ -145,7 +145,12 @@ def _fixture(*, confirmed: bool = True, t1: bool = False, symbol: str = "CHAIN.S
     return history, t_day, event, evaluators
 
 
-def _decision(event, *, action=DecisionAction.ENTRY_ALLOWED):
+def _decision(
+    event,
+    *,
+    action=DecisionAction.ENTRY_ALLOWED,
+    gate_reason="ENTRY_ALLOWED",
+):
     rr = SimpleNamespace(rr_ratios=(2.5,), quality="NORMAL")
     candidate = SimpleNamespace(price=130.0, source="CONFIRMED_SWING_HIGH", provenance=("synthetic",))
     return SimpleNamespace(
@@ -155,6 +160,7 @@ def _decision(event, *, action=DecisionAction.ENTRY_ALLOWED):
         market=event.market,
         trade_date=event.trade_date,
         action=action,
+        gate_reason=gate_reason,
         entry_zone_low=100.0,
         entry_zone_high=105.0,
         planned_entry=102.0,
@@ -279,6 +285,53 @@ class DailyDecisionChainTests(unittest.TestCase):
         result = report.results[0]
         self.assertEqual(result.primary_action, "NO_TRADE")
         self.assertIsNone(result.individual_decision)
+
+    def test_report_exposes_causal_freshness_fields_and_non_overlapping_funnel(self):
+        history, t_day, event, evaluators = _fixture()
+        chain = DailyDecisionChain(evaluators=evaluators)
+        with patch(
+            "trading.daily_decision_chain.evaluate_setup01_decision",
+            return_value=_decision(event),
+        ):
+            report = chain.evaluate(
+                [_input(history, t_day)],
+                mode="DEVELOPMENT_EXPOSED",
+                generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+        result = report.results[0]
+        self.assertAlmostEqual(
+            result.opportunity_freshness["target_upside_pct"],
+            (130.0 - 102.0) / 102.0,
+        )
+        self.assertEqual(
+            result.opportunity_freshness["target_upside_band"],
+            "PREFERRED_UPSIDE",
+        )
+        payload = report.to_dict()
+        self.assertEqual(payload["freshness_funnel"]["new_confirmed_total"], 1)
+        self.assertEqual(payload["freshness_funnel"]["entry_allowed_count"], 1)
+        self.assertTrue(payload["freshness_funnel"]["confirmation_funnel_conserved"])
+
+    def test_freshness_funnel_counts_primary_target_gate_once_when_rr_also_fails(self):
+        history, t_day, event, evaluators = _fixture()
+        chain = DailyDecisionChain(evaluators=evaluators)
+        with patch(
+            "trading.daily_decision_chain.evaluate_setup01_decision",
+            return_value=_decision(
+                event,
+                action=DecisionAction.NO_TRADE,
+                gate_reason="TARGET_UPSIDE_BELOW_MINIMUM",
+            ),
+        ):
+            report = chain.evaluate(
+                [_input(history, t_day)], mode="DEVELOPMENT_EXPOSED"
+            )
+        funnel = report.to_dict()["freshness_funnel"]
+        self.assertEqual(funnel["new_confirmed_total"], 1)
+        self.assertEqual(funnel["target_upside_below_minimum_count"], 1)
+        self.assertEqual(funnel["rr_below_minimum_count"], 0)
+        self.assertEqual(funnel["other_no_trade_count"], 0)
+        self.assertTrue(funnel["confirmation_funnel_conserved"])
 
     def test_new_confirmed_event_is_evaluated_once_and_calendar_disables_t1(self):
         history, t_day, event, evaluators = _fixture()

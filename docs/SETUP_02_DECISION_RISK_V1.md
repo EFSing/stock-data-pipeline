@@ -2,7 +2,7 @@
 
 Status: `SETUP_02_DECISION_RISK_V1_GEOMETRY_CORRECTED_READY_FOR_SOL_REVIEW`
 
-Protocol identity: `SETUP-02-DECISION-RISK-2026-09-02-v2`
+Protocol identity: `SETUP-02-DECISION-RISK-2026-09-14-v3`
 
 This protocol is the independent Decision/Risk layer after the frozen
 SETUP_02 structural lifecycle. It consumes only first-entry structural
@@ -140,6 +140,8 @@ look ahead or select a farther target to manufacture R/R.
 The shared `trading.risk.risk_reward()` calculator is applied only after T1–T3
 exist. T1 is the gate:
 
+- gross target upside below `trading.risk.MIN_TARGET_UPSIDE_PCT` (`0.05`) is
+  `NO_TRADE / TARGET_UPSIDE_BELOW_MINIMUM`;
 - `RR < 2`: `NO_TRADE / RR_BELOW_MINIMUM`
 - `2 <= RR < 3`: `NORMAL`
 - `3 <= RR <= 5`: `HIGH_QUALITY`
@@ -178,6 +180,19 @@ not fall forward to T+2.
 
 `actual_entry != None` if and only if `outcome == EXECUTED`. Observed
 `t1_open` is retained on all exact-session outcomes where an OPEN was read.
+The T-day Decision records `target_upside_pct`, `target_upside_band`,
+`minimum_target_upside_pct`, `entry_zone_upper_distance_pct`, and
+`confirmation_extension_pct`. The executor records
+`t1_gap_vs_planned_entry_pct` and `remaining_target_upside_pct`; after the
+existing invalidation/confirmation/entry-zone precedence, remaining T1 upside
+below 5% is `SKIP_TARGET_UPSIDE_BELOW_MINIMUM`. R/R remains available as a
+diagnostic when both T+1 gates fail. `5% <= upside < 8%` is `LOW_UPSIDE` and
+`upside >= 8%` is `PREFERRED_UPSIDE`, with no ranking, sizing, allocation,
+approval, or promotion effect.
+
+The canonical gross upside formula and 5% constant are shared with SETUP_01
+and live in `trading.risk`; target generation remains nearest-target-first and
+never switches to T2/T3 to pass either the upside or R/R gate.
 
 ## Development funnel and operational gate
 

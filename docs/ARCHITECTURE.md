@@ -239,6 +239,9 @@ scripts/run_cloud_daily_report.py
   column cards, 44px controls, no default wide tables, and collapsed developer/raw evidence;
   a Cloud payload renders only its target-market status card; it remains presentation-only and
   does not invent a plan, stop, target, or signal.
+- The human-readable detail view adds one `机会新鲜度` section with T1 space,
+  entry-zone extension, and exact T+1 decay facts; raw diagnostic fields remain
+  in the existing technical section.
 
 ### trading/daily_report_email.py
 
@@ -248,6 +251,9 @@ scripts/run_cloud_daily_report.py
   the displayed highlights at 20. It contains no JavaScript, controls, foldable sections,
   high-risk layout dependencies, setup/status/provenance tokens, or raw JSON. The browser
   Dashboard and the two Cloud final artifacts remain unchanged.
+- Email plans and rejected Decision calculation-basis blocks show absolute T1
+  upside and the 5% floor in plain language; `TARGET_UPSIDE_BELOW_MINIMUM` is
+  explicitly “目标上涨空间不足”.
 
 ### trading/paper_lifecycle.py / trading/trade_logic_explanation.py
 
@@ -257,6 +263,9 @@ scripts/run_cloud_daily_report.py
   terminal close event only when `replay_position()` produces a real exit.
 - The ledger key is `event_identity + lifecycle_event_type`; current open-day R/MFE/MAE,
   stop, target status and action are replay projections rather than daily persisted rows.
+  Target-upside and opportunity-freshness diagnostics are carried in the existing
+  immutable `payload_json` contract, so the old append-only worksheet header is not
+  rewritten or backfilled.
   Candidate-only provenance remains `DYNAMIC_CANDIDATE`, requires promotion for formal
   lifecycle, and is never production-execution eligible. `PAPER_COVERAGE` exposes the
   tracking start, latest processed session, continuity and gap warning.
@@ -350,7 +359,7 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 │   ├── swing.py              # causal pivot 状态机
 │   ├── structure.py          # Market Structure
 │   ├── fibonacci.py          # Fibonacci levels
-│   ├── risk.py               # R/R + Position Size
+│   ├── risk.py               # R/R + Position Size + canonical T1 upside gate
 │   ├── setup.py              # SETUP_03 Platform Breakout
 │   ├── decision.py           # SETUP_03 Decision Engine + 同源只读 gate diagnostics
 │   ├── events.py             # 生产/回放共享的终态事件语义与幂等键
@@ -496,7 +505,7 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 
 ### trading/setup01_decision.py / scripts/run_setup01_decision_funnel.py
 
-- Decision/Risk v1 只接收 T 日首次 `CONFIRMED` event；persistent terminal
+- Decision/Risk revision v2 只接收 T 日首次 `CONFIRMED` event；persistent terminal
   `CONFIRMED` 不会重新决策，同一 event identity 最多产生一个 Decision。
 - T close 只形成 plan，最早执行为精确 T+1 session 的 `OPEN`；不执行同 bar，
   不读取 T+1 high/low/close。Entry、固定 Entry Zone、execution stop、
@@ -504,8 +513,17 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 - Target 先于 R/R 生成，只复用 T-known confirmed highs 与
   `trading.fibonacci.EXTENSION_RATIOS`；`actual_entry` 仅表示真实成交，严格满足
   `actual_entry != None iff outcome == EXECUTED`，观察价格使用 `t1_open`。
+- SETUP_01/02 共用 `trading.risk.MIN_TARGET_UPSIDE_PCT=0.05`。T1 相对 T-day
+  `planned_entry` 的 gross upside 低于 5% 时 primary gate 为
+  `TARGET_UPSIDE_BELOW_MINIMUM`；exact T+1 OPEN 使用相同 T1 重新计算
+  `remaining_target_upside_pct`，但保留原有结构/entry-zone reason precedence。
+  `LOW_UPSIDE`（5%–8%）与 `PREFERRED_UPSIDE`（>=8%）只作诊断，不改变 rank、
+  sizing、allocation、approval 或 Candidate promotion。
 - Funnel 是 `DEVELOPMENT_EXPOSED`、只读、无 outcome/OOS 的聚合器，按 total/CN/US
   /symbol 输出 `CONFIRMED → Decision → ENTRY_ALLOWED/NO_TRADE(reason) → T+1` 守恒。
+- Daily Chain JSON/Markdown 另外输出 causal opportunity freshness fields 与
+  non-overlapping confirmation funnel；只使用 T-day canonical Decision fields 和
+  exact T+1 OPEN，绝不使用 hindsight low/future bars。
 
 ### scripts/run_setup01_generic_operational_shadow.py
 

@@ -20,6 +20,7 @@ from trading.daily_decision_chain import (
     CompletedSessionIdentity,
     DATA_BAD,
     DATA_OK,
+    DAILY_DECISION_CHAIN_PROTOCOL_VERSION,
     DailyChainEvaluators,
     DailyDecisionChain,
     DailySymbolInput,
@@ -331,7 +332,7 @@ def run_shadow(output_dir: Path = DEFAULT_OUTPUT) -> dict:
         "classification": "GENERIC_OPERATIONAL_SHADOW",
         "cases": cases,
         "case_count": len(cases),
-        "protocol_version": "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-02-v1",
+        "protocol_version": DAILY_DECISION_CHAIN_PROTOCOL_VERSION,
         "broker_accessed": False,
         "sheets_accessed": False,
     }

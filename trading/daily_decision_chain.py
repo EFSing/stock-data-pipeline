@@ -37,6 +37,12 @@ from trading.portfolio_risk import (
     reservation_to_dict,
     settlement_to_dict,
 )
+from trading.risk import (
+    MIN_TARGET_UPSIDE_PCT,
+    relative_distance_pct,
+    target_upside_band,
+    target_upside_pct,
+)
 from trading.position_management import (
     POSITION_MANAGEMENT_PROTOCOL_VERSION,
     PositionAction,
@@ -55,6 +61,7 @@ from trading.setup01_decision import (
 from trading.setup01_replay import Setup01ReplayEvent, Setup01ReplayReport, replay_setup01_history
 from trading.setup02 import evaluate_setup02
 from trading.setup02_decision import (
+    SETUP02_DECISION_PROTOCOL_VERSION,
     Setup02Decision,
     evaluate_setup02_decision,
     execute_setup02_t1_open,
@@ -64,7 +71,10 @@ from trading.wave import WAVE_ENGINE_PROTOCOL_VERSION, evaluate_wave_scenario, e
 from trading.wave5_context import WAVE5_CONTEXT_PROTOCOL_VERSION
 
 
-DAILY_DECISION_CHAIN_PROTOCOL_VERSION = "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-02-v1"
+DAILY_DECISION_CHAIN_PROTOCOL_VERSION = "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-14-v2"
+OPPORTUNITY_FRESHNESS_DIAGNOSTICS_PROTOCOL_VERSION = (
+    "OPPORTUNITY-FRESHNESS-DIAGNOSTICS-2026-09-14-v1"
+)
 PRODUCTION_STRATEGY_UNIVERSE_REQUIRED = "PRODUCTION_STRATEGY_UNIVERSE_REQUIRED"
 STRATEGY_PROPOSAL = "STRATEGY_PROPOSAL"
 STRATEGY_PROPOSAL_APPROVAL_REQUIRED = "STRATEGY_PROPOSAL_APPROVAL_REQUIRED"
@@ -235,6 +245,12 @@ class DailyDecisionResult:
     protocol_versions: dict[str, str]
     generated_at: datetime
     final_status: str
+    # These are read-only T+1 observations copied from the existing executor;
+    # they do not create a second execution or decision state machine.
+    t1_open: float | None = None
+    t1_gap_vs_planned_entry_pct: float | None = None
+    remaining_target_upside_pct: float | None = None
+    opportunity_freshness: dict[str, Any] = field(default_factory=dict)
     # Retained as an internal bridge for explicit paper tracking and other
     # read-only explainers.  It is the same selected replay event already
     # used by this result; no second event identity or evaluation is created.
@@ -260,6 +276,7 @@ class DailyTradingDecisionReport:
             "generated_at": self.generated_at.isoformat(),
             "results": [daily_decision_result_to_dict(item) for item in self.results],
             "sections": sections,
+            "freshness_funnel": opportunity_freshness_funnel(self.results),
         }
 
     def to_markdown(self) -> str:
@@ -269,6 +286,7 @@ class DailyTradingDecisionReport:
             f"- 日期：{self.as_of_date.isoformat()}",
             f"- 生成时间：{self.generated_at.isoformat()}",
             f"- 协议：{DAILY_DECISION_CHAIN_PROTOCOL_VERSION}",
+            f"- 机会新鲜度漏斗：{_freshness_funnel_text(opportunity_freshness_funnel(self.results))}",
             "",
         ]
         for section in _REPORT_SECTIONS:
@@ -283,6 +301,7 @@ class DailyTradingDecisionReport:
                 entry_high = getattr(decision, "entry_zone_high", None)
                 targets = getattr(decision, "targets", ()) if decision else ()
                 rr = getattr(decision, "rr", None)
+                freshness = result.opportunity_freshness
                 portfolio = result.portfolio_result
                 pm = result.position_management
                 lines.extend([
@@ -295,6 +314,7 @@ class DailyTradingDecisionReport:
                     f"- 决策动作：{result.primary_action}；执行阶段：{_value(result.execution_phase)}；执行结果：{result.execution_outcome or '—'}",
                     f"- Entry Zone：{_range(entry, entry_high)}；Stop：{getattr(decision, 'execution_stop', None) if decision else None}",
                     f"- T1/T2/T3：{_targets(targets)}；T1 RR：{_first_rr(rr)}；RR质量：{getattr(rr, 'quality', None) if rr else None}",
+                    f"- 机会新鲜度：T1空间 {_pct(freshness.get('target_upside_pct'))}；入场区上沿距离 {_pct(freshness.get('entry_zone_upper_distance_pct'))}；T+1 gap {_pct(freshness.get('t1_gap_vs_planned_entry_pct'))}；T+1剩余空间 {_pct(freshness.get('remaining_target_upside_pct'))}",
                     f"- Portfolio Risk：{portfolio.status + ' / ' + portfolio.reason if portfolio else '—'}",
                     f"- Position Management：{pm.status + ' / ' + (pm.action or '—') if pm else '—'}",
                     f"- Wave5 Context：{result.wave5_context}",
@@ -619,6 +639,7 @@ class DailyDecisionChain:
                 "wave": WAVE_ENGINE_PROTOCOL_VERSION,
                 "position_management": POSITION_MANAGEMENT_PROTOCOL_VERSION,
                 "wave5": WAVE5_CONTEXT_PROTOCOL_VERSION,
+                "opportunity_freshness": OPPORTUNITY_FRESHNESS_DIAGNOSTICS_PROTOCOL_VERSION,
             },
         )
 
@@ -663,6 +684,9 @@ class DailyDecisionChain:
             "position_management": None,
             "execution_phase": None,
             "execution_outcome": None,
+            "t1_open": None,
+            "t1_gap_vs_planned_entry_pct": None,
+            "remaining_target_upside_pct": None,
             "allocation_requested": False,
             "allocation_reason": None,
         }
@@ -898,12 +922,21 @@ class DailyDecisionChain:
         setup02 = row.get("setup02")
         decision = row.get("individual_decision")
         selected_event = row.get("selected_event")
+        settlement_execution = None
         if settlement is not None:
             decision = settlement.pending.decision
             selected_event = settlement.pending.event
+            settlement_execution = settlement.execution
             row["event_was_new"] = False
             row["execution_phase"] = T1ExecutionPhase.T1_EXECUTION_OBSERVED
             row["execution_outcome"] = settlement.execution.outcome
+            row["t1_open"] = getattr(settlement.execution, "t1_open", None)
+            row["t1_gap_vs_planned_entry_pct"] = getattr(
+                settlement.execution, "t1_gap_vs_planned_entry_pct", None
+            )
+            row["remaining_target_upside_pct"] = getattr(
+                settlement.execution, "remaining_target_upside_pct", None
+            )
             row["reasons"].append(f"T+1 execution observed: {settlement.execution.outcome}")
         portfolio_result = _portfolio_result(portfolio_value)
         prior_result = row.get("prior_result")
@@ -912,6 +945,13 @@ class DailyDecisionChain:
         if row.get("execution_phase") is None and settlement is None and prior_result is not None:
             row["execution_phase"] = prior_result.execution_phase
             row["execution_outcome"] = prior_result.execution_outcome
+            row["t1_open"] = getattr(prior_result, "t1_open", None)
+            row["t1_gap_vs_planned_entry_pct"] = getattr(
+                prior_result, "t1_gap_vs_planned_entry_pct", None
+            )
+            row["remaining_target_upside_pct"] = getattr(
+                prior_result, "remaining_target_upside_pct", None
+            )
         if settlement is not None:
             portfolio_result = _portfolio_result(settlement.settlement.reservation)
         if decision is not None and decision.action is DecisionAction.ENTRY_ALLOWED:
@@ -971,6 +1011,21 @@ class DailyDecisionChain:
         new_identities = tuple(row.get("new_confirmed_event_identities", ()))
         if not new_identities and new_identity is not None:
             new_identities = (new_identity,)
+        opportunity_freshness = _opportunity_freshness_payload(
+            decision,
+            settlement_execution,
+        )
+        if prior_result is not None and not settlement:
+            prior_freshness = getattr(prior_result, "opportunity_freshness", {})
+            if isinstance(prior_freshness, Mapping):
+                opportunity_freshness = {
+                    key: (
+                        value
+                        if value is not None
+                        else prior_freshness.get(key)
+                    )
+                    for key, value in opportunity_freshness.items()
+                }
         return DailyDecisionResult(
             symbol=item.symbol,
             market=item.market,
@@ -995,13 +1050,18 @@ class DailyDecisionChain:
             primary_action=primary_action,
             execution_phase=row.get("execution_phase"),
             execution_outcome=row.get("execution_outcome"),
+            t1_open=row.get("t1_open"),
+            t1_gap_vs_planned_entry_pct=row.get("t1_gap_vs_planned_entry_pct"),
+            remaining_target_upside_pct=row.get("remaining_target_upside_pct"),
+            opportunity_freshness=opportunity_freshness,
             reasons=tuple(str(value) for value in row.get("reasons", ())),
             blocking_prerequisites=tuple(str(value) for value in row.get("blocking", ())),
             protocol_versions={
                 "daily_chain": DAILY_DECISION_CHAIN_PROTOCOL_VERSION,
                 "wave": WAVE_ENGINE_PROTOCOL_VERSION,
                 "setup01": getattr(getattr(decision, "protocol_version", None), "__str__", lambda: "SETUP_01")(),
-                "setup02": "SETUP-02-DECISION-RISK-2026-09-02-v2",
+                "setup02": SETUP02_DECISION_PROTOCOL_VERSION,
+                "opportunity_freshness": OPPORTUNITY_FRESHNESS_DIAGNOSTICS_PROTOCOL_VERSION,
                 "portfolio_risk": "PORTFOLIO-RISK-2026-09-02-v1",
                 "position_management": POSITION_MANAGEMENT_PROTOCOL_VERSION,
                 "wave5": WAVE5_CONTEXT_PROTOCOL_VERSION,
@@ -1175,6 +1235,163 @@ def require_production_universe(provider: UniverseProvider | None) -> tuple[Dail
     return values
 
 
+def _field_value(value: Any, name: str, default: Any = None) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
+def _opportunity_freshness_payload(
+    decision: Any,
+    execution: Any | None = None,
+) -> dict[str, Any]:
+    """Project causal opportunity diagnostics from existing Decision/T+1 fields."""
+
+    if decision is None:
+        return {}
+    targets = _field_value(decision, "targets", ()) or ()
+    target_values = tuple(targets) if isinstance(targets, (tuple, list)) else ()
+    planned_entry = _field_value(decision, "planned_entry")
+    target_upside = _field_value(decision, "target_upside_pct")
+    if target_upside is None and target_values and planned_entry is not None:
+        try:
+            target_upside = target_upside_pct(target_values[0], planned_entry)
+        except (TypeError, ValueError):
+            target_upside = None
+    band = _field_value(decision, "target_upside_band")
+    if band is None and target_upside is not None:
+        try:
+            band = target_upside_band(target_upside)
+        except (TypeError, ValueError):
+            band = None
+    minimum = _field_value(
+        decision, "minimum_target_upside_pct", MIN_TARGET_UPSIDE_PCT
+    )
+    try:
+        minimum = float(minimum)
+    except (TypeError, ValueError):
+        minimum = MIN_TARGET_UPSIDE_PCT
+    entry_zone_upper_distance = _field_value(
+        decision, "entry_zone_upper_distance_pct"
+    )
+    if entry_zone_upper_distance is None:
+        entry_zone_upper = _field_value(decision, "entry_zone_high")
+        if planned_entry is not None and entry_zone_upper is not None:
+            try:
+                entry_zone_upper_distance = relative_distance_pct(
+                    planned_entry, entry_zone_upper
+                )
+            except (TypeError, ValueError):
+                entry_zone_upper_distance = None
+    confirmation_extension = _field_value(decision, "confirmation_extension_pct")
+    if confirmation_extension is None:
+        confirmation_level = _field_value(decision, "confirmation_level")
+        if planned_entry is not None and confirmation_level is not None:
+            try:
+                confirmation_extension = relative_distance_pct(
+                    planned_entry, confirmation_level
+                )
+            except (TypeError, ValueError):
+                confirmation_extension = None
+    t1_open = _field_value(execution, "t1_open") if execution is not None else None
+    t1_gap = (
+        _field_value(execution, "t1_gap_vs_planned_entry_pct")
+        if execution is not None
+        else None
+    )
+    remaining = (
+        _field_value(execution, "remaining_target_upside_pct")
+        if execution is not None
+        else None
+    )
+    return {
+        "target_upside_pct": target_upside,
+        "target_upside_band": band,
+        "minimum_target_upside_pct": minimum,
+        "entry_zone_upper_distance_pct": entry_zone_upper_distance,
+        "confirmation_extension_pct": confirmation_extension,
+        "t1_open": t1_open,
+        "t1_gap_vs_planned_entry_pct": t1_gap,
+        "remaining_target_upside_pct": remaining,
+    }
+
+
+def opportunity_freshness_funnel(
+    results: Iterable[DailyDecisionResult],
+) -> dict[str, int | bool]:
+    """Count primary causal confirmation/gate outcomes without overlap."""
+
+    values = tuple(results)
+    new_confirmed_total = 0
+    above_entry_zone_count = 0
+    target_upside_below_minimum_count = 0
+    rr_below_minimum_count = 0
+    other_no_trade_count = 0
+    entry_allowed_count = 0
+    gap_outcomes = {
+        "SKIP_GAP_BELOW_CONFIRMATION",
+        "SKIP_GAP_ABOVE_ENTRY_ZONE",
+    }
+    t1_gap_skip_count = 0
+    t1_upside_decay_skip_count = 0
+    for result in values:
+        if result.event_was_new:
+            identities = tuple(result.new_confirmed_event_identities or ())
+            event_count = max(len(identities), 1)
+            new_confirmed_total += event_count
+            decision = result.individual_decision
+            reason = _value(_field_value(decision, "gate_reason"))
+            action = _value(_field_value(decision, "action"))
+            if reason == "ABOVE_ENTRY_ZONE":
+                above_entry_zone_count += event_count
+            elif reason == "TARGET_UPSIDE_BELOW_MINIMUM":
+                target_upside_below_minimum_count += event_count
+            elif reason == "RR_BELOW_MINIMUM":
+                rr_below_minimum_count += event_count
+            elif action == DecisionAction.ENTRY_ALLOWED.value:
+                entry_allowed_count += event_count
+            else:
+                other_no_trade_count += event_count
+        outcome = result.execution_outcome
+        if outcome in gap_outcomes:
+            t1_gap_skip_count += 1
+        elif outcome == "SKIP_TARGET_UPSIDE_BELOW_MINIMUM":
+            t1_upside_decay_skip_count += 1
+    classified = (
+        above_entry_zone_count
+        + target_upside_below_minimum_count
+        + rr_below_minimum_count
+        + other_no_trade_count
+        + entry_allowed_count
+    )
+    return {
+        "new_confirmed_total": new_confirmed_total,
+        "above_entry_zone_count": above_entry_zone_count,
+        "target_upside_below_minimum_count": target_upside_below_minimum_count,
+        "rr_below_minimum_count": rr_below_minimum_count,
+        "other_no_trade_count": other_no_trade_count,
+        "entry_allowed_count": entry_allowed_count,
+        "t1_gap_skip_count": t1_gap_skip_count,
+        "t1_upside_decay_skip_count": t1_upside_decay_skip_count,
+        "t1_gap_or_upside_skip_count": (
+            t1_gap_skip_count + t1_upside_decay_skip_count
+        ),
+        "confirmation_funnel_conserved": classified == new_confirmed_total,
+    }
+
+
+def _freshness_funnel_text(funnel: Mapping[str, Any]) -> str:
+    return (
+        f"新确认 {funnel.get('new_confirmed_total', 0)}；"
+        f"超过入场区 {funnel.get('above_entry_zone_count', 0)}；"
+        f"目标空间不足 {funnel.get('target_upside_below_minimum_count', 0)}；"
+        f"RR不足 {funnel.get('rr_below_minimum_count', 0)}；"
+        f"其他不交易 {funnel.get('other_no_trade_count', 0)}；"
+        f"仍可交易 {funnel.get('entry_allowed_count', 0)}；"
+        f"T+1 gap/空间衰减跳过 {funnel.get('t1_gap_or_upside_skip_count', 0)}"
+    )
+
+
 def daily_decision_result_to_dict(result: DailyDecisionResult) -> dict[str, Any]:
     payload = _serialise(result)
     # ``selected_event`` is an internal bridge for the explicit Paper tracker;
@@ -1236,6 +1453,13 @@ def _range(low: Any, high: Any) -> str:
     return "—" if low is None or high is None else f"[{low}, {high}]"
 
 
+def _pct(value: Any) -> str:
+    try:
+        return f"{float(value):.2%}" if value is not None else "—"
+    except (TypeError, ValueError):
+        return "—"
+
+
 def _targets(values: Sequence[Any]) -> str:
     values = tuple(values)
     return "/".join(str(value) for value in (*values[:3],)) or "—"
@@ -1257,6 +1481,7 @@ __all__ = [
     "DATA_STALE",
     "DATA_UNAVAILABLE",
     "DAILY_DECISION_CHAIN_PROTOCOL_VERSION",
+    "OPPORTUNITY_FRESHNESS_DIAGNOSTICS_PROTOCOL_VERSION",
     "DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION",
     "STRATEGY_PROPOSAL",
     "STRATEGY_PROPOSAL_APPROVAL_REQUIRED",
@@ -1285,5 +1510,6 @@ __all__ = [
     "daily_decision_event_identity",
     "daily_decision_result_to_dict",
     "daily_report_json",
+    "opportunity_freshness_funnel",
     "require_production_universe",
 ]

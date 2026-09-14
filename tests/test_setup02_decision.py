@@ -8,7 +8,7 @@ from unittest.mock import patch
 from core import Quote
 from research.market_sessions import build_market_session_dates
 from trading.fibonacci import project_extension
-from trading.models import DecisionAction, SetupState, SwingKind, SwingPoint
+from trading.models import DecisionAction, RiskReward, SetupState, SwingKind, SwingPoint
 from trading.setup02 import Setup02Evaluation
 from trading.setup02_decision import (
     EXECUTED,
@@ -17,8 +17,10 @@ from trading.setup02_decision import (
     SKIP_GAP_BELOW_CONFIRMATION,
     SKIP_NO_T1_BAR,
     SKIP_RR_BELOW_MINIMUM_AT_OPEN,
+    SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
     SETUP02_DECISION_PROTOCOL_VERSION,
     Setup02DecisionGateReason,
+    Setup02TargetCandidate,
     evaluate_setup02_decision,
     evaluate_setup02_decision_stream,
     execute_setup02_t1_open,
@@ -249,10 +251,14 @@ class Setup02DecisionTests(unittest.TestCase):
 
     def test_target_first_before_rr_and_rr_below_minimum(self):
         event, quotes = _fixture()
+        candidate = Setup02TargetCandidate(130.0, "SYNTHETIC", "test")
         with patch(
             "trading.setup02_decision.risk_reward",
             wraps=calculate_risk_reward,
-        ) as calculate:
+        ) as calculate, patch(
+            "trading.setup02_decision._target_candidates",
+            return_value=(candidate,),
+        ):
             decision = evaluate_setup02_decision(event, quotes)
         self.assertEqual(decision.gate_reason, Setup02DecisionGateReason.RR_BELOW_MINIMUM)
         self.assertTrue(decision.targets)
@@ -326,7 +332,7 @@ class Setup02DecisionTests(unittest.TestCase):
             decision = evaluate_setup02_decision(event, quotes)
         self.assertEqual(
             decision.gate_reason,
-            Setup02DecisionGateReason.RR_BELOW_MINIMUM,
+            Setup02DecisionGateReason.TARGET_UPSIDE_BELOW_MINIMUM,
         )
         self.assertEqual(
             decision.targets[0],
@@ -334,6 +340,87 @@ class Setup02DecisionTests(unittest.TestCase):
         )
         self.assertLess(decision.rr.rr_ratios[0], 2.0)
         self.assertGreater(decision.rr.rr_ratios[1], 2.0)
+
+    def test_target_upside_boundaries_and_independent_rr_gate(self):
+        event, quotes = _fixture(wide=True, t_close=140.0)
+
+        def synthetic_rr(entry, stop, targets):
+            return RiskReward(
+                entry,
+                stop,
+                abs(entry - stop),
+                tuple(targets),
+                tuple(2.5 for _ in targets),
+                "NORMAL",
+            )
+
+        cases = (
+            (1.0499, Setup02DecisionGateReason.TARGET_UPSIDE_BELOW_MINIMUM, "BELOW_MINIMUM"),
+            (1.05, Setup02DecisionGateReason.ENTRY_ALLOWED, "LOW_UPSIDE"),
+            (1.07, Setup02DecisionGateReason.ENTRY_ALLOWED, "LOW_UPSIDE"),
+            (1.08, Setup02DecisionGateReason.ENTRY_ALLOWED, "PREFERRED_UPSIDE"),
+        )
+        for multiplier, expected_reason, expected_band in cases:
+            with self.subTest(multiplier=multiplier):
+                candidate = Setup02TargetCandidate(140.0 * multiplier, "SYNTHETIC", "test")
+                with patch(
+                    "trading.setup02_decision._target_candidates",
+                    return_value=(candidate,),
+                ), patch("trading.setup02_decision.risk_reward", side_effect=synthetic_rr):
+                    decision = evaluate_setup02_decision(event, quotes)
+                self.assertEqual(decision.gate_reason, expected_reason)
+                self.assertEqual(decision.target_upside_band, expected_band)
+                self.assertAlmostEqual(decision.minimum_target_upside_pct, 0.05)
+
+        candidate = Setup02TargetCandidate(140.0 * 1.10, "SYNTHETIC", "test")
+        low_rr = RiskReward(140.0, 100.0, 40.0, (candidate.price,), (1.8,), "NO_TRADE")
+        with patch(
+            "trading.setup02_decision._target_candidates",
+            return_value=(candidate,),
+        ), patch("trading.setup02_decision.risk_reward", return_value=low_rr):
+            decision = evaluate_setup02_decision(event, quotes)
+        self.assertEqual(decision.gate_reason, Setup02DecisionGateReason.RR_BELOW_MINIMUM)
+        self.assertEqual(decision.target_upside_band, "PREFERRED_UPSIDE")
+
+    def test_t1_rechecks_remaining_target_upside_after_entry_zone_checks(self):
+        event, quotes = _fixture(wide=True, t_close=140.0, t1_open=141.0)
+        candidate = Setup02TargetCandidate(140.0 * 1.055, "SYNTHETIC", "test")
+
+        def synthetic_rr(entry, stop, targets):
+            return RiskReward(
+                entry,
+                stop,
+                abs(entry - stop),
+                tuple(targets),
+                tuple(2.5 for _ in targets),
+                "NORMAL",
+            )
+
+        with patch(
+            "trading.setup02_decision._target_candidates",
+            return_value=(candidate,),
+        ), patch("trading.setup02_decision.risk_reward", side_effect=synthetic_rr):
+            decision = evaluate_setup02_decision(event, quotes)
+            execution = execute_setup02_t1_open(
+                decision, quotes, market_session_dates=_sessions(quotes)
+            )
+        self.assertEqual(decision.action, DecisionAction.ENTRY_ALLOWED)
+        self.assertEqual(execution.outcome, SKIP_TARGET_UPSIDE_BELOW_MINIMUM)
+        self.assertIsNone(execution.actual_entry)
+        self.assertIsNotNone(execution.actual_rr)
+        self.assertLess(execution.remaining_target_upside_pct, 0.05)
+
+        event, quotes = _fixture(wide=True, t_close=140.0, t1_open=160.0)
+        with patch(
+            "trading.setup02_decision._target_candidates",
+            return_value=(candidate,),
+        ), patch("trading.setup02_decision.risk_reward", side_effect=synthetic_rr):
+            decision = evaluate_setup02_decision(event, quotes)
+            execution = execute_setup02_t1_open(
+                decision, quotes, market_session_dates=_sessions(quotes)
+            )
+        self.assertEqual(execution.outcome, "SKIP_GAP_ABOVE_ENTRY_ZONE")
+        self.assertLess(execution.remaining_target_upside_pct, 0.05)
 
     def test_setup02_target_builder_no_longer_contains_old_invalidation_projection(self):
         module = __import__("trading.setup02_decision", fromlist=["_target_candidates"])

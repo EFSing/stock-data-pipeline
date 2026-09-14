@@ -32,6 +32,7 @@ from trading.paper_lifecycle import (
     PAPER_SKIPPED_STATUS,
     InMemoryPaperLedgerStore,
     PaperLifecycleEngine,
+    PAPER_PROTOCOL_VERSION,
     calculate_performance,
     grouped_performance,
 )
@@ -213,7 +214,7 @@ def run_paper_trade_lifecycle_generic_operational_shadow(
         }
     }
     document = {
-        "protocol_version": "PROSPECTIVE-PAPER-TRADE-LIFECYCLE-2026-09-13-v1",
+        "protocol_version": PAPER_PROTOCOL_VERSION,
         "mode": "GENERIC_OPERATIONAL_SHADOW",
         "fixture_version": FIXTURE_VERSION,
         "fixture_source": "CONTROLLED_PUBLIC_SYNTHETIC_HOLDINGS_FIXTURE",

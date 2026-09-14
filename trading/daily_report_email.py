@@ -34,8 +34,15 @@ _STATUS_LABELS = {
 _MARKET_LABELS = {"CN": "A股", "US": "美股"}
 _PLAN_STAGES = frozenset(("ENTRY_ALLOWED", "STRATEGY_PROPOSAL"))
 _MINIMUM_RR_TEXT = "2.00R"
+_EXECUTION_COPY = {
+    "EXECUTED": "T+1 开盘已通过执行检查并记录模拟成交",
+    "SKIP_TARGET_UPSIDE_BELOW_MINIMUM": "T+1 剩余第一目标空间低于5%，已跳过，不追入",
+    "SKIP_GAP_BELOW_CONFIRMATION": "T+1 低开回到确认价下方，已按原规则跳过",
+    "SKIP_GAP_ABOVE_ENTRY_ZONE": "T+1 高开超过允许入场区，已按原规则跳过",
+}
 _NO_TRADE_COPY = {
     "RR_BELOW_MINIMUM": ("不交易", "收益风险比不足"),
+    "TARGET_UPSIDE_BELOW_MINIMUM": ("不交易", "目标上涨空间不足"),
     "ABOVE_ENTRY_ZONE": ("不追高", "已经高于允许入场区上沿"),
     "NO_VALID_TARGET": ("不交易", "没有高于参考价格的有效第一目标"),
     "ATR_UNAVAILABLE": ("不交易", "波动率数据不足"),
@@ -322,6 +329,20 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
         return ""
     plan = _mapping(row.get("plan"))
     reason = _decision_gate_reason(row)
+    if reason == "TARGET_UPSIDE_BELOW_MINIMUM":
+        return (
+            '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
+            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
+            f'<div style="margin:2px 0;">参考价格：{_escape(plan.get("planned_entry"))}</div>'
+            f'<div style="margin:2px 0;">结构止损：{_escape(plan.get("execution_stop"))}</div>'
+            f'<div style="margin:2px 0;">第一目标候选：{_escape(plan.get("target_1"))}</div>'
+            f'<div style="margin:2px 0;">目标上涨空间：{_escape(plan.get("target_upside_pct"))}</div>'
+            f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
+            f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
+            f'<div style="margin:2px 0;">最低 RR 要求：{_MINIMUM_RR_TEXT}</div>'
+            '<div style="margin:7px 0 0 0;color:#687386;">说明：目标空间不足；这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+            '</div>'
+        )
     if reason == "RR_BELOW_MINIMUM":
         return (
             '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
@@ -329,6 +350,8 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
             f'<div style="margin:2px 0;">参考价格：{_escape(plan.get("planned_entry"))}</div>'
             f'<div style="margin:2px 0;">结构止损：{_escape(plan.get("execution_stop"))}</div>'
             f'<div style="margin:2px 0;">第一目标候选：{_escape(plan.get("target_1"))}</div>'
+            f'<div style="margin:2px 0;">目标上涨空间：{_escape(plan.get("target_upside_pct"))}</div>'
+            f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
             f'<div style="margin:2px 0;">最低 RR 要求：{_MINIMUM_RR_TEXT}</div>'
             '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
@@ -360,13 +383,31 @@ def _plan_html(row: Mapping[str, Any]) -> str:
         f"T{index}：{_escape(plan.get(key))}"
         for index, key in enumerate(("target_1", "target_2", "target_3"), start=1)
     )
+    optional_lines = []
+    for label, key in (
+        ("目标上涨空间", "target_upside_pct"),
+        ("空间评价", "target_upside_band"),
+        ("T+1 gap", "t1_gap_vs_planned_entry_pct"),
+        ("T+1 剩余第一目标空间", "remaining_target_upside_pct"),
+    ):
+        value = _text(plan.get(key))
+        if value and value not in {"—", "-"}:
+            optional_lines.append(
+                f'<div style="margin:2px 0;">{label}：{_escape(value)}</div>'
+            )
+    outcome = _text(_mapping(row.get("raw_result")).get("execution_outcome"))
+    if outcome in _EXECUTION_COPY:
+        optional_lines.append(
+            f'<div style="margin:2px 0;">T+1 结果：{_escape(_EXECUTION_COPY[outcome])}</div>'
+        )
     return (
         '<div style="margin-top:10px;padding:10px;background-color:#f4f8ff;border-left:3px solid #356ae6;">'
         '<div style="margin:0 0 5px 0;color:#244a9b;font-weight:700;">交易计划（来自真实 Decision）</div>'
         f'<div style="margin:2px 0;">入场（Entry）：{_escape(plan.get("planned_entry"))}</div>'
         f'<div style="margin:2px 0;">止损（Stop）：{_escape(plan.get("execution_stop"))}</div>'
         f'<div style="margin:2px 0;">目标（Targets）：{targets}</div>'
-        f'<div style="margin:2px 0;">风险收益比（RR）：{_escape(plan.get("rr"))}</div>'
+        + "".join(optional_lines)
+        + f'<div style="margin:2px 0;">风险收益比（RR）：{_escape(plan.get("rr"))}</div>'
         "</div>"
     )
 
