@@ -20,6 +20,7 @@ from latest_snapshot import evaluate_latest_snapshot, project_latest_row
 from providers import (
     PROVIDERS,
     _as_date,
+    _fetch_yahoo_chart_latest,
     fetch_latest_with_retry,
     fetch_sina,
     fetch_tencent,
@@ -441,6 +442,27 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(calls[0]["end"], "2026-08-31")
         self.assertNotIn("period", calls[0])
         chart.assert_called_once_with(watch, date(2026, 8, 30))
+
+    def test_yahoo_chart_latest_probe_keeps_prior_close_in_bounded_window(self):
+        watch = {
+            "统一代码": "512400.SH", "名称": "ETF", "市场": "CN",
+            "yfinance代码": "512400.SS", "币种": "CNY",
+        }
+        calls = []
+        expected = [quote("YahooChart", day=date(2026, 8, 28))]
+
+        def chart(watch_row, adjust, start, end):
+            calls.append((watch_row, adjust, start, end))
+            return expected
+
+        with patch("providers._fetch_yahoo_chart", side_effect=chart):
+            result = _fetch_yahoo_chart_latest(watch, date(2026, 8, 28))
+
+        self.assertEqual(result, expected)
+        self.assertEqual(
+            calls,
+            [(watch, "raw", date(2026, 8, 21), date(2026, 8, 28))],
+        )
 
     def test_tencent_snapshot_parser(self):
         payload = (

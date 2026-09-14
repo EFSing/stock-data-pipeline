@@ -431,15 +431,18 @@ def _fetch_yahoo_chart_latest(watch: dict, end: date) -> list[Quote]:
     """Fetch the newest sane Yahoo Chart session from a bounded daily probe.
 
     Some Yahoo range responses expose an incomplete newest row while a
-    one-session bounded request contains the completed OHLCV bar.  Probe only
-    the recent seven calendar days, newest first, and never fill a missing
-    close from another field.
+    bounded request contains the completed OHLCV bar.  Probe only the recent
+    seven calendar days, newest first, and include a bounded lookback in each
+    successful probe so ``_records_to_quotes`` can retain the prior close for
+    the selected session.  Never fill a missing close from another field.
     """
     errors: list[str] = []
     for offset in range(8):
         day = end - timedelta(days=offset)
         try:
-            rows = _fetch_yahoo_chart(watch, "raw", day, day)
+            rows = _fetch_yahoo_chart(
+                watch, "raw", day - timedelta(days=7), day
+            )
         except Exception as exc:
             errors.append(f"{day.isoformat()}: {exc}")
             continue
