@@ -93,7 +93,7 @@
 - 总体主线仍是 `Weekly State → Daily State → Swing → Wave Scenario → Fibonacci
   → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management
   → Exit`；四类 Setup 仍为 `SETUP_01`、`SETUP_02`、`SETUP_03`、`SETUP_04`，不把
-  SETUP_03 解释为总体策略。
+  SETUP_03 解释为总体策略；SETUP_03 只是四类 Setup 之一的子策略。
 - `signal(t)` 只使用 `data <= t`；不使用未来 Swing/ZigZag、future bars、事后最低
   点、MFE/MAE、Final OOS 或 outcome 来优化确认/入场。
 - Target-before-RR；T1 是第一 formal target；不以更远 T2/T3 绕过 5% 或 2R。
