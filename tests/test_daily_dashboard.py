@@ -347,6 +347,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(position["actual_entry"], "100")
         self.assertEqual(position["current_price"], "112")
         self.assertEqual(position["active_protective_stop"], "104")
+        self.assertEqual(position["next_session_protective_stop"], "106")
         self.assertEqual(position["targets"], ("120", "130", "140"))
         self.assertEqual(position["current_r"], "+1.20R")
         self.assertEqual(position["mfe_r"], "+1.80R")

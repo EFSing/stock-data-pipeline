@@ -19,6 +19,24 @@ trading/candidate_universe.py
         ↓
 lightweight candidate rows / fixture (no production state, no Sheets)
 
+Cloud Daily Report V1 (one independent CN or US workflow, read-only)
+        ↓
+Exact exchange-calendars gate (CN=XSHG, US=XNYS)
+        → non-session: SKIPPED_NON_SESSION, no previous-session fallback
+        → incomplete session: fail closed and still emit diagnostic artifacts
+        ↓
+trading/ephemeral_market_data.py
+        → formal strategy pool ∪ active positions ∪ active Paper continuation
+        → existing provider fallback + latest_snapshot evaluator/projections
+        → exact T latest/QFQ rows kept in process memory only
+        ↓
+ProductionInputAdapter(market=CN|US, ephemeral latest/QFQ)
+        → existing Candidate runtime + existing account-isolated Daily Chain
+        → Candidate-only remains READ_ONLY_DISCOVERY; no state or Sheet write
+        ↓
+daily-report.json + daily-report.html (allowlist only, RUNNER_TEMP, ~30d upload)
+        → optional Bark/SMTP notification with current GitHub run URL
+
 Production manual --run (read-only by default)
         ↓
 ProductionInputAdapter
@@ -62,7 +80,7 @@ scripts/run_candidate_strategy_shadow_bridge_v1_tushare_probe.py
         → independent Candidate summary + Strategy/DailyDecisionChain summary
         → stage timings and JSON report (no production state, Sheets, allocation, or orders)
 
-GitHub Actions scheduler (cron)
+Legacy GitHub Actions scheduler (migration compatibility; old writer path)
         ↓
 main.py  (CLI 入口: --group asia|us|all, --mode latest|full, --fixture)
         ↓
@@ -127,10 +145,11 @@ inclusion/exclusion reason, sector, rank, affordability tier, documented minimum
 20D/60D liquidity proxy and history freshness.  It intentionally has no Strategy action
 field and cannot produce `ENTRY_ALLOWED`.
 
-The production Candidate runtime is a manual/local production input path. It is invoked by
-`scripts/run_production_daily_decision.py --run` when the real `SheetsClient` is used; injected
-test clients can supply a deterministic runtime. CN and US are run independently and a market
-with multiple enabled strategy accounts is rejected as
+The production Candidate runtime is used by both the manual/local runner and the
+market-scoped Cloud Daily Report. It is invoked by `scripts/run_production_daily_decision.py
+--run` when the real `SheetsClient` is used; injected test clients can supply a deterministic
+runtime. CN and US are run independently and a market with multiple enabled strategy accounts
+is rejected as
 `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING` rather than guessed. Stage A uses fixed
 yfinance batches and Stage B calls the existing yfinance QFQ provider only for included
 symbols; formal/position inputs are reused and the final union is analyzed once. Candidate
@@ -159,7 +178,8 @@ long-term provider decision; US remains IWB plus yfinance auto-adjusted history 
 latest completed XNYS session, with historical as-of replay fail-closed before deep fetch.
 All bridge execution is read-only.
 
-### trading/production_candidate_runtime.py / scripts/run_production_daily_decision.py
+### trading/production_candidate_runtime.py / scripts/run_production_daily_decision.py /
+scripts/run_cloud_daily_report.py
 
 - Production `--run` obtains the formal strategy pool, account-scoped state and
   active positions from `ProductionInputAdapter`, then runs one Candidate runtime
@@ -180,6 +200,30 @@ All bridge execution is read-only.
   Candidate data failures become DATA_* fail-closed rows. No Candidate row is written
   to `策略股票池` or any other Sheet, and no broker order is submitted automatically.
 
+- `run_production_daily_decision.py --market CN|US` scopes the existing runner to one market;
+  omitting the flag preserves the legacy all-market manual behavior. Cloud calls this runner
+  with `write_state=False`, `paper_track=False`, explicit ephemeral latest/QFQ rows and a
+  no-runnable-account diagnostic mode so an incomplete configuration still produces a report.
+
+- `run_cloud_daily_report.py` performs the exact session gate before constructing `SheetsClient`,
+  loads only the target market's required provider identities into memory, and deliberately
+  does not read the legacy `最新行情` / `历史行情_前复权` sheets. It writes only
+  `daily-report.json` and `daily-report.html`, and never writes market rows, state, paper
+  events, candidate promotion, or broker orders. The JSON metadata records the checked-out
+  git SHA and lightweight CandidateRecord audit rows, but no raw/QFQ bars. `BARK_ENDPOINT`
+  and optional SMTP are notification-only integrations; notification failure is recorded but
+  does not alter the Daily Chain result.
+
+### trading/ephemeral_market_data.py
+
+- Reads only the target market's enabled formal-pool and active-position identities, plus
+  optional active Paper continuation identities. It reuses the existing provider registries,
+  retry bounds, latest evaluator, and QFQ row projections; all returned rows are process-local
+  inputs and are intentionally absent from the metadata returned by `to_dict()`.
+- Missing provider fields, unsupported QFQ sources, identity mismatches, stale T, future rows,
+  or incomplete latest/QFQ coverage become per-symbol errors. The module never updates Sheets,
+  writes a cache, or guesses a provider or previous session.
+
 ### trading/daily_dashboard.py / scripts/render_daily_dashboard.py
 
 - `build_dashboard_projection()` consumes the existing production result mapping or a
@@ -191,6 +235,10 @@ All bridge execution is read-only.
   and provides market/stage/setup/sector filters plus expandable professional details.
   `write_dashboard_html()` writes `latest.html` and an optional date-versioned copy;
   `scripts/render_daily_dashboard.py` is the saved-JSON command-line entry point.
+  The Cloud V2 presentation is mobile-first with human Chinese wave/status mappings, single
+  column cards, 44px controls, no default wide tables, and collapsed developer/raw evidence;
+  a Cloud payload renders only its target-market status card; it remains presentation-only and
+  does not invent a plan, stop, target, or signal.
 
 ### trading/paper_lifecycle.py / trading/trade_logic_explanation.py
 
@@ -209,7 +257,20 @@ All bridge execution is read-only.
 
 ### Execution modes
 
-`--mode latest` 是亚洲/欧美 scheduled workflow 的生产路径：只读取自选清单，使用短窗口 latest quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、双源校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar guard 时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市且不推断节假日。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且 `history_rows_written=0`。
+Cloud Daily Report V1 是 CN/US 独立的 read-only scheduled path：先用 `XSHG` / `XNYS`
+验证精确 completed T，非交易日返回 `SKIPPED_NON_SESSION`，再从 provider 获取目标市场
+正式池、持仓和 Paper continuation 所需的 latest/QFQ rows。它复用既有
+`ProductionCandidateRuntime` 与 Daily Chain，不写 `最新行情`、QFQ、决策状态或 Paper
+ledger；最终每个 market/T 只上传 `daily-report.json` 与 `daily-report.html`，可选发送
+Bark/SMTP。旧 `asia-close` / `us-close` 的 `main.py --mode latest` scheduled writer
+在 live acceptance 前保留以支持迁移；验收后只保留其手工 dispatch，避免长期两套 schedule。
+
+`--mode latest` 是旧亚洲/欧美 workflow 的兼容路径：只读取自选清单，使用短窗口 latest
+quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、双源
+校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar guard
+时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市且不
+推断节假日。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且
+`history_rows_written=0`。
 
 `--mode full` 保留需要历史数据的手动路径，继续执行未复权历史、qfq、SETUP_03 和 Decision。它不由 daily schedule 调用；workflow_dispatch 可显式选择该模式。
 
@@ -230,6 +291,8 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 ├── .github/workflows/
 │   ├── asia-close.yml        # 亚洲收盘任务 (CN/HK/JP)
 │   ├── us-close.yml          # 欧美收盘任务 (US/SE)
+│   ├── cn-daily-report.yml   # CN exact-session read-only report
+│   ├── us-daily-report.yml   # US exact-session read-only report
 │   └── setup03-replay.yml    # SETUP_03 手动只读历史回放
 ├── .devcontainer/
 │   └── devcontainer.json     # GitHub Codespaces / VS Code Dev Container
@@ -248,6 +311,7 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 │   ├── run_setup03_replay.py # 读取真实配置并输出 SETUP_03 回放/研究 artifact
 │   ├── holdings_data_manager_smoke.py # provider-only raw/qfq coverage smoke
 │   ├── render_daily_dashboard.py # saved Daily Decision JSON → standalone HTML
+│   ├── run_cloud_daily_report.py # one-market exact-session Cloud report
 │   └── run_paper_trade_lifecycle_generic_operational_shadow.py # synthetic-only Paper gate
 ├── research/
 │   ├── replay_input.py      # canonical input hash / manifest / frozen replay
@@ -285,6 +349,8 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
   │   ├── setup01_replay.py     # SETUP_01 strict as-of structural replay
   │   └── setup01_decision.py   # SETUP_01 independent Decision/Risk v1
   ├── production_candidate_runtime.py # read-only Candidate→Daily input runtime
+  ├── ephemeral_market_data.py # Cloud target-market latest/QFQ in-memory boundary
+  ├── notifications.py       # optional Bark/SMTP notification adapters
   ├── daily_dashboard.py       # read-only Daily Decision presentation projection
   ├── paper_lifecycle.py        # explicit prospective Paper ledger/replay projection
   ├── trade_logic_explanation.py # existing-rule Chinese presentation mappings

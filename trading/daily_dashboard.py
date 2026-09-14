@@ -32,12 +32,12 @@ STAGE_ORDER = (
 )
 
 DEFAULT_FOCUS_STAGES = (
+    "DATA_BLOCKED",
+    "POSITION_MANAGEMENT",
     "ENTRY_ALLOWED",
     "STRATEGY_PROPOSAL",
     "CONFIRMED",
     "ARMED",
-    "POSITION_MANAGEMENT",
-    "DATA_BLOCKED",
 )
 
 NAV_VIEW_ORDER = (
@@ -545,6 +545,83 @@ def _setup_label(setup: str) -> str:
     return " / ".join(labels.get(item, item) for item in setup.split(" / ") if item)
 
 
+def _human_wave_stage_label(
+    result: Mapping[str, Any],
+    *,
+    primary_wave: str,
+    stage: str,
+    event_is_new: bool,
+    data_blocked: bool,
+) -> str:
+    """Map the finite existing wave scenarios to mobile-facing language."""
+
+    if data_blocked:
+        return "当前浪型不可判断｜数据异常"
+    if primary_wave == "WAVE_2_TO_3_CANDIDATE":
+        if stage == "WATCH":
+            return "2浪调整中｜继续观察"
+        if stage == "ARMED":
+            return "2浪末期｜等待3浪启动"
+        if stage == "CONFIRMED" and event_is_new:
+            return "3浪启动条件已确认"
+        if stage in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}:
+            return "3浪交易条件已确认｜已形成交易计划"
+        if stage == "POSITION_MANAGEMENT":
+            return "3浪结构持仓管理中"
+        if _has_persistent_confirmation(result):
+            return "3浪条件此前已确认｜今天没有新的交易信号"
+    if primary_wave == "WAVE_3_CONTINUATION_CANDIDATE":
+        if stage == "WATCH":
+            return "3浪进行中｜观察延续结构"
+        if stage == "ARMED":
+            return "3浪进行中｜等待延续确认"
+        if stage == "CONFIRMED" and event_is_new:
+            return "3浪延续条件已确认"
+        if stage in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}:
+            return "3浪交易条件已确认｜已形成交易计划"
+        if stage == "POSITION_MANAGEMENT":
+            return "3浪结构持仓管理中"
+        if _has_persistent_confirmation(result):
+            return "3浪条件此前已确认｜今天没有新的交易信号"
+    if primary_wave == "ABC_CORRECTION_CANDIDATE":
+        return "ABC调整中｜3浪启动尚未确认"
+    return WAVE_LABELS.get(primary_wave, f"波浪状态：{primary_wave}")
+
+
+def _missing_condition(
+    stage: str,
+    result: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    *,
+    candidate_only: bool,
+    position_management: Mapping[str, Any],
+) -> str:
+    if stage == "ARMED":
+        confirmation = _confirmation_value(result, decision)
+        if confirmation is not None:
+            return f"还差：收盘价有效突破前一段上涨高点 {_format_price(confirmation)}"
+    return _waiting(
+        stage,
+        result,
+        decision,
+        candidate_only=candidate_only,
+        position_management=position_management,
+    )
+
+
+def _invalidation_text(result: Mapping[str, Any], decision: Mapping[str, Any]) -> str:
+    value = _first_value(
+        result.get("wave_invalidation"),
+        result.get("structural_invalidation"),
+        result.get("invalidation"),
+        decision.get("structural_invalidation"),
+        decision.get("wave_scenario_invalidation"),
+    )
+    if isinstance(value, (Mapping, list, tuple)):
+        return _json_text(value)
+    return _display(value, "未提供明确结构失效条件")
+
+
 def _stage(
     result: Mapping[str, Any],
     decision: Mapping[str, Any],
@@ -677,7 +754,7 @@ def _waiting(
     if stage == "FAILED":
         return "当前交易结构已失效。"
     if stage == "DATA_BLOCKED":
-        return "数据异常，暂不交易，等待数据恢复。"
+        return "数据异常，本日不生成交易信号。"
     if _text(result.get("primary_action")) == "WAIT_CONFIRMATION":
         return "继续观察，等待确认。"
     if _has_persistent_confirmation(result):
@@ -782,6 +859,15 @@ def _position_projection(
                 stored.get("active_protective_stop"),
             )
         ),
+        "next_session_protective_stop": _format_price(
+            _first_value(
+                position_management.get("next_session_protective_stop"),
+                position_management.get("active_stop_next_session"),
+                position.get("next_session_protective_stop"),
+                position.get("active_stop_next_session"),
+                stored.get("next_session_protective_stop"),
+            )
+        ),
         "targets": tuple(_format_price(value) for value in target_values[:3]),
         "current_r": _format_r(
             _first_value(position_management.get("current_r"), position.get("current_r"), stored.get("current_r"))
@@ -810,6 +896,7 @@ def _position_projection(
         "wave5_context": _display(
             _first_value(position_management.get("wave5_context"), result.get("wave5_context"))
         ),
+        "management_reason": _reason_text(result),
     }
 
 
@@ -849,6 +936,13 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         primary_wave,
         f"波浪状态：{primary_wave}",
     )
+    current_wave_label = _human_wave_stage_label(
+        result,
+        primary_wave=primary_wave,
+        stage=stage,
+        event_is_new=event_is_new,
+        data_blocked=data_blocked,
+    )
     next_step = _waiting(
         stage,
         result,
@@ -873,6 +967,7 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "action_label": ACTION_LABELS.get(action, STATUS_LABELS.get(action, action or "—")),
         "primary_wave": primary_wave,
         "primary_wave_label": primary_wave_label,
+        "current_wave_label": current_wave_label,
         "primary_wave_short_label": WAVE_SHORT_LABELS.get(primary_wave, "波浪尚未确定"),
         "alternate_wave": _text(result.get("alternate_wave_scenario"), "UNKNOWN"),
         "alternate_wave_label": WAVE_LABELS.get(
@@ -900,6 +995,14 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         ),
         "waiting": next_step,
         "next_step": next_step,
+        "missing_condition": _missing_condition(
+            stage,
+            result,
+            decision,
+            candidate_only=candidate_only,
+            position_management=position_management,
+        ),
+        "invalidation": _invalidation_text(result, decision),
         "plan": _price_plan(decision),
         "position": _position_projection(result, universe, symbol, position_management),
         "decision": decision,
@@ -982,6 +1085,13 @@ def _preflight_market_status(payload: Mapping[str, Any], market: str) -> bool:
 def _market_status(
     payload: Mapping[str, Any], market: str, rows: Sequence[Mapping[str, Any]]
 ) -> dict[str, str]:
+    cloud_daily = _mapping(payload.get("cloud_daily_report"))
+    if _normalised_market(cloud_daily.get("market")) == market:
+        cloud_status = _text(cloud_daily.get("status"))
+        if cloud_status == "SKIPPED_NON_SESSION":
+            return {"status_key": "SKIPPED_NON_SESSION", "status_label": "非交易日，已跳过"}
+        if cloud_status in {"FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY"}:
+            return {"status_key": "DATA_BLOCKED", "status_label": "数据异常"}
     candidate_markets = _mapping(payload.get("candidate_markets"))
     candidate = _mapping(candidate_markets.get(market))
     candidate_status = _text(candidate.get("status"))
@@ -1081,18 +1191,28 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
     rows.sort(key=lambda row: (stage_rank.get(row["stage_key"], len(STAGE_ORDER)), row["market"], row["symbol"], row["account_id"]))
 
     preflight = _mapping(payload.get("preflight"))
+    cloud_daily = _mapping(payload.get("cloud_daily_report"))
     as_of_date = _first_value(payload.get("as_of_date"), preflight.get("T"))
     if as_of_date is None:
         as_of_date = next((row["raw_result"].get("as_of_date") for row in rows if row["raw_result"].get("as_of_date")), None)
     generated_at = _first_value(payload.get("generated_at"), next((row["raw_result"].get("generated_at") for row in rows if row["raw_result"].get("generated_at")), None))
     known_markets = {row["market"] for row in rows if row["market"] and row["market"] != "—"}
     known_markets.update(_normalised_market(item) for item in _mapping(payload.get("candidate_markets")))
+    cloud_market = _normalised_market(cloud_daily.get("market"))
+    if cloud_market:
+        known_markets.add(cloud_market)
     known_markets.update(
         _normalised_market(_mapping(account).get("市场") or _mapping(account).get("market"))
         for account in _sequence(preflight.get("accounts"))
     )
-    markets = ["CN", "US"]
-    markets.extend(sorted(known_markets - set(markets)))
+    if cloud_market:
+        # A Cloud Daily Report is intentionally one-exchange scoped.  Keep
+        # the legacy two-market overview only for the old all-market/manual
+        # dashboard payloads.
+        markets = [cloud_market]
+    else:
+        markets = ["CN", "US"]
+        markets.extend(sorted(known_markets - set(markets)))
     market_rows = []
     for market in markets:
         status = _market_status(payload, market, rows)
@@ -1121,7 +1241,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         for question, answer in strategy_rules_for_dashboard()
     ]
     return {
-        "title": "每日交易决策工作台",
+        "title": "收盘交易决策日报" if cloud_daily else "每日交易决策工作台",
         "demo_label": _text(payload.get("demo_label")),
         "as_of_date": _display(as_of_date),
         "generated_at": _display(generated_at),
@@ -1133,6 +1253,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "paper": paper,
         "strategy_rules": rules,
         "workspace_order": ("today", "paper", "performance", "rules", "diagnostics"),
+        "cloud_daily_report": dict(cloud_daily),
     }
 
 
@@ -1236,6 +1357,7 @@ def _render_position(row: Mapping[str, Any]) -> str:
                 ("实际入场", "actual_entry"),
                 ("当前价格", "current_price"),
                 ("当前保护止损", "active_protective_stop"),
+                ("下一交易日保护止损", "next_session_protective_stop"),
                 ("目标价 T1", "target_1"),
                 ("目标价 T2", "target_2"),
                 ("目标价 T3", "target_3"),
@@ -1243,6 +1365,7 @@ def _render_position(row: Mapping[str, Any]) -> str:
                 ("最高浮盈 MFE", "mfe_r"),
                 ("最大不利 MAE", "mae_r"),
                 ("MFE 回撤", "mfe_drawdown_r"),
+                ("持有／退出原因", "management_reason"),
                 ("现在要做什么", "action_label"),
             )
         )
@@ -1286,6 +1409,15 @@ def _compact_price(row: Mapping[str, Any]) -> str:
             values.append(f"保护止损：{_display(position.get('active_protective_stop'))}")
         return " · ".join(values)
     return ""
+
+
+def _compact_position(row: Mapping[str, Any]) -> str:
+    position = _mapping(row.get("position"))
+    values = []
+    for label, key in (("当前", "current_r"), ("MFE", "mfe_r"), ("MAE", "mae_r")):
+        if _has_display_value(position.get(key)):
+            values.append(f"{label} {_display(position.get(key))}")
+    return "持仓管理：" + " · ".join(values) if values else "持仓管理中"
 
 
 def _dashboard_search_text(row: Mapping[str, Any]) -> str:
@@ -1352,15 +1484,17 @@ def _render_details(row: Mapping[str, Any]) -> str:
         if (translated := _translate_reason(value))
     )
     return (
-        '<details class="details"><summary>查看详情</summary><div class="detail-body">'
+        '<details class="details"><summary>查看交易依据（查看详情）</summary><div class="detail-body">'
         '<section class="plain-summary">'
-        f'<section><h3>今天结论</h3><p>{_escape(row.get("today_conclusion"))}</p></section>'
+        f'<section><h3>当前波浪</h3><p>{_escape(row.get("current_wave_label"))}</p><p>{_escape(row.get("today_conclusion"))}</p></section>'
         f'<section><h3>为什么</h3><p>{_escape(row.get("why"))}</p></section>'
-        f'<section><h3>还差什么 / 现在要做什么</h3><p>{_escape(row.get("next_step"))}</p></section>'
+        f'<section><h3>还差什么 / 现在要做什么</h3><p>{_escape(row.get("missing_condition"))}</p></section>'
+        f'<section><h3>失效条件</h3><p>{_escape(row.get("invalidation"))}</p></section>'
+        f'<section><h3>备选情景</h3><p>{_escape(row.get("alternate_wave_label"))}</p></section>'
         '</section>'
         + _render_plan(row)
         + (_render_position({**row, "position": position}) if row.get("is_position") else "")
-        + '<details class="technical-details"><summary>查看技术详情 / 审计信息</summary><div class="detail-body">'
+        + '<details class="technical-details"><summary>开发者原始数据（查看技术详情 / 审计信息）</summary><div class="detail-body">'
         + '<div class="detail-grid">'
         '<section><h4>Wave / 结构</h4>'
         f'<p>Primary：{_escape(row.get("primary_wave"))}</p>'
@@ -1401,11 +1535,15 @@ def _render_row(row: Mapping[str, Any]) -> str:
         identity += '<span class="badge positive">今天出现确认</span>'
     stage_class = row["stage_key"].lower().replace("_", "-")
     compact_price = _compact_price(row)
+    if row.get("stage_key") == "POSITION_MANAGEMENT":
+        compact_plan = _compact_position(row)
+    elif compact_price:
+        compact_plan = compact_price
+    else:
+        compact_plan = "尚未形成交易计划"
     search_text = _dashboard_search_text(row)
     price_block = (
-        f'<span class="row-price">{_escape(compact_price)}</span>'
-        if compact_price
-        else ""
+        f'<span class="row-price">{_escape(compact_plan)}</span>'
     )
     return (
         f'<article class="stock-row"{"" if row["default_focus"] else " hidden"} '
@@ -1424,7 +1562,8 @@ def _render_row(row: Mapping[str, Any]) -> str:
         f'<span class="stage stage-{stage_class}">{_escape(row["stage_label"])}</span></div>'
         '<div class="row-bottom"><div class="row-signals">'
         f'<span class="row-why">{_escape(row["why"])}</span>'
-        f'<span class="row-next">{_escape(row["next_step"])}</span>'
+        f'<span class="row-wave">{_escape(row["current_wave_label"])}</span>'
+        f'<span class="row-next">{_escape(row["missing_condition"])}</span>'
         + price_block
         + '</div><div class="row-actions"><div class="identity-row">'
         + identity
@@ -1779,28 +1918,35 @@ def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
         ("平均 MFE / MAE", f"{_format_stat(performance.get('average_mfe'), kind='r')} / {_format_stat(performance.get('average_mae'), kind='r')}"),
     )
     summary = _render_field_grid(fields, extra_class="performance-summary-grid")
-    tables: list[str] = []
+    groups: list[str] = []
     for dimension, label in (("setup", "Setup"), ("market", "市场"), ("provenance", "来源")):
         buckets = _mapping(grouped.get(dimension))
-        rows = []
+        cards = []
         for key, stats_value in buckets.items():
             stats = _mapping(stats_value)
-            rows.append(
-                '<tr>'
-                f'<th>{_escape(_paper_source_label(key) if dimension == "provenance" else key)}</th>'
-                f'<td>{_escape(stats.get("plans", 0))}</td><td>{_escape(stats.get("executed", 0))}</td>'
-                f'<td>{_escape(stats.get("closed", 0))}</td><td>{_escape(_format_stat(stats.get("win_rate"), kind="percent"))}</td>'
-                f'<td>{_escape(_format_stat(stats.get("average_r"), kind="r"))}</td>'
-                f'<td>{_escape(_format_stat(stats.get("median_r"), kind="r"))}</td>'
-                f'<td>{_escape(_format_stat(stats.get("average_return_pct"), kind="percent_signed"))}</td>'
-                '</tr>'
+            group_label = _paper_source_label(key) if dimension == "provenance" else key
+            cards.append(
+                '<article class="performance-group"><h4>'
+                f'{_escape(group_label)}</h4>'
+                + _render_field_grid(
+                    (
+                        ("方案", stats.get("plans", 0)),
+                        ("执行", stats.get("executed", 0)),
+                        ("结束", stats.get("closed", 0)),
+                        ("胜率", _format_stat(stats.get("win_rate"), kind="percent")),
+                        ("平均 R", _format_stat(stats.get("average_r"), kind="r")),
+                        ("中位数 R", _format_stat(stats.get("median_r"), kind="r")),
+                        ("平均收益", _format_stat(stats.get("average_return_pct"), kind="percent_signed")),
+                    ),
+                    extra_class="performance-group-grid",
+                )
+                + '</article>'
             )
-        table = (
+        group = (
             f'<section class="performance-table"><h3>{_escape(label)}</h3>'
-            '<table><thead><tr><th>分组</th><th>计划</th><th>执行</th><th>结束</th><th>胜率</th><th>平均 R</th><th>中位数 R</th><th>平均收益</th></tr></thead>'
-            f'<tbody>{"".join(rows) or "<tr><td colspan=8>尚无已记录样本</td></tr>"}</tbody></table></section>'
+            f'<div class="performance-groups">{"".join(cards) or "<p class=empty>尚无已记录样本</p>"}</div></section>'
         )
-        tables.append(table)
+        groups.append(group)
     warning = (
         f'<div class="paper-warning">{_escape(paper.get("coverage_warning_text"))}</div>'
         if _bool(paper.get("coverage_warning")) else ""
@@ -1809,7 +1955,7 @@ def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
         '<section id="performance-workspace" class="workspace-panel" hidden>'
         '<div class="workspace-heading"><h2>绩效统计</h2>'
         '<p>只统计已经结束的模拟交易；未成交方案和当前持仓不进入胜率分母。</p></div>'
-        f'{summary}{warning}{"".join(tables)}'
+        f'{summary}{warning}{"".join(groups)}'
         '<p class="paper-stat-note">胜率只统计已结束的盈利／亏损交易；模拟持仓中和未成交方案不进入胜率分母。样本不足时不显示误导性的 0%。</p>'
         '</section>'
     )
@@ -1866,6 +2012,19 @@ def render_dashboard_html(value: Any) -> str:
         if demo_label
         else ""
     )
+    cloud_status = _text(_mapping(projection.get("cloud_daily_report")).get("status"))
+    cloud_banner_labels = {
+        "SKIPPED_NON_SESSION": "本日非交易日，已跳过（不使用上一交易日替代）",
+        "INCOMPLETE_SESSION": "交易时段尚未完成，本日不生成新的交易信号",
+        "PARTIAL_DATA_QUALITY": "数据异常，本日不生成新的交易信号",
+        "FAILED": "日报生成异常，本日不生成新的交易信号",
+    }
+    cloud_banner = (
+        f'<div class="cloud-status-banner status-{_escape(cloud_status)}">'
+        f'{_escape(cloud_banner_labels[cloud_status])}</div>'
+        if cloud_status in cloud_banner_labels
+        else ""
+    )
     workspace_specs = (
         ("today", "今日重点"),
         ("paper", "模拟交易"),
@@ -1891,10 +2050,10 @@ def render_dashboard_html(value: Any) -> str:
 <title>{_escape(projection['title'])} · {_escape(projection['as_of_date'])}</title>
 <style>
 :root {{ color-scheme:light; --ink:#162334; --muted:#66758a; --line:#dce4ee; --paper:#f5f7fb; --card:#fff; --teal:#0f766e; --teal-soft:#d9f2ed; --amber:#b45309; --amber-soft:#fff0d5; --red:#b42318; --red-soft:#fee4e2; --blue:#275dad; --blue-soft:#e4efff; }}
-* {{ box-sizing:border-box; }} body {{ margin:0; background:var(--paper); color:var(--ink); font:15px/1.5 "Segoe UI","Microsoft YaHei",sans-serif; }}
+* {{ box-sizing:border-box; }} body {{ margin:0; background:var(--paper); color:var(--ink); font:16px/1.5 "Segoe UI","Microsoft YaHei",sans-serif; overflow-x:hidden; }}
 .shell {{ width:min(1440px,calc(100% - 32px)); margin:0 auto; padding:18px 0 48px; }}
 .hero {{ background:linear-gradient(135deg,#12263d,#21516c); color:#fff; border-radius:18px; padding:22px 28px; box-shadow:0 12px 28px #13263d20; }}
-.demo-banner {{ display:inline-block; margin-bottom:7px; border:1px solid #f4d28f; border-radius:999px; padding:3px 9px; background:#fff0d5; color:#7a4300; font-size:12px; font-weight:750; }}
+.demo-banner {{ display:inline-block; margin-bottom:7px; border:1px solid #f4d28f; border-radius:999px; padding:3px 9px; background:#fff0d5; color:#7a4300; font-size:12px; font-weight:750; }} .cloud-status-banner {{ margin:7px 0 4px; border-radius:10px; padding:9px 11px; background:#fff0d5; color:#7a4300; font-weight:750; }} .cloud-status-banner.status-SUCCESS {{ background:var(--teal-soft); color:var(--teal); }} .cloud-status-banner.status-SKIPPED_NON_SESSION {{ background:#edf1f6; color:var(--muted); }} .cloud-status-banner.status-INCOMPLETE_SESSION,.cloud-status-banner.status-PARTIAL_DATA_QUALITY,.cloud-status-banner.status-FAILED {{ background:var(--red-soft); color:var(--red); }}
 .eyebrow {{ color:#b8e5dc; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }} h1 {{ margin:5px 0 3px; font-size:clamp(26px,3.4vw,38px); letter-spacing:-.03em; }}
 .hero-meta {{ color:#d9e8f2; display:flex; gap:16px; flex-wrap:wrap; font-size:13px; }} .readonly-note {{ margin:11px 0 0; color:#e9f4f8; font-size:12px; }}
 .summary-primary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; margin:12px 0 7px; }} .summary-secondary {{ display:flex; gap:8px; margin:0 0 9px; }}
@@ -1903,22 +2062,22 @@ def render_dashboard_html(value: Any) -> str:
 .summary-secondary .metric {{ min-height:48px; padding:8px 12px; display:flex; align-items:center; gap:10px; }} .summary-secondary .metric-value {{ margin:0; font-size:20px; }}
 .market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:8px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:8px 13px; display:flex; justify-content:space-between; align-items:center; }}
 .market-name {{ font-weight:750; margin-right:8px; }} .market-label {{ color:var(--muted); font-size:12px; }} .data-status {{ border-radius:999px; padding:3px 9px; font-weight:700; font-size:12px; }} .status-DATA_OK {{ background:var(--teal-soft); color:var(--teal); }} .status-DATA_BLOCKED {{ background:var(--red-soft); color:var(--red); }} .status-NOT_RUN {{ background:#edf1f6; color:var(--muted); }}
-.stage-nav {{ position:sticky; top:0; z-index:20; display:flex; gap:4px; overflow-x:auto; margin:8px 0 9px; padding:7px 8px; align-items:center; background:#f5f7fbeF; border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 14px #18324b12; backdrop-filter:blur(8px); }} .stage-nav-label {{ color:var(--muted); font-weight:700; margin-right:2px; white-space:nowrap; }} .stage-link {{ border:1px solid transparent; border-radius:8px; background:transparent; color:var(--blue); font:inherit; font-size:13px; font-weight:700; cursor:pointer; padding:6px 8px; white-space:nowrap; }} .stage-link:hover,.stage-link[aria-pressed="true"] {{ color:var(--teal); background:#e8f5f2; border-color:#b9ddd5; }} .nav-count {{ color:var(--muted); font-weight:650; }}
-.filters {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:#eaf0f6; border:1px solid var(--line); border-radius:11px; padding:9px 10px; margin-bottom:10px; }} .filters label {{ display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }} .search-field {{ flex:1 1 250px; }} select,input[type="search"] {{ border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:6px 9px; font:inherit; min-width:100px; }} input[type="search"] {{ width:100%; min-width:200px; }}
+.stage-nav {{ position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:4px; margin:8px 0 9px; padding:7px 8px; align-items:center; background:#f5f7fbeF; border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 14px #18324b12; backdrop-filter:blur(8px); }} .stage-nav-label {{ color:var(--muted); font-weight:700; margin-right:2px; white-space:nowrap; }} .stage-link {{ min-height:44px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--blue); font:inherit; font-size:13px; font-weight:700; cursor:pointer; padding:6px 8px; white-space:nowrap; }} .stage-link:hover,.stage-link[aria-pressed="true"] {{ color:var(--teal); background:#e8f5f2; border-color:#b9ddd5; }} .nav-count {{ color:var(--muted); font-weight:650; }}
+.filters {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:#eaf0f6; border:1px solid var(--line); border-radius:11px; padding:9px 10px; margin-bottom:10px; }} .filters label {{ display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }} .search-field {{ flex:1 1 250px; }} select,input[type="search"] {{ min-height:44px; border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:6px 9px; font:inherit; min-width:100px; }} input[type="search"] {{ width:100%; min-width:200px; }}
 .results-heading {{ display:flex; align-items:baseline; gap:10px; margin:13px 2px 7px; }} .results-heading h2 {{ margin:0; font-size:20px; }} .results-heading span {{ color:var(--muted); font-size:12px; }} .cards {{ display:flex; flex-direction:column; gap:7px; }} .stock-row {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 13px; box-shadow:0 3px 12px #18324b08; }} .stock-row[hidden] {{ display:none; }}
 .row-top {{ display:flex; justify-content:space-between; align-items:center; gap:10px; min-width:0; }} .row-identity {{ display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 9px; min-width:0; }} .ticker {{ font-size:16px; font-weight:800; letter-spacing:.02em; }} .company {{ font-weight:750; }} .sector {{ color:var(--muted); font-size:13px; }} .market-chip {{ color:var(--muted); font-size:12px; border-left:1px solid var(--line); padding-left:9px; }} .stage {{ white-space:nowrap; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; }} .stage-watch,.stage-armed {{ background:var(--amber-soft); color:var(--amber); }} .stage-confirmed,.stage-strategy-proposal,.stage-entry-allowed {{ background:var(--blue-soft); color:var(--blue); }} .stage-position-management {{ background:var(--teal-soft); color:var(--teal); }} .stage-failed,.stage-data-blocked {{ background:var(--red-soft); color:var(--red); }} .stage-no-trade {{ background:#edf1f6; color:var(--muted); }}
 .row-bottom {{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:5px; }} .row-signals {{ display:flex; flex:1 1 420px; flex-wrap:wrap; align-items:center; gap:4px 11px; min-width:0; }} .row-signals > span {{ font-size:13px; }} .row-why {{ color:#53687b; font-weight:650; overflow-wrap:anywhere; }} .row-wave {{ color:var(--blue); font-weight:750; }} .row-setup {{ color:#53687b; font:12px Consolas,monospace; }} .row-next {{ color:var(--muted); overflow-wrap:anywhere; }} .row-price {{ color:var(--teal); font-weight:700; }} .row-actions {{ display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; }} .identity-row {{ display:flex; flex-wrap:wrap; gap:4px; margin:0; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:2px 6px; color:#486074; font-size:11px; background:#f7fafc; white-space:nowrap; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
-.details {{ flex:0 0 auto; margin:0; border:0; padding:0; }} .details[open] {{ flex-basis:100%; }} .details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; white-space:nowrap; list-style:none; }} .details summary::-webkit-details-marker {{ display:none; }} .details summary::before {{ content:"＋ "; }} .details[open] summary::before {{ content:"− "; }} .detail-body {{ border-top:1px solid var(--line); margin-top:8px; padding-top:10px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:11px; margin-top:11px; }} .panel h3 {{ margin:0 0 8px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }} .detail-grid section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .detail-grid h4,.details h4 {{ margin:0 0 4px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:9px; padding:11px; font:12px/1.5 Consolas,monospace; }}
-.workspace-nav {{ display:flex; gap:5px; overflow-x:auto; margin:10px 0 8px; padding:6px; background:#e8eef5; border:1px solid var(--line); border-radius:12px; }} .workspace-link {{ border:1px solid transparent; border-radius:9px; background:transparent; color:var(--blue); font:inherit; font-weight:750; padding:8px 12px; cursor:pointer; white-space:nowrap; }} .workspace-link:hover,.workspace-link[aria-pressed="true"] {{ color:#fff; background:var(--blue); border-color:var(--blue); }} .workspace-panel {{ margin-top:10px; }} .workspace-panel[hidden] {{ display:none; }} .workspace-heading {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin:13px 2px 8px; }} .workspace-heading h2 {{ margin:0; font-size:21px; }} .workspace-heading p {{ margin:0; color:var(--muted); font-size:13px; }} .workspace-subheading {{ margin:17px 2px 7px; font-size:16px; }} .paper-summary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }} .paper-summary .metric {{ min-height:61px; }} .paper-trades {{ display:flex; flex-direction:column; gap:9px; }} .paper-trade {{ background:#fff; border:1px solid var(--line); border-left:4px solid #8ca9c2; border-radius:12px; padding:12px 14px; }} .paper-status-OPEN {{ border-left-color:var(--teal); }} .paper-status-CLOSED {{ border-left-color:var(--blue); }} .paper-status-SKIPPED {{ border-left-color:var(--muted); }} .paper-status-PENDING_T1 {{ border-left-color:var(--amber); }} .paper-trade-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .paper-trade-meta {{ display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); font-size:12px; margin-top:3px; }} .paper-status {{ background:#edf1f6; color:#506276; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; white-space:nowrap; }} .paper-human-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:11px; }} .paper-human-grid > section {{ background:#f8fafc; border-radius:9px; padding:10px 12px; }} .paper-human-grid h4 {{ margin:0 0 5px; font-size:13px; color:var(--blue); }} .paper-human-grid p {{ margin:0; font-size:13px; overflow-wrap:anywhere; }} .paper-technical-details {{ margin-top:10px; border-top:1px solid var(--line); padding-top:8px; }} .paper-technical-details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; }} .paper-technical-fields {{ margin-top:8px; }} .paper-technical-details pre {{ margin-top:8px; }} .paper-stat-note {{ color:var(--muted); font-size:12px; margin:12px 2px 0; }} .paper-warning {{ background:var(--amber-soft); color:#7a4300; border:1px solid #f2ca8c; border-radius:9px; padding:8px 10px; margin:8px 0; font-size:13px; }} .coverage-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .coverage-card {{ display:flex; flex-direction:column; gap:2px; background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:13px; }} .coverage-card span {{ color:var(--muted); }} .coverage-CONTINUOUS {{ color:var(--teal) !important; font-weight:750; }} .coverage-GAP_DETECTED {{ color:var(--amber) !important; font-weight:750; }} .performance-summary-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); margin-bottom:13px; }} .performance-table {{ margin-top:12px; overflow-x:auto; }} .performance-table h3 {{ margin:0 0 5px; font-size:15px; }} table {{ width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); font-size:13px; }} th,td {{ text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }} th {{ background:#f1f5f9; color:var(--muted); font-weight:750; }} .rules-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .rule-card {{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; }} .rule-card h3 {{ margin:0 0 4px; font-size:14px; color:var(--blue); }} .rule-card p {{ margin:0; font-size:13px; }} .empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
+.details {{ flex:0 0 auto; margin:0; border:0; padding:0; }} .details[open] {{ flex-basis:100%; }} .details summary {{ min-height:44px; display:inline-flex; align-items:center; cursor:pointer; color:var(--blue); font-size:13px; font-weight:750; white-space:nowrap; list-style:none; padding:8px 0; }} .details summary::-webkit-details-marker {{ display:none; }} .details summary::before {{ content:"＋ "; }} .details[open] summary::before {{ content:"− "; }} .detail-body {{ border-top:1px solid var(--line); margin-top:8px; padding-top:10px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:11px; margin-top:11px; }} .panel h3 {{ margin:0 0 8px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }} .detail-grid section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .detail-grid h4,.details h4 {{ margin:0 0 4px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:9px; padding:11px; font:12px/1.5 Consolas,monospace; }}
+.workspace-nav {{ display:flex; flex-wrap:wrap; gap:5px; margin:10px 0 8px; padding:6px; background:#e8eef5; border:1px solid var(--line); border-radius:12px; }} .workspace-link {{ min-height:44px; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--blue); font:inherit; font-weight:750; padding:8px 12px; cursor:pointer; white-space:nowrap; }} .workspace-link:hover,.workspace-link[aria-pressed="true"] {{ color:#fff; background:var(--blue); border-color:var(--blue); }} .workspace-panel {{ margin-top:10px; }} .workspace-panel[hidden] {{ display:none; }} .workspace-heading {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin:13px 2px 8px; }} .workspace-heading h2 {{ margin:0; font-size:21px; }} .workspace-heading p {{ margin:0; color:var(--muted); font-size:13px; }} .workspace-subheading {{ margin:17px 2px 7px; font-size:16px; }} .paper-summary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }} .paper-summary .metric {{ min-height:61px; }} .paper-trades {{ display:flex; flex-direction:column; gap:9px; }} .paper-trade {{ background:#fff; border:1px solid var(--line); border-left:4px solid #8ca9c2; border-radius:12px; padding:12px 14px; }} .paper-status-OPEN {{ border-left-color:var(--teal); }} .paper-status-CLOSED {{ border-left-color:var(--blue); }} .paper-status-SKIPPED {{ border-left-color:var(--muted); }} .paper-status-PENDING_T1 {{ border-left-color:var(--amber); }} .paper-trade-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .paper-trade-meta {{ display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); font-size:12px; margin-top:3px; }} .paper-status {{ background:#edf1f6; color:#506276; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; white-space:nowrap; }} .paper-human-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:11px; }} .paper-human-grid > section {{ background:#f8fafc; border-radius:9px; padding:10px 12px; }} .paper-human-grid h4 {{ margin:0 0 5px; font-size:13px; color:var(--blue); }} .paper-human-grid p {{ margin:0; font-size:13px; overflow-wrap:anywhere; }} .paper-technical-details {{ margin-top:10px; border-top:1px solid var(--line); padding-top:8px; }} .paper-technical-details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; }} .paper-technical-fields {{ margin-top:8px; }} .paper-technical-details pre {{ margin-top:8px; }} .paper-stat-note {{ color:var(--muted); font-size:12px; margin:12px 2px 0; }} .paper-warning {{ background:var(--amber-soft); color:#7a4300; border:1px solid #f2ca8c; border-radius:9px; padding:8px 10px; margin:8px 0; font-size:13px; }} .coverage-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .coverage-card {{ display:flex; flex-direction:column; gap:2px; background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:13px; }} .coverage-card span {{ color:var(--muted); }} .coverage-CONTINUOUS {{ color:var(--teal) !important; font-weight:750; }} .coverage-GAP_DETECTED {{ color:var(--amber) !important; font-weight:750; }} .performance-summary-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); margin-bottom:13px; }} .performance-table {{ margin-top:12px; }} .performance-table h3 {{ margin:0 0 5px; font-size:15px; }} .performance-groups {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .performance-group {{ background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; }} .performance-group h4 {{ margin:0 0 7px; font-size:14px; color:var(--blue); }} .performance-group-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }} .rules-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .rule-card {{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; }} .rule-card h3 {{ margin:0 0 4px; font-size:14px; color:var(--blue); }} .rule-card p {{ margin:0; font-size:13px; }} .empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
 @media (max-width:1050px) {{ .summary-primary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:18px 20px; border-radius:15px; }} .summary-primary {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .summary-secondary {{ flex-direction:column; }} .market-grid {{ grid-template-columns:1fr; }} .row-top {{ align-items:flex-start; }} .stage {{ margin-top:1px; }} .row-signals {{ flex-basis:100%; }} .row-actions {{ width:100%; justify-content:space-between; margin-left:0; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:7px; }} .ticker {{ font-size:15px; }} }}
 .today-paper-focus {{ margin-bottom:12px; }} .paper-focus-cards {{ display:flex; flex-direction:column; gap:7px; }} .paper-focus-card {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 10px; align-items:center; background:#fff; border:1px solid var(--line); border-left:4px solid var(--teal); border-radius:10px; padding:9px 12px; }} .paper-focus-card span {{ color:var(--muted); font-size:13px; }} .paper-focus-meta {{ display:block; font-size:12px !important; }} .paper-focus-values {{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 14px; }}
 @media (max-width:1050px) {{ .paper-summary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} .performance-summary-grid {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }}
-@media (max-width:620px) {{ .paper-summary,.performance-summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .paper-grid,.paper-human-grid,.rules-grid {{ grid-template-columns:1fr; }} .coverage-grid {{ grid-template-columns:1fr; }} }}
+@media (max-width:620px) {{ .paper-summary,.performance-summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .paper-grid,.paper-human-grid,.rules-grid,.performance-groups {{ grid-template-columns:1fr; }} .coverage-grid {{ grid-template-columns:1fr; }} }}
 </style>
 </head>
 <body>
 <main class="shell">
-<header class="hero"><div class="eyebrow">READ-ONLY · PRODUCTION DAILY DECISION CHAIN</div>{demo_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有 Daily Decision、Risk 和 Position Management 结果；中文阶段名称属于展示映射，不会产生新信号或订单。{_escape(paper_note)}</div></header>
+<header class="hero"><div class="eyebrow">每日收盘报告 · 只读</div>{demo_banner}{cloud_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有结构分析、交易决策、风险和持仓管理结果；中文阶段名称只是展示映射，不会产生新信号或订单。{_escape(paper_note)}</div></header>
 <section class="summary-primary" aria-label="今日重点摘要">
 {_metric('可入场', summary['entry_allowed_count'], 'positive')}
 {_metric('已形成交易方案', summary['strategy_proposal_count'])}
@@ -1939,11 +2098,11 @@ def render_dashboard_html(value: Any) -> str:
 <section id="decision-workspace" class="workspace-panel">
 {_render_today_paper_focus(paper, projection.get('as_of_date'))}
 <nav class="stage-nav" aria-label="阶段导航"><span class="stage-nav-label">阶段查看：</span>{stage_nav}</nav>
-<section class="filters" aria-label="股票筛选"><label class="search-field">搜索<input id="search-filter" type="search" placeholder="ticker 或公司名称" autocomplete="off"></label><label>市场<select id="market-filter"><option value="">全部</option><option value="CN">CN</option><option value="US">US</option></select></label><label>当前阶段<select id="stage-filter"><option value="">全部</option>{stage_options}</select></label><label>Setup<select id="setup-filter"><option value="">全部</option><option value="SETUP_01">SETUP_01</option><option value="SETUP_02">SETUP_02</option></select></label><label>行业／板块<select id="sector-filter"><option value="">全部</option>{sector_options}</select></label><span id="visible-count" class="stage-nav-label"></span></section>
+<section class="filters" aria-label="股票筛选"><label class="search-field">搜索<input id="search-filter" type="search" placeholder="ticker 或公司名称" autocomplete="off"></label><label>市场<select id="market-filter"><option value="">全部</option><option value="CN">中国市场（CN）</option><option value="US">美国市场（US）</option></select></label><label>当前阶段<select id="stage-filter"><option value="">全部</option>{stage_options}</select></label><label>浪型策略<select id="setup-filter"><option value="">全部</option><option value="SETUP_01">2浪→3浪</option><option value="SETUP_02">3浪延续</option></select></label><label>行业／板块<select id="sector-filter"><option value="">全部</option>{sector_options}</select></label><span id="visible-count" class="stage-nav-label"></span></section>
 <div class="results-heading"><h2 id="results-title">今日重点</h2><span id="results-description">先处理可入场、方案、确认、接近确认、持仓与异常</span></div>
 <section id="cards" class="cards" aria-live="polite">{cards}</section><div id="empty" class="empty" hidden>没有符合当前筛选条件的股票。</div>
 </section>
-<div class="footer">默认只展示今日重点；观察中与低优先级结果请通过顶部导航查看。点击“查看详情”展开完整诊断。Dashboard 不替代用户最终交易决定。</div>
+<div class="footer">默认只展示今日重点；观察中与低优先级结果请通过顶部导航查看。点击“查看交易依据”查看原因、价格计划和失效条件；开发者原始数据默认收起。页面不替代用户最终交易决定。</div>
 </main>
 <script>
 (() => {{
@@ -2013,7 +2172,7 @@ def render_dashboard_html(value: Any) -> str:
     let visible = 0;
     const searchValue = normalise(search.value);
     cards.forEach(card => {{
-      const setupValues = card.dataset.setup.split(/\s*\/\s*/);
+      const setupValues = card.dataset.setup.split(/\\s*[/]\\s*/);
       const matches = matchesView(card)
         && (!searchValue || normalise(card.dataset.search).includes(searchValue))
         && (!market.value || card.dataset.market === market.value)

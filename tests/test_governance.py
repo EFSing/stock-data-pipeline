@@ -84,13 +84,14 @@ class GovernanceTests(unittest.TestCase):
             self.assertNotIn("ATR_NORMALIZED", source, relative_path)
             self.assertNotIn("platform_boundary_mode", source, relative_path)
 
-    def test_scheduled_workflows_force_latest_and_full_is_manual_only(self):
+    def test_legacy_workflows_keep_manual_latest_and_full_modes(self):
         for relative_path, group in (
             (".github/workflows/asia-close.yml", "asia"),
             (".github/workflows/us-close.yml", "us"),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("workflow_dispatch:", source)
+            self.assertNotIn("schedule:", source)
             self.assertIn("default: latest", source)
             self.assertIn("- latest", source)
             self.assertIn("- full", source)
@@ -98,6 +99,16 @@ class GovernanceTests(unittest.TestCase):
             self.assertIn("RUN_MODE=latest", source)
             self.assertIn(f'python main.py --group {group} --mode "$RUN_MODE"', source)
             self.assertIn("tee run-summary.txt", source)
+
+    def test_cloud_report_workflows_keep_exact_market_schedules(self):
+        for relative_path, cron, market in (
+            (".github/workflows/cn-daily-report.yml", 'cron: "30 9 * * 1-5"', "CN"),
+            (".github/workflows/us-daily-report.yml", 'cron: "30 22 * * 1-5"', "US"),
+        ):
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("schedule:", source)
+            self.assertIn(cron, source)
+            self.assertIn(f"--market {market}", source)
 
         main_source = (ROOT / "main.py").read_text(encoding="utf-8")
         self.assertIn("latest_completed_market_session", main_source)

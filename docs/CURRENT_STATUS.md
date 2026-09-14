@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-13（Prospective Paper Trade Lifecycle V1）。
+> 最后实质更新：2026-09-14（Cloud Daily Report V1 正式 cutover）。
 
 ## 项目身份
 
@@ -182,6 +182,34 @@
 - 启用持仓即使不在正式股票池或 Candidate 中也会继续进入 Position Management；
   多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
   `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。
+
+### Cloud Daily Report V1 / Mobile Dashboard V2（live acceptance 已通过，正式 cutover）
+
+- `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
+  `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
+  和 22:30 UTC 运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
+  completed-session gate。周末或交易所休市返回 `SKIPPED_NON_SESSION`，不使用上一
+  交易日替代；未收盘、provider 失败、latest/QFQ 不完整或校验失败均 fail closed，
+  仍生成异常报告并通知。
+- `trading/ephemeral_market_data.py` 只抓取目标市场正式策略池、启用持仓和已有 Paper
+  continuation 所需的 provider rows；latest/QFQ 复用既有 provider fallback、
+  `latest_snapshot.py` 投影和 exact-T 校验，数据只在本次进程内存中存在，也不读取旧的
+  `最新行情`、`历史行情_前复权`；不写入缓存、artifact 原始数据或日志。Sheets 继续只承担
+  配置、策略池、风险组、持仓、决策状态和 Paper ledger 等既有事实源。
+- 每次市场/T 只保留 `daily-report.json` 与 `daily-report.html` 两个 final artifact，
+  JSON 元数据包含市场/T、git SHA、session identity、data quality、Candidate seed/as-of、
+  CandidateRecord 的轻量筛选审计、provider status、input fingerprint、协议版本和状态写入
+  边界，不包含 raw/QFQ bars。
+  Bark 使用 `BARK_ENDPOINT`，SMTP 是可选标准库通知；通知失败不改变日报核心结果。
+- Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
+  宽表、可点击区域至少 44px），首页优先展示数据异常、持仓、交易方案、新确认和接近
+  确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。
+- CN/US live smoke 已通过，且 production state、paper ledger、broker order 与 raw/QFQ
+  persistence 均为零；final artifact allowlist 已通过。旧 `asia-close` / `us-close`
+  scheduled writer 已移除，仅保留原有 `workflow_dispatch`、latest/full 手工维护能力、
+  Google Sheets credentials contract 与 legacy 手工逻辑；自动调度只由 CN/US Cloud
+  Daily Report 承担，避免两套定时路径并行。Bark/SMTP 仍为可选通知，当前
+  `NOT_CONFIGURED`。
 
 ### Portfolio Risk（已实现并合并，未自动生产运行）
 

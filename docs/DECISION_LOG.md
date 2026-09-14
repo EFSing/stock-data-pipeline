@@ -559,3 +559,34 @@ QFQ provider 续载，缺数据时 fail closed，并显式报告 coverage gap。
 **Reason:** 这为策略方案提供可审计的 prospective feedback loop，同时把模拟事实、
 正式 state、组合风险、真实持仓和 broker 执行保持在不同权限边界内，避免把
 Candidate discovery 或模拟成交误解为 production eligibility 或账户收益。
+
+## 2026-09-14 — Cloud Daily Report V1 的内存行情边界与移动展示
+
+**Decision:** CN 与 US 各自使用独立的 Cloud Daily Report workflow，在
+`exchange_calendars` 精确 completed session（CN=`XSHG`、US=`XNYS`）通过后运行。每次
+运行只从既有 provider 配置获取目标市场正式策略池、启用持仓和 active Paper
+continuation 所需的 latest/QFQ rows；rows 复用现有 provider fallback、
+`latest_snapshot.py` evaluator/projection 和 Production Daily Decision Chain，留在
+进程内存中；Cloud path 不读取旧的 `最新行情` / `历史行情_前复权`，也不回写这些 sheet、
+缓存、日志或 artifact。非交易日
+返回 `SKIPPED_NON_SESSION` 且不使用上一交易日替代；provider、T、QFQ 或校验异常
+fail closed，但仍生成异常 JSON/HTML 并可通知。
+
+最终每个 market/T 只允许 `daily-report.json` 与 `daily-report.html` 两个 artifact，
+JSON 只保存市场/T、git SHA、session identity、data quality、Candidate seed/as-of、轻量
+CandidateRecord 筛选审计、provider status、input fingerprint、protocol versions 和只读
+边界，不保存 raw/QFQ bars。新
+Dashboard 是 presentation-only mobile-first projection：默认页按数据异常、持仓、
+交易方案、新确认、接近确认排序，以中文交易含义呈现；内部 setup/status/provenance
+和原始字段只在折叠开发者区域展示。Bark/SMTP 是通知适配器，通知失败不得改变核心
+日报结果。
+
+旧 `asia-close` / `us-close` scheduled writer 在新 workflow 完成 Secrets 配置及安全
+live acceptance 前保留，防止迁移期间丢失既有手工路径；live acceptance 后移除旧
+schedule、保留旧 workflow_dispatch，避免长期两套 scheduled path 并行。该 Decision
+不改变 Wave、Setup、Decision、Risk、Position Management、T→T+1 或 Candidate
+promotion semantics。
+
+**Reason:** 统一内存数据边界可避免云端把当日行情变成长期状态或把 CN/US 失败相互
+污染，同时复用已验证的生产语义；最终 artifact 和移动优先 human mapping 让日报可
+在手机上决策阅读，但不引入第二套策略状态机或自动交易权限。

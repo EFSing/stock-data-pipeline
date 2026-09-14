@@ -313,6 +313,22 @@ def _text(row: Mapping[str, Any], key: str) -> str:
     return str(value).strip() if value is not None else ""
 
 
+def _market_rows(rows: Sequence[Mapping[str, Any]], market: str | None) -> list[dict]:
+    """Keep only one market's records before parsing their business fields.
+
+    Sheets is a shared configuration store, but a cloud run is deliberately
+    scoped to one exchange.  Filtering before parsing prevents malformed rows
+    belonging to the other exchange from blocking an otherwise independent
+    report.  Blank rows are ignored by the scoped path just like the existing
+    parsers ignore blank rows.
+    """
+
+    if not market:
+        return list(rows)
+    wanted = str(market).strip().upper()
+    return [row for row in rows if _text(row, "市场").upper() == wanted]
+
+
 def _as_bool(value: Any) -> bool:
     return str(value).strip().lower() in {"true", "1", "yes", "y", "是", "启用"}
 
@@ -522,8 +538,12 @@ def parse_strategy_positions(rows: Iterable[Mapping[str, Any]]) -> tuple[Strateg
 
 def _number_from_row(row: Mapping[str, Any], *names: str) -> float | None:
     for name in names:
-        if name in row and str(row.get(name)).strip() != "":
-            return _as_float(row.get(name), field_name=name)
+        if name not in row:
+            continue
+        value = row.get(name)
+        if value is None or str(value).strip() == "":
+            continue
+        return _as_float(value, field_name=name)
     return None
 
 
@@ -644,6 +664,19 @@ class ExactExchangeCalendarProvider:
             raise ProductionPrerequisiteError("PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED")
         return name
 
+    def is_session(self, market: str, trade_date: date) -> bool:
+        """Return whether ``trade_date`` is an exact exchange session."""
+
+        try:
+            import exchange_calendars as xc
+            import pandas as pd
+            calendar = xc.get_calendar(self.calendar_name(market))
+            return bool(calendar.is_session(pd.Timestamp(trade_date)))
+        except (ImportError, KeyError, TypeError, ValueError) as exc:
+            raise ProductionPrerequisiteError(
+                "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
+            ) from exc
+
     def completed_session(
         self, market: str, trade_date: date, *, now: datetime | None = None
     ) -> CompletedSessionIdentity:
@@ -651,8 +684,8 @@ class ExactExchangeCalendarProvider:
             import exchange_calendars as xc
             import pandas as pd
             name = self.calendar_name(market)
-            calendar = xc.get_calendar(name)
             session = pd.Timestamp(trade_date)
+            calendar = xc.get_calendar(name)
             if not calendar.is_session(session):
                 raise ProductionPrerequisiteError(
                     "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
@@ -798,6 +831,7 @@ class SheetsDecisionStateStore:
         account_id: str | None = None,
         known_account_ids: Iterable[str] | None = None,
         sheet_name: str = DECISION_STATE_SHEET,
+        market: str | None = None,
     ) -> None:
         self.client = client
         self.write_enabled = write_enabled
@@ -810,6 +844,10 @@ class SheetsDecisionStateStore:
         if self.known_account_ids and self.account_id not in self.known_account_ids:
             raise ProductionPrerequisiteError(f"unknown persisted account: {self.account_id}")
         self.sheet_name = sheet_name
+        normalized_market = str(market or "").strip().upper()
+        if normalized_market and normalized_market not in {"CN", "US"}:
+            raise ProductionPrerequisiteError(f"unsupported market: {normalized_market}")
+        self.market = normalized_market or None
         self._records: dict[tuple[str, str, str], dict[str, Any]] = {}
         self.published_events: dict[str, DailyDecisionResult] = {}
         self.pending: dict[str, PendingT1Decision] = {}
@@ -819,6 +857,8 @@ class SheetsDecisionStateStore:
         loaded: dict[tuple[str, str], Any] = {}
         rows = list(client.records(sheet_name))
         for row in rows:
+            if self.market and _text(row, "市场").upper() != self.market:
+                continue
             row_account_id = _text(row, "账户ID")
             if not row_account_id:
                 raise ProductionPrerequisiteError("corrupted persisted state: account")
@@ -1028,11 +1068,19 @@ class ProductionInputAdapter:
         now: datetime | None = None,
         clock: Callable[[], datetime] | None = None,
         paper_active_symbols: Mapping[str, Sequence[str]] | None = None,
+        market: str | None = None,
+        ephemeral_latest_rows: Sequence[Mapping[str, Any]] | None = None,
+        ephemeral_qfq_rows: Sequence[Mapping[str, Any]] | None = None,
+        ephemeral_errors: Mapping[Any, Any] | None = None,
     ) -> None:
         self.client = client
         self.as_of_date = as_of_date
         self.calendar_provider = calendar_provider or ExactExchangeCalendarProvider()
         self.state_store = state_store
+        normalized_market = str(market or "").strip().upper()
+        if normalized_market and normalized_market not in {"CN", "US"}:
+            raise ProductionPrerequisiteError(f"unsupported market: {normalized_market}")
+        self.market = normalized_market or None
         self.now = now
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.paper_active_symbols = {
@@ -1043,6 +1091,16 @@ class ProductionInputAdapter:
             )
             for market, symbols in (paper_active_symbols or {}).items()
         }
+        # ``None`` means use the legacy Sheet-backed path.  An explicit empty
+        # sequence is meaningful for the cloud path: it must not silently fall
+        # back to yesterday's persisted行情.
+        self.ephemeral_latest_rows = (
+            None if ephemeral_latest_rows is None else tuple(ephemeral_latest_rows)
+        )
+        self.ephemeral_qfq_rows = (
+            None if ephemeral_qfq_rows is None else tuple(ephemeral_qfq_rows)
+        )
+        self.ephemeral_errors = dict(ephemeral_errors or {})
         self._snapshot: ProductionSnapshot | None = None
 
     def _current_now(self) -> datetime:
@@ -1057,18 +1115,24 @@ class ProductionInputAdapter:
             STRATEGY_UNIVERSE_SHEET: STRATEGY_UNIVERSE_HEADERS,
             RISK_GROUP_SHEET: RISK_GROUP_HEADERS,
             STRATEGY_POSITION_SHEET: STRATEGY_POSITION_HEADERS,
-            LATEST_SHEET: LATEST_REQUIRED_HEADERS,
-            QFQ_HISTORY_SHEET: QFQ_HISTORY_REQUIRED_HEADERS,
             DECISION_STATE_SHEET: DECISION_STATE_HEADERS,
         }
+        # Cloud runs inject today's latest/QFQ rows from the ephemeral
+        # provider boundary.  Do not even read the legacy market-data sheets
+        # on that path; they remain available to the old Sheet-backed/manual
+        # runner when the arguments are omitted.
+        if self.ephemeral_latest_rows is None:
+            contracts[LATEST_SHEET] = LATEST_REQUIRED_HEADERS
+        if self.ephemeral_qfq_rows is None:
+            contracts[QFQ_HISTORY_SHEET] = QFQ_HISTORY_REQUIRED_HEADERS
         records: dict[str, list[dict]] = {}
         errors: list[str] = []
         for sheet_name, headers in contracts.items():
             try:
                 rows = list(self.client.records(sheet_name))
-                records[sheet_name] = rows
                 if headers:
                     errors.extend(_validate_headers(self.client, sheet_name, rows, headers))
+                records[sheet_name] = _market_rows(rows, self.market)
             except Exception as exc:
                 errors.append(f"{PRODUCTION_SCHEMA_REQUIRED}:{sheet_name}:{exc}")
                 records[sheet_name] = []
@@ -1111,6 +1175,7 @@ class ProductionInputAdapter:
                         write_enabled=False,
                         account_id=account_id,
                         known_account_ids=known_account_ids,
+                        market=self.market,
                     )
                     if account_id in enabled_accounts:
                         state_stores[account_id] = store
@@ -1198,8 +1263,16 @@ class ProductionInputAdapter:
                 calendar_identity = None
                 calendar_status = f"ERROR:{exc}"
                 account_errors.append(str(exc))
-            latest_rows = records.get(LATEST_SHEET, [])
-            history_rows = records.get(QFQ_HISTORY_SHEET, [])
+            latest_rows = (
+                records.get(LATEST_SHEET, [])
+                if self.ephemeral_latest_rows is None
+                else list(self.ephemeral_latest_rows)
+            )
+            history_rows = (
+                records.get(QFQ_HISTORY_SHEET, [])
+                if self.ephemeral_qfq_rows is None
+                else list(self.ephemeral_qfq_rows)
+            )
             inputs: list[DailySymbolInput] = []
             existing_positions: list[OpenPortfolioPosition] = []
             statuses: list[str] = []
@@ -1220,6 +1293,11 @@ class ProductionInputAdapter:
                         latest_rows=latest_rows, history_rows=history_rows,
                         calendar_identity=calendar_identity,
                     )
+                    extra_detail = self.ephemeral_errors.get(
+                        f"{item.market.upper()}|{item.symbol.upper()}"
+                    )
+                    if extra_detail and status != DATA_OK:
+                        detail = str(extra_detail)
                     symbol_input = replace(
                         symbol_input,
                         risk_group=group.risk_group if group else None,
@@ -1360,11 +1438,17 @@ def build_production_snapshot(
     now: datetime | None = None,
     clock: Callable[[], datetime] | None = None,
     paper_active_symbols: Mapping[str, Sequence[str]] | None = None,
+    market: str | None = None,
+    ephemeral_latest_rows: Sequence[Mapping[str, Any]] | None = None,
+    ephemeral_qfq_rows: Sequence[Mapping[str, Any]] | None = None,
+    ephemeral_errors: Mapping[Any, Any] | None = None,
 ) -> ProductionSnapshot:
     return ProductionInputAdapter(
         client, as_of_date=as_of_date,
         calendar_provider=calendar_provider, state_store=state_store,
         now=now, clock=clock, paper_active_symbols=paper_active_symbols,
+        market=market, ephemeral_latest_rows=ephemeral_latest_rows,
+        ephemeral_qfq_rows=ephemeral_qfq_rows, ephemeral_errors=ephemeral_errors,
     ).snapshot()
 
 

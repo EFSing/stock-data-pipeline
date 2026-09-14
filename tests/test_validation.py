@@ -20,6 +20,7 @@ from latest_snapshot import evaluate_latest_snapshot, project_latest_row
 from providers import (
     PROVIDERS,
     _as_date,
+    _fetch_yahoo_chart_latest,
     fetch_latest_with_retry,
     fetch_sina,
     fetch_tencent,
@@ -30,7 +31,13 @@ from providers import (
 from sheets_client import SheetsClient
 
 
-def quote(source: str, close: float = 100.0, volume: float | None = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
+def quote(
+    source: str,
+    close: float = 100.0,
+    volume: float | None = 1_000_000,
+    day: date = date(2026, 8, 14),
+    preclose: float | None = 98.5,
+) -> Quote:
     return Quote(
         symbol="TEST",
         name="测试标的",
@@ -41,7 +48,7 @@ def quote(source: str, close: float = 100.0, volume: float | None = 1_000_000, d
         high=101.0,
         low=98.0,
         close=close,
-        preclose=98.5,
+        preclose=preclose,
         pct_change=1.52,
         volume=volume,
         amount=None,
@@ -442,6 +449,78 @@ class ValidationTests(unittest.TestCase):
         self.assertNotIn("period", calls[0])
         chart.assert_called_once_with(watch, date(2026, 8, 30))
 
+    def test_yahoo_chart_latest_probe_keeps_prior_close_in_bounded_window(self):
+        watch = {
+            "统一代码": "512400.SH", "名称": "ETF", "市场": "CN",
+            "yfinance代码": "512400.SS", "币种": "CNY",
+        }
+        calls = []
+        expected = [quote("YahooChart", day=date(2026, 8, 28))]
+
+        def chart(watch_row, adjust, start, end):
+            calls.append((watch_row, adjust, start, end))
+            return expected
+
+        with patch("providers._fetch_yahoo_chart", side_effect=chart):
+            result = _fetch_yahoo_chart_latest(watch, date(2026, 8, 28))
+
+        self.assertEqual(result, expected)
+        self.assertEqual(
+            calls,
+            [(watch, "raw", date(2026, 8, 21), date(2026, 8, 28))],
+        )
+
+    def test_yahoo_chart_latest_keeps_probing_when_first_current_row_lacks_preclose(self):
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD",
+        }
+        calls = []
+        current = quote("YahooChart", close=102.0, day=date(2026, 8, 28), preclose=None)
+        prior = quote("YahooChart", close=99.0, day=date(2026, 8, 27))
+
+        def chart(watch_row, adjust, start, end):
+            calls.append((watch_row, adjust, start, end))
+            return [current] if len(calls) == 1 else [prior]
+
+        with patch("providers._fetch_yahoo_chart", side_effect=chart):
+            result = _fetch_yahoo_chart_latest(watch, date(2026, 8, 28))
+
+        self.assertEqual(result[-1].trade_date, date(2026, 8, 28))
+        self.assertEqual(result[-1].preclose, 99.0)
+        self.assertEqual(len(calls), 2)
+
+    def test_yfinance_latest_uses_chart_lookback_when_single_row_lacks_preclose(self):
+        class SingleRowTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, **kwargs):
+                return pd.DataFrame(
+                    {
+                        "Open": [101.0],
+                        "High": [103.0],
+                        "Low": [99.0],
+                        "Close": [102.0],
+                        "Volume": [1_000_000],
+                    },
+                    index=pd.to_datetime(["2026-08-28"]),
+                )
+
+        fallback = [quote("YahooChart", day=date(2026, 8, 28))]
+        fake_yfinance = SimpleNamespace(Ticker=SingleRowTicker)
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD", "时区": "America/New_York",
+        }
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
+            "providers._fetch_yahoo_chart_latest", return_value=fallback
+        ) as chart:
+            result = fetch_yfinance_latest(watch, date(2026, 8, 28))
+
+        self.assertEqual(result, fallback)
+        chart.assert_called_once_with(watch, date(2026, 8, 28))
+
     def test_tencent_snapshot_parser(self):
         payload = (
             'v_sh603199="1~九华旅游~603199~33.45~34.00~34.26~34717~0~0~'
@@ -627,6 +706,21 @@ class ValidationTests(unittest.TestCase):
                 "BaoStock", watch, "raw", date(2026, 8, 1), date(2026, 8, 21), 1, 0
             )
         self.assertEqual(result, stale)
+
+    def test_latest_source_falls_back_when_exact_session_is_stale(self):
+        watch = {"统一代码": "BABA", "市场": "US"}
+        stale = [quote("yfinance", day=date(2026, 8, 19))]
+        current = [quote("Tencent", day=date(2026, 8, 20))]
+        with patch.dict("providers.LATEST_PROVIDERS", {
+            "yfinance": lambda *args: stale,
+            "Tencent": lambda *args: current,
+            "Sina": lambda *args: [quote("Sina", day=date(2026, 8, 20))],
+        }, clear=True):
+            result = fetch_latest_with_retry(
+                "yfinance", watch, date(2026, 8, 20), 1, 0,
+                target_trade_date=date(2026, 8, 20),
+            )
+        self.assertEqual(result, current)
 
     def test_replay_fetch_can_preserve_source_order_for_quality_gate(self):
         watch = {"统一代码": "603199.SH", "市场": "CN"}
