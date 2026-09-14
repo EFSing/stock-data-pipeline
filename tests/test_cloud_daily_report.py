@@ -110,6 +110,21 @@ class CloudDailyReportTests(unittest.TestCase):
         self.assertEqual(left.qfq_history, right.qfq_history)
         self.assertEqual(injected.preflight.ready, legacy.preflight.ready)
 
+    def test_optional_none_preclose_does_not_fail_cloud_preflight(self):
+        client = _rows()
+        latest = _latest("600000", "CN", "CNY")
+        latest["昨收"] = None
+        snapshot = build_production_snapshot(
+            client,
+            as_of_date=T_DAY,
+            now=AFTER_CLOSE,
+            market="CN",
+            ephemeral_latest_rows=[latest],
+            ephemeral_qfq_rows=[_history("600000", "CN", "CNY")],
+        )
+
+        self.assertTrue(snapshot.preflight.ready)
+
     def test_ephemeral_path_does_not_read_legacy_market_data_sheets(self):
         client = _rows()
         original_records = client.records

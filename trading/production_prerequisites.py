@@ -538,8 +538,12 @@ def parse_strategy_positions(rows: Iterable[Mapping[str, Any]]) -> tuple[Strateg
 
 def _number_from_row(row: Mapping[str, Any], *names: str) -> float | None:
     for name in names:
-        if name in row and str(row.get(name)).strip() != "":
-            return _as_float(row.get(name), field_name=name)
+        if name not in row:
+            continue
+        value = row.get(name)
+        if value is None or str(value).strip() == "":
+            continue
+        return _as_float(value, field_name=name)
     return None
 
 
