@@ -619,8 +619,15 @@ def fetch_latest_with_retry(
     end: date,
     retry_count: int,
     retry_wait_seconds: float,
+    target_trade_date: date | None = None,
 ) -> list[Quote]:
-    """Fetch recent quote evidence without entering full-history fetch."""
+    """Fetch recent quote evidence without entering full-history fetch.
+
+    ``target_trade_date`` is optional to preserve the existing latest-mode
+    behavior.  Cloud reports pass the exact completed session so a stale
+    configured source can use the existing raw-snapshot fallback chain before
+    two-source validation, matching ``fetch_with_retry`` semantics.
+    """
     market = str(watch.get("市场"))
     candidates = _configured_source_candidates(source, market, "raw")
     unknown = [candidate for candidate in candidates if candidate not in LATEST_PROVIDERS]
@@ -631,15 +638,27 @@ def fetch_latest_with_retry(
     last_error: Exception | None = None
     attempts = max(1, retry_count)
     for candidate in candidates:
+        stale_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
                 quotes = LATEST_PROVIDERS[candidate](watch, end)
                 if not quotes:
                     raise LookupError("返回空数据")
-                return sorted(quotes, key=lambda item: item.trade_date)
+                sorted_quotes = sorted(quotes, key=lambda item: item.trade_date)
+                if target_trade_date is not None and sorted_quotes[-1].trade_date < target_trade_date:
+                    stale_error = LookupError(
+                        f"返回数据日期{sorted_quotes[-1].trade_date.isoformat()}落后于目标交易日"
+                        f"{target_trade_date.isoformat()}"
+                    )
+                    last_error = stale_error
+                    break
+                return sorted_quotes
             except Exception as exc:
                 last_error = exc
                 if attempt < attempts:
                     time.sleep(max(0, retry_wait_seconds))
-        errors.append(f"{candidate}最新行情连续{attempts}次抓取失败：{last_error}")
+        if stale_error is not None:
+            errors.append(f"{candidate}最新行情失效：{stale_error}")
+        else:
+            errors.append(f"{candidate}最新行情连续{attempts}次抓取失败：{last_error}")
     raise RuntimeError("；".join(errors)) from last_error

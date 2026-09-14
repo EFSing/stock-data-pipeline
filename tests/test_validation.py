@@ -628,6 +628,21 @@ class ValidationTests(unittest.TestCase):
             )
         self.assertEqual(result, stale)
 
+    def test_latest_source_falls_back_when_exact_session_is_stale(self):
+        watch = {"统一代码": "BABA", "市场": "US"}
+        stale = [quote("yfinance", day=date(2026, 8, 19))]
+        current = [quote("Tencent", day=date(2026, 8, 20))]
+        with patch.dict("providers.LATEST_PROVIDERS", {
+            "yfinance": lambda *args: stale,
+            "Tencent": lambda *args: current,
+            "Sina": lambda *args: [quote("Sina", day=date(2026, 8, 20))],
+        }, clear=True):
+            result = fetch_latest_with_retry(
+                "yfinance", watch, date(2026, 8, 20), 1, 0,
+                target_trade_date=date(2026, 8, 20),
+            )
+        self.assertEqual(result, current)
+
     def test_replay_fetch_can_preserve_source_order_for_quality_gate(self):
         watch = {"统一代码": "603199.SH", "市场": "CN"}
         newest = quote("BaoStock", day=date(2026, 8, 21))

@@ -381,7 +381,8 @@ def load_ephemeral_market_data(
                 ):
                     try:
                         quotes = fetch_latest_with_retry(
-                            source, dict(watch), as_of_date, retry_count, retry_wait
+                            source, dict(watch), as_of_date, retry_count, retry_wait,
+                            target_trade_date=as_of_date,
                         )
                         if any(not _quote_identity_is_valid(quote, watch) for quote in quotes):
                             raise ValueError("latest provider identity mismatch")

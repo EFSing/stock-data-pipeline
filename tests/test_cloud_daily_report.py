@@ -133,7 +133,7 @@ class CloudDailyReportTests(unittest.TestCase):
     def test_ephemeral_loader_uses_existing_provider_and_projection_contract(self):
         client = _cloud_client()
 
-        def latest(source, watch, end, retry_count, retry_wait):
+        def latest(source, watch, end, retry_count, retry_wait, **kwargs):
             return [_quote("600000", "CN", T_DAY, source, "CNY")]
 
         def history(source, watch, adjustment, start, end, *args, **kwargs):
@@ -157,7 +157,7 @@ class CloudDailyReportTests(unittest.TestCase):
     def test_ephemeral_loader_completes_missing_selected_preclose_from_same_session_peer(self):
         client = _cloud_client()
 
-        def latest(source, watch, end, retry_count, retry_wait):
+        def latest(source, watch, end, retry_count, retry_wait, **kwargs):
             preclose = None if source == "Tencent" else 101.0
             return [_quote("600000", "CN", T_DAY, source, "CNY", preclose=preclose)]
 
