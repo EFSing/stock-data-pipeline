@@ -356,6 +356,31 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(position["action"], "HOLD")
         self.assertEqual(position["action_label"], "继续持有")
 
+    def test_rejected_decision_calculation_is_not_rendered_as_dashboard_plan(self):
+        payload = deepcopy(self.payload)
+        result = payload["reports"][1]["报告"]["results"][1]
+        result["symbol"] = "REJECTED"
+        result["primary_action"] = "NO_TRADE"
+        result["individual_decision"]["action"] = "NO_TRADE"
+        result["individual_decision"]["gate_reason"] = "RR_BELOW_MINIMUM"
+        result["final_status"] = "NO_TRADE"
+        result["portfolio_result"] = None
+
+        projection = build_dashboard_projection(payload)
+        row = next(row for row in projection["rows"] if row["symbol"] == "REJECTED")
+
+        self.assertEqual(row["stage_key"], "NO_TRADE")
+        self.assertTrue(row["plan"]["has_decision"])
+        self.assertEqual(row["plan"]["planned_entry"], "200")
+
+        rendered = render_dashboard_html(payload)
+        start = rendered.index('data-search="REJECTED')
+        end = rendered.index("</article>", start)
+        rejected_card = rendered[start:end]
+        self.assertIn("尚未形成交易计划", rejected_card)
+        self.assertNotIn("关键价格", rejected_card)
+        self.assertNotIn("入场区间", rejected_card)
+
     def test_identity_metadata_wave_mapping_and_input_immutability(self):
         original = deepcopy(self.payload)
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}

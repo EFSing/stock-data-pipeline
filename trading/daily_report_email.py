@@ -20,6 +20,7 @@ _PRIORITY_LABELS = {
     "data": "数据异常",
     "position": "持仓",
     "plan": "已形成交易计划",
+    "no_trade": "今日不交易",
     "confirmed": "今日新确认",
     "armed": "接近确认",
 }
@@ -31,6 +32,16 @@ _STATUS_LABELS = {
     "FAILED": "数据异常",
 }
 _MARKET_LABELS = {"CN": "A股", "US": "美股"}
+_PLAN_STAGES = frozenset(("ENTRY_ALLOWED", "STRATEGY_PROPOSAL"))
+_MINIMUM_RR_TEXT = "2.00R"
+_NO_TRADE_COPY = {
+    "RR_BELOW_MINIMUM": ("不交易", "收益风险比不足"),
+    "ABOVE_ENTRY_ZONE": ("不追高", "已经高于允许入场区上沿"),
+    "NO_VALID_TARGET": ("不交易", "没有高于参考价格的有效第一目标"),
+    "ATR_UNAVAILABLE": ("不交易", "波动率数据不足"),
+    "STALE_CONFIRMATION_GEOMETRY": ("不交易", "确认结构已过期"),
+    "INVALID_STRUCTURE": ("不交易", "交易结构未通过检查"),
+}
 _TECHNICAL_MARKERS = (
     "SETUP_01",
     "SETUP_02",
@@ -84,8 +95,49 @@ def _integer(value: Any, default: int = 0) -> int:
         return default
 
 
+def _decision_action(row: Mapping[str, Any]) -> str:
+    return _text(_mapping(row.get("decision")).get("action")).upper()
+
+
+def _decision_gate_reason(row: Mapping[str, Any]) -> str:
+    decision_reason = _text(_mapping(row.get("decision")).get("gate_reason")).upper()
+    if decision_reason:
+        return decision_reason
+    for value in _sequence(row.get("reasons")):
+        reason = _text(value).upper()
+        if reason in _NO_TRADE_COPY:
+            return reason
+    return ""
+
+
 def _is_plan(row: Mapping[str, Any]) -> bool:
-    return bool(_mapping(row.get("plan")).get("has_decision")) and not bool(row.get("data_blocked"))
+    """Only a production-meaningful allowed/proposal row is a trade plan.
+
+    A projected ``plan.has_decision`` only means that an individual Decision
+    object exists.  It is intentionally not sufficient: a rejected Decision
+    can still retain all of its calculation fields for diagnostics.
+    """
+
+    return (
+        not bool(row.get("data_blocked"))
+        and _text(row.get("stage_key")).upper() in _PLAN_STAGES
+        and _decision_action(row) == "ENTRY_ALLOWED"
+    )
+
+
+def _is_no_trade_decision(row: Mapping[str, Any]) -> bool:
+    return (
+        not bool(row.get("data_blocked"))
+        and not bool(row.get("is_position"))
+        and _decision_action(row) == "NO_TRADE"
+    )
+
+
+def _no_trade_copy(row: Mapping[str, Any]) -> tuple[str, str]:
+    return _NO_TRADE_COPY.get(
+        _decision_gate_reason(row),
+        ("不交易", "当前入场条件未通过"),
+    )
 
 
 def _priority(row: Mapping[str, Any]) -> str | None:
@@ -95,6 +147,8 @@ def _priority(row: Mapping[str, Any]) -> str | None:
         return "position"
     if _is_plan(row):
         return "plan"
+    if _is_no_trade_decision(row):
+        return "no_trade"
     if row.get("event_is_new"):
         return "confirmed"
     if _text(row.get("stage_key")) == "ARMED":
@@ -228,6 +282,7 @@ def _next_step(row: Mapping[str, Any], category: str) -> str:
         "data": "等待数据恢复，本日不生成交易信号。",
         "position": "按现有持仓管理结果处理。",
         "plan": "交易方案已经形成，按现有流程继续。",
+        "no_trade": "本次不形成交易计划，等待下一次满足入场条件的机会。",
         "confirmed": "等待入场条件评估。",
         "armed": "等待确认条件。",
     }
@@ -235,6 +290,9 @@ def _next_step(row: Mapping[str, Any], category: str) -> str:
 
 
 def _today_text(row: Mapping[str, Any], category: str) -> str:
+    if category == "no_trade":
+        conclusion, reason = _no_trade_copy(row)
+        return f"{conclusion}；原因：{reason}"
     defaults = {
         "data": "行情或生产前置数据没有达到可用要求。",
         "position": "该标的已经进入持仓管理。",
@@ -247,6 +305,51 @@ def _today_text(row: Mapping[str, Any], category: str) -> str:
     if conclusion and conclusion not in why:
         return f"{conclusion}；{why}"
     return why
+
+
+def _first_rr_text(plan: Mapping[str, Any]) -> str:
+    text = _text(plan.get("rr"))
+    if not text:
+        return "—"
+    first = text.split("/", 1)[0].strip()
+    if not first or first in {"—", "-"}:
+        return "—"
+    return first if first.upper().endswith("R") else f"{first}R"
+
+
+def _no_trade_html(row: Mapping[str, Any]) -> str:
+    if not _is_no_trade_decision(row):
+        return ""
+    plan = _mapping(row.get("plan"))
+    reason = _decision_gate_reason(row)
+    if reason == "RR_BELOW_MINIMUM":
+        return (
+            '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
+            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
+            f'<div style="margin:2px 0;">参考价格：{_escape(plan.get("planned_entry"))}</div>'
+            f'<div style="margin:2px 0;">结构止损：{_escape(plan.get("execution_stop"))}</div>'
+            f'<div style="margin:2px 0;">第一目标候选：{_escape(plan.get("target_1"))}</div>'
+            f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
+            f'<div style="margin:2px 0;">最低 RR 要求：{_MINIMUM_RR_TEXT}</div>'
+            '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+            '</div>'
+        )
+    if reason == "ABOVE_ENTRY_ZONE":
+        return (
+            '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
+            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
+            f'<div style="margin:2px 0;">允许入场区：{_escape(plan.get("entry_zone_low"))}～{_escape(plan.get("entry_zone_high"))}</div>'
+            f'<div style="margin:2px 0;">当前价格：{_escape(plan.get("planned_entry"))}</div>'
+            '<div style="margin:2px 0;">原因：已经高于允许入场区上沿</div>'
+            '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+            '</div>'
+        )
+    return (
+        '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
+        '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
+        '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+        '</div>'
+    )
 
 
 def _plan_html(row: Mapping[str, Any]) -> str:
@@ -275,6 +378,7 @@ def _row_html(category: str, row: Mapping[str, Any]) -> str:
     today = html.escape(_today_text(row, category), quote=True)
     next_step = html.escape(_next_step(row, category), quote=True)
     has_plan = "是" if _is_plan(row) else "否"
+    today_label = "今日结论" if category == "no_trade" else "今天发生什么"
     market = _text(row.get("market")).upper()
     market_suffix = f" · {_MARKET_LABELS.get(market, market)}" if market else ""
     return (
@@ -282,10 +386,11 @@ def _row_html(category: str, row: Mapping[str, Any]) -> str:
         '<div style="padding:12px;border:1px solid #d9dee8;border-radius:8px;background-color:#ffffff;">'
         f'<h3 style="margin:0 0 9px 0;color:#172033;font-size:16px;line-height:1.4;">{name}（{symbol}）{html.escape(market_suffix)}</h3>'
         f'<div style="margin:5px 0;"><span style="color:#687386;">当前浪型：</span>{wave}</div>'
-        f'<div style="margin:5px 0;"><span style="color:#687386;">今天发生什么：</span>{today}</div>'
+        f'<div style="margin:5px 0;"><span style="color:#687386;">{today_label}：</span>{today}</div>'
         f'<div style="margin:5px 0;"><span style="color:#687386;">还差什么 / 下一步：</span>{next_step}</div>'
         f'<div style="margin:5px 0;"><span style="color:#687386;">是否已有交易计划：</span>{has_plan}</div>'
         + _plan_html(row)
+        + _no_trade_html(row)
         + "</div></td></tr>"
     )
 

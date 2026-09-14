@@ -50,6 +50,57 @@ def _cloud_payload(market: str = "US", status: str = "SUCCESS") -> dict:
     return payload
 
 
+def _decision_result(symbol: str, market: str, decision: dict) -> dict:
+    return {
+        "symbol": symbol,
+        "market": market,
+        "as_of_date": "2026-09-03",
+        "data_status": "DATA_OK",
+        "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+        "alternate_wave_scenario": "UNKNOWN",
+        "setup01_state": "CONFIRMED",
+        "setup02_state": "NONE",
+        "primary_action": decision["action"],
+        "event_was_new": False,
+        "individual_decision": decision,
+        "portfolio_result": None,
+        "position_management": None,
+        "reasons": [],
+        "blocking_prerequisites": [],
+        "final_status": "NO_TRADE",
+    }
+
+
+def _no_trade_payload(symbol: str, decision: dict, name: str) -> dict:
+    payload = _cloud_payload("CN")
+    report = payload["reports"][0]
+    report["报告"]["results"] = [_decision_result(symbol, "CN", decision)]
+    report["universe"]["provenance"] = {symbol: ["FORMAL_STRATEGY_POOL"]}
+    report["universe"]["provenance_metadata"] = {
+        symbol: {
+            "source": "FORMAL_STRATEGY_POOL",
+            "state_persistence_eligible": True,
+            "promotion_required": False,
+            "production_execution_eligible": True,
+        }
+    }
+    report["universe"]["symbol_metadata"] = {
+        symbol: {"name": name, "sector": "示例行业"}
+    }
+    report["Candidate"] = {
+        "candidate_included_count": 1,
+        "candidate_included_symbols": [symbol],
+    }
+    payload["candidate_markets"] = {
+        "CN": {
+            "status": "SUCCESS",
+            "candidate_included_count": 1,
+            "candidate_included_symbols": [symbol],
+        }
+    }
+    return payload
+
+
 class DailyReportEmailTests(unittest.TestCase):
     def test_email_html_is_static_single_column_and_hides_internal_tokens(self):
         rendered = render_daily_report_email_html(_cloud_payload())
@@ -122,6 +173,85 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("止损（Stop）：190", rendered)
         self.assertIn("目标（Targets）：T1：220；T2：230；T3：240", rendered)
         self.assertIn("风险收益比（RR）：2.00 / 3.00 / 4.00", rendered)
+
+    def test_rr_rejected_decision_is_not_a_trade_plan_and_shows_calculation_basis(self):
+        rendered = render_daily_report_email_html(
+            _no_trade_payload(
+                "600941.SH",
+                {
+                    "action": "NO_TRADE",
+                    "gate_reason": "RR_BELOW_MINIMUM",
+                    "planned_entry": 98.16,
+                    "execution_stop": 94.31,
+                    "targets": [98.6825],
+                    "rr": {"rr_ratios": [0.14], "quality": "NO_TRADE"},
+                },
+                "中国移动",
+            )
+        )
+
+        self.assertIn("今日不交易（1）", rendered)
+        self.assertIn("今日结论：</span>不交易", rendered)
+        self.assertIn("收益风险比不足", rendered)
+        self.assertIn("参考价格：98.16", rendered)
+        self.assertIn("结构止损：94.31", rendered)
+        self.assertIn("第一目标候选：98.6825", rendered)
+        self.assertIn("对应 RR：0.14R", rendered)
+        self.assertIn("最低 RR 要求：2.00R", rendered)
+        self.assertIn("这些是本次 Decision gate 的计算依据，不是买入/止盈建议。", rendered)
+        self.assertIn("是否已有交易计划：</span>否", rendered)
+        self.assertNotIn("交易计划（来自真实 Decision）", rendered)
+        self.assertNotIn("入场（Entry）", rendered)
+
+    def test_above_entry_zone_rejected_decision_explains_no_chasing(self):
+        rendered = render_daily_report_email_html(
+            _no_trade_payload(
+                "600803.SH",
+                {
+                    "action": "NO_TRADE",
+                    "gate_reason": "ABOVE_ENTRY_ZONE",
+                    "planned_entry": 18.78,
+                    "entry_zone_low": 18.09,
+                    "entry_zone_high": 18.36,
+                    "execution_stop": 17.5,
+                    "targets": [20.0],
+                    "rr": {"rr_ratios": [1.0], "quality": "NO_TRADE"},
+                },
+                "新奥股份",
+            )
+        )
+
+        self.assertIn("今日结论：</span>不追高", rendered)
+        self.assertIn("允许入场区：18.09～18.36", rendered)
+        self.assertIn("当前价格：18.78", rendered)
+        self.assertIn("原因：已经高于允许入场区上沿", rendered)
+        self.assertIn("是否已有交易计划：</span>否", rendered)
+        self.assertNotIn("交易计划（来自真实 Decision）", rendered)
+        self.assertNotIn("目标（Targets）", rendered)
+
+    def test_summary_plan_count_excludes_rejected_decisions(self):
+        payload = _cloud_payload("US")
+        report = payload["reports"][1]
+        report["报告"]["results"].append(
+            _decision_result(
+                "REJECTED",
+                "US",
+                {
+                    "action": "NO_TRADE",
+                    "gate_reason": "RR_BELOW_MINIMUM",
+                    "planned_entry": 100.0,
+                    "execution_stop": 90.0,
+                    "targets": [101.0],
+                    "rr": {"rr_ratios": [0.1], "quality": "NO_TRADE"},
+                },
+            )
+        )
+
+        rendered = render_daily_report_email_html(payload)
+
+        self.assertIn("交易方案数量</strong>：2", rendered)
+        self.assertIn("今日不交易（1）", rendered)
+        self.assertNotIn("交易方案数量</strong>：3", rendered)
 
     def test_priority_order_is_data_position_plan_confirmation_then_armed(self):
         rendered = render_daily_report_email_html(_cloud_payload())
