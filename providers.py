@@ -406,7 +406,13 @@ def fetch_yfinance_latest(watch: dict, end: date) -> list[Quote]:
             if records and _row_ohlc_is_complete(records[-1]):
                 yfinance_rows = _records_to_quotes(frame, watch, "yfinance")
                 if yfinance_rows:
-                    return yfinance_rows
+                    if yfinance_rows[-1].preclose is not None:
+                        return yfinance_rows
+                    try:
+                        chart_rows = _fetch_yahoo_chart_latest(watch, end)
+                    except Exception:
+                        chart_rows = []
+                    return chart_rows or yfinance_rows
             else:
                 yfinance_error = RuntimeError("yfinance最新行情最新观察行OHLC不完整")
                 yfinance_rows = []

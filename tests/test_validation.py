@@ -464,6 +464,37 @@ class ValidationTests(unittest.TestCase):
             [(watch, "raw", date(2026, 8, 21), date(2026, 8, 28))],
         )
 
+    def test_yfinance_latest_uses_chart_lookback_when_single_row_lacks_preclose(self):
+        class SingleRowTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, **kwargs):
+                return pd.DataFrame(
+                    {
+                        "Open": [101.0],
+                        "High": [103.0],
+                        "Low": [99.0],
+                        "Close": [102.0],
+                        "Volume": [1_000_000],
+                    },
+                    index=pd.to_datetime(["2026-08-28"]),
+                )
+
+        fallback = [quote("YahooChart", day=date(2026, 8, 28))]
+        fake_yfinance = SimpleNamespace(Ticker=SingleRowTicker)
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD", "时区": "America/New_York",
+        }
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
+            "providers._fetch_yahoo_chart_latest", return_value=fallback
+        ) as chart:
+            result = fetch_yfinance_latest(watch, date(2026, 8, 28))
+
+        self.assertEqual(result, fallback)
+        chart.assert_called_once_with(watch, date(2026, 8, 28))
+
     def test_tencent_snapshot_parser(self):
         payload = (
             'v_sh603199="1~九华旅游~603199~33.45~34.00~34.26~34717~0~0~'
