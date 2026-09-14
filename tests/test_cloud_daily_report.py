@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -28,7 +28,7 @@ from tests.test_production_prerequisites import (
 FIXTURE = Path(__file__).with_name("fixtures") / "daily_dashboard_v1.json"
 
 
-def _quote(symbol, market, trade_date, source, currency, preclose=101.0):
+def _quote(symbol, market, trade_date, source, currency, preclose=101.0, close=102.0):
     return Quote(
         symbol=symbol,
         name=symbol,
@@ -38,7 +38,7 @@ def _quote(symbol, market, trade_date, source, currency, preclose=101.0):
         open=100.0,
         high=105.0,
         low=95.0,
-        close=102.0,
+        close=close,
         preclose=preclose,
         pct_change=0.99,
         volume=1000.0,
@@ -175,6 +175,42 @@ class CloudDailyReportTests(unittest.TestCase):
         self.assertEqual(
             snapshot.provider_status["600000"]["latest_preclose_source"],
             "Sina",
+        )
+
+    def test_ephemeral_loader_completes_missing_preclose_from_selected_source_history(self):
+        client = _cloud_client()
+
+        def latest(source, watch, end, retry_count, retry_wait, **kwargs):
+            del watch, end, retry_count, retry_wait, kwargs
+            if source == "Tencent":
+                return [
+                    _quote(
+                        "600000",
+                        "CN",
+                        T_DAY - timedelta(days=1),
+                        source,
+                        "CNY",
+                        close=99.0,
+                    ),
+                    _quote("600000", "CN", T_DAY, source, "CNY", preclose=None),
+                ]
+            return [_quote("600000", "CN", T_DAY, source, "CNY", preclose=None)]
+
+        def history(source, watch, adjustment, start, end, *args, **kwargs):
+            del source, watch, adjustment, start, end, args, kwargs
+            return [_quote("600000", "CN", T_DAY, "yfinance", "CNY")]
+
+        with patch("trading.ephemeral_market_data.fetch_latest_with_retry", side_effect=latest), \
+             patch("trading.ephemeral_market_data.fetch_with_retry", side_effect=history):
+            snapshot = load_ephemeral_market_data(
+                client, market="CN", as_of_date=T_DAY, now=AFTER_CLOSE
+            )
+
+        self.assertEqual(snapshot.errors, ())
+        self.assertEqual(snapshot.latest_rows[0]["昨收"], 99.0)
+        self.assertEqual(
+            snapshot.provider_status["600000"]["latest_preclose_source"],
+            "Tencent",
         )
 
     def test_runner_market_scope_is_read_only_and_does_not_require_other_market(self):

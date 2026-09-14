@@ -217,7 +217,11 @@ def _quote_identity_is_valid(quote: Any, watch: Mapping[str, Any]) -> bool:
     )
 
 
-def _complete_latest_preclose(snapshot: Any) -> tuple[Any, str | None]:
+def _complete_latest_preclose(
+    snapshot: Any,
+    primary_quotes: Sequence[Any] = (),
+    verifier_quotes: Sequence[Any] = (),
+) -> tuple[Any, str | None]:
     """Fill only a missing selected-source preclose from the same-session peer.
 
     The existing latest validation contract compares close/volume across the
@@ -245,7 +249,21 @@ def _complete_latest_preclose(snapshot: Any) -> tuple[Any, str | None]:
         None,
     )
     if peer is None:
-        return snapshot, None
+        selected_quotes = primary_quotes if chosen is snapshot.primary else verifier_quotes
+        prior = max(
+            (
+                quote
+                for quote in selected_quotes
+                if quote is not None
+                and quote.trade_date < chosen.trade_date
+                and quote.close is not None
+            ),
+            key=lambda quote: quote.trade_date,
+            default=None,
+        )
+        if prior is None:
+            return snapshot, None
+        return replace(snapshot, chosen=replace(chosen, preclose=prior.close)), prior.source
     return replace(snapshot, chosen=replace(chosen, preclose=peer.preclose)), peer.source
 
 
@@ -409,7 +427,11 @@ def load_ephemeral_market_data(
                     if latest_snapshot.chosen is None:
                         symbol_errors.append("latest unavailable: no completed quote")
                     else:
-                        projected_snapshot, preclose_source = _complete_latest_preclose(latest_snapshot)
+                        projected_snapshot, preclose_source = _complete_latest_preclose(
+                            latest_snapshot,
+                            primary_quotes=primary_quotes,
+                            verifier_quotes=verifier_quotes,
+                        )
                         latest_rows.append(project_latest_row(projected_snapshot, fetched_at))
                         if preclose_source:
                             provider_detail["latest_preclose_source"] = preclose_source

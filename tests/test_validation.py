@@ -31,7 +31,13 @@ from providers import (
 from sheets_client import SheetsClient
 
 
-def quote(source: str, close: float = 100.0, volume: float | None = 1_000_000, day: date = date(2026, 8, 14)) -> Quote:
+def quote(
+    source: str,
+    close: float = 100.0,
+    volume: float | None = 1_000_000,
+    day: date = date(2026, 8, 14),
+    preclose: float | None = 98.5,
+) -> Quote:
     return Quote(
         symbol="TEST",
         name="测试标的",
@@ -42,7 +48,7 @@ def quote(source: str, close: float = 100.0, volume: float | None = 1_000_000, d
         high=101.0,
         low=98.0,
         close=close,
-        preclose=98.5,
+        preclose=preclose,
         pct_change=1.52,
         volume=volume,
         amount=None,
@@ -463,6 +469,26 @@ class ValidationTests(unittest.TestCase):
             calls,
             [(watch, "raw", date(2026, 8, 21), date(2026, 8, 28))],
         )
+
+    def test_yahoo_chart_latest_keeps_probing_when_first_current_row_lacks_preclose(self):
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD",
+        }
+        calls = []
+        current = quote("YahooChart", close=102.0, day=date(2026, 8, 28), preclose=None)
+        prior = quote("YahooChart", close=99.0, day=date(2026, 8, 27))
+
+        def chart(watch_row, adjust, start, end):
+            calls.append((watch_row, adjust, start, end))
+            return [current] if len(calls) == 1 else [prior]
+
+        with patch("providers._fetch_yahoo_chart", side_effect=chart):
+            result = _fetch_yahoo_chart_latest(watch, date(2026, 8, 28))
+
+        self.assertEqual(result[-1].trade_date, date(2026, 8, 28))
+        self.assertEqual(result[-1].preclose, 99.0)
+        self.assertEqual(len(calls), 2)
 
     def test_yfinance_latest_uses_chart_lookback_when_single_row_lacks_preclose(self):
         class SingleRowTicker:

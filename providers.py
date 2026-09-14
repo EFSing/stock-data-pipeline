@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import json
 import re
+from dataclasses import replace
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from typing import Callable, Iterable
 from urllib.parse import quote as urlquote
@@ -443,6 +444,7 @@ def _fetch_yahoo_chart_latest(watch: dict, end: date) -> list[Quote]:
     the selected session.  Never fill a missing close from another field.
     """
     errors: list[str] = []
+    observed: dict[date, Quote] = {}
     for offset in range(8):
         day = end - timedelta(days=offset)
         try:
@@ -452,8 +454,40 @@ def _fetch_yahoo_chart_latest(watch: dict, end: date) -> list[Quote]:
         except Exception as exc:
             errors.append(f"{day.isoformat()}: {exc}")
             continue
-        if rows:
-            return rows
+        for quote in rows:
+            existing = observed.get(quote.trade_date)
+            if existing is None or (
+                existing.preclose is None and quote.preclose is not None
+            ):
+                observed[quote.trade_date] = quote
+        if not observed:
+            continue
+        latest_date = max(observed)
+        latest = observed[latest_date]
+        if latest.preclose is None:
+            prior = max(
+                (
+                    quote
+                    for trade_date, quote in observed.items()
+                    if trade_date < latest_date and quote.close is not None
+                ),
+                key=lambda quote: quote.trade_date,
+                default=None,
+            )
+            if prior is not None:
+                pct_change = latest.pct_change
+                if pct_change is None and prior.close not in (None, 0):
+                    pct_change = (latest.close / prior.close - 1) * 100
+                observed[latest_date] = replace(
+                    latest,
+                    preclose=prior.close,
+                    pct_change=pct_change,
+                )
+                latest = observed[latest_date]
+        if latest.preclose is not None:
+            return [observed[trade_date] for trade_date in sorted(observed)]
+    if observed:
+        return [observed[trade_date] for trade_date in sorted(observed)]
     if errors:
         raise RuntimeError("；".join(errors))
     return []
