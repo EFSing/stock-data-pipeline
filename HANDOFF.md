@@ -15,7 +15,7 @@
   Wave、Setup、Decision、Risk、Position Management 与 persistence 语义均未修改。
 - 当前工作分支：`fix/email-safe-daily-report`；PR #83 等待新的 CN SMTP smoke 与
   QQ 邮箱手机端视觉/语义验收。branch / HEAD / CI / merge 状态以 Git / GitHub 实时事实为准。
-- CN manual workflow smoke 已使用既有 Secrets 完成，artifact 中
+- 最新 CN manual workflow smoke 已使用既有 Secrets 完成，artifact 中
   `cloud_daily_report.notifications.email.status=SENT`；未打印或持久化任何 secret 值。
 - 本轮保留 `daily-report.json`、`daily-report.html`、Browser Dashboard、Bark 与 CN/US
   schedule；邮件摘要展示数据异常、持仓、真实交易方案、拒绝决策、新确认和接近确认，最多 20 个重点标的。
@@ -147,9 +147,11 @@
   不伪造入场价，Decision/Risk/Position Management 只展示现有字段。
 ## 4. Blocker（当前 Blockers / 决策节点）
 
-- 当前交接节点：`EMAIL_DAILY_REPORT_V1_SEMANTIC_FIX`。PR #83 的新 CN manual SMTP
-  smoke 尚待运行；本地 service-account env 缺失不构成 blocker，也不记录或索取
-  secret 值。无交易语义变更 blocker。
+- 当前交接节点：`READY_FOR_EMAIL_VISUAL_ACCEPTANCE`。PR #83 的新 CN manual SMTP
+  smoke 已使用既有 workflow Secrets 返回 `notification result = SENT`；600941.SH 与
+  600803.SH 的拒绝语义已在同一 payload 的 email renderer 输出中核对。用户 QQ 邮箱
+  手机端视觉/语义验收尚待完成；本地 service-account env 缺失不构成 blocker，也不记录
+  或索取 secret 值。未获用户验收前不合并。
 
 - 本轮 GitHub smoke 的 CN/US artifact 与 summary 均证明 read-only、market isolation、
   exact-session 与 zero-write 边界；若后续要直接在本机运行 CLI，仍需注入既有两个
@@ -179,7 +181,7 @@
 
 ## 5. Next Action（下一步动作）
 
-1. 推送 PR #83 的 semantic fix，运行一次 CN manual SMTP smoke；随后由用户在 QQ 邮箱手机端完成最终视觉与语义验收。未获验收前不合并。
+1. 用户在 QQ 邮箱手机端完成 PR #83 最新 CN SMTP smoke 的最终视觉与语义验收；验收通过后再由用户决定是否合并。
 2. 继续保持 CN/US Daily Report 为唯一自动调度路径；Candidate-only 仍需人工 promotion
    到正式 `策略股票池`，本轮不启动 broker、自动批准、paper write、SETUP_03/04 或新策略语义。
 
@@ -266,6 +268,6 @@
 
 状态标记：
 
-`EMAIL_DAILY_REPORT_V1_SEMANTIC_FIX`
+`READY_FOR_EMAIL_VISUAL_ACCEPTANCE`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
