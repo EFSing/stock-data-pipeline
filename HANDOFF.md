@@ -5,22 +5,21 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`SETUP_01_TARGET_PROJECTION_AND_GEOMETRY_ATTRIBUTION`；分开展示
-  Wave3 structure target 与 overhead confirmed swing high，并完成 81 个
-  Wave3 Fib-near event 的纯几何描述归因，不修改正式交易语义。
+- 当前任务：`SETUP_01_CONFIRMED_SWING_HIGH_FIRST_REWARD_BOUNDARY_COUNTERFACTUAL_V1`；
+  已完成固定 Development frozen holdout 研究，等待用户对 first-reward boundary
+  做正式决策，不修改 production strategy。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`PR_86_MERGED`。
-- 本轮只消费现有 Decision/target provenance 与上一轮 research-only artifact；几何
-  归因没有重放生产结果、没有读取 Final OOS、forward return、MFE/MAE、P&L 或其他
-  outcome 信息。
+- 正式状态：`READY_FOR_DECISION`；PR #86 仍为已合并基线。
+- 本轮在固定 Development frozen holdout 上允许读取后续价格，仅用于 P0/P1 policy
+  对比；没有访问 Final OOS，也没有修改 production Decision semantics。
 
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
 - PR #84、PR #85 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`main`；本轮独立 PR #86 已 squash merge 到 `main`；本轮没有自动 merge
-  其他 PR。
+- 当前分支：`codex/setup01-swing-boundary-counterfactual-v1`；从最新 `main` 创建，
+  本轮独立 research PR 已创建并等待 review；未自动 merge。
 - PR #84、PR #85 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
@@ -41,32 +40,42 @@
   `research/development/setup01_wave2_to_wave3_geometry_attribution_v1.json/.md`；
   81 个 Fib-near 的 identity 最大残差约 `5.2e-14`，BOTH_NEAR 为 `63/81`，归因
   结论仅为描述统计，不形成新 gate。
+- 新增 `research/development/setup01_swing_boundary_counterfactual_v1.py` 与 compact
+  JSON/Markdown report；固定 `117 → 117 → 117 → 11 → 11 → 6` P1 funnel。6 条
+  executed research row 中 5/6 在 stop 前、另 1/6 在无 stop 的结构性终止前清过最近
+  confirmed Swing High；1/6 到达 Fib T1，5/6 stop；结果分类为
+  `INSUFFICIENT_EVIDENCE`，未转成生产规则。
 
 ## 4. Validation（验证结果）
 
-- focused：SETUP_01 Decision、geometry attribution、Dashboard、email、Daily Chain
-  共 `90 tests passed`。
-- full：`python -m unittest discover -s tests -v` → `732 tests passed, 3 skipped, OK`；
+- focused：counterfactual research tests → `4 tests passed`。
+- full：`python -m unittest discover -s tests -v` → `736 tests passed, 3 skipped, OK`；
   现有 generic operational shadow checks 继续通过。
-- `python -m py_compile` 覆盖本轮代码、研究模块与新增测试；research artifact 重新
-  生成并核对 745/198/81 与分组守恒；`git diff --check` 通过。
-- 本轮只做 T 日既有字段几何分解；没有 T+1、Final OOS、forward/outcome 指标、
-  真实 holdings 读取、Sheets 写入或 broker order。
+- `python -m py_compile` 覆盖本轮 research module；research artifact 重新生成并核对
+  P0 parity、745 confirmed、117/63/18 category conservation、exact T+1、P1
+  outcome 与 same-bar stop-first contract；`git diff --check` 通过。
+- 本轮没有访问 Final OOS、没有调参/threshold sweep、没有真实 holdings 读取、Sheets
+  写入、state write 或 broker order。
 
 ## 5. Blocker（当前 Blockers / 决策节点）
 
-- 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`。
+- 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`；研究节点为
+  `READY_FOR_DECISION`。
 - PR #86 已合并；本轮没有提出或实施新的 Wave1 最低涨幅/ATR、
   Wave2 最大回撤、确认时点或其他 production threshold。
-- 下一步真正需要用户决定：是否继续让所有 confirmed swing high 参与正式 first-
-  reward boundary；以及是否对深 Wave2 / 确认时点 / Wave1 尺度做独立策略研究。
+- 本轮决策分类为 `INSUFFICIENT_EVIDENCE`：样本只有 6 条 executed P1 research row，
+  结果存在强烈市场/时间分化且正收益由单一 symbol 贡献；不自动保留、移除或条件化
+  生产 hard boundary。
+- 下一步需要用户决定是否接受该研究结论并保持现状，或另行批准一个独立研究任务；
+  本轮不搜索结构条件或距离阈值。
 - PR #82（Node 24 maintenance）保持完全独立；交易成本、`EARLY_WAVE3_ENTRY_RESEARCH`、
   SETUP_03 formal validation、SETUP_04、Final OOS 与 broker execution 仍未启动。
 
 ## 6. Next Action（下一步）
 
-1. 从 `main` 开始后续任务；不自动 merge 其他 PR。
-2. 等待用户决定 first-reward boundary 与后续策略研究方向；本轮不把描述统计转成规则。
+1. Review this branch/research report and decide whether the current boundary remains unchanged。
+2. Do not merge or change production strategy automatically; any follow-up conditioning study
+   must be a separate explicitly approved research task。
 3. 任何后续任务前仍须 fetch/pull 并实时核对 Git/GitHub 状态。
 
 ## 7. Constraints（关键约束）
@@ -102,10 +111,11 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `main`
-- current PR: #86 已 squash merge 到 `main`；PR #82 保持独立
-- working tree expected: clean；本轮代码、测试、docs 与 research-only artifacts 已提交并
-  push；无 credentials、Final OOS 或真实 holdings-derived 数据
+- active branch: `codex/setup01-swing-boundary-counterfactual-v1`
+- current PR: independent research PR 已开放 review、未自动 merge；PR #86 已 squash merge 到 `main`；
+  PR #82 保持独立
+- working tree expected: clean after the research commit/push；本轮无 credentials、Final
+  OOS 或真实 holdings-derived 数据
 - 动态 branch、HEAD、`origin/main`、PR、CI checks 与 merge 状态
   必须在恢复现场时从 Git/GitHub 实时查询；本文件不固定保存这些 SHA、CI run 或
   mergeability 信息。
@@ -113,8 +123,8 @@
 
 ```bash
 git fetch --all --prune
-git switch main
-git pull --ff-only origin main
+git switch codex/setup01-swing-boundary-counterfactual-v1
+git pull --ff-only origin codex/setup01-swing-boundary-counterfactual-v1
 ```
 
 公司电脑本地路径可不同；不依赖 `D:\`、本机绝对路径、stash、未上传 artifact、
@@ -124,7 +134,7 @@ git pull --ff-only origin main
 
 状态标记：
 
-`PR_86_MERGED`
+`READY_FOR_DECISION`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
