@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-15（SETUP_01 target projection 与研究归因能力）。
+> 最后实质更新：2026-09-16（SETUP_01 boundary counterfactual research state）。
 
 ## 项目身份
 
@@ -118,8 +118,9 @@
   不接入生产 gate。
 - `research/development/setup01_confirmed_swing_high_first_reward_boundary_counterfactual_v1.json/.md`
   与其可复现 research module 已完成固定 `NEAR_SWING_ONLY` 的 P0/P1 counterfactual，
-  当前状态为 `READY_FOR_DECISION`；该结果仅用于决定是否继续研究 first-reward
-  boundary，不授权移除或修改任何 production target/gate/Decision 语义。
+  正式结论为 `INSUFFICIENT_EVIDENCE`：证据不足以批准修改 confirmed Swing High
+  hard boundary，当前 production rule 保持不变；这不表示现有 hard boundary 已被
+  证明正确，也不授权移除或修改任何 production target/gate/Decision 语义。
 - 有 generic synthetic operational shadow 与 development-only replay evidence；
   尚未接入生产自动执行（生产日历集成是已登记前置条件）。
 

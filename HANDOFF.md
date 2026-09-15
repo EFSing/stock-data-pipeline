@@ -6,10 +6,12 @@
 ## 1. Current Task（当前任务）
 
 - 当前任务：`SETUP_01_CONFIRMED_SWING_HIGH_FIRST_REWARD_BOUNDARY_COUNTERFACTUAL_V1`；
-  已完成固定 Development frozen holdout 研究，等待用户对 first-reward boundary
-  做正式决策，不修改 production strategy。
+  固定 Development frozen holdout 研究已完成，PR #87 已 squash merge 到 `main`。
+  正式结论为 `INSUFFICIENT_EVIDENCE`：证据不足以批准修改 confirmed Swing High
+  hard boundary，当前 production rule 保持不变；这不表示现有 hard boundary
+  已被证明正确。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`READY_FOR_DECISION`；PR #86 仍为已合并基线。
+- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87 均已合并到 `main`。
 - 本轮在固定 Development frozen holdout 上允许读取后续价格，仅用于 P0/P1 policy
   对比；没有访问 Final OOS，也没有修改 production Decision semantics。
 
@@ -18,8 +20,8 @@
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
 - PR #84、PR #85 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`codex/setup01-swing-boundary-counterfactual-v1`；从最新 `main` 创建，
-  本轮独立 research PR 已创建并等待 review；未自动 merge。
+- 当前分支：`main`；PR #87 已完成 squash merge，后续研究必须从最新 `main`
+  建立独立分支。
 - PR #84、PR #85 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
@@ -44,7 +46,8 @@
   JSON/Markdown report；固定 `117 → 117 → 117 → 11 → 11 → 6` P1 funnel。6 条
   executed research row 中 5/6 在 stop 前、另 1/6 在无 stop 的结构性终止前清过最近
   confirmed Swing High；1/6 到达 Fib T1，5/6 stop；结果分类为
-  `INSUFFICIENT_EVIDENCE`，未转成生产规则。
+  `INSUFFICIENT_EVIDENCE`，未转成生产规则；confirmed Swing High hard boundary
+  保持现状，不能将该结论解释为 hard boundary 已被证明正确。
 
 ## 4. Validation（验证结果）
 
@@ -61,11 +64,12 @@
 
 - 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`；研究节点为
   `READY_FOR_DECISION`。
-- PR #86 已合并；本轮没有提出或实施新的 Wave1 最低涨幅/ATR、
+- PR #86、PR #87 已合并；本轮没有提出或实施新的 Wave1 最低涨幅/ATR、
   Wave2 最大回撤、确认时点或其他 production threshold。
-- 本轮决策分类为 `INSUFFICIENT_EVIDENCE`：样本只有 6 条 executed P1 research row，
-  结果存在强烈市场/时间分化且正收益由单一 symbol 贡献；不自动保留、移除或条件化
-  生产 hard boundary。
+- 本轮正式结论为 `INSUFFICIENT_EVIDENCE`：样本只有 6 条 executed P1 research row，
+  结果存在强烈市场/时间分化且正收益由单一 symbol 贡献。证据不足以批准修改
+  confirmed Swing High hard boundary，当前 production rule 保持不变；不得将其
+  描述为 hard boundary 已被证明正确。
 - 下一步需要用户决定是否接受该研究结论并保持现状，或另行批准一个独立研究任务；
   本轮不搜索结构条件或距离阈值。
 - PR #82（Node 24 maintenance）保持完全独立；交易成本、`EARLY_WAVE3_ENTRY_RESEARCH`、
@@ -111,8 +115,8 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `codex/setup01-swing-boundary-counterfactual-v1`
-- current PR: independent research PR 已开放 review、未自动 merge；PR #86 已 squash merge 到 `main`；
+- active branch: `main`
+- current PR: PR #87 已 squash merge 到 `main`；PR #86 已 squash merge；
   PR #82 保持独立
 - working tree expected: clean after the research commit/push；本轮无 credentials、Final
   OOS 或真实 holdings-derived 数据
@@ -123,8 +127,8 @@
 
 ```bash
 git fetch --all --prune
-git switch codex/setup01-swing-boundary-counterfactual-v1
-git pull --ff-only origin codex/setup01-swing-boundary-counterfactual-v1
+git switch main
+git pull --ff-only origin main
 ```
 
 公司电脑本地路径可不同；不依赖 `D:\`、本机绝对路径、stash、未上传 artifact、
