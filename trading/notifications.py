@@ -58,6 +58,8 @@ def send_optional_email(
     subject: str,
     body: str,
     html_body: str,
+    html_attachment: str | None = None,
+    attachment_filename: str | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Send SMTP only when explicitly configured; never raise to the runner."""
@@ -72,6 +74,19 @@ def send_optional_email(
     )
     if not host or not sender or not recipients:
         return {"status": "NOT_CONFIGURED", "configured": False}
+    attachment_requested = html_attachment is not None or attachment_filename is not None
+    filename = str(attachment_filename or "").strip()
+    if attachment_requested and (html_attachment is None or not filename):
+        return {
+            "status": "FAILED",
+            "configured": True,
+            "attachment": {
+                "status": "FAILED",
+                "filename": filename or None,
+                "content_type": "text/html; charset=utf-8",
+                "error": "HTML attachment requires content and filename",
+            },
+        }
     try:
         port = int(str(values.get("SMTP_PORT", "587")).strip() or "587")
         use_tls = str(values.get("SMTP_USE_TLS", "true")).strip().lower() not in {"0", "false", "no"}
@@ -81,6 +96,12 @@ def send_optional_email(
         message["To"] = ", ".join(recipients)
         message.set_content(body)
         message.add_alternative(html_body, subtype="html")
+        if attachment_requested:
+            message.add_attachment(
+                html_attachment,
+                subtype="html",
+                filename=filename,
+            )
         with smtplib.SMTP(host, port, timeout=20) as server:
             if use_tls:
                 server.starttls()
@@ -89,9 +110,23 @@ def send_optional_email(
             if username:
                 server.login(username, password)
             server.send_message(message)
-        return {"status": "SENT", "configured": True}
+        result: dict[str, Any] = {"status": "SENT", "configured": True}
+        if attachment_requested:
+            result["attachment"] = {
+                "status": "SENT",
+                "filename": filename,
+                "content_type": "text/html; charset=utf-8",
+            }
+        return result
     except Exception as exc:
-        return {"status": "FAILED", "configured": True, "error": _safe_error(exc)}
+        result = {"status": "FAILED", "configured": True, "error": _safe_error(exc)}
+        if attachment_requested:
+            result["attachment"] = {
+                "status": "FAILED",
+                "filename": filename,
+                "content_type": "text/html; charset=utf-8",
+            }
+        return result
 
 
 __all__ = ["github_run_url", "send_bark", "send_optional_email"]

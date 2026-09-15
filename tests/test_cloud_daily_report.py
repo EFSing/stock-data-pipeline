@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from core import Quote
-from scripts.run_cloud_daily_report import run_cloud_daily_report
+from scripts.run_cloud_daily_report import resolve_cloud_trade_date, run_cloud_daily_report
 from trading.daily_dashboard import build_dashboard_projection, render_dashboard_html
 from trading.daily_report_email import render_daily_report_email_html
 from trading.ephemeral_market_data import (
@@ -15,7 +15,7 @@ from trading.ephemeral_market_data import (
     EphemeralMarketDataSnapshot,
     load_ephemeral_market_data,
 )
-from trading.production_prerequisites import build_production_snapshot
+from trading.production_prerequisites import ExactExchangeCalendarProvider, build_production_snapshot
 
 from tests.test_production_prerequisites import (
     AFTER_CLOSE,
@@ -70,6 +70,73 @@ def _cloud_client():
 
 
 class CloudDailyReportTests(unittest.TestCase):
+    def test_automatic_trade_date_uses_exchange_local_date_and_completed_session(self):
+        provider = ExactExchangeCalendarProvider()
+        cases = (
+            (
+                "US",
+                datetime(2026, 9, 15, 0, 46, tzinfo=timezone.utc),
+                date(2026, 9, 14),
+            ),
+            (
+                "US",
+                datetime(2026, 9, 3, 20, 1, tzinfo=timezone.utc),
+                date(2026, 9, 3),
+            ),
+            (
+                "CN",
+                datetime(2026, 9, 3, 8, 1, tzinfo=timezone.utc),
+                T_DAY,
+            ),
+        )
+
+        for market, now, expected in cases:
+            with self.subTest(market=market, now=now):
+                resolved = resolve_cloud_trade_date(
+                    market, now=now, calendar_provider=provider
+                )
+                self.assertEqual(resolved, expected)
+                identity = provider.completed_session(market, resolved, now=now)
+                self.assertEqual(identity.trade_date, expected)
+
+    def test_explicit_trade_date_bypasses_automatic_calendar_resolution(self):
+        class ExplodingAutoDateProvider(ExactExchangeCalendarProvider):
+            def market_local_date(self, market, *, now):
+                raise AssertionError("explicit date must not resolve automatic date")
+
+        explicit = date(2026, 9, 3)
+        self.assertEqual(
+            resolve_cloud_trade_date(
+                "US",
+                explicit,
+                now=datetime(2026, 9, 15, 0, 46, tzinfo=timezone.utc),
+                calendar_provider=ExplodingAutoDateProvider(),
+            ),
+            explicit,
+        )
+
+    def test_automatic_market_holiday_keeps_local_non_session_date_and_skips(self):
+        provider = ExactExchangeCalendarProvider()
+        now = datetime(2026, 7, 4, 0, 46, tzinfo=timezone.utc)
+        resolved = resolve_cloud_trade_date("US", now=now, calendar_provider=provider)
+        self.assertEqual(resolved, date(2026, 7, 3))
+
+        class ExplodingClient:
+            def records(self, sheet_name):
+                raise AssertionError("non-session must not read Sheets")
+
+        with TemporaryDirectory() as directory:
+            payload = run_cloud_daily_report(
+                market="US",
+                as_of_date=resolved,
+                output_dir=directory,
+                now=now,
+                client=ExplodingClient(),
+                calendar_provider=provider,
+                notify=False,
+            )
+        self.assertEqual(payload["cloud_daily_report"]["status"], "SKIPPED_NON_SESSION")
+
     def test_market_scope_ignores_malformed_other_market_rows(self):
         client = _rows()
         client.rows["策略账户"].append({
@@ -317,6 +384,14 @@ class CloudDailyReportTests(unittest.TestCase):
             email.assert_called_once()
             email_html = email.call_args.kwargs["html_body"]
             self.assertEqual(email_html, render_daily_report_email_html(payload))
+            self.assertEqual(
+                email.call_args.kwargs["html_attachment"],
+                html_path.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                email.call_args.kwargs["attachment_filename"],
+                "A股交易日报_2026-09-03.html",
+            )
             self.assertNotEqual(email_html, html_path.read_text(encoding="utf-8"))
             self.assertNotIn("<script", email_html.lower())
             self.assertNotIn("<select", email_html.lower())
