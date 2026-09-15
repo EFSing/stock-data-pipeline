@@ -5,10 +5,10 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`CLOUD_DAILY_REPORT_DELIVERY_V1` 已实现并提交到 PR #85；PR #84 已按用户
-  批准 squash merge。本轮不处理 PR #82。
+- 当前任务：`CLOUD_DAILY_REPORT_DELIVERY_V1` 已实现并由 PR #85 squash merge；PR #84
+  也已按用户批准 squash merge。本轮不处理 PR #82。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`CLOUD_DAILY_REPORT_DELIVERY_V1_PR_READY`。
+- 正式状态：`CLOUD_DAILY_REPORT_DELIVERY_V1_MERGED`。
 - 本轮只修复 Cloud Daily Report delivery/runtime：自动 T 日按目标交易所本地日期
   推导并继续通过 ExactExchangeCalendarProvider gate；SMTP 保留摘要并增加完整
   Dashboard HTML 附件。没有改变交易策略或生产写入语义。
@@ -16,12 +16,12 @@
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
-- PR #84 已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI 以及其他
-  动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`fix/cloud-daily-report-delivery-v1`。
+- PR #84、PR #85 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
+  以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
+- 当前分支：`main`。
 - PR #85：<https://github.com/EFSing/stock-data-pipeline/pull/85>；当前语义状态为
-  OPEN，已达到 review/merge 门禁；其 branch HEAD、base、mergeability 和 CI checks
-  必须从 Git/GitHub 实时查询。
+  MERGED/CLOSED。其 branch HEAD、base、merge commit 和 CI checks 等动态状态仍须从
+  Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
   改动混入策略 PR，相关动态状态由用户单独从 Git/GitHub 实时查询。
 
@@ -38,7 +38,7 @@
   metadata 中明确为 `FAILED`，仍保持非核心 blocker 语义。
 - artifact allowlist 仍只有 `daily-report.json` 与 `daily-report.html`；没有新增 raw
   行情、QFQ、Sheets、凭证或其他内部文件输出。
-- PR #84 合并后的 main 已作为本分支基线；没有混入 PR #82 或策略、broker、state
+- PR #84 合并后的 main 已作为实现基线，PR #85 已完成交付；没有混入 PR #82 或策略、broker、state
   write 相关改动。
 
 ## 4. Validation（验证结果）
@@ -47,8 +47,8 @@
   passed。
 - 本地 full：`python -m unittest discover -s tests -v` → `727 tests passed,
   3 skipped, OK`；`git diff --check` 通过。
-- PR #85 相关 CI、generic operational shadow checks 已成功；docs-only HANDOFF
-  closeout 后须从 GitHub 实时确认最新 checks。
+- PR #85 相关 CI、generic operational shadow checks 已成功；合并后的 main CI 仍须
+  从 GitHub 实时确认。
 - US workflow_dispatch SMTP smoke 使用明确完成日 `2026-09-14` 成功：报告
   `SUCCESS`，email `SENT`，附件 `SENT`，文件名为
   `美股交易日报_2026-09-14.html`，Content-Type 为 `text/html; charset=utf-8`。
@@ -59,16 +59,15 @@
 ## 5. Blocker（当前 Blockers / 决策节点）
 
 - 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`。
-- PR #85 的剩余节点是用户 review/merge 决策；本轮按请求不自动合并。
+- PR #85 已按用户批准 squash merge；当前没有待用户决定的 delivery 节点。
 - 交易成本模型（commission/slippage/stamp duty/net RR/net upside）、
   `EARLY_WAVE3_ENTRY_RESEARCH`、SETUP_03 formal validation、SETUP_04、Final OOS
   与 broker execution 仍未启动。
 
 ## 6. Next Action（下一步）
 
-1. 用户在 GitHub review 并手动决定是否 squash merge PR #85；不要自动 merge。
-2. 合并后另一台电脑先 fetch/pull，再核对新的 `origin/main` 和 merge CI；不要把
-   PR #82 Node 24 maintenance 与本 delivery PR 混合处理。
+1. 从 `main` 继续下一项用户明确任务；开始前 fetch/pull 并实时核对 Git/GitHub 状态。
+2. 不要把 PR #82 Node 24 maintenance 与本 delivery PR 混合处理。
 3. 若继续做策略、早期入场或交易成本研究，另建独立 task/decision/protocol；不得
    在本 PR 内扩大范围。
 
@@ -105,30 +104,28 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `fix/cloud-daily-report-delivery-v1`
-- PR: `#85` — <https://github.com/EFSing/stock-data-pipeline/pull/85>
+- active branch: `main`
+- latest delivery PR: `#85` — <https://github.com/EFSing/stock-data-pipeline/pull/85>（已合并）
 - working tree expected: `clean`
-- 动态 branch、HEAD、`origin/main`、PR open/mergeability、CI checks 与 merge 状态
+- 动态 branch、HEAD、`origin/main`、PR、CI checks 与 merge 状态
   必须在恢复现场时从 Git/GitHub 实时查询；本文件不固定保存这些 SHA、CI run 或
   mergeability 信息。
 - first action on another computer:
 
 ```bash
 git fetch --all --prune
-git checkout fix/cloud-daily-report-delivery-v1
-git pull --ff-only origin fix/cloud-daily-report-delivery-v1
+git switch main
+git pull --ff-only origin main
 ```
 
 公司电脑本地路径可不同；不依赖 `D:\`、本机绝对路径、stash、未上传 artifact、
-临时 worktree 或 Codex session memory。检查 PR #85 后再决定是否合并。
+临时 worktree 或 Codex session memory。下一项任务开始前再从 Git/GitHub 核对动态事实。
 
 ---
 
 状态标记：
 
-`CLOUD_DAILY_REPORT_DELIVERY_V1_PR_READY`
-
-`PR_FULLY_READY`
+`CLOUD_DAILY_REPORT_DELIVERY_V1_MERGED`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
