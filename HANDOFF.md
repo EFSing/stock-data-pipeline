@@ -20,7 +20,7 @@
 - PR #84、PR #85、PR #87 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
 - 当前分支：`codex/setup01-deep-wave2-structure-quality-v1`；从 PR #87 收口后的
-  最新 `main` 建立，独立 PR 尚待创建。
+  最新 `main` 建立，PR #88 已创建并等待 review，未自动 merge。
 - PR #84、PR #85 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
@@ -124,7 +124,7 @@
 
 - authoritative repo: `EFSing/stock-data-pipeline`
 - active branch: `codex/setup01-deep-wave2-structure-quality-v1`
-- current PR: independent research PR 尚待创建；PR #86、PR #87 已 squash merge；
+- current PR: PR #88 已开放 review、未自动 merge；PR #86、PR #87 已 squash merge；
   PR #82 保持独立
 - working tree expected: clean after the research commit/push；本轮无 credentials、Final
   OOS 或真实 holdings-derived 数据
