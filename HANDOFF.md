@@ -5,23 +5,22 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`SETUP_01_CONFIRMED_SWING_HIGH_FIRST_REWARD_BOUNDARY_COUNTERFACTUAL_V1`；
-  固定 Development frozen holdout 研究已完成，PR #87 已 squash merge 到 `main`。
-  正式结论为 `INSUFFICIENT_EVIDENCE`：证据不足以批准修改 confirmed Swing High
-  hard boundary，当前 production rule 保持不变；这不表示现有 hard boundary
-  已被证明正确。
+- 当前任务：`SETUP_01_DEEP_WAVE2_STRUCTURE_QUALITY_V1`；已完成固定 Phase 5J-v3
+  Development frozen holdout 研究，当前独立 research branch 等待 review，未自动
+  merge。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87 均已合并到 `main`。
-- 本轮在固定 Development frozen holdout 上允许读取后续价格，仅用于 P0/P1 policy
-  对比；没有访问 Final OOS，也没有修改 production Decision semantics。
+- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87 均已合并到 `main`，本轮没有修改
+  production strategy。
+- 本轮只在固定 Development frozen holdout 上按预注册三档 Wave2 depth 做
+  Development research；结构结果只评价 T 之后的路径，未访问 Final OOS。
 
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
-- PR #84、PR #85 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
+- PR #84、PR #85、PR #87 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`main`；PR #87 已完成 squash merge，后续研究必须从最新 `main`
-  建立独立分支。
+- 当前分支：`codex/setup01-deep-wave2-structure-quality-v1`；从 PR #87 收口后的
+  最新 `main` 建立，独立 PR 尚待创建。
 - PR #84、PR #85 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
@@ -48,38 +47,47 @@
   confirmed Swing High；1/6 到达 Fib T1，5/6 stop；结果分类为
   `INSUFFICIENT_EVIDENCE`，未转成生产规则；confirmed Swing High hard boundary
   保持现状，不能将该结论解释为 hard boundary 已被证明正确。
+- 新增 `research/development/setup01_deep_wave2_structure_quality_v1.py` 与 compact
+  JSON/Markdown report；从 frozen artifact/replay 重建 `745` 个 CONFIRMED，固定
+  depth bands 为 `345 / 183 / 217`。严格 T 后 Fib1.272 continuation 为
+  `225/345`、`147/183`、`195/217`；PR #86 Fib-near `81` 中 `64` 先到 Fib1.272，
+  其中 `55` 个为 VERY_DEEP。结论为 `EARLY_ENTRY_RESEARCH_CANDIDATE`，仅表示应
+  优先考虑一项独立因果研究，不是 early-entry 或 depth gate 的生产授权。
 
 ## 4. Validation（验证结果）
 
-- focused：counterfactual research tests → `4 tests passed`。
-- full：`python -m unittest discover -s tests -v` → `736 tests passed, 3 skipped, OK`；
+- focused：deep Wave2 research tests → `4 tests passed`。
+- full：`python -m unittest discover -s tests -v` → `740 tests passed, 3 skipped, OK`；
   现有 generic operational shadow checks 继续通过。
 - `python -m py_compile` 覆盖本轮 research module；research artifact 重新生成并核对
-  P0 parity、745 confirmed、117/63/18 category conservation、exact T+1、P1
-  outcome 与 same-bar stop-first contract；`git diff --check` 通过。
-- 本轮没有访问 Final OOS、没有调参/threshold sweep、没有真实 holdings 读取、Sheets
-  写入、state write 或 broker order。
+  frozen hash binding、745 confirmed、117/63/18 category conservation、81 Fib-near、
+  Fib identity、三档 depth exhaustive/mutually-exclusive、signal(T) as-of、严格
+  T 后 outcome path、现有 Decision parity 与 compact event-detail hash；
+  `git diff --check` 通过。
+- 本轮没有访问 Final OOS、没有参数搜索/threshold sweep、没有真实 holdings 读取、
+  Sheets 写入、state write 或 broker order；PR #82 保持独立。
 
 ## 5. Blocker（当前 Blockers / 决策节点）
 
 - 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`；研究节点为
   `READY_FOR_DECISION`。
-- PR #86、PR #87 已合并；本轮没有提出或实施新的 Wave1 最低涨幅/ATR、
-  Wave2 最大回撤、确认时点或其他 production threshold。
-- 本轮正式结论为 `INSUFFICIENT_EVIDENCE`：样本只有 6 条 executed P1 research row，
-  结果存在强烈市场/时间分化且正收益由单一 symbol 贡献。证据不足以批准修改
-  confirmed Swing High hard boundary，当前 production rule 保持不变；不得将其
-  描述为 hard boundary 已被证明正确。
-- 下一步需要用户决定是否接受该研究结论并保持现状，或另行批准一个独立研究任务；
-  本轮不搜索结构条件或距离阈值。
-- PR #82（Node 24 maintenance）保持完全独立；交易成本、`EARLY_WAVE3_ENTRY_RESEARCH`、
-  SETUP_03 formal validation、SETUP_04、Final OOS 与 broker execution 仍未启动。
+- 本轮结论为 `EARLY_ENTRY_RESEARCH_CANDIDATE`：DEEP/VERY_DEEP 的结构继续性不低于
+  NORMAL_OR_SHALLOW，且固定 81 个 Fib-near 事件中 64 个仍在 T 后先达到 Fib1.272；
+  但这一结论只授权记录为下一项独立 Development causal research 候选，不改变
+  confirmation、Entry Zone、Stop、Target、RR 或 production Decision。
+- 现有 T-day gates 已排除全部 `DEEP`（183/183）与 `VERY_DEEP`（217/217）进入
+  `ENTRY_ALLOWED`，因此新增 depth gate 在本总体上可能高度冗余；当前不实现任何
+  depth gate 或 early-entry rule。
+- PR #82（Node 24 maintenance）保持完全独立；交易成本、正式
+  `EARLY_WAVE3_ENTRY_RESEARCH`、SETUP_03 formal validation、SETUP_04、Final OOS
+  与 broker execution 仍未启动。
 
 ## 6. Next Action（下一步）
 
-1. Review this branch/research report and decide whether the current boundary remains unchanged。
-2. Do not merge or change production strategy automatically; any follow-up conditioning study
-   must be a separate explicitly approved research task。
+1. Review the deep Wave2 structure-quality report and decide whether to approve a separate
+   early-entry causal research task。
+2. Do not merge this research PR or change production strategy automatically；this branch
+   does not implement a depth gate or early-entry rule。
 3. 任何后续任务前仍须 fetch/pull 并实时核对 Git/GitHub 状态。
 
 ## 7. Constraints（关键约束）
@@ -115,8 +123,8 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `main`
-- current PR: PR #87 已 squash merge 到 `main`；PR #86 已 squash merge；
+- active branch: `codex/setup01-deep-wave2-structure-quality-v1`
+- current PR: independent research PR 尚待创建；PR #86、PR #87 已 squash merge；
   PR #82 保持独立
 - working tree expected: clean after the research commit/push；本轮无 credentials、Final
   OOS 或真实 holdings-derived 数据

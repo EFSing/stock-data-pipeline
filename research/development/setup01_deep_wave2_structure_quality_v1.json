@@ -1,0 +1,1094 @@
+{
+  "protocol_version": "SETUP-01-DEEP-WAVE2-STRUCTURE-QUALITY-2026-09-16-v1",
+  "artifact_type": "SETUP_01_DEEP_WAVE2_STRUCTURE_QUALITY",
+  "artifact_version": "v1",
+  "analysis_date": "2026-09-16",
+  "status": "READY_FOR_DECISION",
+  "scope": {
+    "confirmed_events": 745,
+    "prior_confirmed_events": 745,
+    "development_session_identity": "FROZEN_DATASET_MARKET_SESSION_SET",
+    "depth_bands": {
+      "NORMAL_OR_SHALLOW": "r <= 0.618",
+      "DEEP": "0.618 < r <= 0.786",
+      "VERY_DEEP": "r > 0.786"
+    },
+    "prior_category_counts": {
+      "NEAR_SWING_ONLY": 117,
+      "SMALL_WAVE_FIB": 18,
+      "BOTH_NEAR": 63
+    },
+    "wave3_fib_near_events": 81
+  },
+  "source_artifacts": {
+    "dataset_manifest": {
+      "path": "research/development_holdout/dataset_manifest.json",
+      "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+      "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+      "replay_input_aggregate_hash": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+      "symbol_count": 40,
+      "bar_count": 86305
+    },
+    "prior_structure_scale": {
+      "path": "research/development/setup01_wave2_to_wave3_structure_scale_diagnostic_v1.json",
+      "sha256": "sha256:00eacd584243b81baa878707313f97af11a8e4917aa1d1be6ef8f88988809a7b"
+    },
+    "prior_geometry_attribution": {
+      "path": "research/development/setup01_wave2_to_wave3_geometry_attribution_v1.json",
+      "sha256": "sha256:eec544924ca9dc496e6f7df7ef2a4c1f7b2fee1c433aafaea80dbc256b13e59c"
+    }
+  },
+  "depth_bands": {
+    "NORMAL_OR_SHALLOW": {
+      "N": 345,
+      "geometry": {
+        "r": {
+          "n": 345,
+          "p25": 0.36607142857142805,
+          "median": 0.45496183206106877,
+          "p75": 0.5333898305084747
+        },
+        "wave1_gain_pct": {
+          "n": 345,
+          "p25": 0.13728154163069056,
+          "median": 0.20781219166499731,
+          "p75": 0.3088917169483869
+        },
+        "wave1_range_over_T_ATR14": {
+          "n": 345,
+          "p25": 3.8298591402029145,
+          "median": 5.198565368980494,
+          "p75": 7.081334034085843
+        },
+        "e": {
+          "n": 345,
+          "p25": 0.387267719999997,
+          "median": 1.15863156,
+          "p75": 3.497194800000001
+        },
+        "e_over_R": {
+          "n": 345,
+          "p25": 0.05466537411692372,
+          "median": 0.15540526259808024,
+          "p75": 0.41810344827586016
+        },
+        "planned_entry_to_1272_upside_pct": {
+          "n": 345,
+          "p25": 0.043565044071604664,
+          "median": 0.09898423817863389,
+          "p75": 0.159300018200756
+        },
+        "planned_entry_to_1618_upside_pct": {
+          "n": 345,
+          "p25": 0.08500607935448046,
+          "median": 0.14950104947526244,
+          "p75": 0.23690986746594955
+        },
+        "pre_confirmation_consumption_1272_median": 0.35767439627442515,
+        "pre_confirmation_consumption_1618_median": 0.28118778248520937,
+        "post_confirmation_headroom_over_R_1272_median": 0.6310624138190436,
+        "post_confirmation_headroom_over_R_1618_median": 0.9770624138190438,
+        "fib_1272_upside_below_5_count": 96,
+        "fib_1272_upside_below_5_share": 0.2782608695652174,
+        "fib_1618_upside_below_5_count": 56,
+        "fib_1618_upside_below_5_share": 0.16231884057971013
+      },
+      "structural_continuation": {
+        "outcomes": {
+          "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+            "count": 225,
+            "rate": 0.6521739130434783
+          },
+          "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+            "count": 117,
+            "rate": 0.3391304347826087
+          },
+          "SAME_BAR_AMBIGUOUS": {
+            "count": 0,
+            "rate": 0.0
+          },
+          "CENSORED_INSUFFICIENT_PATH": {
+            "count": 3,
+            "rate": 0.008695652173913044
+          }
+        },
+        "fib1272_before_structural_invalidation_count": 225,
+        "fib1272_before_structural_invalidation_rate": 0.6521739130434783,
+        "structural_invalidation_before_fib1272_count": 117,
+        "structural_invalidation_before_fib1272_rate": 0.3391304347826087,
+        "same_bar_ambiguous_count": 0,
+        "censored_count": 3,
+        "fib1618_before_structural_invalidation_count": 196,
+        "fib1618_before_structural_invalidation_rate": 0.5681159420289855,
+        "sessions_to_fib1272": {
+          "n": 323,
+          "p25": 4.0,
+          "median": 25.0,
+          "p75": 108.0
+        },
+        "sessions_to_structural_invalidation": {
+          "n": 267,
+          "p25": 23.0,
+          "median": 57.0,
+          "p75": 167.0
+        },
+        "scenario_invalidation_relation": {
+          "NOT_OBSERVED": 132,
+          "SCENARIO_AFTER_STRUCTURAL": 205,
+          "SCENARIO_SAME_DATE_AS_STRUCTURAL": 8
+        },
+        "scenario_invalidation_before_structural_count": 0,
+        "target_reached_on_T_bar_not_credited_count": 58
+      },
+      "two_by_two": {
+        "cells": {
+          "STRUCTURE_SUCCESS": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 139,
+              "share_of_band": 0.4028985507246377
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 86,
+              "share_of_band": 0.2492753623188406
+            }
+          },
+          "STRUCTURE_FAILURE": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 108,
+              "share_of_band": 0.3130434782608696
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 9,
+              "share_of_band": 0.02608695652173913
+            }
+          },
+          "UNRESOLVED": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 2,
+              "share_of_band": 0.005797101449275362
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 1,
+              "share_of_band": 0.002898550724637681
+            }
+          }
+        },
+        "unresolved_outcome_counts": {
+          "CENSORED_INSUFFICIENT_PATH": 3
+        },
+        "resolved_success_count": 225,
+        "resolved_failure_count": 117
+      }
+    },
+    "DEEP": {
+      "N": 183,
+      "geometry": {
+        "r": {
+          "n": 183,
+          "p25": 0.6563657407407406,
+          "median": 0.6982578074177082,
+          "p75": 0.7423236234162666
+        },
+        "wave1_gain_pct": {
+          "n": 183,
+          "p25": 0.09720753067392598,
+          "median": 0.14027986130922734,
+          "p75": 0.20119757902281532
+        },
+        "wave1_range_over_T_ATR14": {
+          "n": 183,
+          "p25": 2.933029174164561,
+          "median": 3.671446956514131,
+          "p75": 4.59678589457881
+        },
+        "e": {
+          "n": 183,
+          "p25": 0.18136339497442888,
+          "median": 0.9819235570311804,
+          "p75": 5.199573741208173
+        },
+        "e_over_R": {
+          "n": 183,
+          "p25": 0.058100670136521586,
+          "median": 0.1928251121076229,
+          "p75": 0.5969507406474347
+        },
+        "planned_entry_to_1272_upside_pct": {
+          "n": 183,
+          "p25": -0.002964410858673827,
+          "median": 0.03574568965517266,
+          "p75": 0.06769109118874894
+        },
+        "planned_entry_to_1618_upside_pct": {
+          "n": 183,
+          "p25": 0.031007954358240997,
+          "median": 0.07399030908971871,
+          "p75": 0.11193399860269737
+        },
+        "pre_confirmation_consumption_1272_median": 0.5489448171522863,
+        "pre_confirmation_consumption_1618_median": 0.4315561232495106,
+        "post_confirmation_headroom_over_R_1272_median": 0.37065470852017945,
+        "post_confirmation_headroom_over_R_1618_median": 0.7166547085201795,
+        "fib_1272_upside_below_5_count": 114,
+        "fib_1272_upside_below_5_share": 0.6229508196721312,
+        "fib_1618_upside_below_5_count": 60,
+        "fib_1618_upside_below_5_share": 0.32786885245901637
+      },
+      "structural_continuation": {
+        "outcomes": {
+          "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+            "count": 147,
+            "rate": 0.8032786885245902
+          },
+          "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+            "count": 36,
+            "rate": 0.19672131147540983
+          },
+          "SAME_BAR_AMBIGUOUS": {
+            "count": 0,
+            "rate": 0.0
+          },
+          "CENSORED_INSUFFICIENT_PATH": {
+            "count": 0,
+            "rate": 0.0
+          }
+        },
+        "fib1272_before_structural_invalidation_count": 147,
+        "fib1272_before_structural_invalidation_rate": 0.8032786885245902,
+        "structural_invalidation_before_fib1272_count": 36,
+        "structural_invalidation_before_fib1272_rate": 0.19672131147540983,
+        "same_bar_ambiguous_count": 0,
+        "censored_count": 0,
+        "fib1618_before_structural_invalidation_count": 132,
+        "fib1618_before_structural_invalidation_rate": 0.7213114754098361,
+        "sessions_to_fib1272": {
+          "n": 174,
+          "p25": 1.0,
+          "median": 3.5,
+          "p75": 19.75
+        },
+        "sessions_to_structural_invalidation": {
+          "n": 138,
+          "p25": 21.0,
+          "median": 56.5,
+          "p75": 165.0
+        },
+        "scenario_invalidation_relation": {
+          "NOT_OBSERVED": 53,
+          "SCENARIO_AFTER_STRUCTURAL": 100,
+          "SCENARIO_SAME_DATE_AS_STRUCTURAL": 30
+        },
+        "scenario_invalidation_before_structural_count": 0,
+        "target_reached_on_T_bar_not_credited_count": 59
+      },
+      "two_by_two": {
+        "cells": {
+          "STRUCTURE_SUCCESS": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 44,
+              "share_of_band": 0.24043715846994534
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 103,
+              "share_of_band": 0.5628415300546448
+            }
+          },
+          "STRUCTURE_FAILURE": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 25,
+              "share_of_band": 0.1366120218579235
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 11,
+              "share_of_band": 0.060109289617486336
+            }
+          },
+          "UNRESOLVED": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 0,
+              "share_of_band": 0.0
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 0,
+              "share_of_band": 0.0
+            }
+          }
+        },
+        "unresolved_outcome_counts": {},
+        "resolved_success_count": 147,
+        "resolved_failure_count": 36
+      }
+    },
+    "VERY_DEEP": {
+      "N": 217,
+      "geometry": {
+        "r": {
+          "n": 217,
+          "p25": 0.8360215053763438,
+          "median": 0.8930817610062899,
+          "p75": 0.9386956671051644
+        },
+        "wave1_gain_pct": {
+          "n": 217,
+          "p25": 0.07747847820049988,
+          "median": 0.11305611745494856,
+          "p75": 0.1893071467539553
+        },
+        "wave1_range_over_T_ATR14": {
+          "n": 217,
+          "p25": 2.469636012009905,
+          "median": 3.0814127340529196,
+          "p75": 3.8843617590889767
+        },
+        "e": {
+          "n": 217,
+          "p25": 0.2708172440129424,
+          "median": 1.0394372800000014,
+          "p75": 3.1737973260143235
+        },
+        "e_over_R": {
+          "n": 217,
+          "p25": 0.06821064245843875,
+          "median": 0.22316865417376444,
+          "p75": 0.5533141210374642
+        },
+        "planned_entry_to_1272_upside_pct": {
+          "n": 217,
+          "p25": -0.017471913480868295,
+          "median": 0.014301052631578992,
+          "p75": 0.032733162949888595
+        },
+        "planned_entry_to_1618_upside_pct": {
+          "n": 217,
+          "p25": 0.010969324114297407,
+          "median": 0.0428480463096963,
+          "p75": 0.07658052039381147
+        },
+        "pre_confirmation_consumption_1272_median": 0.7021083026779008,
+        "pre_confirmation_consumption_1618_median": 0.5519664777541964,
+        "post_confirmation_headroom_over_R_1272_median": 0.1704774240306071,
+        "post_confirmation_headroom_over_R_1618_median": 0.5164774240306071,
+        "fib_1272_upside_below_5_count": 183,
+        "fib_1272_upside_below_5_share": 0.8433179723502304,
+        "fib_1618_upside_below_5_count": 122,
+        "fib_1618_upside_below_5_share": 0.5622119815668203
+      },
+      "structural_continuation": {
+        "outcomes": {
+          "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+            "count": 195,
+            "rate": 0.8986175115207373
+          },
+          "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+            "count": 20,
+            "rate": 0.09216589861751152
+          },
+          "SAME_BAR_AMBIGUOUS": {
+            "count": 0,
+            "rate": 0.0
+          },
+          "CENSORED_INSUFFICIENT_PATH": {
+            "count": 2,
+            "rate": 0.009216589861751152
+          }
+        },
+        "fib1272_before_structural_invalidation_count": 195,
+        "fib1272_before_structural_invalidation_rate": 0.8986175115207373,
+        "structural_invalidation_before_fib1272_count": 20,
+        "structural_invalidation_before_fib1272_rate": 0.09216589861751152,
+        "same_bar_ambiguous_count": 0,
+        "censored_count": 2,
+        "fib1618_before_structural_invalidation_count": 169,
+        "fib1618_before_structural_invalidation_rate": 0.7788018433179723,
+        "sessions_to_fib1272": {
+          "n": 213,
+          "p25": 1.0,
+          "median": 1.0,
+          "p75": 5.0
+        },
+        "sessions_to_structural_invalidation": {
+          "n": 168,
+          "p25": 21.25,
+          "median": 52.0,
+          "p75": 142.75
+        },
+        "scenario_invalidation_relation": {
+          "NOT_OBSERVED": 53,
+          "SCENARIO_AFTER_STRUCTURAL": 68,
+          "SCENARIO_SAME_DATE_AS_STRUCTURAL": 96
+        },
+        "scenario_invalidation_before_structural_count": 0,
+        "target_reached_on_T_bar_not_credited_count": 101
+      },
+      "two_by_two": {
+        "cells": {
+          "STRUCTURE_SUCCESS": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 25,
+              "share_of_band": 0.1152073732718894
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 170,
+              "share_of_band": 0.783410138248848
+            }
+          },
+          "STRUCTURE_FAILURE": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 9,
+              "share_of_band": 0.041474654377880185
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 11,
+              "share_of_band": 0.05069124423963134
+            }
+          },
+          "UNRESOLVED": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 0,
+              "share_of_band": 0.0
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 2,
+              "share_of_band": 0.009216589861751152
+            }
+          }
+        },
+        "unresolved_outcome_counts": {
+          "CENSORED_INSUFFICIENT_PATH": 2
+        },
+        "resolved_success_count": 195,
+        "resolved_failure_count": 20
+      }
+    }
+  },
+  "fib_near_81": {
+    "N": 81,
+    "category_counts": {
+      "BOTH_NEAR": 63,
+      "SMALL_WAVE_FIB": 18
+    },
+    "very_deep_count": 55,
+    "headroom_ge_5_count": 0,
+    "headroom_lt_5_count": 81,
+    "strict_post_T_outcomes": {
+      "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+        "count": 64,
+        "rate": 0.7901234567901234
+      },
+      "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+        "count": 16,
+        "rate": 0.19753086419753085
+      },
+      "SAME_BAR_AMBIGUOUS": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "CENSORED_INSUFFICIENT_PATH": {
+        "count": 1,
+        "rate": 0.012345679012345678
+      }
+    },
+    "fib1272_before_structural_invalidation_count": 64,
+    "fib1272_before_structural_invalidation_rate": 0.7901234567901234,
+    "two_by_two": {
+      "cells": {
+        "STRUCTURE_SUCCESS": {
+          "ENTRY_HEADROOM_GE_5_PCT": {
+            "count": 0,
+            "share_of_band": 0.0
+          },
+          "ENTRY_HEADROOM_LT_5_PCT": {
+            "count": 64,
+            "share_of_band": 0.7901234567901234
+          }
+        },
+        "STRUCTURE_FAILURE": {
+          "ENTRY_HEADROOM_GE_5_PCT": {
+            "count": 0,
+            "share_of_band": 0.0
+          },
+          "ENTRY_HEADROOM_LT_5_PCT": {
+            "count": 16,
+            "share_of_band": 0.19753086419753085
+          }
+        },
+        "UNRESOLVED": {
+          "ENTRY_HEADROOM_GE_5_PCT": {
+            "count": 0,
+            "share_of_band": 0.0
+          },
+          "ENTRY_HEADROOM_LT_5_PCT": {
+            "count": 1,
+            "share_of_band": 0.012345679012345678
+          }
+        }
+      },
+      "unresolved_outcome_counts": {
+        "CENSORED_INSUFFICIENT_PATH": 1
+      },
+      "resolved_success_count": 64,
+      "resolved_failure_count": 16
+    },
+    "strict_post_T_target_crossing_not_credited_on_T_bar": true
+  },
+  "production_funnel": {
+    "NORMAL_OR_SHALLOW": {
+      "CONFIRMED": 345,
+      "ABOVE_ENTRY_ZONE": 222,
+      "TARGET_UPSIDE_BELOW_MINIMUM": 75,
+      "RR_BELOW_MINIMUM": 43,
+      "ENTRY_ALLOWED": 5,
+      "T+1_EXECUTED": 4,
+      "T+1_SKIPPED": 1,
+      "other_decision_gate_reasons": {},
+      "t_plus_1_outcome_counts": {
+        "EXECUTED": 4,
+        "SKIP_GAP_BELOW_CONFIRMATION": 1
+      },
+      "excluded_by_current_T_day_gates": 340,
+      "excluded_by_current_T_day_gates_share": 0.9855072463768116,
+      "excluded_after_T_plus_1_open": 1,
+      "entry_allowed_share": 0.014492753623188406,
+      "executed_share_of_confirmed": 0.011594202898550725
+    },
+    "DEEP": {
+      "CONFIRMED": 183,
+      "ABOVE_ENTRY_ZONE": 109,
+      "TARGET_UPSIDE_BELOW_MINIMUM": 51,
+      "RR_BELOW_MINIMUM": 23,
+      "ENTRY_ALLOWED": 0,
+      "T+1_EXECUTED": 0,
+      "T+1_SKIPPED": 0,
+      "other_decision_gate_reasons": {},
+      "t_plus_1_outcome_counts": {},
+      "excluded_by_current_T_day_gates": 183,
+      "excluded_by_current_T_day_gates_share": 1.0,
+      "excluded_after_T_plus_1_open": 0,
+      "entry_allowed_share": 0.0,
+      "executed_share_of_confirmed": 0.0
+    },
+    "VERY_DEEP": {
+      "CONFIRMED": 217,
+      "ABOVE_ENTRY_ZONE": 133,
+      "TARGET_UPSIDE_BELOW_MINIMUM": 72,
+      "RR_BELOW_MINIMUM": 12,
+      "ENTRY_ALLOWED": 0,
+      "T+1_EXECUTED": 0,
+      "T+1_SKIPPED": 0,
+      "other_decision_gate_reasons": {},
+      "t_plus_1_outcome_counts": {},
+      "excluded_by_current_T_day_gates": 217,
+      "excluded_by_current_T_day_gates_share": 1.0,
+      "excluded_after_T_plus_1_open": 0,
+      "entry_allowed_share": 0.0,
+      "executed_share_of_confirmed": 0.0
+    }
+  },
+  "secondary_executed_performance": {
+    "NORMAL_OR_SHALLOW": {
+      "executed": 4,
+      "closed": 4,
+      "open_censored": 0,
+      "gross_expectancy_R": -0.8654538329976307,
+      "gross_win_rate": 0.25,
+      "gross_profit_factor": 0.005688673023309,
+      "stop_out_count": 2,
+      "stop_out_rate": 0.5,
+      "terminal_outcome_distribution": {
+        "EXIT_GAP_BELOW_STOP": 2,
+        "STRUCTURAL_EXIT_PENDING": 2
+      },
+      "metrics_are_secondary_context": true,
+      "small_executed_sample_not_gate_evidence": true
+    },
+    "DEEP": {
+      "executed": 0,
+      "closed": 0,
+      "open_censored": 0,
+      "gross_expectancy_R": null,
+      "gross_win_rate": null,
+      "gross_profit_factor": null,
+      "stop_out_count": 0,
+      "stop_out_rate": null,
+      "terminal_outcome_distribution": {},
+      "metrics_are_secondary_context": true,
+      "small_executed_sample_not_gate_evidence": true
+    },
+    "VERY_DEEP": {
+      "executed": 0,
+      "closed": 0,
+      "open_censored": 0,
+      "gross_expectancy_R": null,
+      "gross_win_rate": null,
+      "gross_profit_factor": null,
+      "stop_out_count": 0,
+      "stop_out_rate": null,
+      "terminal_outcome_distribution": {},
+      "metrics_are_secondary_context": true,
+      "small_executed_sample_not_gate_evidence": true
+    }
+  },
+  "robustness": {
+    "market": {
+      "CN": {
+        "NORMAL_OR_SHALLOW": {
+          "N": 130,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 81,
+              "rate": 0.6230769230769231
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 49,
+              "rate": 0.3769230769230769
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.6230769230769231,
+          "fib1618_before_structural_invalidation_rate": 0.5461538461538461
+        },
+        "DEEP": {
+          "N": 76,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 58,
+              "rate": 0.7631578947368421
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 18,
+              "rate": 0.23684210526315788
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.7631578947368421,
+          "fib1618_before_structural_invalidation_rate": 0.7236842105263158
+        },
+        "VERY_DEEP": {
+          "N": 93,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 83,
+              "rate": 0.8924731182795699
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 8,
+              "rate": 0.08602150537634409
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 2,
+              "rate": 0.021505376344086023
+            }
+          },
+          "structural_success_rate": 0.8924731182795699,
+          "fib1618_before_structural_invalidation_rate": 0.7311827956989247
+        }
+      },
+      "US": {
+        "NORMAL_OR_SHALLOW": {
+          "N": 215,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 144,
+              "rate": 0.6697674418604651
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 68,
+              "rate": 0.31627906976744186
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 3,
+              "rate": 0.013953488372093023
+            }
+          },
+          "structural_success_rate": 0.6697674418604651,
+          "fib1618_before_structural_invalidation_rate": 0.5813953488372093
+        },
+        "DEEP": {
+          "N": 107,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 89,
+              "rate": 0.8317757009345794
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 18,
+              "rate": 0.16822429906542055
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.8317757009345794,
+          "fib1618_before_structural_invalidation_rate": 0.719626168224299
+        },
+        "VERY_DEEP": {
+          "N": 124,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 112,
+              "rate": 0.9032258064516129
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 12,
+              "rate": 0.0967741935483871
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.9032258064516129,
+          "fib1618_before_structural_invalidation_rate": 0.8145161290322581
+        }
+      }
+    },
+    "time_half": {
+      "split_definition": "Within each market, frozen market-session ordinal midpoint; aggregate by half after the split",
+      "cutoff_by_market": {
+        "CN": "2021-10-29",
+        "US": "2021-10-26"
+      },
+      "results": {
+        "FIRST_HALF": {
+          "NORMAL_OR_SHALLOW": {
+            "N": 200,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 135,
+                "rate": 0.675
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 65,
+                "rate": 0.325
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.675
+          },
+          "DEEP": {
+            "N": 94,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 75,
+                "rate": 0.7978723404255319
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 19,
+                "rate": 0.20212765957446807
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.7978723404255319
+          },
+          "VERY_DEEP": {
+            "N": 112,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 104,
+                "rate": 0.9285714285714286
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 8,
+                "rate": 0.07142857142857142
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.9285714285714286
+          }
+        },
+        "SECOND_HALF": {
+          "NORMAL_OR_SHALLOW": {
+            "N": 145,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 90,
+                "rate": 0.6206896551724138
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 52,
+                "rate": 0.3586206896551724
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 3,
+                "rate": 0.020689655172413793
+              }
+            },
+            "structural_success_rate": 0.6206896551724138
+          },
+          "DEEP": {
+            "N": 89,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 72,
+                "rate": 0.8089887640449438
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 17,
+                "rate": 0.19101123595505617
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.8089887640449438
+          },
+          "VERY_DEEP": {
+            "N": 105,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 91,
+                "rate": 0.8666666666666667
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 12,
+                "rate": 0.11428571428571428
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 2,
+                "rate": 0.01904761904761905
+              }
+            },
+            "structural_success_rate": 0.8666666666666667
+          }
+        }
+      }
+    },
+    "symbol_concentration": {
+      "NORMAL_OR_SHALLOW": {
+        "symbol_count": 39,
+        "top_5_symbols_by_event_count": [
+          {
+            "symbol": "BLDR",
+            "N": 16,
+            "share": 0.0463768115942029
+          },
+          {
+            "symbol": "LIN",
+            "N": 16,
+            "share": 0.0463768115942029
+          },
+          {
+            "symbol": "META",
+            "N": 16,
+            "share": 0.0463768115942029
+          },
+          {
+            "symbol": "LRCX",
+            "N": 15,
+            "share": 0.043478260869565216
+          },
+          {
+            "symbol": "NUE",
+            "N": 15,
+            "share": 0.043478260869565216
+          }
+        ],
+        "top_5_event_share": 0.22608695652173913,
+        "max_symbol_event_share": 0.0463768115942029,
+        "event_count_hhi": 0.031598403696702373,
+        "structural_success_rate_excluding_top_symbol": 0.6534954407294833
+      },
+      "DEEP": {
+        "symbol_count": 39,
+        "top_5_symbols_by_event_count": [
+          {
+            "symbol": "TSLA",
+            "N": 12,
+            "share": 0.06557377049180328
+          },
+          {
+            "symbol": "000681.SZ",
+            "N": 10,
+            "share": 0.0546448087431694
+          },
+          {
+            "symbol": "QTWO",
+            "N": 10,
+            "share": 0.0546448087431694
+          },
+          {
+            "symbol": "META",
+            "N": 9,
+            "share": 0.04918032786885246
+          },
+          {
+            "symbol": "002913.SZ",
+            "N": 8,
+            "share": 0.04371584699453552
+          }
+        ],
+        "top_5_event_share": 0.2677595628415301,
+        "max_symbol_event_share": 0.06557377049180328,
+        "event_count_hhi": 0.03335423571919137,
+        "structural_success_rate_excluding_top_symbol": 0.8011695906432749
+      },
+      "VERY_DEEP": {
+        "symbol_count": 39,
+        "top_5_symbols_by_event_count": [
+          {
+            "symbol": "META",
+            "N": 12,
+            "share": 0.055299539170506916
+          },
+          {
+            "symbol": "002913.SZ",
+            "N": 11,
+            "share": 0.05069124423963134
+          },
+          {
+            "symbol": "002768.SZ",
+            "N": 9,
+            "share": 0.041474654377880185
+          },
+          {
+            "symbol": "601598.SH",
+            "N": 8,
+            "share": 0.03686635944700461
+          },
+          {
+            "symbol": "ADI",
+            "N": 8,
+            "share": 0.03686635944700461
+          }
+        ],
+        "top_5_event_share": 0.22119815668202766,
+        "max_symbol_event_share": 0.055299539170506916,
+        "event_count_hhi": 0.030941408821593148,
+        "structural_success_rate_excluding_top_symbol": 0.8926829268292683
+      }
+    }
+  },
+  "event_level_detail": {
+    "count": 745,
+    "schema_version": "setup01-deep-wave2-structure-quality-record-v1",
+    "sha256": "sha256:264f04c6f6c1ecd24734505fd2903c849a665290b1168e15b29583b42237f4dc",
+    "persisted": false,
+    "temporary_file_removed": true
+  },
+  "validation": {
+    "frozen_hash_binding_verified": true,
+    "confirmed_rebuilt_count": 745,
+    "confirmed_count_matches_prior_artifact": true,
+    "event_identity_set_matches_prior_near_binding": true,
+    "wave3_fib_near_rebuilt_count": 81,
+    "prior_117_63_18_category_conservation": {
+      "NEAR_SWING_ONLY": 117,
+      "SMALL_WAVE_FIB": 18,
+      "BOTH_NEAR": 63
+    },
+    "fib_identity_1272": {
+      "n": 745,
+      "max_absolute_residual": 1.1368683772161603e-13,
+      "passed": true
+    },
+    "depth_band_counts": {
+      "NORMAL_OR_SHALLOW": 345,
+      "DEEP": 183,
+      "VERY_DEEP": 217
+    },
+    "depth_band_mutually_exclusive": true,
+    "depth_band_exhaustive": true,
+    "signal_T_uses_data_at_or_before_T": true,
+    "future_path_strictly_after_T": true,
+    "future_path_used_only_for_outcome_evaluation": true,
+    "unique_event_identity_count": 745,
+    "prior_decision_gate_action_target_parity": {
+      "decision_count": 745,
+      "gate_action_target_parity": true,
+      "mismatch_count": 0,
+      "mismatches": []
+    }
+  },
+  "controls": {
+    "development_only": true,
+    "formal_validation": false,
+    "final_oos_accessed": false,
+    "parameter_search": false,
+    "threshold_sweep": false,
+    "signal_T_uses_future_data": false,
+    "future_path_used_only_for_post_T_outcome_evaluation": true,
+    "t_plus_1_open_used_only_for_secondary_production_funnel": true,
+    "production_decision_modified": false,
+    "production_parameters_modified": false,
+    "new_production_gate_added": false,
+    "new_threshold_selected": false,
+    "target_redefined": false,
+    "wave_or_swing_semantics_modified": false,
+    "state_writes": 0,
+    "sheets_writes": 0,
+    "broker_orders": 0,
+    "pr82_mixed_in": false,
+    "event_level_detail_persisted": false,
+    "event_level_detail_schema": "setup01-deep-wave2-structure-quality-record-v1"
+  },
+  "decision": {
+    "classification": "EARLY_ENTRY_RESEARCH_CANDIDATE",
+    "reason": "Strict post-T structural continuation is not worse in DEEP/VERY_DEEP than in NORMAL_OR_SHALLOW (65.2% vs 80.3% / 89.9%). In the fixed 81-event Fib-near sample, 64/81 still reached Fib1.272 before structural invalidation, including 55 VERY_DEEP events, while headroom was below 5% by construction. This supports prioritizing a separate early-entry causal study over deleting deep Wave2 contexts. At the same time, existing T-day gates already exclude all 217 VERY_DEEP events from ENTRY_ALLOWED in this development funnel, so a new depth gate would be redundant here; no production change is authorized by this result.",
+    "production_change": "none; requires a separately approved causal research protocol"
+  }
+}
