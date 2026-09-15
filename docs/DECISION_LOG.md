@@ -626,3 +626,19 @@ execution。
 **Reason:** 第一目标的可交易空间是策略资格，而确认时点、入场区位置和 T+1 gap
 造成的空间衰减是观察问题。把两者分开可同时执行硬性交易纪律与因果测量，避免用
 事后结果改变 Wave/Setup/Entry 语义。
+
+## 2026-09-15 — SETUP_01 分开展示阻力与 Wave3 结构目标
+
+**Decision:** SETUP_01 的用户侧投影必须分开显示当前正式 T1 及其 source、planned_entry
+上方最近已确认 `CONFIRMED_SWING_HIGH` 的保守第一障碍，以及由既有 Wave3 Fibonacci
+extension 产生的结构目标（含 ratio、上涨空间与可选的后续 extension 列表）。
+Dashboard、email、JSON 与 Markdown 统一消费 Decision/target provenance 或共享只读
+projection，不在展示层重算交易几何。
+
+该语义分离不改变现有 nearest-first target candidate selection、正式 T1、5% T1
+upside gate、2R RR gate、Target-before-RR、Wave、Swing、Fib、Entry、Stop 或
+T→T+1 规则；T2/T3 与后续 Fib extension 不能绕过当前 T1 gate。
+
+**Reason:** 最近历史阻力是当前价格路径上的已知第一障碍，而 Wave3 extension 是
+Wave2→Wave3 假设成立时的结构投射目标。两者混为一个 T1 会把“保守规则不交易”
+误解为“Wave3 只有这么多空间”，但分开表达不应扩大正式交易准入。

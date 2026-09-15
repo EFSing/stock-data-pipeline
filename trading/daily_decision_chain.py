@@ -57,6 +57,8 @@ from trading.setup01_decision import (
     Setup01Decision,
     evaluate_setup01_decision,
     execute_setup01_t1_open,
+    setup01_decision_to_dict,
+    setup01_target_projection,
 )
 from trading.setup01_replay import Setup01ReplayEvent, Setup01ReplayReport, replay_setup01_history
 from trading.setup02 import evaluate_setup02
@@ -314,6 +316,7 @@ class DailyTradingDecisionReport:
                     f"- 决策动作：{result.primary_action}；执行阶段：{_value(result.execution_phase)}；执行结果：{result.execution_outcome or '—'}",
                     f"- Entry Zone：{_range(entry, entry_high)}；Stop：{getattr(decision, 'execution_stop', None) if decision else None}",
                     f"- T1/T2/T3：{_targets(targets)}；T1 RR：{_first_rr(rr)}；RR质量：{getattr(rr, 'quality', None) if rr else None}",
+                    *target_projection_markdown(decision),
                     f"- 机会新鲜度：T1空间 {_pct(freshness.get('target_upside_pct'))}；入场区上沿距离 {_pct(freshness.get('entry_zone_upper_distance_pct'))}；T+1 gap {_pct(freshness.get('t1_gap_vs_planned_entry_pct'))}；T+1剩余空间 {_pct(freshness.get('remaining_target_upside_pct'))}",
                     f"- Portfolio Risk：{portfolio.status + ' / ' + portfolio.reason if portfolio else '—'}",
                     f"- Position Management：{pm.status + ' / ' + (pm.action or '—') if pm else '—'}",
@@ -1426,6 +1429,8 @@ def _report_section(result: DailyDecisionResult) -> str:
 
 
 def _serialise(value: Any) -> Any:
+    if isinstance(value, Setup01Decision):
+        return setup01_decision_to_dict(value)
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, (date, datetime)):
@@ -1463,6 +1468,45 @@ def _pct(value: Any) -> str:
 def _targets(values: Sequence[Any]) -> str:
     values = tuple(values)
     return "/".join(str(value) for value in (*values[:3],)) or "—"
+
+
+def target_projection_markdown(decision: Any) -> tuple[str, ...]:
+    """Render existing SETUP_01 target projection facts for Markdown only."""
+
+    if not isinstance(decision, Setup01Decision):
+        return ()
+    projection = setup01_target_projection(decision)
+    effective_t1 = projection.get("current_effective_t1")
+    effective_source = projection.get("effective_t1_source") or "—"
+    overhead = projection.get("nearest_overhead_confirmed_swing_high") or {}
+    fib = projection.get("nearest_wave3_fib_extension") or {}
+    lines = [
+        f"- 当前正式 T1（保持现有 gate/RR）：{effective_t1 if effective_t1 is not None else '—'}；来源：{effective_source}",
+    ]
+    if overhead:
+        lines.append(
+            "- 保守第一障碍（最近已确认历史阻力）："
+            f"{overhead.get('price', '—')}；距 planned_entry：{_pct(projection.get('overhead_resistance_upside_pct'))}"
+        )
+    if fib:
+        lines.append(
+            "- Wave3 结构目标（最近 Fib 投射）："
+            f"{fib.get('price', '—')}；ratio：{fib.get('ratio', '—')}；距 planned_entry：{_pct(fib.get('upside_pct'))}"
+        )
+    later = tuple(
+        item
+        for item in projection.get("wave3_fib_extensions", ())
+        if isinstance(item, Mapping)
+    )
+    if len(later) > 1:
+        lines.append(
+            "- 后续 Wave3 结构目标："
+            + "；".join(
+                f"{item.get('ratio', '—')}={item.get('price', '—')}（{_pct(item.get('upside_pct'))}）"
+                for item in later[1:]
+            )
+        )
+    return tuple(lines)
 
 
 def _first_rr(value: Any) -> Any:
@@ -1512,4 +1556,5 @@ __all__ = [
     "daily_report_json",
     "opportunity_freshness_funnel",
     "require_production_universe",
+    "target_projection_markdown",
 ]

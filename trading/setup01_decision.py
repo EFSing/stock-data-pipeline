@@ -803,6 +803,138 @@ def _target_to_dict(candidate: Setup01TargetCandidate) -> dict:
     }
 
 
+def _candidate_has_source(candidate: Setup01TargetCandidate, source: str) -> bool:
+    """Return whether a candidate carries one of the canonical source facts."""
+
+    if source in candidate.source.split("+"):
+        return True
+    return any(item.source == source for item in candidate.provenance)
+
+
+def _candidate_extension_ratio(
+    candidate: Setup01TargetCandidate,
+) -> float | None:
+    ratios = [
+        item.extension_ratio
+        for item in candidate.provenance
+        if item.source == "WAVE3_FIB_EXTENSION"
+        and item.extension_ratio is not None
+    ]
+    return float(ratios[0]) if ratios else None
+
+
+def _candidate_upside_pct(
+    candidate: Setup01TargetCandidate | None,
+    planned_entry: float | None,
+) -> float | None:
+    if candidate is None or planned_entry is None:
+        return None
+    try:
+        return relative_distance_pct(candidate.price, planned_entry)
+    except (TypeError, ValueError):
+        return None
+
+
+def setup01_target_projection(value: Setup01Decision) -> dict:
+    """Project the existing SETUP_01 target facts for read-only consumers.
+
+    This function only selects and labels already-generated target candidates.
+    It does not create a target, reorder candidates, apply a gate, or change
+    the formal T1/RR decision.  Dashboard, email, Markdown, and research
+    explainers may consume this projection instead of rebuilding geometry.
+    """
+
+    candidates = tuple(value.target_candidates)
+    formal_t1 = value.targets[0] if value.targets else None
+    effective_t1_candidate = candidates[0] if candidates and formal_t1 is not None else None
+    overhead_candidates = tuple(
+        candidate
+        for candidate in candidates
+        if _candidate_has_source(candidate, "CONFIRMED_SWING_HIGH")
+    )
+    fib_candidates = tuple(
+        candidate
+        for candidate in candidates
+        if _candidate_has_source(candidate, "WAVE3_FIB_EXTENSION")
+        and _candidate_extension_ratio(candidate) is not None
+    )
+    nearest_overhead = min(
+        overhead_candidates,
+        key=lambda candidate: (candidate.price, candidate.source),
+        default=None,
+    )
+    nearest_fib = min(
+        fib_candidates,
+        key=lambda candidate: (
+            candidate.price,
+            _candidate_extension_ratio(candidate) or math.inf,
+            candidate.source,
+        ),
+        default=None,
+    )
+
+    fib_extensions = [
+        {
+            "ratio": _candidate_extension_ratio(candidate),
+            "price": candidate.price,
+            "upside_pct": _candidate_upside_pct(candidate, value.planned_entry),
+            "source": candidate.source,
+            "provenance": _target_to_dict(candidate)["provenance"],
+        }
+        for candidate in sorted(
+            fib_candidates,
+            key=lambda item: (
+                _candidate_extension_ratio(item) or math.inf,
+                item.price,
+                item.source,
+            ),
+        )
+    ]
+    nearest_fib_projection = None
+    if nearest_fib is not None:
+        nearest_fib_projection = {
+            "price": nearest_fib.price,
+            "ratio": _candidate_extension_ratio(nearest_fib),
+            "upside_pct": _candidate_upside_pct(nearest_fib, value.planned_entry),
+            "source": nearest_fib.source,
+            "provenance": _target_to_dict(nearest_fib)["provenance"],
+        }
+
+    return {
+        "current_effective_t1": formal_t1,
+        "effective_t1_source": (
+            effective_t1_candidate.source if effective_t1_candidate else None
+        ),
+        "effective_t1_candidate": (
+            _target_to_dict(effective_t1_candidate)
+            if effective_t1_candidate is not None
+            else None
+        ),
+        "nearest_overhead_confirmed_swing_high": (
+            _target_to_dict(nearest_overhead) if nearest_overhead is not None else None
+        ),
+        "nearest_overhead_confirmed_swing_high_price": (
+            nearest_overhead.price if nearest_overhead is not None else None
+        ),
+        "overhead_resistance_upside_pct": _candidate_upside_pct(
+            nearest_overhead, value.planned_entry
+        ),
+        "nearest_wave3_fib_extension": nearest_fib_projection,
+        "nearest_wave3_fib_extension_price": (
+            nearest_fib.price if nearest_fib is not None else None
+        ),
+        "nearest_wave3_fib_extension_ratio": (
+            _candidate_extension_ratio(nearest_fib)
+            if nearest_fib is not None
+            else None
+        ),
+        "wave3_fib_upside_pct": _candidate_upside_pct(
+            nearest_fib, value.planned_entry
+        ),
+        "wave3_fib_extensions": fib_extensions,
+    }
+
+
 def _session_age(
     source_date: date | None,
     as_of_date: date,
@@ -948,6 +1080,7 @@ def setup01_decision_to_dict(value: Setup01Decision) -> dict:
         "T1": value.targets[0] if len(value.targets) > 0 else None,
         "T2": value.targets[1] if len(value.targets) > 1 else None,
         "T3": value.targets[2] if len(value.targets) > 2 else None,
+        "target_projection": setup01_target_projection(value),
         "target_reasonableness_checked": value.target_reasonableness_checked,
         "target_reasonableness_passed": value.target_reasonableness_passed,
         "rr": _rr_to_dict(value.rr),
@@ -1004,5 +1137,6 @@ __all__ = [
     "execute_setup01_t1_open",
     "setup01_decision_to_dict",
     "setup01_execution_to_dict",
+    "setup01_target_projection",
     "setup01_target_provenance_audit",
 ]

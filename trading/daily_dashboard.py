@@ -96,6 +96,11 @@ TARGET_UPSIDE_BAND_LABELS = {
     "PREFERRED_UPSIDE": "较充足",
 }
 
+_TARGET_SOURCE_LABELS = {
+    "CONFIRMED_SWING_HIGH": "最近已确认历史阻力",
+    "WAVE3_FIB_EXTENSION": "Wave3 Fib 结构投射",
+}
+
 WAVE_LABELS = {
     "WAVE_2_TO_3_CANDIDATE": "2浪调整结束候选，等待3浪启动",
     "WAVE_3_CONTINUATION_CANDIDATE": "3浪延续候选",
@@ -238,6 +243,85 @@ def _first_value(*values: Any) -> Any:
         if text and text not in {"—", "-"}:
             return value
     return None
+
+
+def _target_source_label(value: Any) -> str:
+    parts = [part for part in _text(value).split("+") if part]
+    if not parts:
+        return "—"
+    return " + ".join(_TARGET_SOURCE_LABELS.get(part, part) for part in parts)
+
+
+def _target_projection_display(
+    decision: Mapping[str, Any],
+    target_values: Sequence[Any],
+) -> dict[str, Any]:
+    """Format the shared Decision target projection without redoing geometry."""
+
+    projection = _mapping(decision.get("target_projection"))
+    overhead = _mapping(projection.get("nearest_overhead_confirmed_swing_high"))
+    fib = _mapping(projection.get("nearest_wave3_fib_extension"))
+    effective_t1 = _first_value(
+        projection.get("current_effective_t1"),
+        target_values[0] if target_values else None,
+    )
+    effective_source = projection.get("effective_t1_source")
+    if effective_source is None:
+        effective_candidate = _mapping(projection.get("effective_t1_candidate"))
+        effective_source = effective_candidate.get("source")
+    overhead_price = _first_value(
+        overhead.get("price"),
+        projection.get("nearest_overhead_confirmed_swing_high_price"),
+    )
+    fib_price = _first_value(
+        fib.get("price"),
+        projection.get("nearest_wave3_fib_extension_price"),
+    )
+    fib_ratio = _first_value(
+        fib.get("ratio"),
+        projection.get("nearest_wave3_fib_extension_ratio"),
+    )
+    overhead_upside = projection.get("overhead_resistance_upside_pct")
+    fib_upside = _first_value(
+        fib.get("upside_pct"),
+        projection.get("wave3_fib_upside_pct"),
+    )
+    extension_labels = []
+    for item in _sequence(projection.get("wave3_fib_extensions")):
+        item = _mapping(item)
+        if not item:
+            continue
+        extension_labels.append(
+            f"{_format_number(item.get('ratio'), 3)}：{_format_price(item.get('price'))}"
+            f"（{_format_percent(item.get('upside_pct'))}）"
+        )
+    explanation = ""
+    if (
+        _numeric(overhead_price) is not None
+        and _numeric(fib_price) is not None
+        and float(overhead_price) < float(fib_price)
+    ):
+        explanation = (
+            "系统不是认为 Wave3 只有 "
+            f"{_format_percent(overhead_upside)} 空间；Wave3 的结构投射目标为 "
+            f"{_format_price(fib_price)}（距 planned_entry {_format_percent(fib_upside)}），"
+            f"但当前价格上方 {_format_percent(overhead_upside)} 存在已确认历史阻力；"
+            "现有最近优先规则仍把它作为当前保守第一障碍。"
+        )
+    return {
+        "target_projection": dict(projection),
+        "has_target_projection": bool(projection),
+        "effective_t1": _format_price(effective_t1),
+        "effective_t1_source": _display(effective_source),
+        "effective_t1_source_label": _target_source_label(effective_source),
+        "nearest_overhead_confirmed_swing_high": _format_price(overhead_price),
+        "overhead_resistance_upside_pct": _format_percent(overhead_upside),
+        "nearest_wave3_fib_extension": _format_price(fib_price),
+        "nearest_wave3_fib_extension_ratio": _format_number(fib_ratio, 3),
+        "wave3_fib_upside_pct": _format_percent(fib_upside),
+        "wave3_fib_extensions": "；".join(extension_labels) or "—",
+        "target_boundary_explanation": explanation,
+    }
 
 
 def _sequence(value: Any) -> tuple[Any, ...]:
@@ -863,6 +947,7 @@ def _price_plan(
         decision.get("confirmation_extension_pct"),
         freshness.get("confirmation_extension_pct"),
     )
+    target_semantics = _target_projection_display(decision, target_values)
     return {
         "planned_entry": _format_price(decision.get("planned_entry"), "尚未形成"),
         "execution_stop": _format_price(decision.get("execution_stop")),
@@ -893,6 +978,7 @@ def _price_plan(
             freshness.get("remaining_target_upside_pct")
         ),
         "has_decision": bool(decision),
+        **target_semantics,
     }
 
 
@@ -1435,9 +1521,16 @@ def _render_plan(row: Mapping[str, Any]) -> str:
         ("确认价", plan.get("confirmation_level")),
         ("入场区间", _entry_zone_text(plan)),
         ("执行止损", plan.get("execution_stop")),
-        ("目标价 T1", plan.get("target_1")),
+        ("目标价 T1｜当前正式 T1（保持 gate/RR）", plan.get("effective_t1", plan.get("target_1"))),
+        ("T1 来源", plan.get("effective_t1_source_label")),
         ("目标价 T2", plan.get("target_2")),
         ("目标价 T3", plan.get("target_3")),
+        ("保守第一障碍（最近已确认历史阻力）", plan.get("nearest_overhead_confirmed_swing_high")),
+        ("保守第一障碍上涨空间", plan.get("overhead_resistance_upside_pct")),
+        ("Wave3 结构目标（最近 Fib 投射）", plan.get("nearest_wave3_fib_extension")),
+        ("Wave3 结构目标 ratio", plan.get("nearest_wave3_fib_extension_ratio")),
+        ("Wave3 结构目标上涨空间", plan.get("wave3_fib_upside_pct")),
+        ("后续 Wave3 结构目标", plan.get("wave3_fib_extensions")),
         ("第一目标上涨空间", plan.get("target_upside_pct")),
         ("空间评价", plan.get("target_upside_band")),
         ("系统最低上涨要求", plan.get("minimum_target_upside_pct")),
@@ -1449,6 +1542,11 @@ def _render_plan(row: Mapping[str, Any]) -> str:
     return (
         '<section class="panel plan-panel"><h3>关键价格</h3>'
         + field_grid
+        + (
+            f'<p class="target-explanation">{_escape(plan.get("target_boundary_explanation"))}</p>'
+            if _has_display_value(plan.get("target_boundary_explanation"))
+            else ""
+        )
         + "</section>"
     )
 
@@ -1572,6 +1670,33 @@ def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
                 f"参考价格：{_display(plan.get('planned_entry'))}；第一目标候选：{_display(plan.get('target_1'))}；"
                 f"RR：{_first_rr_text(plan.get('rr'))}；最低 RR：2.00R"
             )
+            if plan.get("has_target_projection"):
+                bullets.append(
+                    "当前正式 T1："
+                    f"{_display(plan.get('effective_t1'))}；来源："
+                    f"{_display(plan.get('effective_t1_source_label'))}"
+                )
+                if _has_display_value(plan.get("nearest_overhead_confirmed_swing_high")):
+                    bullets.append(
+                        "保守第一障碍（最近已确认历史阻力）："
+                        f"{_display(plan.get('nearest_overhead_confirmed_swing_high'))}；"
+                        f"上涨空间：{_display(plan.get('overhead_resistance_upside_pct'))}"
+                    )
+                if _has_display_value(plan.get("nearest_wave3_fib_extension")):
+                    bullets.append(
+                        "Wave3 结构目标（最近 Fib 投射）："
+                        f"{_display(plan.get('nearest_wave3_fib_extension'))}；"
+                        f"ratio：{_display(plan.get('nearest_wave3_fib_extension_ratio'))}；"
+                        f"上涨空间：{_display(plan.get('wave3_fib_upside_pct'))}"
+                    )
+                if _has_display_value(plan.get("wave3_fib_extensions")):
+                    bullets.append(
+                        "后续 Wave3 结构目标："
+                        f"{_display(plan.get('wave3_fib_extensions'))}"
+                    )
+            explanation = _text(plan.get("target_boundary_explanation"))
+            if explanation:
+                bullets.append(explanation + "；所以按现有保守规则不交易。")
             bullets.append("这些是 Decision gate 计算依据，不是买入/止盈建议")
         elif band == "LOW_UPSIDE":
             bullets.append(

@@ -234,6 +234,48 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertNotIn("交易计划（来自真实 Decision）", rendered)
         self.assertNotIn("入场（Entry）", rendered)
 
+    def test_no_trade_email_separates_near_resistance_from_wave3_structure_target(self):
+        rendered = render_daily_report_email_html(
+            _no_trade_payload(
+                "NEAR_SWING_ONLY",
+                {
+                    "action": "NO_TRADE",
+                    "gate_reason": "TARGET_UPSIDE_BELOW_MINIMUM",
+                    "planned_entry": 100.0,
+                    "execution_stop": 95.0,
+                    "targets": [101.0, 120.0, 130.0],
+                    "target_upside_pct": 0.01,
+                    "target_upside_band": "BELOW_MINIMUM",
+                    "minimum_target_upside_pct": 0.05,
+                    "rr": {"rr_ratios": [0.2], "quality": "NO_TRADE"},
+                    "target_projection": {
+                        "current_effective_t1": 101.0,
+                        "effective_t1_source": "CONFIRMED_SWING_HIGH",
+                        "nearest_overhead_confirmed_swing_high": {"price": 101.0},
+                        "overhead_resistance_upside_pct": 0.01,
+                        "nearest_wave3_fib_extension": {
+                            "price": 120.0,
+                            "ratio": 1.272,
+                            "upside_pct": 0.20,
+                        },
+                        "nearest_wave3_fib_extension_ratio": 1.272,
+                        "wave3_fib_upside_pct": 0.20,
+                        "wave3_fib_extensions": [
+                            {"ratio": 1.272, "price": 120.0, "upside_pct": 0.20},
+                            {"ratio": 1.618, "price": 130.0, "upside_pct": 0.30},
+                        ],
+                    },
+                },
+                "近端阻力示例",
+            )
+        )
+
+        self.assertIn("当前正式 T1（保持 gate/RR）", rendered)
+        self.assertIn("保守第一障碍（最近已确认历史阻力）", rendered)
+        self.assertIn("Wave3 结构目标（最近 Fib 投射）", rendered)
+        self.assertIn("系统不是认为 Wave3 只有 1.00% 空间", rendered)
+        self.assertIn("按现有保守规则不交易", rendered)
+
     def test_above_entry_zone_rejected_decision_explains_no_chasing(self):
         rendered = render_daily_report_email_html(
             _no_trade_payload(

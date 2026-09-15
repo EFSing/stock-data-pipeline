@@ -429,6 +429,74 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("0.53%", rendered)
         self.assertIn("5.00%", rendered)
 
+    def test_near_swing_only_projection_shows_resistance_and_farther_wave3_target(self):
+        payload = {
+            "as_of_date": "2026-09-14",
+            "results": [{
+                "symbol": "NEAR_SWING_ONLY",
+                "market": "CN",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "alternate_wave_scenario": "UNKNOWN",
+                "setup01_state": "CONFIRMED",
+                "setup02_state": "NONE",
+                "primary_action": "NO_TRADE",
+                "event_was_new": True,
+                "individual_decision": {
+                    "action": "NO_TRADE",
+                    "gate_reason": "TARGET_UPSIDE_BELOW_MINIMUM",
+                    "planned_entry": 100.0,
+                    "execution_stop": 95.0,
+                    "targets": [101.0, 120.0, 130.0],
+                    "target_upside_pct": 0.01,
+                    "target_upside_band": "BELOW_MINIMUM",
+                    "minimum_target_upside_pct": 0.05,
+                    "rr": {"rr_ratios": [0.2], "quality": "NO_TRADE"},
+                    "target_projection": {
+                        "current_effective_t1": 101.0,
+                        "effective_t1_source": "CONFIRMED_SWING_HIGH",
+                        "nearest_overhead_confirmed_swing_high": {"price": 101.0},
+                        "overhead_resistance_upside_pct": 0.01,
+                        "nearest_wave3_fib_extension": {
+                            "price": 120.0,
+                            "ratio": 1.272,
+                            "upside_pct": 0.20,
+                        },
+                        "nearest_wave3_fib_extension_ratio": 1.272,
+                        "wave3_fib_upside_pct": 0.20,
+                        "wave3_fib_extensions": [
+                            {"ratio": 1.272, "price": 120.0, "upside_pct": 0.20},
+                            {"ratio": 1.618, "price": 130.0, "upside_pct": 0.30},
+                        ],
+                    },
+                },
+                "opportunity_freshness": {
+                    "target_upside_pct": 0.01,
+                    "target_upside_band": "BELOW_MINIMUM",
+                    "minimum_target_upside_pct": 0.05,
+                },
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": [],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+            }],
+        }
+
+        row = build_dashboard_projection(payload)["rows"][0]
+        self.assertEqual(row["plan"]["effective_t1"], "101")
+        self.assertEqual(row["plan"]["effective_t1_source_label"], "最近已确认历史阻力")
+        self.assertEqual(row["plan"]["nearest_overhead_confirmed_swing_high"], "101")
+        self.assertEqual(row["plan"]["nearest_wave3_fib_extension"], "120")
+        self.assertEqual(row["plan"]["nearest_wave3_fib_extension_ratio"], "1.272")
+        self.assertEqual(row["plan"]["wave3_fib_upside_pct"], "20.00%")
+
+        rendered = render_dashboard_html(payload)
+        self.assertIn("保守第一障碍（最近已确认历史阻力）", rendered)
+        self.assertIn("Wave3 结构目标（最近 Fib 投射）", rendered)
+        self.assertIn("系统不是认为 Wave3 只有 1.00% 空间", rendered)
+        self.assertIn("按现有保守规则不交易", rendered)
+
     def test_identity_metadata_wave_mapping_and_input_immutability(self):
         original = deepcopy(self.payload)
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
