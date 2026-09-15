@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-15（Cloud Daily Report 自动 T 日与投递修复）。
+> 最后实质更新：2026-09-15（SETUP_01 target projection 与研究归因能力）。
 
 ## 项目身份
 
@@ -109,6 +109,13 @@
 - Decision/日报保留 `target_upside_pct`、band、最低要求、entry-zone 上沿距离、
   confirmation extension，以及 exact T+1 gap/remaining-upside 诊断；这些
   freshness fields 不改变 action/final status。
+- SETUP_01 Decision 的只读 `target_projection` 将当前正式 T1 及其 source、最近已确认
+  Swing High 阻力及上涨空间、最近与后续 Wave3 Fib extension、ratio 与上涨空间
+  一并暴露给 JSON/Markdown/Dashboard/email；它只消费既有 target candidate/provenance，
+  不生成第二套 target、gate 或 R/R。
+- `research/development/setup01_wave2_to_wave3_geometry_attribution_v1.json/.md` 是
+  development-only 的纯几何描述归因输出；不读取 outcome、Final OOS、T+1 或真实持仓，
+  不接入生产 gate。
 - 有 generic synthetic operational shadow 与 development-only replay evidence；
   尚未接入生产自动执行（生产日历集成是已登记前置条件）。
 
@@ -239,9 +246,11 @@
   Google Sheets credentials contract 与 legacy 手工逻辑；自动调度只由 CN/US Cloud
   Daily Report 承担，避免两套定时路径并行。Bark/SMTP 仍为可选通知，当前
   `NOT_CONFIGURED`。
-- Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
-  空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
-  最低要求及可用的 RR 诊断。
+ - Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
+   空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
+   最低要求及可用的 RR 诊断。SETUP_01 target projection 额外把“保守第一障碍
+   （最近已确认历史阻力）”与“Wave3 结构目标（最近 Fib 投射）”分开显示；邮件与
+   Dashboard 均不重新计算交易几何。
 
 ### Portfolio Risk（已实现并合并，未自动生产运行）
 

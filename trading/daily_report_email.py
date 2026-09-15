@@ -324,6 +324,42 @@ def _first_rr_text(plan: Mapping[str, Any]) -> str:
     return first if first.upper().endswith("R") else f"{first}R"
 
 
+def _target_semantics_html(
+    plan: Mapping[str, Any],
+    *,
+    no_trade: bool = False,
+) -> str:
+    """Render the shared target projection without calculating target geometry."""
+
+    if not bool(plan.get("has_target_projection")):
+        return ""
+    fields = (
+        ("当前正式 T1（保持 gate/RR）", plan.get("effective_t1")),
+        ("T1 来源", plan.get("effective_t1_source_label")),
+        ("保守第一障碍（最近已确认历史阻力）", plan.get("nearest_overhead_confirmed_swing_high")),
+        ("保守第一障碍上涨空间", plan.get("overhead_resistance_upside_pct")),
+        ("Wave3 结构目标（最近 Fib 投射）", plan.get("nearest_wave3_fib_extension")),
+        ("Wave3 结构目标 ratio", plan.get("nearest_wave3_fib_extension_ratio")),
+        ("Wave3 结构目标上涨空间", plan.get("wave3_fib_upside_pct")),
+        ("后续 Wave3 结构目标", plan.get("wave3_fib_extensions")),
+    )
+    rendered = "".join(
+        f'<div style="margin:2px 0;">{html.escape(label)}：{_escape(value)}</div>'
+        for label, value in fields
+        if _text(value) not in {"", "—", "-"}
+    )
+    explanation = _text(plan.get("target_boundary_explanation"))
+    if explanation:
+        if no_trade:
+            explanation += "；所以按现有保守规则不交易。"
+        rendered += (
+            '<div style="margin:7px 0 0 0;color:#687386;">'
+            f"{_escape(explanation)}"
+            "</div>"
+        )
+    return rendered
+
+
 def _no_trade_html(row: Mapping[str, Any]) -> str:
     if not _is_no_trade_decision(row):
         return ""
@@ -340,8 +376,9 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
             f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
             f'<div style="margin:2px 0;">最低 RR 要求：{_MINIMUM_RR_TEXT}</div>'
-            '<div style="margin:7px 0 0 0;color:#687386;">说明：目标空间不足；这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
-            '</div>'
+            + _target_semantics_html(plan, no_trade=True)
+            + '<div style="margin:7px 0 0 0;color:#687386;">说明：目标空间不足；这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+            + '</div>'
         )
     if reason == "RR_BELOW_MINIMUM":
         return (
@@ -354,8 +391,9 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
             f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
             f'<div style="margin:2px 0;">最低 RR 要求：{_MINIMUM_RR_TEXT}</div>'
-            '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
-            '</div>'
+            + _target_semantics_html(plan)
+            + '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+            + '</div>'
         )
     if reason == "ABOVE_ENTRY_ZONE":
         return (
@@ -406,6 +444,7 @@ def _plan_html(row: Mapping[str, Any]) -> str:
         f'<div style="margin:2px 0;">入场（Entry）：{_escape(plan.get("planned_entry"))}</div>'
         f'<div style="margin:2px 0;">止损（Stop）：{_escape(plan.get("execution_stop"))}</div>'
         f'<div style="margin:2px 0;">目标（Targets）：{targets}</div>'
+        + _target_semantics_html(plan)
         + "".join(optional_lines)
         + f'<div style="margin:2px 0;">风险收益比（RR）：{_escape(plan.get("rr"))}</div>'
         "</div>"

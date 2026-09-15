@@ -27,10 +27,12 @@ from trading.setup01_decision import (
     SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
     Setup01DecisionGateReason,
     Setup01TargetCandidate,
+    Setup01TargetProvenance,
     evaluate_setup01_decision,
     evaluate_setup01_decision_stream,
     execute_setup01_t1_open,
     setup01_decision_to_dict,
+    setup01_target_projection,
     setup01_target_provenance_audit,
 )
 from trading.risk import risk_reward as calculate_risk_reward
@@ -526,6 +528,66 @@ class Setup01DecisionTests(unittest.TestCase):
         json.dumps(setup01_decision_to_dict(decision), ensure_ascii=False)
         self.assertEqual(decision.trade_date, event.trade_date)
         self.assertEqual(decision.planned_entry, quotes[-2].close)
+
+    def test_target_projection_separates_near_resistance_from_farther_wave3_fib(self):
+        event, quotes = _fixture()
+        overhead = Setup01TargetCandidate(
+            111.6,
+            "CONFIRMED_SWING_HIGH",
+            "synthetic nearest confirmed swing high",
+            provenance=(
+                Setup01TargetProvenance(
+                    source="CONFIRMED_SWING_HIGH",
+                    pivot_date=event.trade_date - timedelta(days=3),
+                    confirmed_date=event.trade_date - timedelta(days=1),
+                ),
+            ),
+        )
+        fib = Setup01TargetCandidate(
+            120.72,
+            "WAVE3_FIB_EXTENSION",
+            "synthetic 1.272 Wave3 extension",
+            provenance=(
+                Setup01TargetProvenance(
+                    source="WAVE3_FIB_EXTENSION",
+                    extension_ratio=1.272,
+                ),
+            ),
+        )
+        with patch(
+            "trading.setup01_decision._target_candidates",
+            return_value=(overhead, fib),
+        ):
+            decision = evaluate_setup01_decision(event, quotes)
+
+        self.assertEqual(decision.action, DecisionAction.NO_TRADE)
+        self.assertEqual(
+            decision.gate_reason,
+            Setup01DecisionGateReason.TARGET_UPSIDE_BELOW_MINIMUM,
+        )
+        self.assertEqual(decision.targets, (111.6, 120.72))
+        projection = setup01_target_projection(decision)
+        self.assertEqual(projection["current_effective_t1"], 111.6)
+        self.assertEqual(projection["effective_t1_source"], "CONFIRMED_SWING_HIGH")
+        self.assertEqual(
+            projection["nearest_overhead_confirmed_swing_high"]["price"],
+            111.6,
+        )
+        self.assertAlmostEqual(
+            projection["overhead_resistance_upside_pct"],
+            (111.6 - decision.planned_entry) / decision.planned_entry,
+        )
+        self.assertEqual(
+            projection["nearest_wave3_fib_extension"]["price"],
+            120.72,
+        )
+        self.assertEqual(projection["nearest_wave3_fib_extension_ratio"], 1.272)
+        self.assertGreater(
+            projection["wave3_fib_upside_pct"],
+            projection["overhead_resistance_upside_pct"],
+        )
+        serialised = setup01_decision_to_dict(decision)
+        self.assertEqual(serialised["target_projection"], projection)
 
     def test_real_holdings_shadow_does_not_redecide_historical_terminal_or_live_context(self):
         from scripts.run_setup01_decision_shadow import run_setup01_decision_shadow
