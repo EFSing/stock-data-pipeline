@@ -28,7 +28,11 @@ from trading.paper_lifecycle import (
     paper_trades,
 )
 from trading.position_management import PositionAction, PositionExitReason, TargetReachStatus
-from trading.setup01_decision import evaluate_setup01_decision
+from trading.setup01_decision import (
+    SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
+    Setup01TargetCandidate,
+    evaluate_setup01_decision,
+)
 from trading.setup02_decision import evaluate_setup02_decision
 from trading.trade_logic_explanation import build_trade_logic_explanation
 
@@ -109,6 +113,10 @@ class PaperLifecycleTests(unittest.TestCase):
             set(("position_origin_json", "planned_risk_per_share", "initial_risk_per_share", "realized_r", "coverage_gap"))
             .issubset(PAPER_LEDGER_HEADERS)
         )
+        self.assertTrue(
+            set(("target_upside_pct", "target_upside_band", "minimum_target_upside_pct", "remaining_target_upside_pct"))
+            .issubset(schema["diagnostic_fields_in_payload_json"])
+        )
 
     def test_new_entry_allowed_event_creates_plan_then_reuses_exact_t1_and_origin(self):
         event, quotes = _fixture()
@@ -127,12 +135,19 @@ class PaperLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(first.trades[0].status, PAPER_PLAN_STATUS)
         self.assertEqual(first.trades[0].source_provenance, "FORMAL_STRATEGY_POOL")
+        self.assertAlmostEqual(
+            first.trades[0].target_upside_pct,
+            decision.target_upside_pct,
+        )
+        self.assertEqual(first.trades[0].target_upside_band, decision.target_upside_band)
         self.assertEqual(store.event_count, 2)  # plan + market coverage
 
         second = engine.process_daily((), (item_t1,), as_of_date=t1)
         self.assertEqual(second.trades[0].status, PAPER_OPEN_STATUS)
         self.assertEqual(second.trades[0].execution_outcome, "EXECUTED")
         self.assertEqual(second.trades[0].actual_entry, 110.75)
+        self.assertIsNotNone(second.trades[0].t1_gap_vs_planned_entry_pct)
+        self.assertIsNotNone(second.trades[0].remaining_target_upside_pct)
         self.assertTrue(second.trades[0].position_origin_json)
         self.assertEqual(
             sum(row["lifecycle_event_type"] == PAPER_T1_EXECUTED for row in store.events),
@@ -201,6 +216,33 @@ class PaperLifecycleTests(unittest.TestCase):
         self.assertAlmostEqual(trade.realized_r, expected_r)
         self.assertAlmostEqual(trade.current_r, expected_r)
         self.assertNotAlmostEqual(trade.realized_r, (115.0 - 110.75) / planned_risk)
+
+    def test_paper_lifecycle_preserves_t1_upside_skip_and_diagnostics(self):
+        event, quotes = _fixture(wave2_low=109.8, t1_open=111.2)
+        candidate = Setup01TargetCandidate(110.5 * 1.055, "SYNTHETIC", "test")
+        with patch(
+            "trading.setup01_decision._target_candidates",
+            return_value=(candidate,),
+        ):
+            decision = evaluate_setup01_decision(event, quotes)
+        t = event.trade_date
+        t1 = t + timedelta(days=1)
+        store = InMemoryPaperLedgerStore()
+        engine = PaperLifecycleEngine(store)
+        engine.process_daily(
+            (_result(event, decision),),
+            (_input(event, quotes, t, t1),),
+            as_of_date=t,
+        )
+        skipped = engine.process_daily(
+            (), (_input(event, quotes, t1, t1 + timedelta(days=1)),), as_of_date=t1
+        )
+        trade = skipped.trades[0]
+        self.assertEqual(trade.status, PAPER_SKIPPED_STATUS)
+        self.assertEqual(trade.execution_outcome, SKIP_TARGET_UPSIDE_BELOW_MINIMUM)
+        self.assertIsNone(trade.actual_entry)
+        self.assertIsNotNone(trade.t1_gap_vs_planned_entry_pct)
+        self.assertIsNotNone(trade.remaining_target_upside_pct)
 
     def test_persistent_confirmation_and_no_trade_do_not_create_plan(self):
         event, quotes = _fixture()

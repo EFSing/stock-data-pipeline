@@ -24,6 +24,7 @@ from research.market_sessions import DEVELOPMENT_SESSION_IDENTITY
 from trading.models import Setup01Evaluation, SetupState, SwingKind, SwingPoint
 from trading.setup01_decision import (
     EXECUTED,
+    SETUP01_DECISION_PROTOCOL_VERSION,
     SKIP_GAP_BELOW_CONFIRMATION,
     Setup01DecisionStream,
     evaluate_setup01_decision_stream,
@@ -308,7 +309,7 @@ def run_setup01_generic_operational_shadow(
         "reporting_pipeline": True,
     }
     document: dict[str, Any] = {
-        "protocol_version": "SETUP-01-DECISION-RISK-2026-08-30-v1",
+        "protocol_version": SETUP01_DECISION_PROTOCOL_VERSION,
         "mode": "GENERIC_OPERATIONAL_SHADOW",
         "development_session_identity": DEVELOPMENT_SESSION_IDENTITY,
         "fixture_version": FIXTURE_VERSION,

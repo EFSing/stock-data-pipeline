@@ -10,6 +10,7 @@ from core import Quote
 from trading.fibonacci import project_extension
 from trading.models import (
     DecisionAction,
+    RiskReward,
     Setup01Evaluation,
     SetupState,
     SwingKind,
@@ -23,7 +24,9 @@ from trading.setup01_decision import (
     SKIP_GAP_BELOW_CONFIRMATION,
     SKIP_NO_T1_BAR,
     SKIP_RR_BELOW_MINIMUM_AT_OPEN,
+    SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
     Setup01DecisionGateReason,
+    Setup01TargetCandidate,
     evaluate_setup01_decision,
     evaluate_setup01_decision_stream,
     execute_setup01_t1_open,
@@ -173,7 +176,7 @@ class Setup01DecisionTests(unittest.TestCase):
         decision = evaluate_setup01_decision(event, quotes)
         self.assertEqual(decision.gate_reason, Setup01DecisionGateReason.ATR_UNAVAILABLE)
 
-    def test_no_valid_target_and_rr_below_minimum_are_explicit(self):
+    def test_no_valid_target_and_target_upside_gate_are_explicit(self):
         event, quotes = _fixture()
         with patch("trading.setup01_decision.EXTENSION_RATIOS", {}), patch(
             "trading.setup01_decision.find_swings", return_value=[]
@@ -181,16 +184,90 @@ class Setup01DecisionTests(unittest.TestCase):
             decision = evaluate_setup01_decision(event, quotes)
         self.assertEqual(decision.gate_reason, Setup01DecisionGateReason.NO_VALID_TARGET)
 
-        event, quotes = _fixture(wave2_low=101.0)
-        decision = evaluate_setup01_decision(event, quotes)
-        self.assertEqual(decision.gate_reason, Setup01DecisionGateReason.RR_BELOW_MINIMUM)
-        # Target was independently generated before the R/R gate.
+        event, quotes = _fixture(wave2_low=109.8)
+        candidate = Setup01TargetCandidate(116.0, "SYNTHETIC", "test")
+        with patch(
+            "trading.setup01_decision._target_candidates",
+            return_value=(candidate,),
+        ):
+            decision = evaluate_setup01_decision(event, quotes)
+        self.assertEqual(
+            decision.gate_reason,
+            Setup01DecisionGateReason.TARGET_UPSIDE_BELOW_MINIMUM,
+        )
+        self.assertAlmostEqual(decision.target_upside_pct, (116.0 - 110.5) / 110.5)
+        self.assertEqual(decision.target_upside_band, "BELOW_MINIMUM")
+        # Target and R/R are both retained even when the upside gate is primary.
         self.assertTrue(decision.targets)
         self.assertIsNotNone(decision.rr)
+        self.assertGreaterEqual(decision.rr.rr_ratios[0], 2.0)
 
         invalid_event = replace(event, setup01=replace(event.setup01, structural_invalidation=None))
         decision = evaluate_setup01_decision(invalid_event, quotes)
         self.assertEqual(decision.gate_reason, Setup01DecisionGateReason.INVALID_STRUCTURE)
+
+    def test_target_upside_boundaries_and_independent_rr_gate(self):
+        event, quotes = _fixture(wave2_low=109.8)
+        cases = (
+            (1.0499, Setup01DecisionGateReason.TARGET_UPSIDE_BELOW_MINIMUM, "BELOW_MINIMUM"),
+            (1.05, Setup01DecisionGateReason.ENTRY_ALLOWED, "LOW_UPSIDE"),
+            (1.07, Setup01DecisionGateReason.ENTRY_ALLOWED, "LOW_UPSIDE"),
+            (1.08, Setup01DecisionGateReason.ENTRY_ALLOWED, "PREFERRED_UPSIDE"),
+        )
+        for multiplier, expected_reason, expected_band in cases:
+            with self.subTest(multiplier=multiplier):
+                candidate = Setup01TargetCandidate(110.5 * multiplier, "SYNTHETIC", "test")
+                with patch(
+                    "trading.setup01_decision._target_candidates",
+                    return_value=(candidate,),
+                ):
+                    decision = evaluate_setup01_decision(event, quotes)
+                self.assertEqual(decision.gate_reason, expected_reason)
+                self.assertEqual(decision.target_upside_band, expected_band)
+                self.assertAlmostEqual(decision.minimum_target_upside_pct, 0.05)
+
+        candidate = Setup01TargetCandidate(110.5 * 1.10, "SYNTHETIC", "test")
+        low_rr = RiskReward(110.5, 109.0, 1.5, (candidate.price,), (1.8,), "NO_TRADE")
+        with patch(
+            "trading.setup01_decision._target_candidates",
+            return_value=(candidate,),
+        ), patch("trading.setup01_decision.risk_reward", return_value=low_rr):
+            decision = evaluate_setup01_decision(event, quotes)
+        self.assertEqual(decision.gate_reason, Setup01DecisionGateReason.RR_BELOW_MINIMUM)
+        self.assertEqual(decision.target_upside_band, "PREFERRED_UPSIDE")
+
+    def test_t1_rechecks_remaining_target_upside_and_keeps_rr_diagnostic(self):
+        event, quotes = _fixture(wave2_low=109.8, t1_open=111.2)
+        candidate = Setup01TargetCandidate(110.5 * 1.055, "SYNTHETIC", "test")
+        with patch(
+            "trading.setup01_decision._target_candidates",
+            return_value=(candidate,),
+        ):
+            decision = evaluate_setup01_decision(event, quotes)
+        self.assertEqual(decision.action, DecisionAction.ENTRY_ALLOWED)
+        execution = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=_market_sessions(quotes)
+        )
+        self.assertEqual(execution.outcome, SKIP_TARGET_UPSIDE_BELOW_MINIMUM)
+        self.assertIsNone(execution.actual_entry)
+        self.assertIsNotNone(execution.actual_rr)
+        self.assertLess(execution.remaining_target_upside_pct, 0.05)
+        self.assertAlmostEqual(
+            execution.t1_gap_vs_planned_entry_pct,
+            (111.2 - 110.5) / 110.5,
+        )
+
+        event, quotes = _fixture(wave2_low=109.8, t1_open=114.0)
+        with patch(
+            "trading.setup01_decision._target_candidates",
+            return_value=(candidate,),
+        ):
+            decision = evaluate_setup01_decision(event, quotes)
+        execution = execute_setup01_t1_open(
+            decision, quotes, market_session_dates=_market_sessions(quotes)
+        )
+        self.assertEqual(execution.outcome, SKIP_GAP_ABOVE_ENTRY_ZONE)
+        self.assertLess(execution.remaining_target_upside_pct, 0.05)
 
     def test_t1_execution_uses_first_next_open_only_and_has_three_skip_reasons(self):
         event, quotes = _fixture(t1_open=109.0)

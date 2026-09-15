@@ -28,6 +28,7 @@ from trading.daily_decision_chain import (
     DailyTradingDecisionReport,
     InMemoryDecisionStateStore,
     STRATEGY_PROPOSAL,
+    opportunity_freshness_funnel,
 )
 from trading.daily_dashboard import (
     dashboard_universe_metadata,
@@ -338,6 +339,7 @@ def _funnel(
     def is_armed(result) -> bool:
         return result.setup01_state == "ARMED" or result.setup02_state == "ARMED"
 
+    freshness = opportunity_freshness_funnel(results)
     return {
         "seed": candidate_result.seed_count,
         "candidate_data_qualified": candidate_result.data_qualified_count,
@@ -363,6 +365,7 @@ def _funnel(
             result.final_status == "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED"
             for result in results
         ),
+        "opportunity_freshness": freshness,
     }
 
 
@@ -572,6 +575,7 @@ def _production_markdown(
         f"- Seed：{funnel['seed']}；Candidate 数据合格：{funnel['candidate_data_qualified']}；Candidate included：{funnel['candidate_included']}；进入深度策略分析：{funnel['deep_analysis']}",
         f"- WATCH：{funnel['WATCH']}；ARMED：{funnel['ARMED']}；新 CONFIRMED：{funnel['new_CONFIRMED']}；STRATEGY_PROPOSAL：{funnel['STRATEGY_PROPOSAL']}",
         f"- individual ENTRY_ALLOWED：{funnel['individual_ENTRY_ALLOWED']}；Portfolio allowed：{funnel['Portfolio_allowed']}；NO_TRADE：{funnel['NO_TRADE']}；DATA_BLOCKED：{funnel['DATA_BLOCKED']}",
+        f"- 机会新鲜度：{funnel.get('opportunity_freshness', {})}",
         f"- 正式策略股票池：{len(universe_report.get('formal_strategy_pool', ())) }；已有策略持仓：{len(universe_report.get('active_strategy_positions', ())) }；动态 Candidate：{len(universe_report.get('dynamic_candidate_set', ())) }",
         f"- Candidate runtime：{candidate_report.get('status', 'UNKNOWN')}；阶段耗时：{timing_text or '—'}",
         f"- Strategy evaluation elapsed：{strategy_elapsed_seconds}s",
@@ -811,6 +815,7 @@ def run_production_daily_decision(
     candidate_runtime_errors: dict[str, str] = {}
     paper_engine = PaperLifecycleEngine(paper_store) if paper_store is not None else None
     paper_context: list[tuple[DailyTradingDecisionReport, tuple, Mapping[str, object]]] = []
+    all_daily_results = []
     for account_run in snapshot.account_runs:
         if write_state:
             store = SheetsDecisionStateStore(
@@ -892,6 +897,7 @@ def run_production_daily_decision(
         )
         if paper_engine is not None:
             paper_context.append((report, inputs, universe_report))
+        all_daily_results.extend(report.results)
         strategy_elapsed_seconds = round(time.perf_counter() - strategy_started, 3)
         candidate_report = candidate_result.to_dict()
         candidate_report["deep_analysis_count"] = len(inputs)
@@ -1005,6 +1011,7 @@ def run_production_daily_decision(
         "broker orders": "NONE",
         "candidate_markets": candidate_payload,
         "funnel": funnel_payload,
+        "freshness_funnel": opportunity_freshness_funnel(all_daily_results),
         "candidate_runtime_errors": candidate_runtime_errors,
         "runtime": {
             "total_elapsed_seconds": round(time.perf_counter() - run_started, 3),

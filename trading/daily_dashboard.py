@@ -90,6 +90,12 @@ ACTION_LABELS = {
     "EXIT": "退出",
 }
 
+TARGET_UPSIDE_BAND_LABELS = {
+    "BELOW_MINIMUM": "低于最低要求",
+    "LOW_UPSIDE": "偏小，但达到最低交易门槛",
+    "PREFERRED_UPSIDE": "较充足",
+}
+
 WAVE_LABELS = {
     "WAVE_2_TO_3_CANDIDATE": "2浪调整结束候选，等待3浪启动",
     "WAVE_3_CONTINUATION_CANDIDATE": "3浪延续候选",
@@ -213,6 +219,15 @@ def _format_rr(value: Any, default: str = "—") -> str:
     if value is None or _raw_text(value) in {"", "—", "-"}:
         return default
     return _format_number(value, 2, trim=False)
+
+
+def _format_percent(value: Any, default: str = "—", *, signed: bool = False) -> str:
+    if value is None or _raw_text(value) in {"", "—", "-"}:
+        return default
+    number = _numeric(value)
+    if number is None:
+        return default
+    return f"{_format_number(number * 100, 2, signed=signed, trim=False)}%"
 
 
 def _first_value(*values: Any) -> Any:
@@ -669,6 +684,8 @@ def _translate_reason(value: Any) -> str:
         ("QFQ_HISTORY_MUST_REACH_COMPLETED_SESSION_T", "等待历史行情覆盖到数据日期"),
         ("UPSTREAM_EVALUATION_FAILED", "等待上游结构分析恢复"),
         ("DECISION_EVALUATION_FAILED", "等待交易方案计算恢复"),
+        ("TARGET_UPSIDE_BELOW_MINIMUM", "第一目标上涨空间不足5%"),
+        ("SKIP_TARGET_UPSIDE_BELOW_MINIMUM", "T+1剩余第一目标空间不足5%，不追入"),
         ("等待新的 CONFIRMED event", "等待新的确认事件"),
         ("T 日没有新的 CONFIRMED event", "今天没有新的确认事件"),
     )
@@ -792,6 +809,21 @@ def _plain_why(
     return _reason_text(result) or "当前没有满足入场条件的交易方案。"
 
 
+def _today_conclusion(
+    result: Mapping[str, Any], decision: Mapping[str, Any], stage: str
+) -> str:
+    if _decision_action(decision) == "NO_TRADE":
+        reason_labels = {
+            "TARGET_UPSIDE_BELOW_MINIMUM": "不交易：目标上涨空间不足",
+            "RR_BELOW_MINIMUM": "不交易：收益风险比不足",
+            "ABOVE_ENTRY_ZONE": "不追高：已经超过允许入场区",
+        }
+        reason = _raw_text(decision.get("gate_reason"))
+        if reason in reason_labels:
+            return reason_labels[reason]
+    return STAGE_LABELS.get(stage, stage)
+
+
 def _targets(decision: Mapping[str, Any]) -> tuple[Any, ...]:
     values = _sequence(decision.get("targets"))
     if not values:
@@ -807,8 +839,30 @@ def _rr_display(decision: Mapping[str, Any]) -> str:
     return _format_rr(rr.get("rr"))
 
 
-def _price_plan(decision: Mapping[str, Any]) -> dict[str, Any]:
+def _price_plan(
+    decision: Mapping[str, Any],
+    freshness: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    freshness = freshness or {}
     target_values = _targets(decision)
+    target_upside = _first_value(
+        decision.get("target_upside_pct"), freshness.get("target_upside_pct")
+    )
+    target_band = _first_value(
+        decision.get("target_upside_band"), freshness.get("target_upside_band")
+    )
+    minimum_upside = _first_value(
+        decision.get("minimum_target_upside_pct"),
+        freshness.get("minimum_target_upside_pct"),
+    )
+    entry_zone_distance = _first_value(
+        decision.get("entry_zone_upper_distance_pct"),
+        freshness.get("entry_zone_upper_distance_pct"),
+    )
+    confirmation_extension = _first_value(
+        decision.get("confirmation_extension_pct"),
+        freshness.get("confirmation_extension_pct"),
+    )
     return {
         "planned_entry": _format_price(decision.get("planned_entry"), "尚未形成"),
         "execution_stop": _format_price(decision.get("execution_stop")),
@@ -820,6 +874,24 @@ def _price_plan(decision: Mapping[str, Any]) -> dict[str, Any]:
         "confirmation_level": _format_price(decision.get("confirmation_level")),
         "entry_zone_low": _format_price(decision.get("entry_zone_low")),
         "entry_zone_high": _format_price(decision.get("entry_zone_high")),
+        "target_upside_pct": _format_percent(target_upside),
+        "target_upside_band": _display(
+            TARGET_UPSIDE_BAND_LABELS.get(_text(target_band), _text(target_band))
+        ),
+        "minimum_target_upside_pct": _format_percent(minimum_upside),
+        "entry_zone_upper_distance_pct": _format_percent(
+            entry_zone_distance, signed=True
+        ),
+        "confirmation_extension_pct": _format_percent(
+            confirmation_extension, signed=True
+        ),
+        "t1_open": _format_price(freshness.get("t1_open")),
+        "t1_gap_vs_planned_entry_pct": _format_percent(
+            freshness.get("t1_gap_vs_planned_entry_pct"), signed=True
+        ),
+        "remaining_target_upside_pct": _format_percent(
+            freshness.get("remaining_target_upside_pct")
+        ),
         "has_decision": bool(decision),
     }
 
@@ -918,6 +990,14 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
     is_position = _is_position(result, universe, symbol, position_management, labels)
     data_blocked = _is_data_blocked(result, position_management)
     event_is_new = _event_is_new(result)
+    freshness = dict(_mapping(result.get("opportunity_freshness")))
+    for key in (
+        "t1_open",
+        "t1_gap_vs_planned_entry_pct",
+        "remaining_target_upside_pct",
+    ):
+        if key not in freshness and result.get(key) is not None:
+            freshness[key] = result.get(key)
     stage = _stage(
         result,
         decision,
@@ -986,7 +1066,7 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "event_is_new": event_is_new,
         "default_focus": stage in DEFAULT_FOCUS_STAGES or event_is_new,
         "confirmation_level": _format_price(confirmation),
-        "today_conclusion": STAGE_LABELS.get(stage, stage),
+        "today_conclusion": _today_conclusion(result, decision, stage),
         "why": _plain_why(
             stage,
             result,
@@ -1003,8 +1083,9 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
             position_management=position_management,
         ),
         "invalidation": _invalidation_text(result, decision),
-        "plan": _price_plan(decision),
+        "plan": _price_plan(decision, freshness),
         "position": _position_projection(result, universe, symbol, position_management),
+        "opportunity_freshness": freshness,
         "decision": decision,
         "portfolio_result": _mapping(result.get("portfolio_result")),
         "position_management": position_management,
@@ -1172,6 +1253,42 @@ def _paper_projection(payload: Mapping[str, Any], entries: Sequence[Mapping[str,
     }
 
 
+def _freshness_funnel(
+    payload: Mapping[str, Any], entries: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    direct = _mapping(payload.get("freshness_funnel"))
+    if direct:
+        return dict(direct)
+    numeric_keys = (
+        "new_confirmed_total",
+        "above_entry_zone_count",
+        "target_upside_below_minimum_count",
+        "rr_below_minimum_count",
+        "other_no_trade_count",
+        "entry_allowed_count",
+        "t1_gap_skip_count",
+        "t1_upside_decay_skip_count",
+        "t1_gap_or_upside_skip_count",
+    )
+    totals = {key: 0 for key in numeric_keys}
+    found = False
+    conserved = True
+    for entry in entries:
+        funnel = _mapping(_mapping(entry.get("report")).get("freshness_funnel"))
+        if not funnel:
+            continue
+        found = True
+        for key in numeric_keys:
+            try:
+                totals[key] += int(funnel.get(key, 0) or 0)
+            except (TypeError, ValueError):
+                pass
+        conserved = conserved and bool(funnel.get("confirmation_funnel_conserved", True))
+    if not found:
+        return {}
+    return {**totals, "confirmation_funnel_conserved": conserved}
+
+
 def build_dashboard_projection(value: Any) -> dict[str, Any]:
     """Build a deterministic, presentation-only dashboard projection."""
 
@@ -1234,6 +1351,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "position_count": sum(row["is_position"] for row in rows),
         "data_blocked_count": sum(row["stage_key"] == "DATA_BLOCKED" for row in rows),
     }
+    freshness_funnel = _freshness_funnel(payload, entries)
     sectors = sorted({row["sector"] for row in rows if row["sector"] != "—"}, key=str.casefold)
     paper = _paper_projection(payload, entries)
     rules = [
@@ -1246,6 +1364,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "as_of_date": _display(as_of_date),
         "generated_at": _display(generated_at),
         "summary": summary,
+        "freshness_funnel": freshness_funnel,
         "markets": market_rows,
         "rows": rows,
         "sectors": sectors,
@@ -1319,6 +1438,9 @@ def _render_plan(row: Mapping[str, Any]) -> str:
         ("目标价 T1", plan.get("target_1")),
         ("目标价 T2", plan.get("target_2")),
         ("目标价 T3", plan.get("target_3")),
+        ("第一目标上涨空间", plan.get("target_upside_pct")),
+        ("空间评价", plan.get("target_upside_band")),
+        ("系统最低上涨要求", plan.get("minimum_target_upside_pct")),
         ("第一目标 R/R", _first_rr_text(plan.get("rr"))),
     )
     field_grid = _render_field_grid(fields, extra_class="plan-grid")
@@ -1420,6 +1542,72 @@ def _compact_position(row: Mapping[str, Any]) -> str:
     return "持仓管理：" + " · ".join(values) if values else "持仓管理中"
 
 
+def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
+    """Render causal freshness facts in the human-readable detail view."""
+
+    freshness = _mapping(row.get("opportunity_freshness"))
+    if not freshness:
+        return ""
+    plan = _mapping(row.get("plan"))
+    bullets: list[str] = []
+    distance = _numeric(freshness.get("entry_zone_upper_distance_pct"))
+    if distance is not None:
+        if distance > 0:
+            bullets.append(
+                f"已超过允许入场区上沿 {_format_percent(abs(distance))}，本次机会已过度延伸，不追"
+            )
+        else:
+            bullets.append("尚在允许入场区内")
+    target_upside = _numeric(freshness.get("target_upside_pct"))
+    minimum = _numeric(freshness.get("minimum_target_upside_pct"))
+    band = _text(freshness.get("target_upside_band"))
+    if target_upside is not None:
+        if band == "BELOW_MINIMUM":
+            bullets.append(
+                "结构确认有效，但第一目标只剩 "
+                f"{_format_percent(target_upside)}，低于 "
+                f"{_format_percent(minimum)} 最低要求，目标空间不足，本次不交易"
+            )
+            bullets.append(
+                f"参考价格：{_display(plan.get('planned_entry'))}；第一目标候选：{_display(plan.get('target_1'))}；"
+                f"RR：{_first_rr_text(plan.get('rr'))}；最低 RR：2.00R"
+            )
+            bullets.append("这些是 Decision gate 计算依据，不是买入/止盈建议")
+        elif band == "LOW_UPSIDE":
+            bullets.append(
+                f"第一目标剩余空间：{_format_percent(target_upside)}；偏小，但达到最低交易门槛"
+            )
+        elif band == "PREFERRED_UPSIDE":
+            bullets.append(
+                f"第一目标剩余空间：{_format_percent(target_upside)}；空间较充足"
+            )
+        else:
+            bullets.append(f"第一目标剩余空间：{_format_percent(target_upside)}")
+    remaining = _numeric(freshness.get("remaining_target_upside_pct"))
+    if remaining is not None:
+        bullets.append(
+            f"T+1 实际开盘后第一目标剩余空间：{_format_percent(remaining)}"
+        )
+    outcome = _text(_mapping(row.get("raw_result")).get("execution_outcome"))
+    if outcome == "SKIP_TARGET_UPSIDE_BELOW_MINIMUM":
+        bullets.append("T+1 剩余第一目标空间低于5%，已跳过，不追入")
+    elif outcome in {
+        "SKIP_GAP_BELOW_CONFIRMATION",
+        "SKIP_GAP_ABOVE_ENTRY_ZONE",
+    }:
+        bullets.append("T+1 开盘发生 gap，已按原有执行规则跳过")
+    elif row.get("stage_key") in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}:
+        bullets.append("T+1 若高开将重新检查剩余空间")
+    if not bullets:
+        return ""
+    return (
+        '<section class="panel opportunity-panel"><h3>机会新鲜度</h3>'
+        "<ul>"
+        + "".join(f"<li>{_escape(item)}</li>" for item in bullets)
+        + "</ul></section>"
+    )
+
+
 def _dashboard_search_text(row: Mapping[str, Any]) -> str:
     return f'{_raw_text(row.get("symbol"))} {_raw_text(row.get("name"))}'
 
@@ -1493,6 +1681,7 @@ def _render_details(row: Mapping[str, Any]) -> str:
         f'<section><h3>备选情景</h3><p>{_escape(row.get("alternate_wave_label"))}</p></section>'
         '</section>'
         + _render_plan(row)
+        + _render_opportunity_freshness(row)
         + (_render_position({**row, "position": position}) if row.get("is_position") else "")
         + '<details class="technical-details"><summary>开发者原始数据（查看技术详情 / 审计信息）</summary><div class="detail-body">'
         + '<div class="detail-grid">'
@@ -1683,6 +1872,8 @@ def _render_paper_trade(trade: Mapping[str, Any]) -> str:
             ("计划入场", _format_price(trade.get("planned_entry"))),
             ("允许入场区间", entry_zone),
             ("执行止损", _format_price(trade.get("execution_stop"))),
+            ("第一目标上涨空间", _paper_percent(trade.get("target_upside_pct"))),
+            ("空间评价", TARGET_UPSIDE_BAND_LABELS.get(_text(trade.get("target_upside_band")), _text(trade.get("target_upside_band")))),
             ("第一目标计划 R/R", _format_rr(trade.get("initial_rr"))),
             ("目标价", targets),
             ("目标规则", "目标价只记录状态，不自动止盈。"),
@@ -1700,6 +1891,8 @@ def _render_paper_trade(trade: Mapping[str, Any]) -> str:
             ("当前 R", _format_r(trade.get("current_r"))),
             ("MFE / MAE", f"{_format_r(trade.get('current_mfe'))} / {_format_r(trade.get('current_mae'))}"),
             ("当前保护止损", _format_price(trade.get("current_stop"))),
+            ("第一目标上涨空间", _paper_percent(trade.get("target_upside_pct"))),
+            ("T+1 剩余第一目标空间", _paper_percent(trade.get("remaining_target_upside_pct"))),
             ("目标价", targets),
             ("目标状态", _paper_target_status_label(target_status)),
             ("目标规则", "目标价只记录状态，不自动止盈。"),
@@ -1710,6 +1903,7 @@ def _render_paper_trade(trade: Mapping[str, Any]) -> str:
         state_fields = (
             ("计划入场", _format_price(trade.get("planned_entry"))),
             ("T+1 开盘", _format_price(trade.get("t1_open"))),
+            ("T+1 剩余第一目标空间", _paper_percent(trade.get("remaining_target_upside_pct"))),
             ("跳过原因", _paper_human_text(trade.get("skip_reason") or trade.get("why_execution"))),
         )
         next_text = "继续观察后续新的确认事件；这笔计划不会补记为成交。"
@@ -1754,6 +1948,13 @@ def _render_paper_trade(trade: Mapping[str, Any]) -> str:
         "planned_risk_per_share": trade.get("planned_risk_per_share"),
         "initial_risk_per_share_actual": trade.get("initial_risk_per_share"),
         "initial_rr": trade.get("initial_rr"),
+        "target_upside_pct": trade.get("target_upside_pct"),
+        "target_upside_band": trade.get("target_upside_band"),
+        "minimum_target_upside_pct": trade.get("minimum_target_upside_pct"),
+        "entry_zone_upper_distance_pct": trade.get("entry_zone_upper_distance_pct"),
+        "confirmation_extension_pct": trade.get("confirmation_extension_pct"),
+        "t1_gap_vs_planned_entry_pct": trade.get("t1_gap_vs_planned_entry_pct"),
+        "remaining_target_upside_pct": trade.get("remaining_target_upside_pct"),
         "execution_outcome": execution_outcome,
         "actual_rr": trade.get("actual_rr"),
         "target_status": target_status,

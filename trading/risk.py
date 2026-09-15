@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import math
 from typing import Sequence
 
 from trading.models import PositionSize, RiskReward
@@ -17,6 +18,14 @@ NO_TRADE = "NO_TRADE"
 NORMAL = "NORMAL"
 HIGH_QUALITY = "HIGH_QUALITY"
 HIGH_ASYMMETRY = "HIGH_ASYMMETRY"
+
+# This is the single source of truth for the gross T1 upside eligibility
+# floor.  SETUP_01, SETUP_02, and their exact T+1 executors all reuse it.
+MIN_TARGET_UPSIDE_PCT = 0.05
+PREFERRED_TARGET_UPSIDE_PCT = 0.08
+TARGET_UPSIDE_BAND_BELOW_MINIMUM = "BELOW_MINIMUM"
+TARGET_UPSIDE_BAND_LOW = "LOW_UPSIDE"
+TARGET_UPSIDE_BAND_PREFERRED = "PREFERRED_UPSIDE"
 
 
 def rr_quality(rr: float) -> str:
@@ -28,6 +37,43 @@ def rr_quality(rr: float) -> str:
     if rr <= 5:
         return HIGH_QUALITY
     return HIGH_ASYMMETRY
+
+
+def target_upside_pct(target: float, reference_entry_price: float) -> float:
+    """Return gross upside from a positive reference price to a target."""
+
+    target = float(target)
+    reference_entry_price = float(reference_entry_price)
+    if not math.isfinite(target) or not math.isfinite(reference_entry_price):
+        raise ValueError("target and reference_entry_price must be finite")
+    if reference_entry_price <= 0:
+        raise ValueError("reference_entry_price must be positive")
+    return (target - reference_entry_price) / reference_entry_price
+
+
+def target_upside_band(value: float) -> str:
+    """Classify gross T1 upside for presentation/research only."""
+
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError("target upside must be finite")
+    if value < MIN_TARGET_UPSIDE_PCT:
+        return TARGET_UPSIDE_BAND_BELOW_MINIMUM
+    if value < PREFERRED_TARGET_UPSIDE_PCT:
+        return TARGET_UPSIDE_BAND_LOW
+    return TARGET_UPSIDE_BAND_PREFERRED
+
+
+def relative_distance_pct(value: float, reference: float) -> float:
+    """Return ``(value - reference) / reference`` for causal diagnostics."""
+
+    value = float(value)
+    reference = float(reference)
+    if not math.isfinite(value) or not math.isfinite(reference):
+        raise ValueError("value and reference must be finite")
+    if reference == 0:
+        raise ValueError("reference must be non-zero")
+    return (value - reference) / reference
 
 
 def risk_reward(

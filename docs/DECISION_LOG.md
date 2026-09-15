@@ -590,3 +590,39 @@ promotion semantics。
 **Reason:** 统一内存数据边界可避免云端把当日行情变成长期状态或把 CN/US 失败相互
 污染，同时复用已验证的生产语义；最终 artifact 和移动优先 human mapping 让日报可
 在手机上决策阅读，但不引入第二套策略状态机或自动交易权限。
+
+## 2026-09-14 — T1 gross target-upside gate 与 opportunity freshness diagnostics
+
+**Decision:** SETUP_01 与 SETUP_02 的第一正式目标 T1，必须相对 T 日现有
+canonical `planned_entry` 有至少 `5%` gross upside，同时继续满足既有 T1
+`RR >= 2R`。唯一常量 `MIN_TARGET_UPSIDE_PCT=0.05` 与
+`target_upside_pct=(T1-reference_entry_price)/reference_entry_price` 位于共享
+`trading.risk`。T1 仍按既有 target-before-RR、nearest-first 规则确定；不得用
+T2/T3、远端 Swing、Fib、Wave、stop、Target generation、ranking、Portfolio Risk
+或 Position Management 绕过门槛。T1 upside 不足时 primary Decision reason 为
+`TARGET_UPSIDE_BELOW_MINIMUM`，但既有 R/R diagnostic 继续保留。
+
+Exact T+1 OPEN 使用相同冻结 T1 与 actual OPEN 重新计算
+`remaining_target_upside_pct`；低于 5% 时为
+`SKIP_TARGET_UPSIDE_BELOW_MINIMUM`。Structural invalidation、below-confirmation、
+above-entry-zone 与 exact-session precedence 保持不变；T+1 仍只读取 OPEN。
+`5% <= upside < 8%` 为 `LOW_UPSIDE`，`>=8%` 为 `PREFERRED_UPSIDE`，两者只作
+presentation/research band，不改变资格之外的 rank、size、allocation、approval 或
+promotion。
+
+**Decision:** 同一日报增加 `OPPORTUNITY_FRESHNESS_DIAGNOSTICS_V1`，只使用当时
+可获得的 T-day `planned_entry`、T1、entry-zone upper、canonical confirmation
+level 与 exact T+1 OPEN，输出 target upside、entry-zone upper distance、
+confirmation extension、T+1 gap、remaining T1 upside，以及以 primary reason
+计数且不重叠的 freshness funnel。不得使用事后最低点、future bars、MFE/MAE、
+Final OOS 或据此自动放宽/优化策略。数据不足时不发明 confirmation threshold，
+诊断不改变 `ENTRY_ALLOWED` / `NO_TRADE` / final status。
+
+Paper lifecycle 从该代码进入后 forward-only 使用新 gate；旧 append-only Paper
+ledger 不回溯、不重写。新增诊断沿用既有 `payload_json`，Candidate-only 仍为
+`READ_ONLY_DISCOVERY`，不产生 production state、allocation、promotion 或 broker
+execution。
+
+**Reason:** 第一目标的可交易空间是策略资格，而确认时点、入场区位置和 T+1 gap
+造成的空间衰减是观察问题。把两者分开可同时执行硬性交易纪律与因果测量，避免用
+事后结果改变 Wave/Setup/Entry 语义。

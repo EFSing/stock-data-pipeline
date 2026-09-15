@@ -2,7 +2,7 @@
 
 ## Scope and event identity
 
-`SETUP-01-DECISION-RISK-2026-08-30-v1` is an independent T-day plan and
+`SETUP-01-DECISION-RISK-2026-09-14-v2` is an independent T-day plan and
 T+1-open feasibility evaluator. It consumes only `Setup01ReplayEvent` values
 whose `event_type == CONFIRMED` and whose
 `is_new_confirmed_event_as_of` is true. A repeated current `CONFIRMED` state is
@@ -59,6 +59,8 @@ At T+1 OPEN, an `ENTRY_ALLOWED` plan is classified as:
 - `SKIP_GAP_BELOW_CONFIRMATION` when the open is below the confirmation level
   but above invalidation;
 - `SKIP_GAP_ABOVE_ENTRY_ZONE` when the open is above the entry-zone high;
+- `SKIP_TARGET_UPSIDE_BELOW_MINIMUM` when the open is inside the allowed zone
+  but the frozen T1 has less than 5% gross upside from that exact OPEN;
 - `SKIP_RR_BELOW_MINIMUM_AT_OPEN` when the open is inside the inclusive entry
   zone but the actual-open first-target R/R is below 2;
 - `EXECUTED` when the open is inside the inclusive allowed entry zone, the
@@ -95,6 +97,22 @@ existing target provenance/geometry check. This audit adds no target lookback,
 age threshold, or new target filter. A >5R or stale historical swing
 observation is evidence for Sol review only; it does not create a new gate.
 
+The canonical gross target-upside gate is shared by SETUP_01, SETUP_02, and
+their T+1 executors through `trading.risk.MIN_TARGET_UPSIDE_PCT`:
+
+```text
+MIN_TARGET_UPSIDE_PCT = 0.05
+target_upside_pct = (T1 - reference_entry_price) / reference_entry_price
+```
+
+At T, `reference_entry_price` is the existing canonical `planned_entry`.
+After target generation, `target_upside_pct < 0.05` returns
+`NO_TRADE / TARGET_UPSIDE_BELOW_MINIMUM`; T1 remains the nearest formal target,
+and T2/T3, Fib, Wave, stop, R/R, and ranking are not changed. The R/R object is
+still retained when both gates fail, with target-upside as the primary reason.
+`5% <= upside < 8%` is `LOW_UPSIDE` and `upside >= 8%` is
+`PREFERRED_UPSIDE`; these bands are presentation/research diagnostics only.
+
 ## Execution ledger and development session identity
 
 The execution ledger has a strict field invariant:
@@ -105,9 +123,23 @@ actual_entry != None  if and only if  outcome == EXECUTED
 
 `t1_open` is the observed price at the exact T+1 OPEN and is retained for
 diagnostics. `actual_entry` represents only a real executed fill. Therefore an
-in-zone OPEN that fails the actual-open R/R gate is recorded as
-`SKIP_RR_BELOW_MINIMUM_AT_OPEN` with `t1_open` and `actual_rr` populated but
-`actual_entry=None`. All other skip outcomes also keep `actual_entry=None`.
+in-zone OPEN that fails the actual-open target-upside gate is recorded as
+`SKIP_TARGET_UPSIDE_BELOW_MINIMUM`; one that fails only the actual-open R/R gate
+is recorded as `SKIP_RR_BELOW_MINIMUM_AT_OPEN`. Both retain `t1_open` and the
+available `actual_rr` diagnostic but keep `actual_entry=None`. All other skip
+outcomes also keep `actual_entry=None`.
+
+At an exact T+1 OPEN, `reference_entry_price` is that actual OPEN and the
+executor records `t1_gap_vs_planned_entry_pct` and
+`remaining_target_upside_pct`. Structural invalidation, below-confirmation, and
+above-entry-zone precedence remains unchanged; only after those checks does
+`remaining_target_upside_pct < 0.05` produce
+`SKIP_TARGET_UPSIDE_BELOW_MINIMUM`. No T+1 high/low/close is read.
+
+The same Decision projection exposes causal freshness diagnostics:
+`entry_zone_upper_distance_pct` and `confirmation_extension_pct`, using the
+existing T-day `planned_entry` and canonical confirmation/entry-zone fields.
+They are observations only and never change Decision action or lifecycle state.
 
 Development T+1 session identity is formally:
 
@@ -158,10 +190,11 @@ CONFIRMED
 ```
 
 Decision reasons are `ATR_UNAVAILABLE`, `ABOVE_ENTRY_ZONE`,
-`NO_VALID_TARGET`, `RR_BELOW_MINIMUM`, `INVALID_STRUCTURE`, and
+`NO_VALID_TARGET`, `TARGET_UPSIDE_BELOW_MINIMUM`, `RR_BELOW_MINIMUM`, `INVALID_STRUCTURE`, and
 `ENTRY_ALLOWED`. Execution reasons include
 `SKIP_GAP_BELOW_CONFIRMATION`, `SKIP_GAP_ABOVE_ENTRY_ZONE`,
 `SKIP_BELOW_INVALIDATION`, `SKIP_NO_T1_BAR`,
+`SKIP_TARGET_UPSIDE_BELOW_MINIMUM`,
 `SKIP_RR_BELOW_MINIMUM_AT_OPEN`, and `EXECUTED`.
 
 The default operational gate is

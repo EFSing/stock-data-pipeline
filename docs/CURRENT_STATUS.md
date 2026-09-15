@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-14（Cloud Daily Report V1 正式 cutover）。
+> 最后实质更新：2026-09-14（Cloud Daily Report V1 正式 cutover；T1 upside/freshness V1）。
 
 ## 项目身份
 
@@ -96,9 +96,19 @@
   `NONE → WATCH → ARMED → CONFIRMED/FAILED`；只接受 primary
   `WAVE_2_TO_3_CANDIDATE`，确认需日线 close 严格高于 Wave 1 peak；
   结构性失效与 trade-structure 失效分开。
-- Decision/Risk v1 已实现并合并：first-entry `CONFIRMED` exactly-once、
+- Decision/Risk revision v2 已实现并合并：first-entry `CONFIRMED` exactly-once、
   T close 只形成 plan、最早 T+1 session `OPEN` 执行、Target-before-RR、
   `actual_entry != None ⇔ outcome == EXECUTED`。
+- 新增正式 T1 gross upside gate：`trading.risk.MIN_TARGET_UPSIDE_PCT=0.05`。
+  T1 相对 T 日 canonical `planned_entry` 低于 5% 时为
+  `NO_TRADE / TARGET_UPSIDE_BELOW_MINIMUM`；T1 仍是第一正式目标，T2/T3、
+  Target、Fib、Wave、Stop、R/R、排序与仓位均不改。`LOW_UPSIDE`（5%–8%）和
+  `PREFERRED_UPSIDE`（>=8%）只作诊断 band；exact T+1 OPEN 重新检查剩余 T1
+  upside，低于 5% 时为 `SKIP_TARGET_UPSIDE_BELOW_MINIMUM`，原结构与
+  entry-zone reason precedence 保持不变。
+- Decision/日报保留 `target_upside_pct`、band、最低要求、entry-zone 上沿距离、
+  confirmation extension，以及 exact T+1 gap/remaining-upside 诊断；这些
+  freshness fields 不改变 action/final status。
 - 有 generic synthetic operational shadow 与 development-only replay evidence；
   尚未接入生产自动执行（生产日历集成是已登记前置条件）。
 
@@ -108,10 +118,13 @@
   `WAVE_3_CONTINUATION_CANDIDATE` + `setup02_context_eligible=true`，要求因果
   `LOW0→HIGH1→LOW2→HIGH3`、`HIGH3>HIGH1`、`LOW2>LOW0`、weekly/daily UPTREND；
   recovery 与确认阈值固定，终态事件仅首次进入发出一次。
-- Decision/Risk v2 已实现并合并：target 几何固定为
+- Decision/Risk revision v3 已实现并合并：target 几何固定为
   `LOW2 + (HIGH1−LOW0) × EXTENSION_RATIO`（source=`WAVE3_FIB_EXTENSION`），
   filter `target > planned_entry` 后按升序 T1/T2/T3 再做 R/R；
   旧 `structural_invalidation → HIGH3` 投影因数学上与最小 R/R 不兼容已被废弃。
+- 当前 Decision/Risk revision 同时执行共享 5% T1 gate；nearest T1 即使空间或
+  R/R 不足，也不会跳到更远的 T2/T3。T+1 使用 exact OPEN 重新计算剩余空间，
+  原有结构与 entry-zone reason precedence 保持不变。
 - 有 generic synthetic operational shadow 与 development replay；尚未接入生产
   自动执行。
 
@@ -156,6 +169,10 @@
   两组后合并展示结果。只有正式池输入在显式 `--write-state` 下才追加 system-owned
   `策略决策状态`；`--approve-event`、`--allocation-budget ACCOUNT_ID=AMOUNT` 对
   Candidate-only 不会绕过晋级边界。
+- Daily JSON/Markdown 另含 causal、non-overlapping `freshness_funnel`：按当日
+  new CONFIRMED 的 primary reason 统计 `ABOVE_ENTRY_ZONE`、目标空间不足、RR
+  不足、其他 NO_TRADE、仍可交易，并统计可见 T+1 gap/空间衰减 skip；不使用事后
+  最低点或 future bars。
  - `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
    它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
    enum/protocol/交易语义。首页默认是“今日重点”，只展示 ENTRY_ALLOWED、
@@ -179,6 +196,9 @@
    当前 R 与最终 R 均来自成交后的 `PositionOrigin`；原始 identity、policy、provenance、
    PositionOrigin 与完整数值只在折叠的技术审计区显示。绩效页将胜率、R、收益率与样本
    不足明确区分，Coverage 缺口以用户可读警告呈现。
+- Paper plan/trade 通过现有 `payload_json` 继续保留 T1 upside、band、entry-zone
+  distance、confirmation extension、T+1 gap 与 remaining upside；不回溯或改写
+  旧 Paper ledger 事件，也不改变 Candidate-only 的 `READ_ONLY_DISCOVERY` 边界。
 - 启用持仓即使不在正式股票池或 Candidate 中也会继续进入 Position Management；
   多个 enabled account 共享同一 market 且没有现成 routing 规则时 fail closed 为
   `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING`。
@@ -214,6 +234,9 @@
   Google Sheets credentials contract 与 legacy 手工逻辑；自动调度只由 CN/US Cloud
   Daily Report 承担，避免两套定时路径并行。Bark/SMTP 仍为可选通知，当前
   `NOT_CONFIGURED`。
+- Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
+  空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
+  最低要求及可用的 RR 诊断。
 
 ### Portfolio Risk（已实现并合并，未自动生产运行）
 

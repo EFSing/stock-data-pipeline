@@ -245,6 +245,7 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     status = str(cloud.get("status") or "FAILED")
     projection = build_dashboard_projection(payload)
     summary = projection.get("summary", {})
+    freshness = projection.get("freshness_funnel", {})
     plan_count = int(summary.get("strategy_proposal_count", 0) or 0) + int(
         summary.get("entry_allowed_count", 0) or 0
     )
@@ -258,7 +259,8 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
             f"接近确认：{summary.get('armed_count', 0)}\n"
             f"交易方案：{plan_count}\n"
             f"持仓：{summary.get('position_count', 0)}\n"
-            f"数据异常：{summary.get('data_blocked_count', 0)}"
+            f"数据异常：{summary.get('data_blocked_count', 0)}\n"
+            f"目标空间不足：{freshness.get('target_upside_below_minimum_count', 0) if isinstance(freshness, Mapping) else 0}"
         )
     else:
         failed = ((cloud.get("data_quality") or {}).get("failed_symbols") or [])

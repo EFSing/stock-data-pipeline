@@ -16,6 +16,7 @@ from trading.models import DecisionAction, SetupState
 from trading.setup02_decision import (
     EXECUTED,
     SKIP_NO_T1_BAR,
+    SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
     Setup02Decision,
     Setup02DecisionStream,
     Setup02Execution,
@@ -37,6 +38,7 @@ EXECUTION_OUTCOMES = (
     "SKIP_GAP_ABOVE_ENTRY_ZONE",
     "SKIP_BELOW_INVALIDATION",
     SKIP_NO_T1_BAR,
+    SKIP_TARGET_UPSIDE_BELOW_MINIMUM,
     "SKIP_RR_BELOW_MINIMUM_AT_OPEN",
     "SKIP_DECISION_NOT_ENTRY_ALLOWED",
 )
