@@ -1,4 +1,5 @@
 from datetime import date
+from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 
@@ -8,6 +9,7 @@ from trading.risk import risk_reward
 from trading.setup01_decision import (
     Setup01Decision,
     Setup01TargetCandidate,
+    Setup01DecisionGateReason,
     Setup01TargetProvenance,
 )
 from research.development.setup01_swing_boundary_counterfactual_v1 import (
@@ -82,6 +84,13 @@ class Setup01SwingBoundaryCounterfactualTests(unittest.TestCase):
         self.assertEqual(p1.target_candidates[0].source, "WAVE3_FIB_EXTENSION")
         self.assertAlmostEqual(p1.rr.rr_ratios[0], 2.0)
 
+        above_zone = _build_p1_decision(
+            replace(p0, planned_entry=112.0, entry_zone_high=111.0),
+            event,
+        )
+        self.assertEqual(above_zone.gate_reason, Setup01DecisionGateReason.ABOVE_ENTRY_ZONE)
+        self.assertEqual(above_zone.action, DecisionAction.NO_TRADE)
+
     def test_obstacle_path_uses_stop_first_when_exit_bar_high_crosses_obstacle(self):
         day = date(2026, 1, 6)
         replay = SimpleNamespace(
@@ -117,6 +126,42 @@ class Setup01SwingBoundaryCounterfactualTests(unittest.TestCase):
         self.assertEqual(path["status"], "STOP_BEFORE_OBSTACLE_CLEAR")
         self.assertTrue(path["stop_before_obstacle_clear"])
         self.assertTrue(path["same_bar_stop_first_applied"])
+
+    def test_obstacle_path_separates_no_stop_terminal_clear(self):
+        day = date(2026, 1, 7)
+        replay = SimpleNamespace(
+            origin=SimpleNamespace(actual_entry=100.0),
+            days=(
+                SimpleNamespace(
+                    trade_date=day,
+                    position_open_at_close=True,
+                    exit_reason=None,
+                ),
+            ),
+        )
+        quote = Quote(
+            symbol="SYNTH",
+            name="Synthetic",
+            market="US",
+            trade_date=day,
+            source="TEST",
+            open=100.0,
+            high=115.0,
+            low=99.0,
+            close=110.0,
+            preclose=None,
+            pct_change=None,
+            volume=1.0,
+            amount=None,
+            turnover_rate=None,
+            currency="USD",
+        )
+
+        path = _obstacle_path(replay, {day: quote}, 110.0)
+
+        self.assertEqual(path["status"], "CLEARED_BEFORE_TERMINAL_WITHOUT_STOP")
+        self.assertIsNone(path["cleared_after_entry_before_stop"])
+        self.assertTrue(path["cleared_before_terminal_without_stop"])
 
     def test_performance_summary_excludes_open_censored_rows(self):
         details = [

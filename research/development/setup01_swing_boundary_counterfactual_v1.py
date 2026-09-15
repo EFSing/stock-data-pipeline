@@ -466,6 +466,20 @@ def _build_p1_decision(
 ) -> Setup01Decision:
     """Derive P1 only from P0's T-known candidate provenance and geometry."""
 
+    # P1 changes only the formal T1 source.  The T-day entry-zone contract is
+    # still frozen, so a P0 plan that is already above that zone cannot be
+    # turned into a research entry merely because a Fib candidate exists.
+    if (
+        p0.planned_entry is not None
+        and p0.entry_zone_high is not None
+        and p0.planned_entry > p0.entry_zone_high
+    ):
+        return _p1_no_trade(
+            p0,
+            reason=Setup01DecisionGateReason.ABOVE_ENTRY_ZONE,
+            detail="P1 保留既有 T 日 entry zone；planned_entry 高于 entry_zone_high",
+        )
+
     fib = _nearest_fib_candidate(p0)
     if fib is None:
         return _p1_no_trade(
@@ -707,6 +721,7 @@ def _obstacle_path(
             "status": "NO_OBSTACLE_AVAILABLE",
             "gap_above_at_entry": None,
             "cleared_after_entry_before_stop": None,
+            "cleared_before_terminal_without_stop": None,
             "stop_before_obstacle_clear": None,
             "obstacle_clear_date": None,
             "stop_date": _date_text(_stop_date(replay)),
@@ -718,6 +733,7 @@ def _obstacle_path(
             "status": "GAP_ABOVE_AT_ENTRY",
             "gap_above_at_entry": True,
             "cleared_after_entry_before_stop": None,
+            "cleared_before_terminal_without_stop": None,
             "stop_before_obstacle_clear": None,
             "obstacle_clear_date": None,
             "stop_date": _date_text(_stop_date(replay)),
@@ -739,26 +755,31 @@ def _obstacle_path(
             clear_date = day.trade_date
             break
 
-    if clear_date is not None and (stop_date is None or clear_date < stop_date):
-        status = (
-            "CLEARED_BEFORE_STOP"
-            if stop_date is not None
-            else "CLEARED_BEFORE_TERMINAL_WITHOUT_STOP"
-        )
+    if clear_date is not None and stop_date is not None and clear_date < stop_date:
+        status = "CLEARED_BEFORE_STOP"
         clear_before_stop = True
+        clear_before_terminal_without_stop = False
+        stop_before_clear = False
+    elif clear_date is not None and stop_date is None:
+        status = "CLEARED_BEFORE_TERMINAL_WITHOUT_STOP"
+        clear_before_stop = None
+        clear_before_terminal_without_stop = True
         stop_before_clear = False
     elif stop_date is not None:
         status = "STOP_BEFORE_OBSTACLE_CLEAR"
         clear_before_stop = False
+        clear_before_terminal_without_stop = False
         stop_before_clear = True
     else:
         status = "AMBIGUOUS_NO_CLEAR_NO_STOP"
-        clear_before_stop = False
-        stop_before_clear = False
+        clear_before_stop = None
+        clear_before_terminal_without_stop = False
+        stop_before_clear = None
     return {
         "status": status,
         "gap_above_at_entry": False,
         "cleared_after_entry_before_stop": clear_before_stop,
+        "cleared_before_terminal_without_stop": clear_before_terminal_without_stop,
         "stop_before_obstacle_clear": stop_before_clear,
         "obstacle_clear_date": _date_text(clear_date),
         "stop_date": _date_text(stop_date),
@@ -939,7 +960,13 @@ def _obstacle_summary(details: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     paths = [item["obstacle_path"] for item in details]
     gap_count = sum(item.get("status") == "GAP_ABOVE_AT_ENTRY" for item in paths)
     usable = [item for item in paths if item.get("status") != "NO_OBSTACLE_AVAILABLE" and not item.get("gap_above_at_entry")]
-    clear_count = sum(bool(item.get("cleared_after_entry_before_stop")) for item in usable)
+    clear_before_stop_count = sum(
+        item.get("status") == "CLEARED_BEFORE_STOP" for item in usable
+    )
+    clear_before_terminal_without_stop_count = sum(
+        item.get("status") == "CLEARED_BEFORE_TERMINAL_WITHOUT_STOP"
+        for item in usable
+    )
     stop_before_count = sum(bool(item.get("stop_before_obstacle_clear")) for item in usable)
     ambiguous_count = sum(item.get("status", "").startswith("AMBIGUOUS") for item in usable)
     same_bar_count = sum(bool(item.get("same_bar_stop_first_applied")) for item in paths)
@@ -948,8 +975,23 @@ def _obstacle_summary(details: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "gap_above_obstacle_at_entry_count": gap_count,
         "gap_above_obstacle_at_entry_rate": _rate(gap_count, len(paths)),
         "non_gap_obstacle_path_denominator": len(usable),
-        "obstacle_clear_before_stop_count": clear_count,
-        "obstacle_clear_before_stop_rate_non_gap": _rate(clear_count, len(usable)),
+        "obstacle_clear_before_stop_count": clear_before_stop_count,
+        "obstacle_clear_before_stop_rate_non_gap": _rate(
+            clear_before_stop_count, len(usable)
+        ),
+        "obstacle_clear_before_terminal_without_stop_count": (
+            clear_before_terminal_without_stop_count
+        ),
+        "obstacle_clear_before_terminal_without_stop_rate_non_gap": _rate(
+            clear_before_terminal_without_stop_count, len(usable)
+        ),
+        "obstacle_clear_before_stop_or_terminal_count": (
+            clear_before_stop_count + clear_before_terminal_without_stop_count
+        ),
+        "obstacle_clear_before_stop_or_terminal_rate_non_gap": _rate(
+            clear_before_stop_count + clear_before_terminal_without_stop_count,
+            len(usable),
+        ),
         "stop_before_obstacle_clear_count": stop_before_count,
         "stop_before_obstacle_clear_rate_non_gap": _rate(stop_before_count, len(usable)),
         "ambiguous_count_non_gap": ambiguous_count,
@@ -1357,6 +1399,7 @@ def run_counterfactual_research(
         },
         "controls": {
             "development_only": True,
+            "p1_research_only": True,
             "final_oos_accessed": False,
             "formal_validation": False,
             "provider_accessed": False,
@@ -1382,7 +1425,8 @@ def run_counterfactual_research(
             "classification": DECISION_CLASSIFICATION,
             "reason": (
                 f"The fixed NEAR_SWING_ONLY run produced {len(p1_details_with_half)} executed P1 research rows: "
-                f"{p1_obstacle['obstacle_clear_before_stop_count']} cleared the overhead Swing High before stop, "
+                f"{p1_obstacle['obstacle_clear_before_stop_count']} cleared the overhead Swing High before a stop and "
+                f"{p1_obstacle['obstacle_clear_before_terminal_without_stop_count']} cleared it before terminal without a stop, "
                 f"{p1_fib['fib_t1_hit_before_stop_count']} reached the research Fib T1, and "
                 f"{p1_performance['stop_out_count']} stopped out. The executed sample is small, "
                 "the positive gross R is concentrated in one symbol, and CN/US and time-half results diverge. "

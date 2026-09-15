@@ -41,14 +41,15 @@
   81 个 Fib-near 的 identity 最大残差约 `5.2e-14`，BOTH_NEAR 为 `63/81`，归因
   结论仅为描述统计，不形成新 gate。
 - 新增 `research/development/setup01_swing_boundary_counterfactual_v1.py` 与 compact
-  JSON/Markdown report；固定 `117 → 117 → 11 → 11 → 11 → 6` P1 funnel。6 条
-  executed research row 中 6/6 在 stop 前清过最近 confirmed Swing High，1/6 到达
-  Fib T1，5/6 stop；结果分类为 `INSUFFICIENT_EVIDENCE`，未转成生产规则。
+  JSON/Markdown report；固定 `117 → 117 → 117 → 11 → 11 → 6` P1 funnel。6 条
+  executed research row 中 5/6 在 stop 前、另 1/6 在无 stop 的结构性终止前清过最近
+  confirmed Swing High；1/6 到达 Fib T1，5/6 stop；结果分类为
+  `INSUFFICIENT_EVIDENCE`，未转成生产规则。
 
 ## 4. Validation（验证结果）
 
-- focused：counterfactual research tests → `3 tests passed`。
-- full：`python -m unittest discover -s tests -v` → `735 tests passed, 3 skipped, OK`；
+- focused：counterfactual research tests → `4 tests passed`。
+- full：`python -m unittest discover -s tests -v` → `736 tests passed, 3 skipped, OK`；
   现有 generic operational shadow checks 继续通过。
 - `python -m py_compile` 覆盖本轮 research module；research artifact 重新生成并核对
   P0 parity、745 confirmed、117/63/18 category conservation、exact T+1、P1

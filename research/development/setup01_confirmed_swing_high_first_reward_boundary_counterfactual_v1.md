@@ -2,7 +2,7 @@
 
 Decision classification: **INSUFFICIENT_EVIDENCE**
 
-The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared the overhead Swing High before stop, 1 reached the research Fib T1, and 5 stopped out. The executed sample is small, the positive gross R is concentrated in one symbol, and CN/US and time-half results diverge. That is not stable evidence either to retain the Swing High as a protective hard boundary or to remove it as a universally removable boundary; no conditioning variable or distance threshold is searched in this run.
+The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 5 cleared the overhead Swing High before a stop and 1 cleared it before terminal without a stop, 1 reached the research Fib T1, and 5 stopped out. The executed sample is small, the positive gross R is concentrated in one symbol, and CN/US and time-half results diverge. That is not stable evidence either to retain the Swing High as a protective hard boundary or to remove it as a universally removable boundary; no conditioning variable or distance threshold is searched in this run.
 
 ## Scope and controls
 
@@ -90,8 +90,12 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
   "gap_above_obstacle_at_entry_count": 0,
   "gap_above_obstacle_at_entry_rate": 0.0,
   "non_gap_obstacle_path_denominator": 6,
-  "obstacle_clear_before_stop_count": 6,
-  "obstacle_clear_before_stop_rate_non_gap": 1.0,
+  "obstacle_clear_before_stop_count": 5,
+  "obstacle_clear_before_stop_rate_non_gap": 0.8333333333333334,
+  "obstacle_clear_before_terminal_without_stop_count": 1,
+  "obstacle_clear_before_terminal_without_stop_rate_non_gap": 0.16666666666666666,
+  "obstacle_clear_before_stop_or_terminal_count": 6,
+  "obstacle_clear_before_stop_or_terminal_rate_non_gap": 1.0,
   "stop_before_obstacle_clear_count": 0,
   "stop_before_obstacle_clear_rate_non_gap": 0.0,
   "ambiguous_count_non_gap": 0,
@@ -255,21 +259,21 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
   "symbol_concentration": {
     "closed_symbol_count": 6,
     "gross_total_net_R": -0.30047014057029653,
-    "gross_total_absolute_net_R": 6.725707289448855,
+    "gross_total_absolute_net_R": 6.725707289448854,
     "gross_total_positive_R": 3.2126185744392792,
     "top_5_by_absolute_net_R": [
       {
         "symbol": "603919.SH",
         "value_R": 3.2126185744392792,
         "share_of_total_net_R": -10.69197281414281,
-        "share_of_total_absolute_net_R": 0.4776625618957825,
+        "share_of_total_absolute_net_R": 0.47766256189578254,
         "share_of_total_positive_R": 1.0
       },
       {
         "symbol": "601888.SH",
         "value_R": -1.0,
         "share_of_total_net_R": 3.3281177227859846,
-        "share_of_total_absolute_net_R": 0.14868324727256246,
+        "share_of_total_absolute_net_R": 0.1486832472725625,
         "share_of_total_positive_R": -0.3112725575193865
       },
       {
@@ -290,7 +294,7 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
         "symbol": "002768.SZ",
         "value_R": -0.49858134744578964,
         "share_of_total_net_R": 1.6593374186848493,
-        "share_of_total_absolute_net_R": 0.07413069376776972,
+        "share_of_total_absolute_net_R": 0.07413069376776973,
         "share_of_total_positive_R": -0.15519469115091278
       }
     ],
@@ -324,13 +328,13 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
     "wins": 1,
     "losses": 3,
     "flats": 0,
-    "gross_total_R": -3.461815331990523,
+    "gross_total_R": -3.4618153319905227,
     "gross_positive_R": 0.019805804235028722,
-    "gross_negative_R": -3.481621136225552,
-    "gross_expectancy_R": -0.8654538329976308,
+    "gross_negative_R": -3.4816211362255514,
+    "gross_expectancy_R": -0.8654538329976307,
     "median_realized_gross_R": -0.8454501838640092,
     "gross_win_rate": 0.25,
-    "gross_profit_factor": 0.005688673023308999,
+    "gross_profit_factor": 0.005688673023309,
     "stop_out_count": 2,
     "stop_out_rate": 0.5,
     "average_holding_sessions": 15.0,
@@ -449,6 +453,7 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
       "status": "CLEARED_BEFORE_STOP",
       "gap_above_at_entry": false,
       "cleared_after_entry_before_stop": true,
+      "cleared_before_terminal_without_stop": false,
       "stop_before_obstacle_clear": false,
       "obstacle_clear_date": "2017-09-25",
       "stop_date": "2017-11-03",
@@ -509,6 +514,7 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
       "status": "CLEARED_BEFORE_STOP",
       "gap_above_at_entry": false,
       "cleared_after_entry_before_stop": true,
+      "cleared_before_terminal_without_stop": false,
       "stop_before_obstacle_clear": false,
       "obstacle_clear_date": "2020-05-14",
       "stop_date": "2020-06-02",
@@ -569,6 +575,7 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
       "status": "CLEARED_BEFORE_STOP",
       "gap_above_at_entry": false,
       "cleared_after_entry_before_stop": true,
+      "cleared_before_terminal_without_stop": false,
       "stop_before_obstacle_clear": false,
       "obstacle_clear_date": "2023-01-09",
       "stop_date": "2023-02-03",
@@ -622,13 +629,14 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
     "fib_t1_distance": 1.3171737423199987,
     "fib_t1_distance_pct_from_actual_entry": 0.19437808219178063,
     "t_plus_1_open_already_gapped_above_swing_high": false,
-    "swing_high_cleared_after_entry_before_stop": true,
+    "swing_high_cleared_after_entry_before_stop": null,
     "stop_reached_before_swing_high_cleared": false,
     "fib_t1_reached_before_stop": false,
     "obstacle_path": {
       "status": "CLEARED_BEFORE_TERMINAL_WITHOUT_STOP",
       "gap_above_at_entry": false,
-      "cleared_after_entry_before_stop": true,
+      "cleared_after_entry_before_stop": null,
+      "cleared_before_terminal_without_stop": true,
       "stop_before_obstacle_clear": false,
       "obstacle_clear_date": "2023-03-07",
       "stop_date": null,
@@ -689,6 +697,7 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
       "status": "CLEARED_BEFORE_STOP",
       "gap_above_at_entry": false,
       "cleared_after_entry_before_stop": true,
+      "cleared_before_terminal_without_stop": false,
       "stop_before_obstacle_clear": false,
       "obstacle_clear_date": "2023-07-03",
       "stop_date": "2023-09-15",
@@ -749,6 +758,7 @@ The fixed NEAR_SWING_ONLY run produced 6 executed P1 research rows: 6 cleared th
       "status": "CLEARED_BEFORE_STOP",
       "gap_above_at_entry": false,
       "cleared_after_entry_before_stop": true,
+      "cleared_before_terminal_without_stop": false,
       "stop_before_obstacle_clear": false,
       "obstacle_clear_date": "2025-06-12",
       "stop_date": "2025-07-31",
