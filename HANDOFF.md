@@ -11,21 +11,20 @@
 - 正式状态：`TARGET_UPSIDE_FRESHNESS_V1_PR_READY`。
 - `UPSIZE GATE` 是正式交易资格语义；`FRESHNESS DIAGNOSTICS` 只读观察，不能
   改变 `ENTRY_ALLOWED`、`NO_TRADE`、排序、仓位、组合分配、批准或 Candidate 晋级。
-- 已完成 PR #83 `EMAIL_DAILY_REPORT_V1` 的用户验收与 squash merge；合并 commit
-  为 `c5d64b990077cacb8e3c6fc9952e398cdc57899a`。
+- 已完成 PR #83 `EMAIL_DAILY_REPORT_V1` 的用户验收与 squash merge；其合并状态由
+  Git/GitHub 实时事实确认。
 
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
-- `origin/main`（合并 PR #83 后）为
-  `c5d64b990077cacb8e3c6fc9952e398cdc57899a`；该 main CI 已成功。
+- PR #83 已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI 以及其他
+  动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
 - 当前分支：`feat/target-upside-freshness-v1`。
-- 当前 feature implementation remote HEAD（PR #84 已验证的 exact head）：
-  `6d782a58e457a03878d62201113e5326013e0e7f`。
-- PR #84：<https://github.com/EFSing/stock-data-pipeline/pull/84>
-  当前为 OPEN、MERGEABLE；其 base 是合并 #83 后的 `main`。
-- PR #82（Node 24 maintenance）仍是独立 OPEN PR；本轮没有 merge、rebase 或把
-  maintenance 改动混入策略 PR。其 base 尚未随 #83 更新，后续由用户单独处理。
+- PR #84：<https://github.com/EFSing/stock-data-pipeline/pull/84>；当前语义状态为
+  OPEN，等待用户 review/merge 决策；其 branch HEAD、base、mergeability 和 CI
+  checks 必须从 Git/GitHub 实时查询。
+- PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
+  改动混入策略 PR，相关动态状态由用户单独从 Git/GitHub 实时查询。
 
 ## 3. Completed（已完成）
 
@@ -62,9 +61,10 @@
 ## 4. Validation（验证结果）
 
 - 本地：`python -m unittest discover -s tests -v` → `722 tests ... OK`。
-- GitHub PR #84 exact implementation head `6d782a5…`：CI Test Gate、SETUP_01
-  generic shadow、SETUP_02 generic shadow、Daily Decision Chain generic shadow、
-  Paper lifecycle generic shadow、Portfolio Risk generic shadow 共 6 项成功。
+- PR #84 的实现阶段验证已完成：CI Test Gate、SETUP_01 generic shadow、SETUP_02
+  generic shadow、Daily Decision Chain generic shadow、Paper lifecycle generic
+  shadow、Portfolio Risk generic shadow 均已成功；本次 cleanup 不以固定 SHA、CI
+  run 或历史验证记录证明 `HANDOFF_CURRENT_AND_CONSISTENT`。
 - development funnel：SETUP_01 `745` confirmed，`198` 个 primary
   `TARGET_UPSIDE_BELOW_MINIMUM`；SETUP_02 `213` confirmed，`91` 个同类 gate；
   两个 funnel conservation 与 `final_oos_accessed=false` 通过。
@@ -120,12 +120,12 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- base: `origin/main @ c5d64b990077cacb8e3c6fc9952e398cdc57899a`
 - active branch: `feat/target-upside-freshness-v1`
-- remote head: `6d782a58e457a03878d62201113e5326013e0e7f`（PR #84 已验证的 feature
-  implementation tip；最终 handoff-only docs closeout 后仍以 GitHub live HEAD 为准）
 - PR: `#84` — <https://github.com/EFSing/stock-data-pipeline/pull/84>
 - working tree expected: `clean`
+- 动态 branch、HEAD、`origin/main`、PR open/mergeability、CI checks 与 merge 状态
+  必须在恢复现场时从 Git/GitHub 实时查询；本文件不固定保存这些 SHA、CI run 或
+  mergeability 信息。
 - first action on another computer:
 
 ```bash
