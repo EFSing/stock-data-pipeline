@@ -116,6 +116,10 @@
 - `research/development/setup01_wave2_to_wave3_geometry_attribution_v1.json/.md` 是
   development-only 的纯几何描述归因输出；不读取 outcome、Final OOS、T+1 或真实持仓，
   不接入生产 gate。
+- `research/development/setup01_confirmed_swing_high_first_reward_boundary_counterfactual_v1.json/.md`
+  与其可复现 research module 已完成固定 `NEAR_SWING_ONLY` 的 P0/P1 counterfactual，
+  当前状态为 `READY_FOR_DECISION`；该结果仅用于决定是否继续研究 first-reward
+  boundary，不授权移除或修改任何 production target/gate/Decision 语义。
 - 有 generic synthetic operational shadow 与 development-only replay evidence；
   尚未接入生产自动执行（生产日历集成是已登记前置条件）。
 
