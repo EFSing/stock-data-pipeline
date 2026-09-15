@@ -104,8 +104,8 @@
 - authoritative repo: `EFSing/stock-data-pipeline`
 - active branch: `codex/setup01-target-geometry-diagnostic`
 - current PR: #86，base=`main`，状态 OPEN、checks 已通过、未自动 merge；PR #82 保持独立
-- working tree: 本轮代码、测试、docs 与 research-only artifacts 待提交；无 credentials、
-  Final OOS 或真实 holdings-derived 数据
+- working tree expected: clean；本轮代码、测试、docs 与 research-only artifacts 已提交并
+  push；无 credentials、Final OOS 或真实 holdings-derived 数据
 - 动态 branch、HEAD、`origin/main`、PR、CI checks 与 merge 状态
   必须在恢复现场时从 Git/GitHub 实时查询；本文件不固定保存这些 SHA、CI run 或
   mergeability 信息。
@@ -113,8 +113,8 @@
 
 ```bash
 git fetch --all --prune
-git switch main
-git pull --ff-only origin main
+git switch codex/setup01-target-geometry-diagnostic
+git pull --ff-only origin codex/setup01-target-geometry-diagnostic
 ```
 
 公司电脑本地路径可不同；不依赖 `D:\`、本机绝对路径、stash、未上传 artifact、
