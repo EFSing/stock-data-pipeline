@@ -19,7 +19,7 @@
 - PR #84、PR #85 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
 - 当前分支：`codex/setup01-swing-boundary-counterfactual-v1`；从最新 `main` 创建，
-  本轮独立 research PR 尚未自动 merge。
+  本轮独立 research PR 已创建并等待 review；未自动 merge。
 - PR #84、PR #85 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
@@ -112,7 +112,7 @@
 
 - authoritative repo: `EFSing/stock-data-pipeline`
 - active branch: `codex/setup01-swing-boundary-counterfactual-v1`
-- current PR: independent research PR pending creation; PR #86 已 squash merge 到 `main`；
+- current PR: independent research PR 已开放 review、未自动 merge；PR #86 已 squash merge 到 `main`；
   PR #82 保持独立
 - working tree expected: clean after the research commit/push；本轮无 credentials、Final
   OOS 或真实 holdings-derived 数据
