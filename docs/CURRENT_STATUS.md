@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-14（Cloud Daily Report V1 正式 cutover；T1 upside/freshness V1）。
+> 最后实质更新：2026-09-15（Cloud Daily Report 自动 T 日与投递修复）。
 
 ## 项目身份
 
@@ -210,7 +210,9 @@
   和 22:30 UTC 运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
   completed-session gate。周末或交易所休市返回 `SKIPPED_NON_SESSION`，不使用上一
   交易日替代；未收盘、provider 失败、latest/QFQ 不完整或校验失败均 fail closed，
-  仍生成异常报告并通知。
+  仍生成异常报告并通知。自动调度的 T 由 timezone-aware 当前时刻转换到目标交易所
+  本地日期后再进入同一 exact-session gate，跨 UTC 午夜不会误取 runner 日期，节假日仍
+  当天安全跳过；显式 `--date/--trade-date` 继续严格使用指定日期。
 - `trading/ephemeral_market_data.py` 只抓取目标市场正式策略池、启用持仓和已有 Paper
   continuation 所需的 provider rows；latest/QFQ 复用既有 provider fallback、
   `latest_snapshot.py` 投影和 exact-T 校验，数据只在本次进程内存中存在，也不读取旧的
@@ -220,11 +222,14 @@
   JSON 元数据包含市场/T、git SHA、session identity、data quality、Candidate seed/as-of、
   CandidateRecord 的轻量筛选审计、provider status、input fingerprint、协议版本和状态写入
   边界，不包含 raw/QFQ bars。
-  Bark 使用 `BARK_ENDPOINT`，SMTP 是可选标准库通知，并发送 text/plain fallback 加上
-  独立的静态 email-safe HTML；邮件只有既有 `ENTRY_ALLOWED` /
+  Bark 使用 `BARK_ENDPOINT`，SMTP 是可选标准库通知，并发送 text/plain fallback、
+  独立的静态 email-safe HTML 正文，以及复用最终 `daily-report.html` 的 UTF-8 完整
+  Dashboard HTML 附件（`A股交易日报_YYYY-MM-DD.html` / `美股交易日报_YYYY-MM-DD.html`）；
+  邮件只有既有 `ENTRY_ALLOWED` /
   `STRATEGY_PROPOSAL` Decision 才展示为交易方案，`NO_TRADE` 只展示人话拒绝原因与
-  Decision gate 计算依据；通知失败不改变日报核心结果。standalone `daily-report.html`
-  仍只作为完整 Browser Dashboard artifact，不再作为邮件正文。
+  Decision gate 计算依据；通知失败不改变日报核心结果，SMTP 附件失败在通知 metadata
+  中明确为 `FAILED`。standalone `daily-report.html` 仍是完整 Browser Dashboard artifact
+  的唯一渲染产物，邮件正文不嵌入完整 Dashboard。
 - Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
   宽表、可点击区域至少 44px），首页优先展示数据异常、持仓、交易方案、新确认和接近
   确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。

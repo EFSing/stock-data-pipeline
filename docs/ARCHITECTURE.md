@@ -35,7 +35,8 @@ ProductionInputAdapter(market=CN|US, ephemeral latest/QFQ)
         → Candidate-only remains READ_ONLY_DISCOVERY; no state or Sheet write
         ↓
 daily-report.json + daily-report.html (allowlist only, RUNNER_TEMP, ~30d upload)
-        → optional Bark/SMTP notification with current GitHub run URL
+        → optional Bark/SMTP notification with current GitHub run URL and the same full
+          daily-report.html Dashboard as a UTF-8 HTML attachment
 
 Production manual --run (read-only by default)
         ↓
@@ -276,12 +277,14 @@ scripts/run_cloud_daily_report.py
 ### Execution modes
 
 Cloud Daily Report V1 是 CN/US 独立的 read-only scheduled path：先用 `XSHG` / `XNYS`
-验证精确 completed T，非交易日返回 `SKIPPED_NON_SESSION`，再从 provider 获取目标市场
+将 timezone-aware 当前时刻转换为交易所本地日期，再验证精确 completed T；非交易日返回
+`SKIPPED_NON_SESSION`，再从 provider 获取目标市场
 正式池、持仓和 Paper continuation 所需的 latest/QFQ rows。它复用既有
 `ProductionCandidateRuntime` 与 Daily Chain，不写 `最新行情`、QFQ、决策状态或 Paper
 ledger；最终每个 market/T 只上传 `daily-report.json` 与 `daily-report.html`，可选发送
-Bark/SMTP。SMTP 同时发送 `text/plain` fallback 与独立的静态
-`render_daily_report_email_html()`，不复用 standalone Dashboard HTML 作为邮件正文。
+Bark/SMTP。SMTP 同时发送 `text/plain` fallback、独立的静态
+`render_daily_report_email_html()` 正文，并将同一份最终 `daily-report.html` 作为 UTF-8
+`text/html` 附件；完整 Dashboard 不嵌入邮件正文。
 旧 `asia-close` / `us-close` 的 `main.py --mode latest` scheduled writer
 在 live acceptance 前保留以支持迁移；验收后只保留其手工 dispatch，避免长期两套 schedule。
 

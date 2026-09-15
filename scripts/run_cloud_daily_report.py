@@ -50,6 +50,29 @@ def _error_text(exc: BaseException | str) -> str:
     return str(exc).replace("\r", " ").replace("\n", " ").strip()[:300] or type(exc).__name__
 
 
+def resolve_cloud_trade_date(
+    market: str,
+    explicit_trade_date: date | None = None,
+    *,
+    now: datetime | None = None,
+    calendar_provider: ExactExchangeCalendarProvider | None = None,
+) -> date:
+    """Resolve the report T date without using the runner's bare local date.
+
+    Explicit dates remain authoritative.  Automatic runs use the exchange
+    calendar's local civil date, after which the existing exact-session gate
+    decides whether that date is a completed session or a safe skip.
+    """
+
+    if explicit_trade_date is not None:
+        return explicit_trade_date
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None or current.utcoffset() is None:
+        raise ValueError("cloud report requires timezone-aware now")
+    provider = calendar_provider or ExactExchangeCalendarProvider()
+    return provider.market_local_date(str(market).strip().upper(), now=current)
+
+
 def _git_sha(environ: Mapping[str, str] | None = None) -> str | None:
     values = environ or os.environ
     configured = str(values.get("GITHUB_SHA") or values.get("CI_COMMIT_SHA") or "").strip()
@@ -277,17 +300,33 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     return title, body
 
 
-def _write_artifacts(payload: Mapping[str, Any], output_dir: str | Path) -> tuple[Path, Path]:
+def _write_artifacts(
+    payload: Mapping[str, Any],
+    output_dir: str | Path,
+    *,
+    dashboard_html: str | None = None,
+) -> tuple[Path, Path]:
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     json_path = target / "daily-report.json"
     html_path = target / "daily-report.html"
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
-    html_path.write_text(render_dashboard_html(payload), encoding="utf-8")
+    html_path.write_text(
+        dashboard_html if dashboard_html is not None else render_dashboard_html(payload),
+        encoding="utf-8",
+    )
     return json_path, html_path
 
 
-def _notify(payload: dict[str, Any]) -> None:
+def _notification_attachment_filename(payload: Mapping[str, Any]) -> str:
+    cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
+    market = str(cloud.get("market") or payload.get("market") or "").strip().upper()
+    label = MARKET_LABELS.get(market, market or "市场")
+    trade_date = str(cloud.get("as_of_date") or payload.get("as_of_date") or "unknown").strip()
+    return f"{label}交易日报_{trade_date}.html"
+
+
+def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
     cloud = payload.get("cloud_daily_report", {})
     try:
         title, body = _notification_text(payload)
@@ -297,6 +336,8 @@ def _notify(payload: dict[str, Any]) -> None:
             subject=title,
             body=body,
             html_body=render_daily_report_email_html(payload),
+            html_attachment=dashboard_html,
+            attachment_filename=_notification_attachment_filename(payload),
         )
         cloud["notifications"] = {"bark": bark, "email": email}
     except Exception as exc:
@@ -304,6 +345,19 @@ def _notify(payload: dict[str, Any]) -> None:
             "bark": {"status": "FAILED", "configured": bool(os.environ.get("BARK_ENDPOINT")), "error": _error_text(exc)},
             "email": {"status": "NOT_RUN", "configured": False},
         }
+
+
+def _write_and_notify(
+    payload: dict[str, Any], output_dir: str | Path, *, notify: bool
+) -> None:
+    _, html_path = _write_artifacts(payload, output_dir)
+    if not notify:
+        return
+    dashboard_html = html_path.read_text(encoding="utf-8")
+    _notify(payload, dashboard_html=dashboard_html)
+    # Keep the final artifact byte-identical to the attachment even though the
+    # JSON receives notification metadata after delivery.
+    _write_artifacts(payload, output_dir, dashboard_html=dashboard_html)
 
 
 def run_cloud_daily_report(
@@ -344,10 +398,7 @@ def run_cloud_daily_report(
                 result=result, errors=[error],
             ),
         }
-        _write_artifacts(payload, output_dir)
-        if notify:
-            _notify(payload)
-            _write_artifacts(payload, output_dir)
+        _write_and_notify(payload, output_dir, notify=notify)
         return payload
 
     if not is_session:
@@ -371,10 +422,7 @@ def run_cloud_daily_report(
                 ephemeral=ephemeral_meta, data_quality=quality, result=result, errors=[],
             ),
         }
-        _write_artifacts(payload, output_dir)
-        if notify:
-            _notify(payload)
-            _write_artifacts(payload, output_dir)
+        _write_and_notify(payload, output_dir, notify=notify)
         return payload
 
     try:
@@ -400,10 +448,7 @@ def run_cloud_daily_report(
                 result=result, errors=[error],
             ),
         }
-        _write_artifacts(payload, output_dir)
-        if notify:
-            _notify(payload)
-            _write_artifacts(payload, output_dir)
+        _write_and_notify(payload, output_dir, notify=notify)
         return payload
 
     errors: list[str] = []
@@ -466,10 +511,7 @@ def run_cloud_daily_report(
             errors=errors,
         ),
     }
-    _write_artifacts(payload, output_dir)
-    if notify:
-        _notify(payload)
-        _write_artifacts(payload, output_dir)
+    _write_and_notify(payload, output_dir, notify=notify)
     return payload
 
 
@@ -480,14 +522,24 @@ def _date(value: str) -> date:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Market-scoped read-only Cloud Daily Report V1")
     parser.add_argument("--market", choices=("CN", "US"), required=True)
-    parser.add_argument("--date", "--trade-date", dest="trade_date", type=_date, default=date.today())
+    parser.add_argument("--date", "--trade-date", dest="trade_date", type=_date, default=None)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--no-notify", action="store_true")
     args = parser.parse_args(argv)
+    generated_at = datetime.now(timezone.utc)
+    calendar_provider = ExactExchangeCalendarProvider()
+    trade_date = resolve_cloud_trade_date(
+        args.market,
+        args.trade_date,
+        now=generated_at,
+        calendar_provider=calendar_provider,
+    )
     payload = run_cloud_daily_report(
         market=args.market,
-        as_of_date=args.trade_date,
+        as_of_date=trade_date,
         output_dir=args.output,
+        now=generated_at,
+        calendar_provider=calendar_provider,
         notify=not args.no_notify,
     )
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))

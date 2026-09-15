@@ -35,6 +35,11 @@ class _FakeSMTP:
         type(self).last_message = message
 
 
+class _FailingSMTP(_FakeSMTP):
+    def send_message(self, message):
+        raise RuntimeError("simulated SMTP failure")
+
+
 def _cloud_payload(market: str = "US", status: str = "SUCCESS") -> dict:
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
     payload["cloud_daily_report"] = {
@@ -362,6 +367,63 @@ class DailyReportEmailTests(unittest.TestCase):
         )
         self.assertIn("纯文本摘要", message.get_body(preferencelist=("plain",)).get_content())
         self.assertIn("静态摘要", message.get_body(preferencelist=("html",)).get_content())
+
+    def test_smtp_message_includes_full_utf8_dashboard_html_attachment(self):
+        dashboard_html = "<!doctype html><html><body>完整 Dashboard 中文</body></html>\n"
+        filename = "美股交易日报_2026-09-03.html"
+        with patch("trading.notifications.smtplib.SMTP", _FakeSMTP):
+            result = send_optional_email(
+                subject="美股日报完成",
+                body="纯文本摘要",
+                html_body="<html><body>静态摘要</body></html>",
+                html_attachment=dashboard_html,
+                attachment_filename=filename,
+                environ={
+                    "SMTP_HOST": "smtp.example.test",
+                    "SMTP_PORT": "587",
+                    "SMTP_FROM": "sender@example.test",
+                    "SMTP_TO": "receiver@example.test",
+                    "SMTP_USE_TLS": "true",
+                    "SMTP_USERNAME": "sender@example.test",
+                    "SMTP_PASSWORD": "not-a-real-secret",
+                },
+            )
+
+        self.assertEqual(result["status"], "SENT")
+        self.assertEqual(result["attachment"]["status"], "SENT")
+        message = _FakeSMTP.last_message
+        attachments = list(message.iter_attachments())
+        self.assertEqual(len(attachments), 1)
+        attachment = attachments[0]
+        self.assertEqual(attachment.get_content_type(), "text/html")
+        self.assertEqual(attachment.get_content_charset(), "utf-8")
+        self.assertEqual(attachment.get_filename(), filename)
+        self.assertEqual(
+            attachment.get_payload(decode=True).decode("utf-8"),
+            dashboard_html,
+        )
+        self.assertIn("纯文本摘要", message.get_body(preferencelist=("plain",)).get_content())
+        self.assertIn("静态摘要", message.get_body(preferencelist=("html",)).get_content())
+
+    def test_smtp_attachment_failure_is_reported_as_non_core_failed_metadata(self):
+        with patch("trading.notifications.smtplib.SMTP", _FailingSMTP):
+            result = send_optional_email(
+                subject="日报完成",
+                body="纯文本摘要",
+                html_body="<html><body>静态摘要</body></html>",
+                html_attachment="<!doctype html><html></html>\n",
+                attachment_filename="A股交易日报_2026-09-03.html",
+                environ={
+                    "SMTP_HOST": "smtp.example.test",
+                    "SMTP_PORT": "587",
+                    "SMTP_FROM": "sender@example.test",
+                    "SMTP_TO": "receiver@example.test",
+                },
+            )
+
+        self.assertEqual(result["status"], "FAILED")
+        self.assertEqual(result["attachment"]["status"], "FAILED")
+        self.assertEqual(result["attachment"]["filename"], "A股交易日报_2026-09-03.html")
 
 
 if __name__ == "__main__":

@@ -677,6 +677,28 @@ class ExactExchangeCalendarProvider:
                 "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
             ) from exc
 
+    def market_local_date(self, market: str, *, now: datetime) -> date:
+        """Return the exchange calendar's local civil date for an aware instant.
+
+        The returned date is intentionally only the market-local calendar date;
+        callers must still apply ``is_session`` and ``completed_session`` so a
+        holiday is skipped and an open session remains fail-closed.
+        """
+
+        try:
+            import exchange_calendars as xc
+            import pandas as pd
+            if now.tzinfo is None or now.utcoffset() is None:
+                raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
+            calendar = xc.get_calendar(self.calendar_name(market))
+            return pd.Timestamp(now).tz_convert(calendar.tz).date()
+        except ProductionPrerequisiteError:
+            raise
+        except (ImportError, KeyError, TypeError, ValueError) as exc:
+            raise ProductionPrerequisiteError(
+                "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
+            ) from exc
+
     def completed_session(
         self, market: str, trade_date: date, *, now: datetime | None = None
     ) -> CompletedSessionIdentity:
