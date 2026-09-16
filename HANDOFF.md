@@ -6,8 +6,8 @@
 ## 1. Current Task（当前任务）
 
 - 当前任务：`SETUP_01_DEEP_WAVE2_STRUCTURE_QUALITY_V1`；已完成固定 Phase 5J-v3
-  Development frozen holdout 研究，当前独立 research branch 等待 review，未自动
-  merge。
+  Development frozen holdout 研究及本次 corrective research，PR #88 仍等待 review，
+  未自动 merge。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
 - 正式状态：`READY_FOR_DECISION`；PR #86、PR #87 均已合并到 `main`，本轮没有修改
   production strategy。
@@ -51,18 +51,24 @@
   JSON/Markdown report；从 frozen artifact/replay 重建 `745` 个 CONFIRMED，固定
   depth bands 为 `345 / 183 / 217`。严格 T 后 Fib1.272 continuation 为
   `225/345`、`147/183`、`195/217`；PR #86 Fib-near `81` 中 `64` 先到 Fib1.272，
-  其中 `55` 个为 VERY_DEEP。结论为 `EARLY_ENTRY_RESEARCH_CANDIDATE`，仅表示应
-  优先考虑一项独立因果研究，不是 early-entry 或 depth gate 的生产授权。
+  其中 `55` 个为 VERY_DEEP。后续 corrective analysis 增加了与 `r` 无关的
+  normalized post-T excursion 与固定 `H1+0.272R / H1+0.618R` hurdles；H1
+  max-HIGH median 为 `1.516R / 2.185R / 2.110R`，两项 hurdle success 分别为
+  `87.2% / 88.0% / 91.7%` 与 `73.0% / 79.8% / 80.2%`。修正结论为：在已经
+  `CONFIRMED` 的条件下没有看到 deep Wave2 continuation 更弱；这不证明
+  pre-confirmation early entry 有效，只支持把它作为下一项包含未确认候选的独立
+  因果研究假设，不是 early-entry 或 depth gate 的生产授权。
 
 ## 4. Validation（验证结果）
 
-- focused：deep Wave2 research tests → `4 tests passed`。
-- full：`python -m unittest discover -s tests -v` → `740 tests passed, 3 skipped, OK`；
+- focused：deep Wave2 research tests → `8 tests passed`。
+- full：`python -m unittest discover -s tests -v` → `744 tests passed, 3 skipped, OK`；
   现有 generic operational shadow checks 继续通过。
 - `python -m py_compile` 覆盖本轮 research module；research artifact 重新生成并核对
   frozen hash binding、745 confirmed、117/63/18 category conservation、81 Fib-near、
   Fib identity、三档 depth exhaustive/mutually-exclusive、signal(T) as-of、严格
-  T 后 outcome path、现有 Decision parity 与 compact event-detail hash；
+  T 后 outcome path、common normalized excursion/hurdle identity、现有 Decision
+  parity 与 compact event-detail hash；
   `git diff --check` 通过。
 - 本轮没有访问 Final OOS、没有参数搜索/threshold sweep、没有真实 holdings 读取、
   Sheets 写入、state write 或 broker order；PR #82 保持独立。
@@ -71,10 +77,14 @@
 
 - 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`；研究节点为
   `READY_FOR_DECISION`。
-- 本轮结论为 `EARLY_ENTRY_RESEARCH_CANDIDATE`：DEEP/VERY_DEEP 的结构继续性不低于
-  NORMAL_OR_SHALLOW，且固定 81 个 Fib-near 事件中 64 个仍在 T 后先达到 Fib1.272；
-  但这一结论只授权记录为下一项独立 Development causal research 候选，不改变
-  confirmation、Entry Zone、Stop、Target、RR 或 production Decision。
+- 本轮结论为 `EARLY_ENTRY_RESEARCH_CANDIDATE`，且必须限定为
+  `conditional_on_having_reached_CONFIRMED`：共同 normalized excursion 与两项固定
+  hurdle 没有显示 DEEP/VERY_DEEP continuation 更弱。固定 81 个 Fib-near 中 64
+  个仍在 T 后先达到 Fib1.272 只作原几何背景，不能证明 pre-confirmation early
+  entry 的策略优势。
+- Early Entry 仅作为下一项独立 `PRE-CONFIRMATION` causal research 候选；该研究
+  必须从 Wave2 candidates 同时纳入后来 CONFIRMED 与从未 CONFIRMED/后来失效者，
+  防止 survivorship/conditioning bias。本轮不实现 early entry。
 - 现有 T-day gates 已排除全部 `DEEP`（183/183）与 `VERY_DEEP`（217/217）进入
   `ENTRY_ALLOWED`，因此新增 depth gate 在本总体上可能高度冗余；当前不实现任何
   depth gate 或 early-entry rule。

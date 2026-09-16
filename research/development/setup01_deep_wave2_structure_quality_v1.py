@@ -76,7 +76,17 @@ STRUCTURAL_OUTCOMES = (
     "CENSORED_INSUFFICIENT_PATH",
 )
 NEAR_CATEGORIES = frozenset(("SMALL_WAVE_FIB", "BOTH_NEAR"))
-EVENT_DETAIL_SCHEMA_VERSION = "setup01-deep-wave2-structure-quality-record-v1"
+EVENT_DETAIL_SCHEMA_VERSION = "setup01-deep-wave2-structure-quality-record-v2"
+COMMON_HURDLES = (
+    ("HURDLE_0272", 0.272),
+    ("HURDLE_0618", 0.618),
+)
+HURDLE_OUTCOMES = (
+    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION",
+    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE",
+    "SAME_BAR_AMBIGUOUS",
+    "CENSORED_INSUFFICIENT_PATH",
+)
 
 # These are cross-binding expectations from the already accepted PR #86
 # artifact, not searched or selected thresholds.
@@ -141,6 +151,25 @@ class StructuralPath:
     target_reached_on_t_bar: bool
 
 
+@dataclass(frozen=True)
+class HurdlePath:
+    level: float
+    hit_date: date | None
+    outcome: str
+
+
+@dataclass(frozen=True)
+class GeometryControlledPath:
+    max_high_before_structural_invalidation: float | None
+    max_close_before_structural_invalidation: float | None
+    post_T_peak_extension_from_H1_over_R: float | None
+    post_T_peak_extension_from_planned_entry_over_R: float | None
+    post_T_peak_close_extension_from_H1_over_R: float | None
+    observed_quote_count: int
+    hurdle_0272: HurdlePath
+    hurdle_0618: HurdlePath
+
+
 def _number(value: Any) -> float | None:
     if value is None or isinstance(value, bool):
         return None
@@ -183,6 +212,18 @@ def _stats(values: Sequence[float | int]) -> dict[str, Any]:
         "p25": _percentile(clean, 0.25),
         "median": float(median(clean)) if clean else None,
         "p75": _percentile(clean, 0.75),
+    }
+
+
+def _distribution_stats(values: Sequence[float | int]) -> dict[str, Any]:
+    clean = [float(value) for value in values if _number(value) is not None]
+    return {
+        "n": len(clean),
+        "p10": _percentile(clean, 0.10),
+        "p25": _percentile(clean, 0.25),
+        "median": float(median(clean)) if clean else None,
+        "p75": _percentile(clean, 0.75),
+        "p90": _percentile(clean, 0.90),
     }
 
 
@@ -251,6 +292,94 @@ def classify_structural_outcome(
     ):
         return STRUCTURAL_OUTCOMES[2]
     return STRUCTURAL_OUTCOMES[3]
+
+
+def classify_hurdle_outcome(
+    hurdle_hit_date: date | None,
+    structural_invalidation_date: date | None,
+) -> str:
+    """Apply the same strict ordering contract to a common hurdle."""
+
+    if hurdle_hit_date is not None and (
+        structural_invalidation_date is None
+        or hurdle_hit_date < structural_invalidation_date
+    ):
+        return HURDLE_OUTCOMES[0]
+    if structural_invalidation_date is not None and (
+        hurdle_hit_date is None
+        or structural_invalidation_date < hurdle_hit_date
+    ):
+        return HURDLE_OUTCOMES[1]
+    if (
+        hurdle_hit_date is not None
+        and structural_invalidation_date is not None
+        and hurdle_hit_date == structural_invalidation_date
+    ):
+        return HURDLE_OUTCOMES[2]
+    return HURDLE_OUTCOMES[3]
+
+
+def normalized_common_excursion(
+    max_future_high: float | None,
+    max_future_close: float | None,
+    wave1_high: float,
+    planned_entry: float,
+    reference_range: float,
+) -> dict[str, float | None]:
+    """Normalize observed post-T maxima by the common Wave1 range ``R``."""
+
+    if reference_range <= 0 or not math.isfinite(float(reference_range)):
+        raise ValueError("Wave1 range must be positive and finite")
+    return {
+        "post_T_peak_extension_from_H1_over_R": (
+            (float(max_future_high) - float(wave1_high)) / float(reference_range)
+            if max_future_high is not None
+            else None
+        ),
+        "post_T_peak_extension_from_planned_entry_over_R": (
+            (float(max_future_high) - float(planned_entry)) / float(reference_range)
+            if max_future_high is not None
+            else None
+        ),
+        "post_T_peak_close_extension_from_H1_over_R": (
+            (float(max_future_close) - float(wave1_high)) / float(reference_range)
+            if max_future_close is not None
+            else None
+        ),
+    }
+
+
+def common_hurdle_level(
+    wave1_high: float,
+    reference_range: float,
+    normalized_distance: float,
+) -> float:
+    """Return a common H1 + kR hurdle, independent of Wave2 depth ``r``."""
+
+    if reference_range <= 0 or not math.isfinite(float(reference_range)):
+        raise ValueError("Wave1 range must be positive and finite")
+    return float(wave1_high) + float(normalized_distance) * float(reference_range)
+
+
+def _post_T_quotes(quotes: Sequence[Quote], trade_date: date) -> tuple[Quote, ...]:
+    """Return only future bars strictly after the signal/confirmation date."""
+
+    return tuple(quote for quote in quotes if quote.trade_date > trade_date)
+
+
+def _bars_before_structural_invalidation(
+    future_quotes: Sequence[Quote],
+    structural_invalidation_date: date | None,
+) -> tuple[Quote, ...]:
+    """Exclude the invalidation bar when its intraday ordering is unknown."""
+
+    if structural_invalidation_date is None:
+        return tuple(future_quotes)
+    return tuple(
+        quote
+        for quote in future_quotes
+        if quote.trade_date < structural_invalidation_date
+    )
 
 
 def _outcome_counts(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -472,7 +601,7 @@ def _path_result(
 
     # Strictly after T: T high is recorded only as a causal diagnostic and is
     # deliberately not credited to the primary post-confirmation outcome.
-    future = tuple(quote for quote in quotes if quote.trade_date > event.trade_date)
+    future = _post_T_quotes(quotes, event.trade_date)
     target_date = next((quote.trade_date for quote in future if float(quote.high) >= target_1272), None)
     target_1618_date = next((quote.trade_date for quote in future if float(quote.high) >= target_1618), None)
     structural_date = next((quote.trade_date for quote in future if float(quote.close) <= wave2_low), None)
@@ -519,11 +648,89 @@ def _path_result(
     return path, target_1272, target_1618
 
 
+def _geometry_controlled_path(
+    event: Setup01ReplayEvent,
+    decision: Setup01Decision,
+    quotes: Sequence[Quote],
+    structural_path: StructuralPath,
+) -> GeometryControlledPath:
+    """Measure common-scale continuation without an r-dependent target."""
+
+    snapshot = event.setup01
+    if snapshot.wave1_origin is None or snapshot.wave1_peak is None or snapshot.wave2_low is None:
+        raise ValueError("CONFIRMED event is missing Wave1/Wave2 anchors")
+    wave1_high = float(snapshot.wave1_peak.price)
+    wave1_origin = float(snapshot.wave1_origin.price)
+    reference_range = wave1_high - wave1_origin
+    planned_entry = _finite_number(decision.planned_entry, "planned_entry")
+    future = _post_T_quotes(quotes, event.trade_date)
+    before_invalidation = _bars_before_structural_invalidation(
+        future, structural_path.structural_invalidation_date
+    )
+    max_high = max(
+        (float(quote.high) for quote in before_invalidation),
+        default=None,
+    )
+    max_close = max(
+        (float(quote.close) for quote in before_invalidation),
+        default=None,
+    )
+    normalized = normalized_common_excursion(
+        max_high,
+        max_close,
+        wave1_high,
+        planned_entry,
+        reference_range,
+    )
+    hurdles: list[HurdlePath] = []
+    for _, normalized_distance in COMMON_HURDLES:
+        level = common_hurdle_level(
+            wave1_high,
+            reference_range,
+            normalized_distance,
+        )
+        hit_date = next(
+            (
+                quote.trade_date
+                for quote in future
+                if float(quote.high) >= level
+            ),
+            None,
+        )
+        hurdles.append(
+            HurdlePath(
+                level=level,
+                hit_date=hit_date,
+                outcome=classify_hurdle_outcome(
+                    hit_date,
+                    structural_path.structural_invalidation_date,
+                ),
+            )
+        )
+    return GeometryControlledPath(
+        max_high_before_structural_invalidation=max_high,
+        max_close_before_structural_invalidation=max_close,
+        post_T_peak_extension_from_H1_over_R=normalized[
+            "post_T_peak_extension_from_H1_over_R"
+        ],
+        post_T_peak_extension_from_planned_entry_over_R=normalized[
+            "post_T_peak_extension_from_planned_entry_over_R"
+        ],
+        post_T_peak_close_extension_from_H1_over_R=normalized[
+            "post_T_peak_close_extension_from_H1_over_R"
+        ],
+        observed_quote_count=len(before_invalidation),
+        hurdle_0272=hurdles[0],
+        hurdle_0618=hurdles[1],
+    )
+
+
 def _geometry_record(
     event: Setup01ReplayEvent,
     decision: Setup01Decision,
     prior: Mapping[str, Any],
     path: StructuralPath,
+    geometry_controlled: GeometryControlledPath,
     target_1272: float,
     target_1618: float,
 ) -> dict[str, Any]:
@@ -565,6 +772,7 @@ def _geometry_record(
         "depth_band": depth_band(r),
         "prior_low_t1_category": prior.get("low_t1_category"),
         "path": path,
+        "geometry_controlled": geometry_controlled,
         "decision": decision,
     }
 
@@ -623,6 +831,84 @@ def _summarize_band(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "target_reached_on_T_bar_not_credited_count": sum(
                 row["path"].target_reached_on_t_bar for row in rows
             ),
+        },
+    }
+
+
+def _hurdle_outcome_summary(
+    rows: Sequence[Mapping[str, Any]],
+    hurdle_attribute: str,
+) -> dict[str, Any]:
+    counts = Counter(
+        getattr(row["geometry_controlled"], hurdle_attribute).outcome
+        for row in rows
+    )
+    return {
+        outcome: {
+            "count": counts.get(outcome, 0),
+            "rate": _rate(counts.get(outcome, 0), len(rows)),
+        }
+        for outcome in HURDLE_OUTCOMES
+    }
+
+
+def _geometry_controlled_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    hurdle_distances = dict(COMMON_HURDLES)
+    metrics = (
+        "post_T_peak_extension_from_H1_over_R",
+        "post_T_peak_extension_from_planned_entry_over_R",
+        "post_T_peak_close_extension_from_H1_over_R",
+    )
+    continuous: dict[str, Any] = {}
+    for metric in metrics:
+        values = [
+            getattr(row["geometry_controlled"], metric)
+            for row in rows
+            if getattr(row["geometry_controlled"], metric) is not None
+        ]
+        continuous[metric] = {
+            "N_total": len(rows),
+            "N_observed": len(values),
+            "censored_or_empty_path_N": len(rows) - len(values),
+            "distribution": _distribution_stats(values),
+        }
+    return {
+        "continuous_path_definition": (
+            "max over strictly post-T bars before the close-based structural invalidation bar; "
+            "when no invalidation occurs, use bars through frozen dataset end"
+        ),
+        "continuous_metrics": continuous,
+        "hurdles": {
+            "HURDLE_0272": {
+                "normalized_distance_from_H1_over_R": hurdle_distances["HURDLE_0272"],
+                "outcomes": _hurdle_outcome_summary(rows, "hurdle_0272"),
+                "success_count": sum(
+                    row["geometry_controlled"].hurdle_0272.outcome == HURDLE_OUTCOMES[0]
+                    for row in rows
+                ),
+                "success_rate": _rate(
+                    sum(
+                        row["geometry_controlled"].hurdle_0272.outcome == HURDLE_OUTCOMES[0]
+                        for row in rows
+                    ),
+                    len(rows),
+                ),
+            },
+            "HURDLE_0618": {
+                "normalized_distance_from_H1_over_R": hurdle_distances["HURDLE_0618"],
+                "outcomes": _hurdle_outcome_summary(rows, "hurdle_0618"),
+                "success_count": sum(
+                    row["geometry_controlled"].hurdle_0618.outcome == HURDLE_OUTCOMES[0]
+                    for row in rows
+                ),
+                "success_rate": _rate(
+                    sum(
+                        row["geometry_controlled"].hurdle_0618.outcome == HURDLE_OUTCOMES[0]
+                        for row in rows
+                    ),
+                    len(rows),
+                ),
+            },
         },
     }
 
@@ -792,6 +1078,25 @@ def _market_robustness(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return output
 
 
+def _geometry_controlled_market_robustness(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    output: dict[str, Any] = {}
+    for market in sorted({str(row["market"]) for row in rows}):
+        output[market] = {}
+        for band in DEPTH_BANDS:
+            scoped = [
+                row
+                for row in rows
+                if row["market"] == market and row["depth_band"] == band
+            ]
+            output[market][band] = {
+                "N": len(scoped),
+                **_geometry_controlled_summary(scoped),
+            }
+    return output
+
+
 def _time_half_robustness(
     rows: Sequence[Mapping[str, Any]],
     market_session_dates: Mapping[str, Sequence[date]],
@@ -827,6 +1132,39 @@ def _time_half_robustness(
     }
 
 
+def _geometry_controlled_time_half_robustness(
+    rows: Sequence[Mapping[str, Any]],
+    market_session_dates: Mapping[str, Sequence[date]],
+) -> dict[str, Any]:
+    cutoffs = {
+        market: market_session_dates[market][(len(market_session_dates[market]) - 1) // 2]
+        for market in sorted(market_session_dates)
+    }
+    output: dict[str, Any] = {}
+    for half_name in ("FIRST_HALF", "SECOND_HALF"):
+        output[half_name] = {}
+        for band in DEPTH_BANDS:
+            scoped = [
+                row
+                for row in rows
+                if row["depth_band"] == band
+                and (
+                    row["T_date"] <= cutoffs[row["market"]]
+                    if half_name == "FIRST_HALF"
+                    else row["T_date"] > cutoffs[row["market"]]
+                )
+            ]
+            output[half_name][band] = {
+                "N": len(scoped),
+                **_geometry_controlled_summary(scoped),
+            }
+    return {
+        "split_definition": "Within each market, frozen market-session ordinal midpoint; aggregate by half after the split",
+        "cutoff_by_market": {market: _date_text(value) for market, value in cutoffs.items()},
+        "results": output,
+    }
+
+
 def _concentration(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     output: dict[str, Any] = {}
     for band in DEPTH_BANDS:
@@ -850,6 +1188,7 @@ def _concentration(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                 sum(row["path"].outcome == STRUCTURAL_OUTCOMES[0] for row in without_top),
                 len(without_top),
             ),
+            "geometry_controlled_excluding_top_symbol": _geometry_controlled_summary(without_top),
         }
     return output
 
@@ -880,6 +1219,7 @@ def _near_sample(
             sum(row["path"].outcome == STRUCTURAL_OUTCOMES[0] for row in scoped), len(scoped)
         ),
         "two_by_two": _two_by_two(scoped),
+        "geometry_controlled": _geometry_controlled_summary(scoped),
         "strict_post_T_target_crossing_not_credited_on_T_bar": True,
     }
 
@@ -888,6 +1228,7 @@ def _event_detail_record(row: Mapping[str, Any]) -> dict[str, Any]:
     """Project one in-memory audit row without retaining it in the artifact."""
 
     path = row["path"]
+    controlled = row["geometry_controlled"]
     return {
         "event_identity": row["event_identity"],
         "symbol": row["symbol"],
@@ -923,6 +1264,11 @@ def _event_detail_record(row: Mapping[str, Any]) -> dict[str, Any]:
         "fib1618_before_structural_invalidation": path.fib_1618_before_structural_invalidation,
         "sessions_to_fib1272": path.sessions_to_1272,
         "sessions_to_structural_invalidation": path.sessions_to_structural_invalidation,
+        "post_T_peak_extension_from_H1_over_R": controlled.post_T_peak_extension_from_H1_over_R,
+        "post_T_peak_extension_from_planned_entry_over_R": controlled.post_T_peak_extension_from_planned_entry_over_R,
+        "post_T_peak_close_extension_from_H1_over_R": controlled.post_T_peak_close_extension_from_H1_over_R,
+        "HURDLE_0272_outcome": controlled.hurdle_0272.outcome,
+        "HURDLE_0618_outcome": controlled.hurdle_0618.outcome,
     }
 
 
@@ -982,6 +1328,31 @@ def _validate_records(
     }
     if category_conservation != PRIOR_CATEGORY_COUNTS:
         raise ValueError(f"current 117/63/18 category conservation changed: {category_conservation}")
+    common_scale_ok = True
+    common_hurdle_level_ok = True
+    hurdle_future_date_ok = True
+    for row in rows:
+        controlled = row["geometry_controlled"]
+        expected = normalized_common_excursion(
+            controlled.max_high_before_structural_invalidation,
+            controlled.max_close_before_structural_invalidation,
+            row["wave1_high"],
+            row["planned_entry"],
+            row["wave1_range"],
+        )
+        common_scale_ok = common_scale_ok and all(
+            _close(getattr(controlled, name), expected[name])
+            for name in expected
+        )
+        for hurdle_name, distance in COMMON_HURDLES:
+            hurdle = getattr(controlled, hurdle_name.lower())
+            common_hurdle_level_ok = common_hurdle_level_ok and _close(
+                hurdle.level,
+                common_hurdle_level(row["wave1_high"], row["wave1_range"], distance),
+            )
+            hurdle_future_date_ok = hurdle_future_date_ok and (
+                hurdle.hit_date is None or hurdle.hit_date > row["T_date"]
+            )
     signal_as_of_ok = True
     for row in rows:
         event = row["event"]
@@ -1031,6 +1402,9 @@ def _validate_records(
             for row in rows
         ),
         "future_path_used_only_for_outcome_evaluation": True,
+        "common_normalized_excursion_formula_passed": common_scale_ok,
+        "common_hurdle_levels_independent_of_r": common_hurdle_level_ok,
+        "hurdle_dates_strictly_post_T": hurdle_future_date_ok,
         "unique_event_identity_count": len(identities),
     }
 
@@ -1099,6 +1473,54 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         lines.append(
             f"| {band} | {bands[band]['N']} | {_render_num(r_stats['p25'])} / {_render_num(r_stats['median'])} / {_render_num(r_stats['p75'])} | {_render_pct(geometry['wave1_gain_pct']['median'])} | {_render_num(geometry['wave1_range_over_T_ATR14']['median'])} | {_render_pct(geometry['pre_confirmation_consumption_1272_median'])} | {_render_pct(geometry['pre_confirmation_consumption_1618_median'])} | {_render_num(geometry['post_confirmation_headroom_over_R_1272_median'])}R | {_render_num(geometry['post_confirmation_headroom_over_R_1618_median'])}R | {geometry['fib_1272_upside_below_5_count']} ({_render_pct(geometry['fib_1272_upside_below_5_share'])}) | {geometry['fib_1618_upside_below_5_count']} ({_render_pct(geometry['fib_1618_upside_below_5_share'])}) |"
         )
+    lines.extend(
+        [
+            "",
+            "## Geometry-controlled structural continuation",
+            "",
+            "These continuous outcomes use the common normalized distance from Wave1 high or planned_entry. The maximum is taken over strictly post-T bars before the structural-invalidation bar; if no invalidation occurs, bars through the frozen dataset end are used. Empty pre-invalidation paths are reported as censored/empty.",
+            "",
+            "| depth band | metric | N observed / total | P10 | P25 | median | P75 | P90 |",
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    controlled_metrics = (
+        "post_T_peak_extension_from_H1_over_R",
+        "post_T_peak_extension_from_planned_entry_over_R",
+        "post_T_peak_close_extension_from_H1_over_R",
+    )
+    metric_labels = {
+        "post_T_peak_extension_from_H1_over_R": "max HIGH − H1 / R",
+        "post_T_peak_extension_from_planned_entry_over_R": "max HIGH − planned_entry / R",
+        "post_T_peak_close_extension_from_H1_over_R": "max CLOSE − H1 / R",
+    }
+    for band in DEPTH_BANDS:
+        controlled = bands[band]["geometry_controlled"]["continuous_metrics"]
+        for metric in controlled_metrics:
+            item = controlled[metric]
+            distribution = item["distribution"]
+            lines.append(
+                f"| {band} | {metric_labels[metric]} | {item['N_observed']} / {item['N_total']} | {_render_num(distribution['p10'])} | {_render_num(distribution['p25'])} | {_render_num(distribution['median'])} | {_render_num(distribution['p75'])} | {_render_num(distribution['p90'])} |"
+            )
+    lines.extend(
+        [
+            "",
+            "### Common normalized hurdles",
+            "",
+            "The only pre-registered common hurdles are `H1 + 0.272R` and `H1 + 0.618R`; hurdle hit on the structural-invalidation bar is `SAME_BAR_AMBIGUOUS`.",
+            "",
+            "| depth band | hurdle | success | invalidation first | ambiguous | censored |",
+            "|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for band in DEPTH_BANDS:
+        hurdles = bands[band]["geometry_controlled"]["hurdles"]
+        for hurdle_name in ("HURDLE_0272", "HURDLE_0618"):
+            item = hurdles[hurdle_name]
+            outcomes = item["outcomes"]
+            lines.append(
+                f"| {band} | {hurdle_name} | {item['success_count']} ({_render_pct(item['success_rate'])}) | {outcomes['STRUCTURAL_INVALIDATION_BEFORE_HURDLE']['count']} ({_render_pct(outcomes['STRUCTURAL_INVALIDATION_BEFORE_HURDLE']['rate'])}) | {outcomes['SAME_BAR_AMBIGUOUS']['count']} | {outcomes['CENSORED_INSUFFICIENT_PATH']['count']} |"
+            )
     lines.extend(["", "## Structural continuation by fixed depth band", ""])
     _render_outcome_table(lines, bands)
     lines.extend(
@@ -1132,6 +1554,7 @@ def render_markdown(document: Mapping[str, Any]) -> str:
             f"- N = **{near['N']}**; category mix: `{near['category_counts']}`; VERY_DEEP = **{near['very_deep_count']}**.",
             f"- Strictly after T: **{near['fib1272_before_structural_invalidation_count']}** reached Fib1.272 before structural invalidation ({_render_pct(near['fib1272_before_structural_invalidation_rate'])}); headroom <5% = **{near['headroom_lt_5_count']}**, headroom ≥5% = **{near['headroom_ge_5_count']}**.",
             f"- Strict outcomes: `{near['strict_post_T_outcomes']}`. T-bar target crossings are not credited to this post-T continuation count.",
+            f"- Geometry-controlled hurdle success: HURDLE_0272 `{near['geometry_controlled']['hurdles']['HURDLE_0272']['success_count']}/{near['N']}` ({_render_pct(near['geometry_controlled']['hurdles']['HURDLE_0272']['success_rate'])}); HURDLE_0618 `{near['geometry_controlled']['hurdles']['HURDLE_0618']['success_count']}/{near['N']}` ({_render_pct(near['geometry_controlled']['hurdles']['HURDLE_0618']['success_rate'])}).",
             "",
             "## Existing production Decision funnel",
             "",
@@ -1185,6 +1608,55 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         item = document["robustness"]["symbol_concentration"][band]
         lines.append(
             f"| {band} | {item['symbol_count']} | {_render_pct(item['top_5_event_share'])} | {_render_pct(item['max_symbol_event_share'])} | {_render_num(item['event_count_hhi'], 4)} | {_render_pct(item['structural_success_rate_excluding_top_symbol'])} |"
+        )
+    lines.extend(
+        [
+            "",
+            "### Geometry-controlled CN / US",
+            "",
+            "| market | depth band | N | H1 max-HIGH median / R | planned-entry max-HIGH median / R | max-CLOSE median / R | HURDLE_0272 | HURDLE_0618 |",
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for market in sorted(document["robustness"]["geometry_controlled"]["market"]):
+        for band in DEPTH_BANDS:
+            item = document["robustness"]["geometry_controlled"]["market"][market][band]
+            metrics = item["continuous_metrics"]
+            lines.append(
+                f"| {market} | {band} | {item['N']} | {_render_num(metrics['post_T_peak_extension_from_H1_over_R']['distribution']['median'])} | {_render_num(metrics['post_T_peak_extension_from_planned_entry_over_R']['distribution']['median'])} | {_render_num(metrics['post_T_peak_close_extension_from_H1_over_R']['distribution']['median'])} | {_render_pct(item['hurdles']['HURDLE_0272']['success_rate'])} | {_render_pct(item['hurdles']['HURDLE_0618']['success_rate'])} |"
+            )
+    lines.extend(
+        [
+            "",
+            "### Geometry-controlled development time halves",
+            "",
+            "| half | depth band | N | H1 max-HIGH median / R | max-CLOSE median / R | HURDLE_0272 | HURDLE_0618 |",
+            "|---|---|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for half_name in ("FIRST_HALF", "SECOND_HALF"):
+        for band in DEPTH_BANDS:
+            item = document["robustness"]["geometry_controlled"]["time_half"]["results"][half_name][band]
+            metrics = item["continuous_metrics"]
+            lines.append(
+                f"| {half_name} | {band} | {item['N']} | {_render_num(metrics['post_T_peak_extension_from_H1_over_R']['distribution']['median'])} | {_render_num(metrics['post_T_peak_close_extension_from_H1_over_R']['distribution']['median'])} | {_render_pct(item['hurdles']['HURDLE_0272']['success_rate'])} | {_render_pct(item['hurdles']['HURDLE_0618']['success_rate'])} |"
+            )
+    lines.extend(
+        [
+            "",
+            "### Geometry-controlled symbol concentration check",
+            "",
+            "The existing top-5/max-share/HHI concentration table is retained above. The following corrected metric is recomputed after excluding the count-leading symbol in each band (the symbol is selected by event count, not by outcome).",
+            "",
+            "| depth band | H1 max-HIGH median / R excluding top symbol | max-CLOSE median / R excluding top symbol | HURDLE_0272 excluding top symbol | HURDLE_0618 excluding top symbol |",
+            "|---|---:|---:|---:|---:|",
+        ]
+    )
+    for band in DEPTH_BANDS:
+        item = document["robustness"]["symbol_concentration"][band]["geometry_controlled_excluding_top_symbol"]
+        metrics = item["continuous_metrics"]
+        lines.append(
+            f"| {band} | {_render_num(metrics['post_T_peak_extension_from_H1_over_R']['distribution']['median'])} | {_render_num(metrics['post_T_peak_close_extension_from_H1_over_R']['distribution']['median'])} | {_render_pct(item['hurdles']['HURDLE_0272']['success_rate'])} | {_render_pct(item['hurdles']['HURDLE_0618']['success_rate'])} |"
         )
     lines.extend(
         [
@@ -1272,11 +1744,18 @@ def run_research(
     for event in events:
         decision = decisions_by_identity[event.event_identity]
         path, target_1272, target_1618 = _path_result(event, symbol_quotes[event.symbol], sessions)
+        geometry_controlled = _geometry_controlled_path(
+            event,
+            decision,
+            symbol_quotes[event.symbol],
+            path,
+        )
         record = _geometry_record(
             event,
             decision,
             prior["prior_by_identity"][event.event_identity],
             path,
+            geometry_controlled,
             target_1272,
             target_1618,
         )
@@ -1298,6 +1777,9 @@ def run_research(
             validation["depth_band_exhaustive"],
             validation["signal_T_uses_data_at_or_before_T"],
             validation["future_path_strictly_after_T"],
+            validation["common_normalized_excursion_formula_passed"],
+            validation["common_hurdle_levels_independent_of_r"],
+            validation["hurdle_dates_strictly_post_T"],
         )
     ):
         raise AssertionError(f"research validation failed: {validation}")
@@ -1309,6 +1791,9 @@ def run_research(
     depth_summaries = {band: _summarize_band(by_band[band]) for band in DEPTH_BANDS}
     for band in DEPTH_BANDS:
         depth_summaries[band]["two_by_two"] = _two_by_two(by_band[band])
+        depth_summaries[band]["geometry_controlled"] = _geometry_controlled_summary(
+            by_band[band]
+        )
 
     near_sample = _near_sample(records, prior["near_event_identities"])
     production_funnel = _production_funnel(records, executions_by_identity)
@@ -1316,12 +1801,30 @@ def run_research(
 
     normal_success = depth_summaries["NORMAL_OR_SHALLOW"]["structural_continuation"]["fib1272_before_structural_invalidation_rate"]
     very_success = depth_summaries["VERY_DEEP"]["structural_continuation"]["fib1272_before_structural_invalidation_rate"]
+    controlled_normal = depth_summaries["NORMAL_OR_SHALLOW"]["geometry_controlled"]
+    controlled_deep = depth_summaries["DEEP"]["geometry_controlled"]
+    controlled_very = depth_summaries["VERY_DEEP"]["geometry_controlled"]
+    controlled_normal_h1 = controlled_normal["continuous_metrics"][
+        "post_T_peak_extension_from_H1_over_R"
+    ]["distribution"]["median"]
+    controlled_deep_h1 = controlled_deep["continuous_metrics"][
+        "post_T_peak_extension_from_H1_over_R"
+    ]["distribution"]["median"]
+    controlled_very_h1 = controlled_very["continuous_metrics"][
+        "post_T_peak_extension_from_H1_over_R"
+    ]["distribution"]["median"]
+    controlled_normal_h272 = controlled_normal["hurdles"]["HURDLE_0272"]["success_rate"]
+    controlled_deep_h272 = controlled_deep["hurdles"]["HURDLE_0272"]["success_rate"]
+    controlled_very_h272 = controlled_very["hurdles"]["HURDLE_0272"]["success_rate"]
+    controlled_normal_h618 = controlled_normal["hurdles"]["HURDLE_0618"]["success_rate"]
+    controlled_deep_h618 = controlled_deep["hurdles"]["HURDLE_0618"]["success_rate"]
+    controlled_very_h618 = controlled_very["hurdles"]["HURDLE_0618"]["success_rate"]
     early_entry_reason = (
-        f"Strict post-T structural continuation is not worse in DEEP/VERY_DEEP than in NORMAL_OR_SHALLOW "
-        f"({normal_success:.1%} vs {depth_summaries['DEEP']['structural_continuation']['fib1272_before_structural_invalidation_rate']:.1%} / {very_success:.1%}). "
-        f"In the fixed 81-event Fib-near sample, {near_sample['fib1272_before_structural_invalidation_count']}/{near_sample['N']} still reached Fib1.272 before structural invalidation, "
-        f"including {near_sample['very_deep_count']} VERY_DEEP events, while headroom was below 5% by construction. "
-        f"This supports prioritizing a separate early-entry causal study over deleting deep Wave2 contexts. "
+        f"The original Fib1.272 continuation rates ({normal_success:.1%} / {depth_summaries['DEEP']['structural_continuation']['fib1272_before_structural_invalidation_rate']:.1%} / {very_success:.1%}) are not used as independent quality evidence because the target distance shrinks mechanically with r. "
+        f"After controlling the common normalized distance, H1-extension medians are {controlled_normal_h1:.3f}R / {controlled_deep_h1:.3f}R / {controlled_very_h1:.3f}R, and HURDLE_0272 success is {controlled_normal_h272:.1%} / {controlled_deep_h272:.1%} / {controlled_very_h272:.1%}; HURDLE_0618 success is {controlled_normal_h618:.1%} / {controlled_deep_h618:.1%} / {controlled_very_h618:.1%}. "
+        "These descriptive geometry-controlled results do not show weaker post-confirmation continuation for deep Wave2, conditional on having reached CONFIRMED. "
+        f"The fixed 81-event Fib-near sample remains {near_sample['fib1272_before_structural_invalidation_count']}/{near_sample['N']} strict post-T Fib1.272 successes, including {near_sample['very_deep_count']} VERY_DEEP, but confirmed-only outcomes do not prove pre-confirmation early-entry effectiveness. "
+        "They support prioritizing a separate PRE-CONFIRMATION causal study as a research hypothesis, not deleting deep Wave2 contexts. "
         f"At the same time, existing T-day gates already exclude all {production_funnel['VERY_DEEP']['CONFIRMED'] - production_funnel['VERY_DEEP']['ENTRY_ALLOWED']} VERY_DEEP events from ENTRY_ALLOWED in this development funnel, "
         "so a new depth gate would be redundant here; no production change is authorized by this result."
     )
@@ -1332,6 +1835,20 @@ def run_research(
         "artifact_version": "v1",
         "analysis_date": "2026-09-16",
         "status": "READY_FOR_DECISION",
+        "protocol": {
+            "primary_outcome_scope": "strictly post-T future path until existing close-based structural invalidation or frozen-dataset censoring",
+            "depth_bands": {
+                "NORMAL_OR_SHALLOW": "r <= 0.618",
+                "DEEP": "0.618 < r <= 0.786",
+                "VERY_DEEP": "r > 0.786",
+            },
+            "common_hurdles": dict(COMMON_HURDLES),
+            "target_1272_ratio": FIB_1_272_RATIO,
+            "target_1618_ratio": FIB_1_618_RATIO,
+            "same_bar_ordering": "AMBIGUOUS unless an existing structural ordering contract applies; execution stop-first is not reused",
+            "threshold_search": False,
+            "parameter_search": False,
+        },
         "scope": {
             "confirmed_events": len(events),
             "prior_confirmed_events": prior["confirmed_count"],
@@ -1370,6 +1887,10 @@ def run_research(
             "market": _market_robustness(records),
             "time_half": _time_half_robustness(records, sessions),
             "symbol_concentration": _concentration(records),
+            "geometry_controlled": {
+                "market": _geometry_controlled_market_robustness(records),
+                "time_half": _geometry_controlled_time_half_robustness(records, sessions),
+            },
         },
         "event_level_detail": _ephemeral_event_detail_summary(records),
         "validation": {
