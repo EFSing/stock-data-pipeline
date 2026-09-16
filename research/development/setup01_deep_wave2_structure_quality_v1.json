@@ -1,0 +1,2895 @@
+{
+  "protocol_version": "SETUP-01-DEEP-WAVE2-STRUCTURE-QUALITY-2026-09-16-v1",
+  "artifact_type": "SETUP_01_DEEP_WAVE2_STRUCTURE_QUALITY",
+  "artifact_version": "v1",
+  "analysis_date": "2026-09-16",
+  "status": "READY_FOR_DECISION",
+  "protocol": {
+    "primary_outcome_scope": "strictly post-T future path until existing close-based structural invalidation or frozen-dataset censoring",
+    "depth_bands": {
+      "NORMAL_OR_SHALLOW": "r <= 0.618",
+      "DEEP": "0.618 < r <= 0.786",
+      "VERY_DEEP": "r > 0.786"
+    },
+    "common_hurdles": {
+      "HURDLE_0272": 0.272,
+      "HURDLE_0618": 0.618
+    },
+    "target_1272_ratio": 1.272,
+    "target_1618_ratio": 1.618,
+    "same_bar_ordering": "AMBIGUOUS unless an existing structural ordering contract applies; execution stop-first is not reused",
+    "threshold_search": false,
+    "parameter_search": false
+  },
+  "scope": {
+    "confirmed_events": 745,
+    "prior_confirmed_events": 745,
+    "development_session_identity": "FROZEN_DATASET_MARKET_SESSION_SET",
+    "depth_bands": {
+      "NORMAL_OR_SHALLOW": "r <= 0.618",
+      "DEEP": "0.618 < r <= 0.786",
+      "VERY_DEEP": "r > 0.786"
+    },
+    "prior_category_counts": {
+      "NEAR_SWING_ONLY": 117,
+      "SMALL_WAVE_FIB": 18,
+      "BOTH_NEAR": 63
+    },
+    "wave3_fib_near_events": 81
+  },
+  "source_artifacts": {
+    "dataset_manifest": {
+      "path": "research/development_holdout/dataset_manifest.json",
+      "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+      "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+      "replay_input_aggregate_hash": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+      "symbol_count": 40,
+      "bar_count": 86305
+    },
+    "prior_structure_scale": {
+      "path": "research/development/setup01_wave2_to_wave3_structure_scale_diagnostic_v1.json",
+      "sha256": "sha256:00eacd584243b81baa878707313f97af11a8e4917aa1d1be6ef8f88988809a7b"
+    },
+    "prior_geometry_attribution": {
+      "path": "research/development/setup01_wave2_to_wave3_geometry_attribution_v1.json",
+      "sha256": "sha256:eec544924ca9dc496e6f7df7ef2a4c1f7b2fee1c433aafaea80dbc256b13e59c"
+    }
+  },
+  "depth_bands": {
+    "NORMAL_OR_SHALLOW": {
+      "N": 345,
+      "geometry": {
+        "r": {
+          "n": 345,
+          "p25": 0.36607142857142805,
+          "median": 0.45496183206106877,
+          "p75": 0.5333898305084747
+        },
+        "wave1_gain_pct": {
+          "n": 345,
+          "p25": 0.13728154163069056,
+          "median": 0.20781219166499731,
+          "p75": 0.3088917169483869
+        },
+        "wave1_range_over_T_ATR14": {
+          "n": 345,
+          "p25": 3.8298591402029145,
+          "median": 5.198565368980494,
+          "p75": 7.081334034085843
+        },
+        "e": {
+          "n": 345,
+          "p25": 0.387267719999997,
+          "median": 1.15863156,
+          "p75": 3.497194800000001
+        },
+        "e_over_R": {
+          "n": 345,
+          "p25": 0.05466537411692372,
+          "median": 0.15540526259808024,
+          "p75": 0.41810344827586016
+        },
+        "planned_entry_to_1272_upside_pct": {
+          "n": 345,
+          "p25": 0.043565044071604664,
+          "median": 0.09898423817863389,
+          "p75": 0.159300018200756
+        },
+        "planned_entry_to_1618_upside_pct": {
+          "n": 345,
+          "p25": 0.08500607935448046,
+          "median": 0.14950104947526244,
+          "p75": 0.23690986746594955
+        },
+        "pre_confirmation_consumption_1272_median": 0.35767439627442515,
+        "pre_confirmation_consumption_1618_median": 0.28118778248520937,
+        "post_confirmation_headroom_over_R_1272_median": 0.6310624138190436,
+        "post_confirmation_headroom_over_R_1618_median": 0.9770624138190438,
+        "fib_1272_upside_below_5_count": 96,
+        "fib_1272_upside_below_5_share": 0.2782608695652174,
+        "fib_1618_upside_below_5_count": 56,
+        "fib_1618_upside_below_5_share": 0.16231884057971013
+      },
+      "structural_continuation": {
+        "outcomes": {
+          "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+            "count": 225,
+            "rate": 0.6521739130434783
+          },
+          "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+            "count": 117,
+            "rate": 0.3391304347826087
+          },
+          "SAME_BAR_AMBIGUOUS": {
+            "count": 0,
+            "rate": 0.0
+          },
+          "CENSORED_INSUFFICIENT_PATH": {
+            "count": 3,
+            "rate": 0.008695652173913044
+          }
+        },
+        "fib1272_before_structural_invalidation_count": 225,
+        "fib1272_before_structural_invalidation_rate": 0.6521739130434783,
+        "structural_invalidation_before_fib1272_count": 117,
+        "structural_invalidation_before_fib1272_rate": 0.3391304347826087,
+        "same_bar_ambiguous_count": 0,
+        "censored_count": 3,
+        "fib1618_before_structural_invalidation_count": 196,
+        "fib1618_before_structural_invalidation_rate": 0.5681159420289855,
+        "sessions_to_fib1272": {
+          "n": 323,
+          "p25": 4.0,
+          "median": 25.0,
+          "p75": 108.0
+        },
+        "sessions_to_structural_invalidation": {
+          "n": 267,
+          "p25": 23.0,
+          "median": 57.0,
+          "p75": 167.0
+        },
+        "scenario_invalidation_relation": {
+          "NOT_OBSERVED": 132,
+          "SCENARIO_AFTER_STRUCTURAL": 205,
+          "SCENARIO_SAME_DATE_AS_STRUCTURAL": 8
+        },
+        "scenario_invalidation_before_structural_count": 0,
+        "target_reached_on_T_bar_not_credited_count": 58
+      },
+      "two_by_two": {
+        "cells": {
+          "STRUCTURE_SUCCESS": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 139,
+              "share_of_band": 0.4028985507246377
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 86,
+              "share_of_band": 0.2492753623188406
+            }
+          },
+          "STRUCTURE_FAILURE": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 108,
+              "share_of_band": 0.3130434782608696
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 9,
+              "share_of_band": 0.02608695652173913
+            }
+          },
+          "UNRESOLVED": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 2,
+              "share_of_band": 0.005797101449275362
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 1,
+              "share_of_band": 0.002898550724637681
+            }
+          }
+        },
+        "unresolved_outcome_counts": {
+          "CENSORED_INSUFFICIENT_PATH": 3
+        },
+        "resolved_success_count": 225,
+        "resolved_failure_count": 117
+      },
+      "geometry_controlled": {
+        "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+        "continuous_metrics": {
+          "post_T_peak_extension_from_H1_over_R": {
+            "N_total": 345,
+            "N_observed": 345,
+            "censored_or_empty_path_N": 0,
+            "distribution": {
+              "n": 345,
+              "p10": 0.1735426460650413,
+              "p25": 0.5816019116050907,
+              "median": 1.516129032258061,
+              "p75": 5.182025894897183,
+              "p90": 19.752311214696096
+            }
+          },
+          "post_T_peak_extension_from_planned_entry_over_R": {
+            "N_total": 345,
+            "N_observed": 345,
+            "censored_or_empty_path_N": 0,
+            "distribution": {
+              "n": 345,
+              "p10": 0.07815384615384605,
+              "p25": 0.3403042326649683,
+              "median": 1.1889143272281482,
+              "p75": 4.566564772562233,
+              "p90": 19.477503697704122
+            }
+          },
+          "post_T_peak_close_extension_from_H1_over_R": {
+            "N_total": 345,
+            "N_observed": 345,
+            "censored_or_empty_path_N": 0,
+            "distribution": {
+              "n": 345,
+              "p10": 0.08724463234939069,
+              "p25": 0.4739126558790907,
+              "median": 1.330708661417322,
+              "p75": 4.712790074517647,
+              "p90": 19.22738526672167
+            }
+          }
+        },
+        "hurdles": {
+          "HURDLE_0272": {
+            "normalized_distance_from_H1_over_R": 0.272,
+            "outcomes": {
+              "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 301,
+                "rate": 0.8724637681159421
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                "count": 44,
+                "rate": 0.12753623188405797
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "success_count": 301,
+            "success_rate": 0.8724637681159421
+          },
+          "HURDLE_0618": {
+            "normalized_distance_from_H1_over_R": 0.618,
+            "outcomes": {
+              "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 252,
+                "rate": 0.7304347826086957
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                "count": 93,
+                "rate": 0.26956521739130435
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "success_count": 252,
+            "success_rate": 0.7304347826086957
+          }
+        }
+      }
+    },
+    "DEEP": {
+      "N": 183,
+      "geometry": {
+        "r": {
+          "n": 183,
+          "p25": 0.6563657407407406,
+          "median": 0.6982578074177082,
+          "p75": 0.7423236234162666
+        },
+        "wave1_gain_pct": {
+          "n": 183,
+          "p25": 0.09720753067392598,
+          "median": 0.14027986130922734,
+          "p75": 0.20119757902281532
+        },
+        "wave1_range_over_T_ATR14": {
+          "n": 183,
+          "p25": 2.933029174164561,
+          "median": 3.671446956514131,
+          "p75": 4.59678589457881
+        },
+        "e": {
+          "n": 183,
+          "p25": 0.18136339497442888,
+          "median": 0.9819235570311804,
+          "p75": 5.199573741208173
+        },
+        "e_over_R": {
+          "n": 183,
+          "p25": 0.058100670136521586,
+          "median": 0.1928251121076229,
+          "p75": 0.5969507406474347
+        },
+        "planned_entry_to_1272_upside_pct": {
+          "n": 183,
+          "p25": -0.002964410858673827,
+          "median": 0.03574568965517266,
+          "p75": 0.06769109118874894
+        },
+        "planned_entry_to_1618_upside_pct": {
+          "n": 183,
+          "p25": 0.031007954358240997,
+          "median": 0.07399030908971871,
+          "p75": 0.11193399860269737
+        },
+        "pre_confirmation_consumption_1272_median": 0.5489448171522863,
+        "pre_confirmation_consumption_1618_median": 0.4315561232495106,
+        "post_confirmation_headroom_over_R_1272_median": 0.37065470852017945,
+        "post_confirmation_headroom_over_R_1618_median": 0.7166547085201795,
+        "fib_1272_upside_below_5_count": 114,
+        "fib_1272_upside_below_5_share": 0.6229508196721312,
+        "fib_1618_upside_below_5_count": 60,
+        "fib_1618_upside_below_5_share": 0.32786885245901637
+      },
+      "structural_continuation": {
+        "outcomes": {
+          "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+            "count": 147,
+            "rate": 0.8032786885245902
+          },
+          "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+            "count": 36,
+            "rate": 0.19672131147540983
+          },
+          "SAME_BAR_AMBIGUOUS": {
+            "count": 0,
+            "rate": 0.0
+          },
+          "CENSORED_INSUFFICIENT_PATH": {
+            "count": 0,
+            "rate": 0.0
+          }
+        },
+        "fib1272_before_structural_invalidation_count": 147,
+        "fib1272_before_structural_invalidation_rate": 0.8032786885245902,
+        "structural_invalidation_before_fib1272_count": 36,
+        "structural_invalidation_before_fib1272_rate": 0.19672131147540983,
+        "same_bar_ambiguous_count": 0,
+        "censored_count": 0,
+        "fib1618_before_structural_invalidation_count": 132,
+        "fib1618_before_structural_invalidation_rate": 0.7213114754098361,
+        "sessions_to_fib1272": {
+          "n": 174,
+          "p25": 1.0,
+          "median": 3.5,
+          "p75": 19.75
+        },
+        "sessions_to_structural_invalidation": {
+          "n": 138,
+          "p25": 21.0,
+          "median": 56.5,
+          "p75": 165.0
+        },
+        "scenario_invalidation_relation": {
+          "NOT_OBSERVED": 53,
+          "SCENARIO_AFTER_STRUCTURAL": 100,
+          "SCENARIO_SAME_DATE_AS_STRUCTURAL": 30
+        },
+        "scenario_invalidation_before_structural_count": 0,
+        "target_reached_on_T_bar_not_credited_count": 59
+      },
+      "two_by_two": {
+        "cells": {
+          "STRUCTURE_SUCCESS": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 44,
+              "share_of_band": 0.24043715846994534
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 103,
+              "share_of_band": 0.5628415300546448
+            }
+          },
+          "STRUCTURE_FAILURE": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 25,
+              "share_of_band": 0.1366120218579235
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 11,
+              "share_of_band": 0.060109289617486336
+            }
+          },
+          "UNRESOLVED": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 0,
+              "share_of_band": 0.0
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 0,
+              "share_of_band": 0.0
+            }
+          }
+        },
+        "unresolved_outcome_counts": {},
+        "resolved_success_count": 147,
+        "resolved_failure_count": 36
+      },
+      "geometry_controlled": {
+        "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+        "continuous_metrics": {
+          "post_T_peak_extension_from_H1_over_R": {
+            "N_total": 183,
+            "N_observed": 182,
+            "censored_or_empty_path_N": 1,
+            "distribution": {
+              "n": 182,
+              "p10": 0.26777437934678594,
+              "p25": 0.8322023961177039,
+              "median": 2.1851948587324537,
+              "p75": 8.264705873534567,
+              "p90": 27.61488059256609
+            }
+          },
+          "post_T_peak_extension_from_planned_entry_over_R": {
+            "N_total": 183,
+            "N_observed": 182,
+            "censored_or_empty_path_N": 1,
+            "distribution": {
+              "n": 182,
+              "p10": 0.16226232938174728,
+              "p25": 0.4565855505151593,
+              "median": 1.6609580381800995,
+              "p75": 7.926692664703855,
+              "p90": 27.54909518118427
+            }
+          },
+          "post_T_peak_close_extension_from_H1_over_R": {
+            "N_total": 183,
+            "N_observed": 182,
+            "censored_or_empty_path_N": 1,
+            "distribution": {
+              "n": 182,
+              "p10": 0.1384785068397572,
+              "p25": 0.6967271346776416,
+              "median": 2.013283958996484,
+              "p75": 7.921922521795283,
+              "p90": 26.454549943440803
+            }
+          }
+        },
+        "hurdles": {
+          "HURDLE_0272": {
+            "normalized_distance_from_H1_over_R": 0.272,
+            "outcomes": {
+              "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 161,
+                "rate": 0.8797814207650273
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                "count": 22,
+                "rate": 0.12021857923497267
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "success_count": 161,
+            "success_rate": 0.8797814207650273
+          },
+          "HURDLE_0618": {
+            "normalized_distance_from_H1_over_R": 0.618,
+            "outcomes": {
+              "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 146,
+                "rate": 0.7978142076502732
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                "count": 37,
+                "rate": 0.20218579234972678
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "success_count": 146,
+            "success_rate": 0.7978142076502732
+          }
+        }
+      }
+    },
+    "VERY_DEEP": {
+      "N": 217,
+      "geometry": {
+        "r": {
+          "n": 217,
+          "p25": 0.8360215053763438,
+          "median": 0.8930817610062899,
+          "p75": 0.9386956671051644
+        },
+        "wave1_gain_pct": {
+          "n": 217,
+          "p25": 0.07747847820049988,
+          "median": 0.11305611745494856,
+          "p75": 0.1893071467539553
+        },
+        "wave1_range_over_T_ATR14": {
+          "n": 217,
+          "p25": 2.469636012009905,
+          "median": 3.0814127340529196,
+          "p75": 3.8843617590889767
+        },
+        "e": {
+          "n": 217,
+          "p25": 0.2708172440129424,
+          "median": 1.0394372800000014,
+          "p75": 3.1737973260143235
+        },
+        "e_over_R": {
+          "n": 217,
+          "p25": 0.06821064245843875,
+          "median": 0.22316865417376444,
+          "p75": 0.5533141210374642
+        },
+        "planned_entry_to_1272_upside_pct": {
+          "n": 217,
+          "p25": -0.017471913480868295,
+          "median": 0.014301052631578992,
+          "p75": 0.032733162949888595
+        },
+        "planned_entry_to_1618_upside_pct": {
+          "n": 217,
+          "p25": 0.010969324114297407,
+          "median": 0.0428480463096963,
+          "p75": 0.07658052039381147
+        },
+        "pre_confirmation_consumption_1272_median": 0.7021083026779008,
+        "pre_confirmation_consumption_1618_median": 0.5519664777541964,
+        "post_confirmation_headroom_over_R_1272_median": 0.1704774240306071,
+        "post_confirmation_headroom_over_R_1618_median": 0.5164774240306071,
+        "fib_1272_upside_below_5_count": 183,
+        "fib_1272_upside_below_5_share": 0.8433179723502304,
+        "fib_1618_upside_below_5_count": 122,
+        "fib_1618_upside_below_5_share": 0.5622119815668203
+      },
+      "structural_continuation": {
+        "outcomes": {
+          "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+            "count": 195,
+            "rate": 0.8986175115207373
+          },
+          "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+            "count": 20,
+            "rate": 0.09216589861751152
+          },
+          "SAME_BAR_AMBIGUOUS": {
+            "count": 0,
+            "rate": 0.0
+          },
+          "CENSORED_INSUFFICIENT_PATH": {
+            "count": 2,
+            "rate": 0.009216589861751152
+          }
+        },
+        "fib1272_before_structural_invalidation_count": 195,
+        "fib1272_before_structural_invalidation_rate": 0.8986175115207373,
+        "structural_invalidation_before_fib1272_count": 20,
+        "structural_invalidation_before_fib1272_rate": 0.09216589861751152,
+        "same_bar_ambiguous_count": 0,
+        "censored_count": 2,
+        "fib1618_before_structural_invalidation_count": 169,
+        "fib1618_before_structural_invalidation_rate": 0.7788018433179723,
+        "sessions_to_fib1272": {
+          "n": 213,
+          "p25": 1.0,
+          "median": 1.0,
+          "p75": 5.0
+        },
+        "sessions_to_structural_invalidation": {
+          "n": 168,
+          "p25": 21.25,
+          "median": 52.0,
+          "p75": 142.75
+        },
+        "scenario_invalidation_relation": {
+          "NOT_OBSERVED": 53,
+          "SCENARIO_AFTER_STRUCTURAL": 68,
+          "SCENARIO_SAME_DATE_AS_STRUCTURAL": 96
+        },
+        "scenario_invalidation_before_structural_count": 0,
+        "target_reached_on_T_bar_not_credited_count": 101
+      },
+      "two_by_two": {
+        "cells": {
+          "STRUCTURE_SUCCESS": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 25,
+              "share_of_band": 0.1152073732718894
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 170,
+              "share_of_band": 0.783410138248848
+            }
+          },
+          "STRUCTURE_FAILURE": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 9,
+              "share_of_band": 0.041474654377880185
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 11,
+              "share_of_band": 0.05069124423963134
+            }
+          },
+          "UNRESOLVED": {
+            "ENTRY_HEADROOM_GE_5_PCT": {
+              "count": 0,
+              "share_of_band": 0.0
+            },
+            "ENTRY_HEADROOM_LT_5_PCT": {
+              "count": 2,
+              "share_of_band": 0.009216589861751152
+            }
+          }
+        },
+        "unresolved_outcome_counts": {
+          "CENSORED_INSUFFICIENT_PATH": 2
+        },
+        "resolved_success_count": 195,
+        "resolved_failure_count": 20
+      },
+      "geometry_controlled": {
+        "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+        "continuous_metrics": {
+          "post_T_peak_extension_from_H1_over_R": {
+            "N_total": 217,
+            "N_observed": 216,
+            "censored_or_empty_path_N": 1,
+            "distribution": {
+              "n": 216,
+              "p10": 0.36146989252932055,
+              "p25": 0.837732563926326,
+              "median": 2.110039844741254,
+              "p75": 6.404135793167298,
+              "p90": 21.62381203561381
+            }
+          },
+          "post_T_peak_extension_from_planned_entry_over_R": {
+            "N_total": 217,
+            "N_observed": 216,
+            "censored_or_empty_path_N": 1,
+            "distribution": {
+              "n": 216,
+              "p10": 0.13196564576206452,
+              "p25": 0.4731327753767272,
+              "median": 1.5042346601915806,
+              "p75": 5.823536876919049,
+              "p90": 20.890345306166164
+            }
+          },
+          "post_T_peak_close_extension_from_H1_over_R": {
+            "N_total": 217,
+            "N_observed": 216,
+            "censored_or_empty_path_N": 1,
+            "distribution": {
+              "n": 216,
+              "p10": 0.19876812846487185,
+              "p25": 0.6542059225010584,
+              "median": 1.90601593948664,
+              "p75": 6.242058981485897,
+              "p90": 21.61076399615415
+            }
+          }
+        },
+        "hurdles": {
+          "HURDLE_0272": {
+            "normalized_distance_from_H1_over_R": 0.272,
+            "outcomes": {
+              "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 199,
+                "rate": 0.9170506912442397
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                "count": 16,
+                "rate": 0.07373271889400922
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 2,
+                "rate": 0.009216589861751152
+              }
+            },
+            "success_count": 199,
+            "success_rate": 0.9170506912442397
+          },
+          "HURDLE_0618": {
+            "normalized_distance_from_H1_over_R": 0.618,
+            "outcomes": {
+              "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 174,
+                "rate": 0.8018433179723502
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                "count": 41,
+                "rate": 0.1889400921658986
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 2,
+                "rate": 0.009216589861751152
+              }
+            },
+            "success_count": 174,
+            "success_rate": 0.8018433179723502
+          }
+        }
+      }
+    }
+  },
+  "fib_near_81": {
+    "N": 81,
+    "category_counts": {
+      "BOTH_NEAR": 63,
+      "SMALL_WAVE_FIB": 18
+    },
+    "very_deep_count": 55,
+    "headroom_ge_5_count": 0,
+    "headroom_lt_5_count": 81,
+    "strict_post_T_outcomes": {
+      "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+        "count": 64,
+        "rate": 0.7901234567901234
+      },
+      "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+        "count": 16,
+        "rate": 0.19753086419753085
+      },
+      "SAME_BAR_AMBIGUOUS": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "CENSORED_INSUFFICIENT_PATH": {
+        "count": 1,
+        "rate": 0.012345679012345678
+      }
+    },
+    "fib1272_before_structural_invalidation_count": 64,
+    "fib1272_before_structural_invalidation_rate": 0.7901234567901234,
+    "two_by_two": {
+      "cells": {
+        "STRUCTURE_SUCCESS": {
+          "ENTRY_HEADROOM_GE_5_PCT": {
+            "count": 0,
+            "share_of_band": 0.0
+          },
+          "ENTRY_HEADROOM_LT_5_PCT": {
+            "count": 64,
+            "share_of_band": 0.7901234567901234
+          }
+        },
+        "STRUCTURE_FAILURE": {
+          "ENTRY_HEADROOM_GE_5_PCT": {
+            "count": 0,
+            "share_of_band": 0.0
+          },
+          "ENTRY_HEADROOM_LT_5_PCT": {
+            "count": 16,
+            "share_of_band": 0.19753086419753085
+          }
+        },
+        "UNRESOLVED": {
+          "ENTRY_HEADROOM_GE_5_PCT": {
+            "count": 0,
+            "share_of_band": 0.0
+          },
+          "ENTRY_HEADROOM_LT_5_PCT": {
+            "count": 1,
+            "share_of_band": 0.012345679012345678
+          }
+        }
+      },
+      "unresolved_outcome_counts": {
+        "CENSORED_INSUFFICIENT_PATH": 1
+      },
+      "resolved_success_count": 64,
+      "resolved_failure_count": 16
+    },
+    "geometry_controlled": {
+      "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+      "continuous_metrics": {
+        "post_T_peak_extension_from_H1_over_R": {
+          "N_total": 81,
+          "N_observed": 81,
+          "censored_or_empty_path_N": 0,
+          "distribution": {
+            "n": 81,
+            "p10": 0.10447761194029884,
+            "p25": 0.5135129562169222,
+            "median": 1.4739055408135575,
+            "p75": 4.8669816615079196,
+            "p90": 22.5729811679019
+          }
+        },
+        "post_T_peak_extension_from_planned_entry_over_R": {
+          "N_total": 81,
+          "N_observed": 81,
+          "censored_or_empty_path_N": 0,
+          "distribution": {
+            "n": 81,
+            "p10": 0.035630732956094174,
+            "p25": 0.40842995328434617,
+            "median": 1.3774319066147855,
+            "p75": 4.796755645439085,
+            "p90": 22.444387831033463
+          }
+        },
+        "post_T_peak_close_extension_from_H1_over_R": {
+          "N_total": 81,
+          "N_observed": 81,
+          "censored_or_empty_path_N": 0,
+          "distribution": {
+            "n": 81,
+            "p10": -0.04724409448818798,
+            "p25": 0.35714285714285554,
+            "median": 1.1290322580645127,
+            "p75": 4.693440394331903,
+            "p90": 22.297736526011295
+          }
+        }
+      },
+      "hurdles": {
+        "HURDLE_0272": {
+          "normalized_distance_from_H1_over_R": 0.272,
+          "outcomes": {
+            "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 68,
+              "rate": 0.8395061728395061
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 12,
+              "rate": 0.14814814814814814
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 1,
+              "rate": 0.012345679012345678
+            }
+          },
+          "success_count": 68,
+          "success_rate": 0.8395061728395061
+        },
+        "HURDLE_0618": {
+          "normalized_distance_from_H1_over_R": 0.618,
+          "outcomes": {
+            "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 56,
+              "rate": 0.691358024691358
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 24,
+              "rate": 0.2962962962962963
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 1,
+              "rate": 0.012345679012345678
+            }
+          },
+          "success_count": 56,
+          "success_rate": 0.691358024691358
+        }
+      }
+    },
+    "strict_post_T_target_crossing_not_credited_on_T_bar": true
+  },
+  "production_funnel": {
+    "NORMAL_OR_SHALLOW": {
+      "CONFIRMED": 345,
+      "ABOVE_ENTRY_ZONE": 222,
+      "TARGET_UPSIDE_BELOW_MINIMUM": 75,
+      "RR_BELOW_MINIMUM": 43,
+      "ENTRY_ALLOWED": 5,
+      "T+1_EXECUTED": 4,
+      "T+1_SKIPPED": 1,
+      "other_decision_gate_reasons": {},
+      "t_plus_1_outcome_counts": {
+        "EXECUTED": 4,
+        "SKIP_GAP_BELOW_CONFIRMATION": 1
+      },
+      "excluded_by_current_T_day_gates": 340,
+      "excluded_by_current_T_day_gates_share": 0.9855072463768116,
+      "excluded_after_T_plus_1_open": 1,
+      "entry_allowed_share": 0.014492753623188406,
+      "executed_share_of_confirmed": 0.011594202898550725
+    },
+    "DEEP": {
+      "CONFIRMED": 183,
+      "ABOVE_ENTRY_ZONE": 109,
+      "TARGET_UPSIDE_BELOW_MINIMUM": 51,
+      "RR_BELOW_MINIMUM": 23,
+      "ENTRY_ALLOWED": 0,
+      "T+1_EXECUTED": 0,
+      "T+1_SKIPPED": 0,
+      "other_decision_gate_reasons": {},
+      "t_plus_1_outcome_counts": {},
+      "excluded_by_current_T_day_gates": 183,
+      "excluded_by_current_T_day_gates_share": 1.0,
+      "excluded_after_T_plus_1_open": 0,
+      "entry_allowed_share": 0.0,
+      "executed_share_of_confirmed": 0.0
+    },
+    "VERY_DEEP": {
+      "CONFIRMED": 217,
+      "ABOVE_ENTRY_ZONE": 133,
+      "TARGET_UPSIDE_BELOW_MINIMUM": 72,
+      "RR_BELOW_MINIMUM": 12,
+      "ENTRY_ALLOWED": 0,
+      "T+1_EXECUTED": 0,
+      "T+1_SKIPPED": 0,
+      "other_decision_gate_reasons": {},
+      "t_plus_1_outcome_counts": {},
+      "excluded_by_current_T_day_gates": 217,
+      "excluded_by_current_T_day_gates_share": 1.0,
+      "excluded_after_T_plus_1_open": 0,
+      "entry_allowed_share": 0.0,
+      "executed_share_of_confirmed": 0.0
+    }
+  },
+  "secondary_executed_performance": {
+    "NORMAL_OR_SHALLOW": {
+      "executed": 4,
+      "closed": 4,
+      "open_censored": 0,
+      "gross_expectancy_R": -0.8654538329976307,
+      "gross_win_rate": 0.25,
+      "gross_profit_factor": 0.005688673023309,
+      "stop_out_count": 2,
+      "stop_out_rate": 0.5,
+      "terminal_outcome_distribution": {
+        "EXIT_GAP_BELOW_STOP": 2,
+        "STRUCTURAL_EXIT_PENDING": 2
+      },
+      "metrics_are_secondary_context": true,
+      "small_executed_sample_not_gate_evidence": true
+    },
+    "DEEP": {
+      "executed": 0,
+      "closed": 0,
+      "open_censored": 0,
+      "gross_expectancy_R": null,
+      "gross_win_rate": null,
+      "gross_profit_factor": null,
+      "stop_out_count": 0,
+      "stop_out_rate": null,
+      "terminal_outcome_distribution": {},
+      "metrics_are_secondary_context": true,
+      "small_executed_sample_not_gate_evidence": true
+    },
+    "VERY_DEEP": {
+      "executed": 0,
+      "closed": 0,
+      "open_censored": 0,
+      "gross_expectancy_R": null,
+      "gross_win_rate": null,
+      "gross_profit_factor": null,
+      "stop_out_count": 0,
+      "stop_out_rate": null,
+      "terminal_outcome_distribution": {},
+      "metrics_are_secondary_context": true,
+      "small_executed_sample_not_gate_evidence": true
+    }
+  },
+  "robustness": {
+    "market": {
+      "CN": {
+        "NORMAL_OR_SHALLOW": {
+          "N": 130,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 81,
+              "rate": 0.6230769230769231
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 49,
+              "rate": 0.3769230769230769
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.6230769230769231,
+          "fib1618_before_structural_invalidation_rate": 0.5461538461538461
+        },
+        "DEEP": {
+          "N": 76,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 58,
+              "rate": 0.7631578947368421
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 18,
+              "rate": 0.23684210526315788
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.7631578947368421,
+          "fib1618_before_structural_invalidation_rate": 0.7236842105263158
+        },
+        "VERY_DEEP": {
+          "N": 93,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 83,
+              "rate": 0.8924731182795699
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 8,
+              "rate": 0.08602150537634409
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 2,
+              "rate": 0.021505376344086023
+            }
+          },
+          "structural_success_rate": 0.8924731182795699,
+          "fib1618_before_structural_invalidation_rate": 0.7311827956989247
+        }
+      },
+      "US": {
+        "NORMAL_OR_SHALLOW": {
+          "N": 215,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 144,
+              "rate": 0.6697674418604651
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 68,
+              "rate": 0.31627906976744186
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 3,
+              "rate": 0.013953488372093023
+            }
+          },
+          "structural_success_rate": 0.6697674418604651,
+          "fib1618_before_structural_invalidation_rate": 0.5813953488372093
+        },
+        "DEEP": {
+          "N": 107,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 89,
+              "rate": 0.8317757009345794
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 18,
+              "rate": 0.16822429906542055
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.8317757009345794,
+          "fib1618_before_structural_invalidation_rate": 0.719626168224299
+        },
+        "VERY_DEEP": {
+          "N": 124,
+          "outcomes": {
+            "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+              "count": 112,
+              "rate": 0.9032258064516129
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+              "count": 12,
+              "rate": 0.0967741935483871
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 0,
+              "rate": 0.0
+            }
+          },
+          "structural_success_rate": 0.9032258064516129,
+          "fib1618_before_structural_invalidation_rate": 0.8145161290322581
+        }
+      }
+    },
+    "time_half": {
+      "split_definition": "Within each market, frozen market-session ordinal midpoint; aggregate by half after the split",
+      "cutoff_by_market": {
+        "CN": "2021-10-29",
+        "US": "2021-10-26"
+      },
+      "results": {
+        "FIRST_HALF": {
+          "NORMAL_OR_SHALLOW": {
+            "N": 200,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 135,
+                "rate": 0.675
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 65,
+                "rate": 0.325
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.675
+          },
+          "DEEP": {
+            "N": 94,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 75,
+                "rate": 0.7978723404255319
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 19,
+                "rate": 0.20212765957446807
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.7978723404255319
+          },
+          "VERY_DEEP": {
+            "N": 112,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 104,
+                "rate": 0.9285714285714286
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 8,
+                "rate": 0.07142857142857142
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.9285714285714286
+          }
+        },
+        "SECOND_HALF": {
+          "NORMAL_OR_SHALLOW": {
+            "N": 145,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 90,
+                "rate": 0.6206896551724138
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 52,
+                "rate": 0.3586206896551724
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 3,
+                "rate": 0.020689655172413793
+              }
+            },
+            "structural_success_rate": 0.6206896551724138
+          },
+          "DEEP": {
+            "N": 89,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 72,
+                "rate": 0.8089887640449438
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 17,
+                "rate": 0.19101123595505617
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 0,
+                "rate": 0.0
+              }
+            },
+            "structural_success_rate": 0.8089887640449438
+          },
+          "VERY_DEEP": {
+            "N": 105,
+            "outcomes": {
+              "FIB1272_BEFORE_STRUCTURAL_INVALIDATION": {
+                "count": 91,
+                "rate": 0.8666666666666667
+              },
+              "STRUCTURAL_INVALIDATION_BEFORE_FIB1272": {
+                "count": 12,
+                "rate": 0.11428571428571428
+              },
+              "SAME_BAR_AMBIGUOUS": {
+                "count": 0,
+                "rate": 0.0
+              },
+              "CENSORED_INSUFFICIENT_PATH": {
+                "count": 2,
+                "rate": 0.01904761904761905
+              }
+            },
+            "structural_success_rate": 0.8666666666666667
+          }
+        }
+      }
+    },
+    "symbol_concentration": {
+      "NORMAL_OR_SHALLOW": {
+        "symbol_count": 39,
+        "top_5_symbols_by_event_count": [
+          {
+            "symbol": "BLDR",
+            "N": 16,
+            "share": 0.0463768115942029
+          },
+          {
+            "symbol": "LIN",
+            "N": 16,
+            "share": 0.0463768115942029
+          },
+          {
+            "symbol": "META",
+            "N": 16,
+            "share": 0.0463768115942029
+          },
+          {
+            "symbol": "LRCX",
+            "N": 15,
+            "share": 0.043478260869565216
+          },
+          {
+            "symbol": "NUE",
+            "N": 15,
+            "share": 0.043478260869565216
+          }
+        ],
+        "top_5_event_share": 0.22608695652173913,
+        "max_symbol_event_share": 0.0463768115942029,
+        "event_count_hhi": 0.031598403696702373,
+        "structural_success_rate_excluding_top_symbol": 0.6534954407294833,
+        "geometry_controlled_excluding_top_symbol": {
+          "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+          "continuous_metrics": {
+            "post_T_peak_extension_from_H1_over_R": {
+              "N_total": 329,
+              "N_observed": 329,
+              "censored_or_empty_path_N": 0,
+              "distribution": {
+                "n": 329,
+                "p10": 0.1639531208472787,
+                "p25": 0.5840139416165705,
+                "median": 1.4430379746835449,
+                "p75": 5.0810156396142565,
+                "p90": 19.739384993597685
+              }
+            },
+            "post_T_peak_extension_from_planned_entry_over_R": {
+              "N_total": 329,
+              "N_observed": 329,
+              "censored_or_empty_path_N": 0,
+              "distribution": {
+                "n": 329,
+                "p10": 0.0793846153846152,
+                "p25": 0.33647557406888057,
+                "median": 1.1620253164556966,
+                "p75": 4.469776840095663,
+                "p90": 19.196436626280363
+              }
+            },
+            "post_T_peak_close_extension_from_H1_over_R": {
+              "N_total": 329,
+              "N_observed": 329,
+              "censored_or_empty_path_N": 0,
+              "distribution": {
+                "n": 329,
+                "p10": 0.08165270864028448,
+                "p25": 0.49608077894821606,
+                "median": 1.2979877569861495,
+                "p75": 4.692307692307694,
+                "p90": 19.066534113383167
+              }
+            }
+          },
+          "hurdles": {
+            "HURDLE_0272": {
+              "normalized_distance_from_H1_over_R": 0.272,
+              "outcomes": {
+                "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                  "count": 287,
+                  "rate": 0.8723404255319149
+                },
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                  "count": 42,
+                  "rate": 0.1276595744680851
+                },
+                "SAME_BAR_AMBIGUOUS": {
+                  "count": 0,
+                  "rate": 0.0
+                },
+                "CENSORED_INSUFFICIENT_PATH": {
+                  "count": 0,
+                  "rate": 0.0
+                }
+              },
+              "success_count": 287,
+              "success_rate": 0.8723404255319149
+            },
+            "HURDLE_0618": {
+              "normalized_distance_from_H1_over_R": 0.618,
+              "outcomes": {
+                "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                  "count": 241,
+                  "rate": 0.7325227963525835
+                },
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                  "count": 88,
+                  "rate": 0.2674772036474164
+                },
+                "SAME_BAR_AMBIGUOUS": {
+                  "count": 0,
+                  "rate": 0.0
+                },
+                "CENSORED_INSUFFICIENT_PATH": {
+                  "count": 0,
+                  "rate": 0.0
+                }
+              },
+              "success_count": 241,
+              "success_rate": 0.7325227963525835
+            }
+          }
+        }
+      },
+      "DEEP": {
+        "symbol_count": 39,
+        "top_5_symbols_by_event_count": [
+          {
+            "symbol": "TSLA",
+            "N": 12,
+            "share": 0.06557377049180328
+          },
+          {
+            "symbol": "000681.SZ",
+            "N": 10,
+            "share": 0.0546448087431694
+          },
+          {
+            "symbol": "QTWO",
+            "N": 10,
+            "share": 0.0546448087431694
+          },
+          {
+            "symbol": "META",
+            "N": 9,
+            "share": 0.04918032786885246
+          },
+          {
+            "symbol": "002913.SZ",
+            "N": 8,
+            "share": 0.04371584699453552
+          }
+        ],
+        "top_5_event_share": 0.2677595628415301,
+        "max_symbol_event_share": 0.06557377049180328,
+        "event_count_hhi": 0.03335423571919137,
+        "structural_success_rate_excluding_top_symbol": 0.8011695906432749,
+        "geometry_controlled_excluding_top_symbol": {
+          "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+          "continuous_metrics": {
+            "post_T_peak_extension_from_H1_over_R": {
+              "N_total": 171,
+              "N_observed": 170,
+              "censored_or_empty_path_N": 1,
+              "distribution": {
+                "n": 170,
+                "p10": 0.23828423258496573,
+                "p25": 0.8223350139016815,
+                "median": 2.2668049433381587,
+                "p75": 8.264705873534567,
+                "p90": 23.882105005826286
+              }
+            },
+            "post_T_peak_extension_from_planned_entry_over_R": {
+              "N_total": 171,
+              "N_observed": 170,
+              "censored_or_empty_path_N": 1,
+              "distribution": {
+                "n": 170,
+                "p10": 0.15878267242826238,
+                "p25": 0.4565855505151593,
+                "median": 1.7147877554713542,
+                "p75": 7.926692664703855,
+                "p90": 23.340350768798697
+              }
+            },
+            "post_T_peak_close_extension_from_H1_over_R": {
+              "N_total": 171,
+              "N_observed": 170,
+              "censored_or_empty_path_N": 1,
+              "distribution": {
+                "n": 170,
+                "p10": 0.10480944156790353,
+                "p25": 0.6584698293739044,
+                "median": 2.1019137571357396,
+                "p75": 7.921922521795283,
+                "p90": 23.633381213868823
+              }
+            }
+          },
+          "hurdles": {
+            "HURDLE_0272": {
+              "normalized_distance_from_H1_over_R": 0.272,
+              "outcomes": {
+                "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                  "count": 149,
+                  "rate": 0.8713450292397661
+                },
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                  "count": 22,
+                  "rate": 0.1286549707602339
+                },
+                "SAME_BAR_AMBIGUOUS": {
+                  "count": 0,
+                  "rate": 0.0
+                },
+                "CENSORED_INSUFFICIENT_PATH": {
+                  "count": 0,
+                  "rate": 0.0
+                }
+              },
+              "success_count": 149,
+              "success_rate": 0.8713450292397661
+            },
+            "HURDLE_0618": {
+              "normalized_distance_from_H1_over_R": 0.618,
+              "outcomes": {
+                "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                  "count": 136,
+                  "rate": 0.7953216374269005
+                },
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                  "count": 35,
+                  "rate": 0.2046783625730994
+                },
+                "SAME_BAR_AMBIGUOUS": {
+                  "count": 0,
+                  "rate": 0.0
+                },
+                "CENSORED_INSUFFICIENT_PATH": {
+                  "count": 0,
+                  "rate": 0.0
+                }
+              },
+              "success_count": 136,
+              "success_rate": 0.7953216374269005
+            }
+          }
+        }
+      },
+      "VERY_DEEP": {
+        "symbol_count": 39,
+        "top_5_symbols_by_event_count": [
+          {
+            "symbol": "META",
+            "N": 12,
+            "share": 0.055299539170506916
+          },
+          {
+            "symbol": "002913.SZ",
+            "N": 11,
+            "share": 0.05069124423963134
+          },
+          {
+            "symbol": "002768.SZ",
+            "N": 9,
+            "share": 0.041474654377880185
+          },
+          {
+            "symbol": "601598.SH",
+            "N": 8,
+            "share": 0.03686635944700461
+          },
+          {
+            "symbol": "ADI",
+            "N": 8,
+            "share": 0.03686635944700461
+          }
+        ],
+        "top_5_event_share": 0.22119815668202766,
+        "max_symbol_event_share": 0.055299539170506916,
+        "event_count_hhi": 0.030941408821593148,
+        "structural_success_rate_excluding_top_symbol": 0.8926829268292683,
+        "geometry_controlled_excluding_top_symbol": {
+          "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+          "continuous_metrics": {
+            "post_T_peak_extension_from_H1_over_R": {
+              "N_total": 205,
+              "N_observed": 204,
+              "censored_or_empty_path_N": 1,
+              "distribution": {
+                "n": 204,
+                "p10": 0.35489778721159615,
+                "p25": 0.8581200411792909,
+                "median": 2.198179379872621,
+                "p75": 7.0756789579803945,
+                "p90": 22.44226118255242
+              }
+            },
+            "post_T_peak_extension_from_planned_entry_over_R": {
+              "N_total": 205,
+              "N_observed": 204,
+              "censored_or_empty_path_N": 1,
+              "distribution": {
+                "n": 204,
+                "p10": 0.14383745542319565,
+                "p25": 0.5131598194508297,
+                "median": 1.623278671248133,
+                "p75": 6.198564193291526,
+                "p90": 21.418155289988796
+              }
+            },
+            "post_T_peak_close_extension_from_H1_over_R": {
+              "N_total": 205,
+              "N_observed": 204,
+              "censored_or_empty_path_N": 1,
+              "distribution": {
+                "n": 204,
+                "p10": 0.19827537985082086,
+                "p25": 0.6966274427650314,
+                "median": 2.0138407391056035,
+                "p75": 6.724943200876102,
+                "p90": 21.844959167794137
+              }
+            }
+          },
+          "hurdles": {
+            "HURDLE_0272": {
+              "normalized_distance_from_H1_over_R": 0.272,
+              "outcomes": {
+                "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                  "count": 187,
+                  "rate": 0.9121951219512195
+                },
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                  "count": 16,
+                  "rate": 0.07804878048780488
+                },
+                "SAME_BAR_AMBIGUOUS": {
+                  "count": 0,
+                  "rate": 0.0
+                },
+                "CENSORED_INSUFFICIENT_PATH": {
+                  "count": 2,
+                  "rate": 0.00975609756097561
+                }
+              },
+              "success_count": 187,
+              "success_rate": 0.9121951219512195
+            },
+            "HURDLE_0618": {
+              "normalized_distance_from_H1_over_R": 0.618,
+              "outcomes": {
+                "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                  "count": 165,
+                  "rate": 0.8048780487804879
+                },
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                  "count": 38,
+                  "rate": 0.18536585365853658
+                },
+                "SAME_BAR_AMBIGUOUS": {
+                  "count": 0,
+                  "rate": 0.0
+                },
+                "CENSORED_INSUFFICIENT_PATH": {
+                  "count": 2,
+                  "rate": 0.00975609756097561
+                }
+              },
+              "success_count": 165,
+              "success_rate": 0.8048780487804879
+            }
+          }
+        }
+      }
+    },
+    "geometry_controlled": {
+      "market": {
+        "CN": {
+          "NORMAL_OR_SHALLOW": {
+            "N": 130,
+            "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+            "continuous_metrics": {
+              "post_T_peak_extension_from_H1_over_R": {
+                "N_total": 130,
+                "N_observed": 130,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 130,
+                  "p10": 0.13514365440264547,
+                  "p25": 0.4721771576898122,
+                  "median": 1.3872332345877787,
+                  "p75": 4.3779761904761845,
+                  "p90": 12.730668133352465
+                }
+              },
+              "post_T_peak_extension_from_planned_entry_over_R": {
+                "N_total": 130,
+                "N_observed": 130,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 130,
+                  "p10": 0.039831641884981346,
+                  "p25": 0.2782967398157896,
+                  "median": 0.9264238940225349,
+                  "p75": 4.06715778497618,
+                  "p90": 12.55845788701291
+                }
+              },
+              "post_T_peak_close_extension_from_H1_over_R": {
+                "N_total": 130,
+                "N_observed": 130,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 130,
+                  "p10": 0.062028985507246476,
+                  "p25": 0.3591201745284279,
+                  "median": 1.1424750874871061,
+                  "p75": 4.090077701378656,
+                  "p90": 12.229261899147973
+                }
+              }
+            },
+            "hurdles": {
+              "HURDLE_0272": {
+                "normalized_distance_from_H1_over_R": 0.272,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 112,
+                    "rate": 0.8615384615384616
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 18,
+                    "rate": 0.13846153846153847
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 112,
+                "success_rate": 0.8615384615384616
+              },
+              "HURDLE_0618": {
+                "normalized_distance_from_H1_over_R": 0.618,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 88,
+                    "rate": 0.676923076923077
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 42,
+                    "rate": 0.3230769230769231
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 88,
+                "success_rate": 0.676923076923077
+              }
+            }
+          },
+          "DEEP": {
+            "N": 76,
+            "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+            "continuous_metrics": {
+              "post_T_peak_extension_from_H1_over_R": {
+                "N_total": 76,
+                "N_observed": 75,
+                "censored_or_empty_path_N": 1,
+                "distribution": {
+                  "n": 75,
+                  "p10": 0.18346296149901217,
+                  "p25": 0.8419799853093708,
+                  "median": 1.9842209072978292,
+                  "p75": 5.710107394568482,
+                  "p90": 14.16717015400283
+                }
+              },
+              "post_T_peak_extension_from_planned_entry_over_R": {
+                "N_total": 76,
+                "N_observed": 75,
+                "censored_or_empty_path_N": 1,
+                "distribution": {
+                  "n": 75,
+                  "p10": 0.08960800754637878,
+                  "p25": 0.2633087254782607,
+                  "median": 1.3618581907090466,
+                  "p75": 4.605053158972096,
+                  "p90": 13.13354650862384
+                }
+              },
+              "post_T_peak_close_extension_from_H1_over_R": {
+                "N_total": 76,
+                "N_observed": 75,
+                "censored_or_empty_path_N": 1,
+                "distribution": {
+                  "n": 75,
+                  "p10": 0.008504181060924137,
+                  "p25": 0.7015933961663321,
+                  "median": 1.8862590401051935,
+                  "p75": 5.537715221156004,
+                  "p90": 13.497330813300891
+                }
+              }
+            },
+            "hurdles": {
+              "HURDLE_0272": {
+                "normalized_distance_from_H1_over_R": 0.272,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 63,
+                    "rate": 0.8289473684210527
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 13,
+                    "rate": 0.17105263157894737
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 63,
+                "success_rate": 0.8289473684210527
+              },
+              "HURDLE_0618": {
+                "normalized_distance_from_H1_over_R": 0.618,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 58,
+                    "rate": 0.7631578947368421
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 18,
+                    "rate": 0.23684210526315788
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 58,
+                "success_rate": 0.7631578947368421
+              }
+            }
+          },
+          "VERY_DEEP": {
+            "N": 93,
+            "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+            "continuous_metrics": {
+              "post_T_peak_extension_from_H1_over_R": {
+                "N_total": 93,
+                "N_observed": 92,
+                "censored_or_empty_path_N": 1,
+                "distribution": {
+                  "n": 92,
+                  "p10": 0.3698986419888476,
+                  "p25": 0.7262371915556869,
+                  "median": 1.8310836545001141,
+                  "p75": 5.30173933241099,
+                  "p90": 15.640849875930522
+                }
+              },
+              "post_T_peak_extension_from_planned_entry_over_R": {
+                "N_total": 93,
+                "N_observed": 92,
+                "censored_or_empty_path_N": 1,
+                "distribution": {
+                  "n": 92,
+                  "p10": 0.09890016920473751,
+                  "p25": 0.45040470194337756,
+                  "median": 1.3149735055472749,
+                  "p75": 4.8550635179551165,
+                  "p90": 15.013302568345756
+                }
+              },
+              "post_T_peak_close_extension_from_H1_over_R": {
+                "N_total": 93,
+                "N_observed": 92,
+                "censored_or_empty_path_N": 1,
+                "distribution": {
+                  "n": 92,
+                  "p10": 0.18422063076911682,
+                  "p25": 0.476391078921346,
+                  "median": 1.522825525012401,
+                  "p75": 4.8066832687493655,
+                  "p90": 15.569478908188591
+                }
+              }
+            },
+            "hurdles": {
+              "HURDLE_0272": {
+                "normalized_distance_from_H1_over_R": 0.272,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 83,
+                    "rate": 0.8924731182795699
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 8,
+                    "rate": 0.08602150537634409
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 2,
+                    "rate": 0.021505376344086023
+                  }
+                },
+                "success_count": 83,
+                "success_rate": 0.8924731182795699
+              },
+              "HURDLE_0618": {
+                "normalized_distance_from_H1_over_R": 0.618,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 70,
+                    "rate": 0.7526881720430108
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 21,
+                    "rate": 0.22580645161290322
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 2,
+                    "rate": 0.021505376344086023
+                  }
+                },
+                "success_count": 70,
+                "success_rate": 0.7526881720430108
+              }
+            }
+          }
+        },
+        "US": {
+          "NORMAL_OR_SHALLOW": {
+            "N": 215,
+            "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+            "continuous_metrics": {
+              "post_T_peak_extension_from_H1_over_R": {
+                "N_total": 215,
+                "N_observed": 215,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 215,
+                  "p10": 0.20066506590607028,
+                  "p25": 0.6686126055816726,
+                  "median": 1.7272133929958002,
+                  "p75": 5.703397970744589,
+                  "p90": 24.97187789013648
+                }
+              },
+              "post_T_peak_extension_from_planned_entry_over_R": {
+                "N_total": 215,
+                "N_observed": 215,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 215,
+                  "p10": 0.1089577956052301,
+                  "p25": 0.44542125323413495,
+                  "median": 1.3707127912303083,
+                  "p75": 5.305363668956001,
+                  "p90": 24.513559122797925
+                }
+              },
+              "post_T_peak_close_extension_from_H1_over_R": {
+                "N_total": 215,
+                "N_observed": 215,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 215,
+                  "p10": 0.1259373956335671,
+                  "p25": 0.5639767199635173,
+                  "median": 1.5293018157239704,
+                  "p75": 5.5276948986950964,
+                  "p90": 23.86261064351718
+                }
+              }
+            },
+            "hurdles": {
+              "HURDLE_0272": {
+                "normalized_distance_from_H1_over_R": 0.272,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 189,
+                    "rate": 0.8790697674418605
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 26,
+                    "rate": 0.12093023255813953
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 189,
+                "success_rate": 0.8790697674418605
+              },
+              "HURDLE_0618": {
+                "normalized_distance_from_H1_over_R": 0.618,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 164,
+                    "rate": 0.7627906976744186
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 51,
+                    "rate": 0.2372093023255814
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 164,
+                "success_rate": 0.7627906976744186
+              }
+            }
+          },
+          "DEEP": {
+            "N": 107,
+            "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+            "continuous_metrics": {
+              "post_T_peak_extension_from_H1_over_R": {
+                "N_total": 107,
+                "N_observed": 107,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 107,
+                  "p10": 0.31156773751666955,
+                  "p25": 0.8312133689904779,
+                  "median": 2.4754919606151016,
+                  "p75": 11.722202336274897,
+                  "p90": 45.94742776243222
+                }
+              },
+              "post_T_peak_extension_from_planned_entry_over_R": {
+                "N_total": 107,
+                "N_observed": 107,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 107,
+                  "p10": 0.23209199722071464,
+                  "p25": 0.49733746153325253,
+                  "median": 1.9610586911452321,
+                  "p75": 11.080342461863877,
+                  "p90": 43.68674305236284
+                }
+              },
+              "post_T_peak_close_extension_from_H1_over_R": {
+                "N_total": 107,
+                "N_observed": 107,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 107,
+                  "p10": 0.21958704932585804,
+                  "p25": 0.6735452667156628,
+                  "median": 2.3529428814255007,
+                  "p75": 11.381307413151378,
+                  "p90": 45.40099999636097
+                }
+              }
+            },
+            "hurdles": {
+              "HURDLE_0272": {
+                "normalized_distance_from_H1_over_R": 0.272,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 98,
+                    "rate": 0.9158878504672897
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 9,
+                    "rate": 0.08411214953271028
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 98,
+                "success_rate": 0.9158878504672897
+              },
+              "HURDLE_0618": {
+                "normalized_distance_from_H1_over_R": 0.618,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 88,
+                    "rate": 0.822429906542056
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 19,
+                    "rate": 0.17757009345794392
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 88,
+                "success_rate": 0.822429906542056
+              }
+            }
+          },
+          "VERY_DEEP": {
+            "N": 124,
+            "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+            "continuous_metrics": {
+              "post_T_peak_extension_from_H1_over_R": {
+                "N_total": 124,
+                "N_observed": 124,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 124,
+                  "p10": 0.3627121695708845,
+                  "p25": 0.9354478105948303,
+                  "median": 2.137785791997678,
+                  "p75": 7.237383692055123,
+                  "p90": 29.087207049912383
+                }
+              },
+              "post_T_peak_extension_from_planned_entry_over_R": {
+                "N_total": 124,
+                "N_observed": 124,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 124,
+                  "p10": 0.14383745542319565,
+                  "p25": 0.48406074650727066,
+                  "median": 1.6411517617219649,
+                  "p75": 6.145168472178795,
+                  "p90": 28.862470007611343
+                }
+              },
+              "post_T_peak_close_extension_from_H1_over_R": {
+                "N_total": 124,
+                "N_observed": 124,
+                "censored_or_empty_path_N": 0,
+                "distribution": {
+                  "n": 124,
+                  "p10": 0.22693920447515775,
+                  "p25": 0.8100859391352002,
+                  "median": 2.061589666601238,
+                  "p75": 6.821649815857124,
+                  "p90": 28.061462976068295
+                }
+              }
+            },
+            "hurdles": {
+              "HURDLE_0272": {
+                "normalized_distance_from_H1_over_R": 0.272,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 116,
+                    "rate": 0.9354838709677419
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 8,
+                    "rate": 0.06451612903225806
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 116,
+                "success_rate": 0.9354838709677419
+              },
+              "HURDLE_0618": {
+                "normalized_distance_from_H1_over_R": 0.618,
+                "outcomes": {
+                  "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                    "count": 104,
+                    "rate": 0.8387096774193549
+                  },
+                  "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                    "count": 20,
+                    "rate": 0.16129032258064516
+                  },
+                  "SAME_BAR_AMBIGUOUS": {
+                    "count": 0,
+                    "rate": 0.0
+                  },
+                  "CENSORED_INSUFFICIENT_PATH": {
+                    "count": 0,
+                    "rate": 0.0
+                  }
+                },
+                "success_count": 104,
+                "success_rate": 0.8387096774193549
+              }
+            }
+          }
+        }
+      },
+      "time_half": {
+        "split_definition": "Within each market, frozen market-session ordinal midpoint; aggregate by half after the split",
+        "cutoff_by_market": {
+          "CN": "2021-10-29",
+          "US": "2021-10-26"
+        },
+        "results": {
+          "FIRST_HALF": {
+            "NORMAL_OR_SHALLOW": {
+              "N": 200,
+              "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+              "continuous_metrics": {
+                "post_T_peak_extension_from_H1_over_R": {
+                  "N_total": 200,
+                  "N_observed": 200,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 200,
+                    "p10": 0.24150010109798659,
+                    "p25": 0.7040759855497611,
+                    "median": 1.7418838500559524,
+                    "p75": 6.972142459971346,
+                    "p90": 33.20976793547151
+                  }
+                },
+                "post_T_peak_extension_from_planned_entry_over_R": {
+                  "N_total": 200,
+                  "N_observed": 200,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 200,
+                    "p10": 0.097527953257497,
+                    "p25": 0.36189015710329464,
+                    "median": 1.3784829076765992,
+                    "p75": 6.8224190527297885,
+                    "p90": 32.42511400698698
+                  }
+                },
+                "post_T_peak_close_extension_from_H1_over_R": {
+                  "N_total": 200,
+                  "N_observed": 200,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 200,
+                    "p10": 0.1436210894226586,
+                    "p25": 0.5185196433529657,
+                    "median": 1.5255011775593534,
+                    "p75": 6.830522148383175,
+                    "p90": 32.62023223053147
+                  }
+                }
+              },
+              "hurdles": {
+                "HURDLE_0272": {
+                  "normalized_distance_from_H1_over_R": 0.272,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 178,
+                      "rate": 0.89
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 22,
+                      "rate": 0.11
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 178,
+                  "success_rate": 0.89
+                },
+                "HURDLE_0618": {
+                  "normalized_distance_from_H1_over_R": 0.618,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 151,
+                      "rate": 0.755
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 49,
+                      "rate": 0.245
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 151,
+                  "success_rate": 0.755
+                }
+              }
+            },
+            "DEEP": {
+              "N": 94,
+              "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+              "continuous_metrics": {
+                "post_T_peak_extension_from_H1_over_R": {
+                  "N_total": 94,
+                  "N_observed": 93,
+                  "censored_or_empty_path_N": 1,
+                  "distribution": {
+                    "n": 93,
+                    "p10": 0.3073188237595536,
+                    "p25": 0.9630227782041317,
+                    "median": 2.701316697223209,
+                    "p75": 9.952065813104877,
+                    "p90": 59.25040778679361
+                  }
+                },
+                "post_T_peak_extension_from_planned_entry_over_R": {
+                  "N_total": 94,
+                  "N_observed": 93,
+                  "censored_or_empty_path_N": 1,
+                  "distribution": {
+                    "n": 93,
+                    "p10": 0.13348048006621616,
+                    "p25": 0.4829072155434208,
+                    "median": 2.2472039724088404,
+                    "p75": 9.39090936834162,
+                    "p90": 56.749037994288244
+                  }
+                },
+                "post_T_peak_close_extension_from_H1_over_R": {
+                  "N_total": 94,
+                  "N_observed": 93,
+                  "censored_or_empty_path_N": 1,
+                  "distribution": {
+                    "n": 93,
+                    "p10": 0.16166580447525494,
+                    "p25": 0.9033488431513619,
+                    "median": 2.5705412746723773,
+                    "p75": 9.635375362854758,
+                    "p90": 58.24478339670591
+                  }
+                }
+              },
+              "hurdles": {
+                "HURDLE_0272": {
+                  "normalized_distance_from_H1_over_R": 0.272,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 85,
+                      "rate": 0.9042553191489362
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 9,
+                      "rate": 0.09574468085106383
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 85,
+                  "success_rate": 0.9042553191489362
+                },
+                "HURDLE_0618": {
+                  "normalized_distance_from_H1_over_R": 0.618,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 75,
+                      "rate": 0.7978723404255319
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 19,
+                      "rate": 0.20212765957446807
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 75,
+                  "success_rate": 0.7978723404255319
+                }
+              }
+            },
+            "VERY_DEEP": {
+              "N": 112,
+              "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+              "continuous_metrics": {
+                "post_T_peak_extension_from_H1_over_R": {
+                  "N_total": 112,
+                  "N_observed": 112,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 112,
+                    "p10": 0.4854976370851062,
+                    "p25": 1.1240219821110022,
+                    "median": 2.431706669692984,
+                    "p75": 9.48016774328643,
+                    "p90": 33.62161150975524
+                  }
+                },
+                "post_T_peak_extension_from_planned_entry_over_R": {
+                  "N_total": 112,
+                  "N_observed": 112,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 112,
+                    "p10": 0.22728844399286136,
+                    "p25": 0.6845051445210947,
+                    "median": 1.8452321016873832,
+                    "p75": 8.401525504214833,
+                    "p90": 33.541936878371985
+                  }
+                },
+                "post_T_peak_close_extension_from_H1_over_R": {
+                  "N_total": 112,
+                  "N_observed": 112,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 112,
+                    "p10": 0.3217030874404353,
+                    "p25": 1.0344117184419175,
+                    "median": 2.284103733464809,
+                    "p75": 7.816485302138961,
+                    "p90": 32.93274873212655
+                  }
+                }
+              },
+              "hurdles": {
+                "HURDLE_0272": {
+                  "normalized_distance_from_H1_over_R": 0.272,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 106,
+                      "rate": 0.9464285714285714
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 6,
+                      "rate": 0.05357142857142857
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 106,
+                  "success_rate": 0.9464285714285714
+                },
+                "HURDLE_0618": {
+                  "normalized_distance_from_H1_over_R": 0.618,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 94,
+                      "rate": 0.8392857142857143
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 18,
+                      "rate": 0.16071428571428573
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 94,
+                  "success_rate": 0.8392857142857143
+                }
+              }
+            }
+          },
+          "SECOND_HALF": {
+            "NORMAL_OR_SHALLOW": {
+              "N": 145,
+              "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+              "continuous_metrics": {
+                "post_T_peak_extension_from_H1_over_R": {
+                  "N_total": 145,
+                  "N_observed": 145,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 145,
+                    "p10": 0.1328958247209591,
+                    "p25": 0.5134412535084111,
+                    "median": 1.3055555064982314,
+                    "p75": 4.105905983648881,
+                    "p90": 8.018980419267585
+                  }
+                },
+                "post_T_peak_extension_from_planned_entry_over_R": {
+                  "N_total": 145,
+                  "N_observed": 145,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 145,
+                    "p10": 0.06125561972416623,
+                    "p25": 0.3032763550601033,
+                    "median": 0.8923476005188066,
+                    "p75": 3.8416757450252508,
+                    "p90": 7.149673338691246
+                  }
+                },
+                "post_T_peak_close_extension_from_H1_over_R": {
+                  "N_total": 145,
+                  "N_observed": 145,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 145,
+                    "p10": 0.04398565166700408,
+                    "p25": 0.4325053712117057,
+                    "median": 1.093562808112178,
+                    "p75": 3.755235137230941,
+                    "p90": 7.859146684553854
+                  }
+                }
+              },
+              "hurdles": {
+                "HURDLE_0272": {
+                  "normalized_distance_from_H1_over_R": 0.272,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 123,
+                      "rate": 0.8482758620689655
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 22,
+                      "rate": 0.15172413793103448
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 123,
+                  "success_rate": 0.8482758620689655
+                },
+                "HURDLE_0618": {
+                  "normalized_distance_from_H1_over_R": 0.618,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 101,
+                      "rate": 0.696551724137931
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 44,
+                      "rate": 0.30344827586206896
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 101,
+                  "success_rate": 0.696551724137931
+                }
+              }
+            },
+            "DEEP": {
+              "N": 89,
+              "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+              "continuous_metrics": {
+                "post_T_peak_extension_from_H1_over_R": {
+                  "N_total": 89,
+                  "N_observed": 89,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 89,
+                    "p10": 0.22440396636437,
+                    "p25": 0.7069498285502351,
+                    "median": 1.6276269563232828,
+                    "p75": 4.794180442312007,
+                    "p90": 17.475364851395792
+                  }
+                },
+                "post_T_peak_extension_from_planned_entry_over_R": {
+                  "N_total": 89,
+                  "N_observed": 89,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 89,
+                    "p10": 0.1631755196654999,
+                    "p25": 0.43098331653900074,
+                    "median": 1.0563380281690136,
+                    "p75": 4.603674349502118,
+                    "p90": 16.6669478585466
+                  }
+                },
+                "post_T_peak_close_extension_from_H1_over_R": {
+                  "N_total": 89,
+                  "N_observed": 89,
+                  "censored_or_empty_path_N": 0,
+                  "distribution": {
+                    "n": 89,
+                    "p10": 0.0685223830331293,
+                    "p25": 0.567010243395867,
+                    "median": 1.4687499999999976,
+                    "p75": 4.794180442312007,
+                    "p90": 16.745889901390377
+                  }
+                }
+              },
+              "hurdles": {
+                "HURDLE_0272": {
+                  "normalized_distance_from_H1_over_R": 0.272,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 76,
+                      "rate": 0.8539325842696629
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 13,
+                      "rate": 0.14606741573033707
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 76,
+                  "success_rate": 0.8539325842696629
+                },
+                "HURDLE_0618": {
+                  "normalized_distance_from_H1_over_R": 0.618,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 71,
+                      "rate": 0.797752808988764
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 18,
+                      "rate": 0.20224719101123595
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 0,
+                      "rate": 0.0
+                    }
+                  },
+                  "success_count": 71,
+                  "success_rate": 0.797752808988764
+                }
+              }
+            },
+            "VERY_DEEP": {
+              "N": 105,
+              "continuous_path_definition": "max over strictly post-T bars before the close-based structural invalidation bar; when no invalidation occurs, use bars through frozen dataset end",
+              "continuous_metrics": {
+                "post_T_peak_extension_from_H1_over_R": {
+                  "N_total": 105,
+                  "N_observed": 104,
+                  "censored_or_empty_path_N": 1,
+                  "distribution": {
+                    "n": 104,
+                    "p10": 0.28526469710317376,
+                    "p25": 0.6964420471622602,
+                    "median": 1.5976883306680487,
+                    "p75": 4.31570265558802,
+                    "p90": 13.961475698693524
+                  }
+                },
+                "post_T_peak_extension_from_planned_entry_over_R": {
+                  "N_total": 105,
+                  "N_observed": 104,
+                  "censored_or_empty_path_N": 1,
+                  "distribution": {
+                    "n": 104,
+                    "p10": 0.11851436449625626,
+                    "p25": 0.4012306627783622,
+                    "median": 1.182712331256205,
+                    "p75": 3.897358838150933,
+                    "p90": 13.040865508497827
+                  }
+                },
+                "post_T_peak_close_extension_from_H1_over_R": {
+                  "N_total": 105,
+                  "N_observed": 104,
+                  "censored_or_empty_path_N": 1,
+                  "distribution": {
+                    "n": 104,
+                    "p10": 0.13812672213704347,
+                    "p25": 0.550705638934236,
+                    "median": 1.4230043525752016,
+                    "p75": 4.219022465417426,
+                    "p90": 13.214384161470326
+                  }
+                }
+              },
+              "hurdles": {
+                "HURDLE_0272": {
+                  "normalized_distance_from_H1_over_R": 0.272,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 93,
+                      "rate": 0.8857142857142857
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 10,
+                      "rate": 0.09523809523809523
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 2,
+                      "rate": 0.01904761904761905
+                    }
+                  },
+                  "success_count": 93,
+                  "success_rate": 0.8857142857142857
+                },
+                "HURDLE_0618": {
+                  "normalized_distance_from_H1_over_R": 0.618,
+                  "outcomes": {
+                    "HURDLE_BEFORE_STRUCTURAL_INVALIDATION": {
+                      "count": 80,
+                      "rate": 0.7619047619047619
+                    },
+                    "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+                      "count": 23,
+                      "rate": 0.21904761904761905
+                    },
+                    "SAME_BAR_AMBIGUOUS": {
+                      "count": 0,
+                      "rate": 0.0
+                    },
+                    "CENSORED_INSUFFICIENT_PATH": {
+                      "count": 2,
+                      "rate": 0.01904761904761905
+                    }
+                  },
+                  "success_count": 80,
+                  "success_rate": 0.7619047619047619
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_level_detail": {
+    "count": 745,
+    "schema_version": "setup01-deep-wave2-structure-quality-record-v2",
+    "sha256": "sha256:0f62ce9cfa7c8a0686b1c43d88eed32f1aab0110938acbcb19f7dbdc85ad155a",
+    "persisted": false,
+    "temporary_file_removed": true
+  },
+  "validation": {
+    "frozen_hash_binding_verified": true,
+    "confirmed_rebuilt_count": 745,
+    "confirmed_count_matches_prior_artifact": true,
+    "event_identity_set_matches_prior_near_binding": true,
+    "wave3_fib_near_rebuilt_count": 81,
+    "prior_117_63_18_category_conservation": {
+      "NEAR_SWING_ONLY": 117,
+      "SMALL_WAVE_FIB": 18,
+      "BOTH_NEAR": 63
+    },
+    "fib_identity_1272": {
+      "n": 745,
+      "max_absolute_residual": 1.1368683772161603e-13,
+      "passed": true
+    },
+    "depth_band_counts": {
+      "NORMAL_OR_SHALLOW": 345,
+      "DEEP": 183,
+      "VERY_DEEP": 217
+    },
+    "depth_band_mutually_exclusive": true,
+    "depth_band_exhaustive": true,
+    "signal_T_uses_data_at_or_before_T": true,
+    "future_path_strictly_after_T": true,
+    "future_path_used_only_for_outcome_evaluation": true,
+    "common_normalized_excursion_formula_passed": true,
+    "common_hurdle_levels_independent_of_r": true,
+    "hurdle_dates_strictly_post_T": true,
+    "unique_event_identity_count": 745,
+    "prior_decision_gate_action_target_parity": {
+      "decision_count": 745,
+      "gate_action_target_parity": true,
+      "mismatch_count": 0,
+      "mismatches": []
+    }
+  },
+  "controls": {
+    "development_only": true,
+    "formal_validation": false,
+    "final_oos_accessed": false,
+    "parameter_search": false,
+    "threshold_sweep": false,
+    "signal_T_uses_future_data": false,
+    "future_path_used_only_for_post_T_outcome_evaluation": true,
+    "t_plus_1_open_used_only_for_secondary_production_funnel": true,
+    "production_decision_modified": false,
+    "production_parameters_modified": false,
+    "new_production_gate_added": false,
+    "new_threshold_selected": false,
+    "target_redefined": false,
+    "wave_or_swing_semantics_modified": false,
+    "state_writes": 0,
+    "sheets_writes": 0,
+    "broker_orders": 0,
+    "pr82_mixed_in": false,
+    "event_level_detail_persisted": false,
+    "event_level_detail_schema": "setup01-deep-wave2-structure-quality-record-v2"
+  },
+  "decision": {
+    "classification": "EARLY_ENTRY_RESEARCH_CANDIDATE",
+    "reason": "The original Fib1.272 continuation rates (65.2% / 80.3% / 89.9%) are not used as independent quality evidence because the target distance shrinks mechanically with r. After controlling the common normalized distance, H1-extension medians are 1.516R / 2.185R / 2.110R, and HURDLE_0272 success is 87.2% / 88.0% / 91.7%; HURDLE_0618 success is 73.0% / 79.8% / 80.2%. These descriptive geometry-controlled results do not show weaker post-confirmation continuation for deep Wave2, conditional on having reached CONFIRMED. The fixed 81-event Fib-near sample remains 64/81 strict post-T Fib1.272 successes, including 55 VERY_DEEP, but confirmed-only outcomes do not prove pre-confirmation early-entry effectiveness. They support prioritizing a separate PRE-CONFIRMATION causal study as a research hypothesis, not deleting deep Wave2 contexts. At the same time, existing T-day gates already exclude all 217 VERY_DEEP events from ENTRY_ALLOWED in this development funnel, so a new depth gate would be redundant here; no production change is authorized by this result.",
+    "production_change": "none; requires a separately approved causal research protocol"
+  }
+}

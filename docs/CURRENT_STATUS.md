@@ -121,6 +121,16 @@
   正式结论为 `INSUFFICIENT_EVIDENCE`：证据不足以批准修改 confirmed Swing High
   hard boundary，当前 production rule 保持不变；这不表示现有 hard boundary 已被
   证明正确，也不授权移除或修改任何 production target/gate/Decision 语义。
+- `research/development/setup01_deep_wave2_structure_quality_v1.py` 与对应 compact
+  JSON/Markdown report 已完成固定 Phase 5J-v3 Development 研究及 corrective
+  geometry-controlled analysis：从 frozen replay 重建 `745` 个 CONFIRMED，预注册
+  depth bands 为 `NORMAL_OR_SHALLOW / DEEP / VERY_DEEP`，计数为 `345 / 183 / 217`。
+  原 Fib1.272 continuation 结果仅保留为 r-dependent 几何背景；共同 normalized
+  post-T excursion 与固定 `H1+0.272R / H1+0.618R` hurdles 在 confirmed-only
+  条件下没有显示 DEEP/VERY_DEEP continuation 更弱。当前研究状态为
+  `EARLY_ENTRY_RESEARCH_CANDIDATE`，只支持下一项从 pre-confirmation candidates
+  同时纳入 confirmed 与 never-confirmed/failed 样本的独立因果研究假设；未新增
+  depth gate、未实现 early entry 或修改任何 production Decision 语义。
 - 有 generic synthetic operational shadow 与 development-only replay evidence；
   尚未接入生产自动执行（生产日历集成是已登记前置条件）。
 
