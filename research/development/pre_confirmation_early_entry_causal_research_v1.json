@@ -1,0 +1,4830 @@
+{
+  "artifact_type": "PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH",
+  "artifact_version": "v1",
+  "cohort_construction": {
+    "by_depth_band": {
+      "DEEP": {
+        "candidate_count": 570,
+        "eventual_status": {
+          "FAILED": 256,
+          "LATER_CONFIRMED": 183,
+          "NEVER_CONFIRMED": 131
+        }
+      },
+      "NORMAL_OR_SHALLOW": {
+        "candidate_count": 1008,
+        "eventual_status": {
+          "FAILED": 412,
+          "LATER_CONFIRMED": 345,
+          "NEVER_CONFIRMED": 251
+        }
+      },
+      "VERY_DEEP": {
+        "candidate_count": 664,
+        "eventual_status": {
+          "FAILED": 275,
+          "LATER_CONFIRMED": 217,
+          "NEVER_CONFIRMED": 172
+        }
+      }
+    },
+    "by_market": {
+      "CN": {
+        "candidate_count": 1008,
+        "eventual_status": {
+          "FAILED": 456,
+          "LATER_CONFIRMED": 299,
+          "NEVER_CONFIRMED": 253
+        }
+      },
+      "US": {
+        "candidate_count": 1246,
+        "eventual_status": {
+          "FAILED": 491,
+          "LATER_CONFIRMED": 446,
+          "NEVER_CONFIRMED": 309
+        }
+      }
+    },
+    "eventually_confirmed_count": 745,
+    "failed_count": 947,
+    "failure_class": {
+      "CONTEXT_OR_ELIGIBILITY_FAILURE": 133,
+      "STRUCTURAL_INVALIDATION": 814
+    },
+    "geometry_validity": {
+      "invalid_wave2_geometry_count": 12,
+      "valid_geometry_count": 2242
+    },
+    "never_confirmed_count": 562,
+    "preconfirmation_window": {
+      "counts": {
+        "NO_PRECONFIRMATION_WINDOW_OBSERVED": 792,
+        "WITH_LIVE_WATCH_OR_ARMED_OBSERVATION": 1462
+      },
+      "no_window_by_eventual_status": {
+        "FAILED": 225,
+        "LATER_CONFIRMED": 406,
+        "NEVER_CONFIRMED": 161
+      },
+      "no_window_rows_retained_in_cohort": true
+    },
+    "resolution": {
+      "SCREENED_OUT_BY_CURRENT_SYSTEM": 551,
+      "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 288,
+      "TERMINAL_CONFIRMED": 745,
+      "TERMINAL_FAILED": 659,
+      "TIMEOUT_UNRESOLVED_AT_DATA_END": 11
+    },
+    "total_candidate_count": 2254,
+    "wave_source_visibility": {
+      "ALTERNATE_ONLY": 743,
+      "PRIMARY_AND_ALTERNATE": 601,
+      "PRIMARY_ONLY": 910
+    }
+  },
+  "controls": {
+    "broker_orders": 0,
+    "confirmation_modified": false,
+    "development_only": true,
+    "entry_modified": false,
+    "final_oos_accessed": false,
+    "outcomes_used_to_define_signal": false,
+    "parameter_search": false,
+    "pr82_mixed_in": false,
+    "production_rule_change": false,
+    "rr_modified": false,
+    "sheets_writes": 0,
+    "signal_definition_uses_future_data": false,
+    "state_writes": 0,
+    "stop_modified": false,
+    "swing_modified": false,
+    "target_modified": false,
+    "threshold_sweep": false,
+    "wave_modified": false
+  },
+  "decision": {
+    "classification": "READY_FOR_DECISION",
+    "evidence_scope": "structural timing, normalized headroom, adverse excursion, fixed hurdles, and failure composition; no P&L first-layer selection",
+    "non_confirmed_signal_rates": {
+      "ARMED_HALF_RECOVERY": 0.6756218905472637,
+      "ARMED_HALF_RECOVERY_DAILY_UPTREND": 0.59958071278826,
+      "FIRST_BULLISH_RECOVERY": 0.7637540453074434,
+      "H1_INTRADAY_RECLAIM": 0.6642984014209592
+    },
+    "paired_headroom_median_gains_R": {
+      "ARMED_HALF_RECOVERY": {
+        "Fib1.272": 0.26425318111244955,
+        "Fib1.618": 0.26425318111244955,
+        "H1": 0.26425318111244955
+      },
+      "ARMED_HALF_RECOVERY_DAILY_UPTREND": {
+        "Fib1.272": 0.25572519083969425,
+        "Fib1.618": 0.25572519083969436,
+        "H1": 0.25572519083969425
+      },
+      "FIRST_BULLISH_RECOVERY": {
+        "Fib1.272": 0.3372020765877796,
+        "Fib1.618": 0.33720207658777956,
+        "H1": 0.33720207658777956
+      },
+      "H1_INTRADAY_RECLAIM": {
+        "Fib1.272": 0.16987648423051815,
+        "Fib1.618": 0.16987648423051815,
+        "H1": 0.16987648423051815
+      }
+    },
+    "production_authorization": false,
+    "reason": "The full causal cohort is reconstructable and every fixed early policy adds normalized entry headroom on its matched later-CONFIRMED subset, but all early policies also admit a substantial FAILED/never-CONFIRMED population. The first-layer question is therefore not cleared: this artifact supports a user decision about further research only, does not yet support moving to execution/cost research, and authorizes no production policy.",
+    "supports_execution_cost_research": false,
+    "supports_separate_followup_research": true
+  },
+  "fixed_policies": {
+    "common_hurdles": {
+      "HURDLE_0272": "H1 + 0.272 * R",
+      "HURDLE_0618": "H1 + 0.618 * R"
+    },
+    "entry": "exact next frozen market-session OPEN",
+    "fib_headroom": {
+      "Fib1.272": "LOW2 + 1.272 * R - entry",
+      "Fib1.618": "LOW2 + 1.618 * R - entry"
+    },
+    "policy_ids": [
+      "INCUMBENT_CONFIRMED_CLOSE",
+      "FIRST_BULLISH_RECOVERY",
+      "ARMED_HALF_RECOVERY",
+      "H1_INTRADAY_RECLAIM",
+      "ARMED_HALF_RECOVERY_DAILY_UPTREND"
+    ],
+    "protocol_source": "registered protocol JSON; no runtime threshold arguments",
+    "wave1_R": "H1 - LOW0"
+  },
+  "funnel": {
+    "candidate_lifecycle_count": 2254,
+    "frozen_bar_count": 86305,
+    "frozen_symbol_count": 40,
+    "policy": {
+      "ARMED_HALF_RECOVERY": {
+        "cohort": 2254,
+        "eventually_confirmed": 326,
+        "executable_next_session": 1004,
+        "failed": 320,
+        "never_confirmed": 359,
+        "not_executable_next_session": 1,
+        "not_signaled": 1249,
+        "signaled": 1005
+      },
+      "ARMED_HALF_RECOVERY_DAILY_UPTREND": {
+        "cohort": 2254,
+        "eventually_confirmed": 191,
+        "executable_next_session": 477,
+        "failed": 139,
+        "never_confirmed": 147,
+        "not_executable_next_session": 0,
+        "not_signaled": 1777,
+        "signaled": 477
+      },
+      "FIRST_BULLISH_RECOVERY": {
+        "cohort": 2254,
+        "eventually_confirmed": 292,
+        "executable_next_session": 1236,
+        "failed": 568,
+        "never_confirmed": 376,
+        "not_executable_next_session": 0,
+        "not_signaled": 1018,
+        "signaled": 1236
+      },
+      "H1_INTRADAY_RECLAIM": {
+        "cohort": 2254,
+        "eventually_confirmed": 189,
+        "executable_next_session": 563,
+        "failed": 146,
+        "never_confirmed": 228,
+        "not_executable_next_session": 0,
+        "not_signaled": 1691,
+        "signaled": 563
+      },
+      "INCUMBENT_CONFIRMED_CLOSE": {
+        "cohort": 2254,
+        "eventually_confirmed": 745,
+        "executable_next_session": 744,
+        "failed": 0,
+        "never_confirmed": 0,
+        "not_executable_next_session": 1,
+        "not_signaled": 1509,
+        "signaled": 745
+      }
+    }
+  },
+  "headroom_vs_incumbent": {
+    "ARMED_HALF_RECOVERY": {
+      "confirmation_latency_saved_sessions_on_later_confirmed": {
+        "median": 4.0,
+        "n": 326,
+        "p10": 1.0,
+        "p25": 2.0,
+        "p75": 7.0,
+        "p90": 12.0
+      },
+      "early_minus_incumbent_headroom_R": {
+        "Fib1.272": {
+          "median": 0.26425318111244955,
+          "n": 326,
+          "p10": 0.066684012463669,
+          "p25": 0.17507029528419027,
+          "p75": 0.40264611636385805,
+          "p90": 0.6145427632770886
+        },
+        "Fib1.618": {
+          "median": 0.26425318111244955,
+          "n": 326,
+          "p10": 0.06668401246366906,
+          "p25": 0.17507029528419032,
+          "p75": 0.40264611636385805,
+          "p90": 0.6145427632770886
+        },
+        "H1": {
+          "median": 0.26425318111244955,
+          "n": 326,
+          "p10": 0.06668401246366899,
+          "p25": 0.17507029528419032,
+          "p75": 0.4026461163638581,
+          "p90": 0.6145427632770886
+        }
+      },
+      "early_policy": "ARMED_HALF_RECOVERY",
+      "incumbent_policy": "INCUMBENT_CONFIRMED_CLOSE",
+      "paired_later_confirmed_executable_count": 326,
+      "paired_post_entry_structural_adverse_magnitude_R": {
+        "early": {
+          "median": 0.6062029666362174,
+          "n": 326,
+          "p10": 0.19770406323728829,
+          "p25": 0.3661321288096212,
+          "p75": 0.8060594740151863,
+          "p90": 1.0913988622090107
+        },
+        "early_minus_incumbent": {
+          "median": -0.24323431660603217,
+          "n": 326,
+          "p10": -0.5948661985409368,
+          "p25": -0.3778821139971551,
+          "p75": -0.14346764346764285,
+          "p90": -0.034782667553173996
+        },
+        "incumbent": {
+          "median": 0.869749942325935,
+          "n": 326,
+          "p10": 0.3691394003363295,
+          "p25": 0.5945971028412689,
+          "p75": 1.1628449498498243,
+          "p90": 1.4973403699279908
+        }
+      }
+    },
+    "ARMED_HALF_RECOVERY_DAILY_UPTREND": {
+      "confirmation_latency_saved_sessions_on_later_confirmed": {
+        "median": 4.0,
+        "n": 191,
+        "p10": 1.0,
+        "p25": 2.0,
+        "p75": 8.0,
+        "p90": 12.0
+      },
+      "early_minus_incumbent_headroom_R": {
+        "Fib1.272": {
+          "median": 0.25572519083969425,
+          "n": 191,
+          "p10": 0.06242982348601034,
+          "p25": 0.1688276606941453,
+          "p75": 0.37884754674679016,
+          "p90": 0.5828297618663307
+        },
+        "Fib1.618": {
+          "median": 0.25572519083969436,
+          "n": 191,
+          "p10": 0.06242982348601034,
+          "p25": 0.16882766069414523,
+          "p75": 0.3788475467467902,
+          "p90": 0.5828297618663306
+        },
+        "H1": {
+          "median": 0.25572519083969425,
+          "n": 191,
+          "p10": 0.0624298234860104,
+          "p25": 0.1688276606941453,
+          "p75": 0.3788475467467902,
+          "p90": 0.5828297618663307
+        }
+      },
+      "early_policy": "ARMED_HALF_RECOVERY_DAILY_UPTREND",
+      "incumbent_policy": "INCUMBENT_CONFIRMED_CLOSE",
+      "paired_later_confirmed_executable_count": 191,
+      "paired_post_entry_structural_adverse_magnitude_R": {
+        "early": {
+          "median": 0.5368329763224842,
+          "n": 191,
+          "p10": 0.20257273010252902,
+          "p25": 0.3504342052816357,
+          "p75": 0.7668308584021156,
+          "p90": 0.9890245955658566
+        },
+        "early_minus_incumbent": {
+          "median": -0.22398478864744337,
+          "n": 191,
+          "p10": -0.5450346420323329,
+          "p25": -0.3672134519240271,
+          "p75": -0.13500219878894543,
+          "p90": -0.027866608289558226
+        },
+        "incumbent": {
+          "median": 0.7978042909292054,
+          "n": 191,
+          "p10": 0.3621619095208671,
+          "p25": 0.5733641709980531,
+          "p75": 1.1005649525480075,
+          "p90": 1.4493414986407551
+        }
+      }
+    },
+    "FIRST_BULLISH_RECOVERY": {
+      "confirmation_latency_saved_sessions_on_later_confirmed": {
+        "median": 4.0,
+        "n": 292,
+        "p10": 1.0,
+        "p25": 2.0,
+        "p75": 9.0,
+        "p90": 13.0
+      },
+      "early_minus_incumbent_headroom_R": {
+        "Fib1.272": {
+          "median": 0.3372020765877796,
+          "n": 292,
+          "p10": 0.10830804683064837,
+          "p25": 0.198069997853614,
+          "p75": 0.5190087101620117,
+          "p90": 0.7361093550304387
+        },
+        "Fib1.618": {
+          "median": 0.33720207658777956,
+          "n": 292,
+          "p10": 0.10830804683064826,
+          "p25": 0.19806999785361404,
+          "p75": 0.5190087101620117,
+          "p90": 0.7361093550304387
+        },
+        "H1": {
+          "median": 0.33720207658777956,
+          "n": 292,
+          "p10": 0.1083080468306483,
+          "p25": 0.19806999785361407,
+          "p75": 0.5190087101620116,
+          "p90": 0.7361093550304387
+        }
+      },
+      "early_policy": "FIRST_BULLISH_RECOVERY",
+      "incumbent_policy": "INCUMBENT_CONFIRMED_CLOSE",
+      "paired_later_confirmed_executable_count": 292,
+      "paired_post_entry_structural_adverse_magnitude_R": {
+        "early": {
+          "median": 0.4669591968483789,
+          "n": 292,
+          "p10": 0.13036305191424422,
+          "p25": 0.26905031695588183,
+          "p75": 0.7654457060280715,
+          "p90": 1.0004682538780063
+        },
+        "early_minus_incumbent": {
+          "median": -0.30888204948805487,
+          "n": 292,
+          "p10": -0.7352315112248613,
+          "p25": -0.47679771407254556,
+          "p75": -0.17600391191589954,
+          "p90": -0.06134405702934086
+        },
+        "incumbent": {
+          "median": 0.8570038891186895,
+          "n": 292,
+          "p10": 0.3561806449323418,
+          "p25": 0.5885630157635735,
+          "p75": 1.1656721883793586,
+          "p90": 1.5104889552919991
+        }
+      }
+    },
+    "H1_INTRADAY_RECLAIM": {
+      "confirmation_latency_saved_sessions_on_later_confirmed": {
+        "median": 2.0,
+        "n": 189,
+        "p10": 1.0,
+        "p25": 1.0,
+        "p75": 3.0,
+        "p90": 7.0
+      },
+      "early_minus_incumbent_headroom_R": {
+        "Fib1.272": {
+          "median": 0.16987648423051815,
+          "n": 189,
+          "p10": 0.001459276756229412,
+          "p25": 0.06747461535667448,
+          "p75": 0.27147766323024103,
+          "p90": 0.5142137845314604
+        },
+        "Fib1.618": {
+          "median": 0.16987648423051815,
+          "n": 189,
+          "p10": 0.001459276756229323,
+          "p25": 0.06747461535667443,
+          "p75": 0.27147766323024103,
+          "p90": 0.5142137845314603
+        },
+        "H1": {
+          "median": 0.16987648423051815,
+          "n": 189,
+          "p10": 0.0014592767562293565,
+          "p25": 0.06747461535667444,
+          "p75": 0.27147766323024103,
+          "p90": 0.5142137845314603
+        }
+      },
+      "early_policy": "H1_INTRADAY_RECLAIM",
+      "incumbent_policy": "INCUMBENT_CONFIRMED_CLOSE",
+      "paired_later_confirmed_executable_count": 189,
+      "paired_post_entry_structural_adverse_magnitude_R": {
+        "early": {
+          "median": 0.6760391198044008,
+          "n": 189,
+          "p10": 0.32608492517750176,
+          "p25": 0.4788559756940876,
+          "p75": 0.9339762611275966,
+          "p90": 1.213049194091952
+        },
+        "early_minus_incumbent": {
+          "median": -0.1522221788414002,
+          "n": 189,
+          "p10": -0.4487987987987971,
+          "p25": -0.2604166666666665,
+          "p75": -0.062429823486010394,
+          "p90": 0.008036326108547378
+        },
+        "incumbent": {
+          "median": 0.87122018065792,
+          "n": 189,
+          "p10": 0.36752166008691817,
+          "p25": 0.5844501505808081,
+          "p75": 1.1899495065018646,
+          "p90": 1.5437024636835817
+        }
+      }
+    }
+  },
+  "policies": {
+    "ARMED_HALF_RECOVERY": {
+      "actual_executable_next_session_entry_count": 1004,
+      "adverse_excursion_until_resolution": {
+        "adverse_magnitude_R": {
+          "median": 0.22712924923095845,
+          "n": 1004,
+          "p10": 0.033888475802510934,
+          "p25": 0.09680863616438384,
+          "p75": 0.4361549506710568,
+          "p90": 0.703221506260778
+        },
+        "boundary_counts": {
+          "CONFIRMATION": 326,
+          "DATASET_END": 99,
+          "FAILURE": 226,
+          "SCREENED_OUT": 353
+        },
+        "censored_path_count": 358,
+        "empty_path_count": 0,
+        "executable_path_count": 1004,
+        "signed_R": {
+          "median": -0.22712924923095845,
+          "n": 1004,
+          "p10": -0.703221506260778,
+          "p25": -0.4361549506710568,
+          "p75": -0.09680863616438384,
+          "p90": -0.033888475802510885
+        }
+      },
+      "censored_ambiguous": {
+        "censored_executable_paths": 358,
+        "never_confirmed_signals": 359,
+        "same_bar_ambiguous_by_hurdle": {
+          "HURDLE_0272": 0,
+          "HURDLE_0618": 0
+        }
+      },
+      "cohort_composition": {
+        "FAILED": 947,
+        "LATER_CONFIRMED": 745,
+        "NEVER_CONFIRMED": 562
+      },
+      "common_fixed_structural_hurdles": {
+        "HURDLE_0272": {
+          "fixed_level": "H1 + 0.272 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 197,
+              "rate": 0.19621513944223107
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 439,
+              "rate": 0.43725099601593626
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 79,
+              "rate": 0.07868525896414343
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 289,
+              "rate": 0.28784860557768926
+            }
+          },
+          "success_count": 439,
+          "success_rate": 0.43725099601593626
+        },
+        "HURDLE_0618": {
+          "fixed_level": "H1 + 0.618 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 260,
+              "rate": 0.2589641434262948
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 317,
+              "rate": 0.3157370517928287
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 82,
+              "rate": 0.08167330677290836
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 345,
+              "rate": 0.3436254980079681
+            }
+          },
+          "success_count": 317,
+          "success_rate": 0.3157370517928287
+        }
+      },
+      "confirmation_latency_saved_sessions": {
+        "median": 4.0,
+        "n": 326,
+        "p10": 1.0,
+        "p25": 2.0,
+        "p75": 7.0,
+        "p90": 12.0
+      },
+      "entry_geometry_over_R": {
+        "entry_to_Fib1.272_remaining_headroom": {
+          "median": 0.8352951145527704,
+          "n": 1004,
+          "p10": 0.5527935780833343,
+          "p25": 0.688666666666666,
+          "p75": 0.9631499799403245,
+          "p90": 1.048650943396226
+        },
+        "entry_to_Fib1.618_remaining_headroom": {
+          "median": 1.1812951145527708,
+          "n": 1004,
+          "p10": 0.8987935780833329,
+          "p25": 1.034666666666666,
+          "p75": 1.3091499799403246,
+          "p90": 1.3946509433962264
+        },
+        "entry_to_H1_distance": {
+          "median": 0.18386903999670184,
+          "n": 1004,
+          "p10": 0.026125316337592967,
+          "p25": 0.09460172707985692,
+          "p75": 0.288520008995563,
+          "p90": 0.388777794653416
+        }
+      },
+      "eventually_confirmed_count": 326,
+      "failed_count": 320,
+      "never_confirmed_count": 359,
+      "not_executable_next_session_count": 1,
+      "not_signaled_candidate_count": 1249,
+      "policy_id": "ARMED_HALF_RECOVERY",
+      "signaled_candidate_count": 1005,
+      "signaled_composition": {
+        "FAILED": 320,
+        "LATER_CONFIRMED": 326,
+        "NEVER_CONFIRMED": 359
+      },
+      "signaled_resolution": {
+        "SCREENED_OUT_BY_CURRENT_SYSTEM": 353,
+        "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 94,
+        "TERMINAL_CONFIRMED": 326,
+        "TERMINAL_FAILED": 226,
+        "TIMEOUT_UNRESOLVED_AT_DATA_END": 6
+      },
+      "stop_invalidation_first": {
+        "production_stop_defined": false,
+        "production_stop_semantics": "NOT_DEFINED_BY_THIS_RESEARCH_PROTOCOL",
+        "research_structural_invalidation_first_count": 233,
+        "research_structural_invalidation_first_rate_of_signals": 0.23184079601990049
+      },
+      "structural_invalidation_before_confirmation": {
+        "count": 233,
+        "rate_of_failed_signals": 0.728125,
+        "rate_of_signals": 0.23184079601990049
+      },
+      "total_candidate_count": 2254
+    },
+    "ARMED_HALF_RECOVERY_DAILY_UPTREND": {
+      "actual_executable_next_session_entry_count": 477,
+      "adverse_excursion_until_resolution": {
+        "adverse_magnitude_R": {
+          "median": 0.19624822995871474,
+          "n": 477,
+          "p10": 0.0244302148926862,
+          "p25": 0.08688102071014729,
+          "p75": 0.41208295761947705,
+          "p90": 0.62745362524269
+        },
+        "boundary_counts": {
+          "CONFIRMATION": 191,
+          "DATASET_END": 35,
+          "FAILURE": 105,
+          "SCREENED_OUT": 146
+        },
+        "censored_path_count": 147,
+        "empty_path_count": 0,
+        "executable_path_count": 477,
+        "signed_R": {
+          "median": -0.19624822995871474,
+          "n": 477,
+          "p10": -0.6274536252426897,
+          "p25": -0.41208295761947705,
+          "p75": -0.08688102071014729,
+          "p90": -0.024430214892686146
+        }
+      },
+      "censored_ambiguous": {
+        "censored_executable_paths": 147,
+        "never_confirmed_signals": 147,
+        "same_bar_ambiguous_by_hurdle": {
+          "HURDLE_0272": 0,
+          "HURDLE_0618": 0
+        }
+      },
+      "cohort_composition": {
+        "FAILED": 947,
+        "LATER_CONFIRMED": 745,
+        "NEVER_CONFIRMED": 562
+      },
+      "common_fixed_structural_hurdles": {
+        "HURDLE_0272": {
+          "fixed_level": "H1 + 0.272 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 85,
+              "rate": 0.17819706498951782
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 220,
+              "rate": 0.4612159329140461
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 34,
+              "rate": 0.07127882599580712
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 138,
+              "rate": 0.2893081761006289
+            }
+          },
+          "success_count": 220,
+          "success_rate": 0.4612159329140461
+        },
+        "HURDLE_0618": {
+          "fixed_level": "H1 + 0.618 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 105,
+              "rate": 0.22012578616352202
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 166,
+              "rate": 0.3480083857442348
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 35,
+              "rate": 0.07337526205450734
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 171,
+              "rate": 0.3584905660377358
+            }
+          },
+          "success_count": 166,
+          "success_rate": 0.3480083857442348
+        }
+      },
+      "confirmation_latency_saved_sessions": {
+        "median": 4.0,
+        "n": 191,
+        "p10": 1.0,
+        "p25": 2.0,
+        "p75": 8.0,
+        "p90": 12.0
+      },
+      "entry_geometry_over_R": {
+        "entry_to_Fib1.272_remaining_headroom": {
+          "median": 0.868396396396396,
+          "n": 477,
+          "p10": 0.573030810429382,
+          "p25": 0.7033726579690176,
+          "p75": 0.9828695652173915,
+          "p90": 1.0606759279077804
+        },
+        "entry_to_Fib1.618_remaining_headroom": {
+          "median": 1.2143963963963964,
+          "n": 477,
+          "p10": 0.9190308104293816,
+          "p25": 1.0493726579690177,
+          "p75": 1.328869565217392,
+          "p90": 1.4066759279077814
+        },
+        "entry_to_H1_distance": {
+          "median": 0.17570320770078518,
+          "n": 477,
+          "p10": 0.02468575126581502,
+          "p25": 0.08232418235449285,
+          "p75": 0.27202465351796407,
+          "p90": 0.34853644100720066
+        }
+      },
+      "eventually_confirmed_count": 191,
+      "failed_count": 139,
+      "never_confirmed_count": 147,
+      "not_executable_next_session_count": 0,
+      "not_signaled_candidate_count": 1777,
+      "policy_id": "ARMED_HALF_RECOVERY_DAILY_UPTREND",
+      "signaled_candidate_count": 477,
+      "signaled_composition": {
+        "FAILED": 139,
+        "LATER_CONFIRMED": 191,
+        "NEVER_CONFIRMED": 147
+      },
+      "signaled_resolution": {
+        "SCREENED_OUT_BY_CURRENT_SYSTEM": 146,
+        "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 34,
+        "TERMINAL_CONFIRMED": 191,
+        "TERMINAL_FAILED": 105,
+        "TIMEOUT_UNRESOLVED_AT_DATA_END": 1
+      },
+      "stop_invalidation_first": {
+        "production_stop_defined": false,
+        "production_stop_semantics": "NOT_DEFINED_BY_THIS_RESEARCH_PROTOCOL",
+        "research_structural_invalidation_first_count": 102,
+        "research_structural_invalidation_first_rate_of_signals": 0.2138364779874214
+      },
+      "structural_invalidation_before_confirmation": {
+        "count": 102,
+        "rate_of_failed_signals": 0.7338129496402878,
+        "rate_of_signals": 0.2138364779874214
+      },
+      "total_candidate_count": 2254
+    },
+    "FIRST_BULLISH_RECOVERY": {
+      "actual_executable_next_session_entry_count": 1236,
+      "adverse_excursion_until_resolution": {
+        "adverse_magnitude_R": {
+          "median": 0.19049883713745958,
+          "n": 1236,
+          "p10": 0.030378218578367984,
+          "p25": 0.08298610642343088,
+          "p75": 0.36953573539783013,
+          "p90": 0.598220887320653
+        },
+        "boundary_counts": {
+          "CONFIRMATION": 292,
+          "DATASET_END": 145,
+          "FAILURE": 430,
+          "SCREENED_OUT": 369
+        },
+        "censored_path_count": 376,
+        "empty_path_count": 0,
+        "executable_path_count": 1236,
+        "signed_R": {
+          "median": -0.19049883713745958,
+          "n": 1236,
+          "p10": -0.598220887320653,
+          "p25": -0.36953573539783013,
+          "p75": -0.08298610642343088,
+          "p90": -0.030378218578367984
+        }
+      },
+      "censored_ambiguous": {
+        "censored_executable_paths": 376,
+        "never_confirmed_signals": 376,
+        "same_bar_ambiguous_by_hurdle": {
+          "HURDLE_0272": 0,
+          "HURDLE_0618": 0
+        }
+      },
+      "cohort_composition": {
+        "FAILED": 947,
+        "LATER_CONFIRMED": 745,
+        "NEVER_CONFIRMED": 562
+      },
+      "common_fixed_structural_hurdles": {
+        "HURDLE_0272": {
+          "fixed_level": "H1 + 0.272 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 226,
+              "rate": 0.18284789644012944
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 388,
+              "rate": 0.313915857605178
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 113,
+              "rate": 0.09142394822006472
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 509,
+              "rate": 0.41181229773462785
+            }
+          },
+          "success_count": 388,
+          "success_rate": 0.313915857605178
+        },
+        "HURDLE_0618": {
+          "fixed_level": "H1 + 0.618 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 281,
+              "rate": 0.2273462783171521
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 283,
+              "rate": 0.22896440129449838
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 116,
+              "rate": 0.09385113268608414
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 556,
+              "rate": 0.44983818770226536
+            }
+          },
+          "success_count": 283,
+          "success_rate": 0.22896440129449838
+        }
+      },
+      "confirmation_latency_saved_sessions": {
+        "median": 4.0,
+        "n": 292,
+        "p10": 1.0,
+        "p25": 2.0,
+        "p75": 9.0,
+        "p90": 13.0
+      },
+      "entry_geometry_over_R": {
+        "entry_to_Fib1.272_remaining_headroom": {
+          "median": 0.9842408334853348,
+          "n": 1236,
+          "p10": 0.6186722151616111,
+          "p25": 0.8102016891550603,
+          "p75": 1.1268167076923463,
+          "p90": 1.2110478764557098
+        },
+        "entry_to_Fib1.618_remaining_headroom": {
+          "median": 1.330240833485334,
+          "n": 1236,
+          "p10": 0.9646722151616107,
+          "p25": 1.1562016891550604,
+          "p75": 1.4728167076923462,
+          "p90": 1.55704787645571
+        },
+        "entry_to_H1_distance": {
+          "median": 0.31352773244946436,
+          "n": 1236,
+          "p10": 0.058858140089285485,
+          "p25": 0.158390928957066,
+          "p75": 0.5103942044074778,
+          "p90": 0.6851126809016286
+        }
+      },
+      "eventually_confirmed_count": 292,
+      "failed_count": 568,
+      "never_confirmed_count": 376,
+      "not_executable_next_session_count": 0,
+      "not_signaled_candidate_count": 1018,
+      "policy_id": "FIRST_BULLISH_RECOVERY",
+      "signaled_candidate_count": 1236,
+      "signaled_composition": {
+        "FAILED": 568,
+        "LATER_CONFIRMED": 292,
+        "NEVER_CONFIRMED": 376
+      },
+      "signaled_resolution": {
+        "SCREENED_OUT_BY_CURRENT_SYSTEM": 369,
+        "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 138,
+        "TERMINAL_CONFIRMED": 292,
+        "TERMINAL_FAILED": 430,
+        "TIMEOUT_UNRESOLVED_AT_DATA_END": 7
+      },
+      "stop_invalidation_first": {
+        "production_stop_defined": false,
+        "production_stop_semantics": "NOT_DEFINED_BY_THIS_RESEARCH_PROTOCOL",
+        "research_structural_invalidation_first_count": 441,
+        "research_structural_invalidation_first_rate_of_signals": 0.3567961165048544
+      },
+      "structural_invalidation_before_confirmation": {
+        "count": 441,
+        "rate_of_failed_signals": 0.7764084507042254,
+        "rate_of_signals": 0.3567961165048544
+      },
+      "total_candidate_count": 2254
+    },
+    "H1_INTRADAY_RECLAIM": {
+      "actual_executable_next_session_entry_count": 563,
+      "adverse_excursion_until_resolution": {
+        "adverse_magnitude_R": {
+          "median": 0.2218609989158409,
+          "n": 563,
+          "p10": 0.024528718000887864,
+          "p25": 0.08249010282293227,
+          "p75": 0.43530219331528297,
+          "p90": 0.7570385975760775
+        },
+        "boundary_counts": {
+          "CONFIRMATION": 189,
+          "DATASET_END": 61,
+          "FAILURE": 90,
+          "SCREENED_OUT": 223
+        },
+        "censored_path_count": 228,
+        "empty_path_count": 0,
+        "executable_path_count": 563,
+        "signed_R": {
+          "median": -0.2218609989158409,
+          "n": 563,
+          "p10": -0.7570385975760775,
+          "p25": -0.43530219331528297,
+          "p75": -0.08249010282293227,
+          "p90": -0.024528718000887857
+        }
+      },
+      "censored_ambiguous": {
+        "censored_executable_paths": 228,
+        "never_confirmed_signals": 228,
+        "same_bar_ambiguous_by_hurdle": {
+          "HURDLE_0272": 0,
+          "HURDLE_0618": 0
+        }
+      },
+      "cohort_composition": {
+        "FAILED": 947,
+        "LATER_CONFIRMED": 745,
+        "NEVER_CONFIRMED": 562
+      },
+      "common_fixed_structural_hurdles": {
+        "HURDLE_0272": {
+          "fixed_level": "H1 + 0.272 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 116,
+              "rate": 0.20603907637655416
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 281,
+              "rate": 0.4991119005328597
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 30,
+              "rate": 0.05328596802841918
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 136,
+              "rate": 0.24156305506216696
+            }
+          },
+          "success_count": 281,
+          "success_rate": 0.4991119005328597
+        },
+        "HURDLE_0618": {
+          "fixed_level": "H1 + 0.618 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 162,
+              "rate": 0.2877442273534636
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 197,
+              "rate": 0.34991119005328597
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 32,
+              "rate": 0.056838365896980464
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 172,
+              "rate": 0.30550621669627
+            }
+          },
+          "success_count": 197,
+          "success_rate": 0.34991119005328597
+        }
+      },
+      "confirmation_latency_saved_sessions": {
+        "median": 2.0,
+        "n": 189,
+        "p10": 1.0,
+        "p25": 1.0,
+        "p75": 3.0,
+        "p90": 7.0
+      },
+      "entry_geometry_over_R": {
+        "entry_to_Fib1.272_remaining_headroom": {
+          "median": 0.756973901630694,
+          "n": 563,
+          "p10": 0.423737618361834,
+          "p25": 0.5609886550261027,
+          "p75": 0.931446299652363,
+          "p90": 1.0391690692426396
+        },
+        "entry_to_Fib1.618_remaining_headroom": {
+          "median": 1.1029739016306939,
+          "n": 563,
+          "p10": 0.7697376183618329,
+          "p25": 0.9069886550261028,
+          "p75": 1.2774462996523632,
+          "p90": 1.3851690692426404
+        },
+        "entry_to_H1_distance": {
+          "median": 0.07111111111111082,
+          "n": 563,
+          "p10": -0.018949809231240542,
+          "p25": 0.016796071800526956,
+          "p75": 0.151826016361487,
+          "p90": 0.24298637614868365
+        }
+      },
+      "eventually_confirmed_count": 189,
+      "failed_count": 146,
+      "never_confirmed_count": 228,
+      "not_executable_next_session_count": 0,
+      "not_signaled_candidate_count": 1691,
+      "policy_id": "H1_INTRADAY_RECLAIM",
+      "signaled_candidate_count": 563,
+      "signaled_composition": {
+        "FAILED": 146,
+        "LATER_CONFIRMED": 189,
+        "NEVER_CONFIRMED": 228
+      },
+      "signaled_resolution": {
+        "SCREENED_OUT_BY_CURRENT_SYSTEM": 223,
+        "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 56,
+        "TERMINAL_CONFIRMED": 189,
+        "TERMINAL_FAILED": 90,
+        "TIMEOUT_UNRESOLVED_AT_DATA_END": 5
+      },
+      "stop_invalidation_first": {
+        "production_stop_defined": false,
+        "production_stop_semantics": "NOT_DEFINED_BY_THIS_RESEARCH_PROTOCOL",
+        "research_structural_invalidation_first_count": 113,
+        "research_structural_invalidation_first_rate_of_signals": 0.20071047957371227
+      },
+      "structural_invalidation_before_confirmation": {
+        "count": 113,
+        "rate_of_failed_signals": 0.773972602739726,
+        "rate_of_signals": 0.20071047957371227
+      },
+      "total_candidate_count": 2254
+    },
+    "INCUMBENT_CONFIRMED_CLOSE": {
+      "actual_executable_next_session_entry_count": 744,
+      "adverse_excursion_until_resolution": {
+        "adverse_magnitude_R": {
+          "median": 0.9899634852141501,
+          "n": 744,
+          "p10": 0.3699271577104198,
+          "p25": 0.6371290733491355,
+          "p75": 1.4196231204482859,
+          "p90": 2.1023481797810937
+        },
+        "boundary_counts": {
+          "DATASET_END_CENSORED": 171,
+          "STRUCTURAL_INVALIDATION": 573
+        },
+        "censored_path_count": 171,
+        "empty_path_count": 0,
+        "executable_path_count": 744,
+        "signed_R": {
+          "median": -0.9899634852141501,
+          "n": 744,
+          "p10": -2.1023481797810932,
+          "p25": -1.4196231204482859,
+          "p75": -0.6371290733491355,
+          "p90": -0.3699271577104197
+        }
+      },
+      "censored_ambiguous": {
+        "censored_executable_paths": 171,
+        "never_confirmed_signals": 0,
+        "same_bar_ambiguous_by_hurdle": {
+          "HURDLE_0272": 0,
+          "HURDLE_0618": 0
+        }
+      },
+      "cohort_composition": {
+        "FAILED": 947,
+        "LATER_CONFIRMED": 745,
+        "NEVER_CONFIRMED": 562
+      },
+      "common_fixed_structural_hurdles": {
+        "HURDLE_0272": {
+          "fixed_level": "H1 + 0.272 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 1,
+              "rate": 0.0013440860215053765
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 661,
+              "rate": 0.8884408602150538
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 82,
+              "rate": 0.11021505376344086
+            }
+          },
+          "success_count": 661,
+          "success_rate": 0.8884408602150538
+        },
+        "HURDLE_0618": {
+          "fixed_level": "H1 + 0.618 * R",
+          "outcomes": {
+            "CENSORED_INSUFFICIENT_PATH": {
+              "count": 1,
+              "rate": 0.0013440860215053765
+            },
+            "HURDLE_BEFORE_RESOLUTION": {
+              "count": 572,
+              "rate": 0.7688172043010753
+            },
+            "RESOLUTION_BEFORE_HURDLE": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "SAME_BAR_AMBIGUOUS": {
+              "count": 0,
+              "rate": 0.0
+            },
+            "STRUCTURAL_INVALIDATION_BEFORE_HURDLE": {
+              "count": 171,
+              "rate": 0.22983870967741934
+            }
+          },
+          "success_count": 572,
+          "success_rate": 0.7688172043010753
+        }
+      },
+      "confirmation_latency_saved_sessions": {
+        "median": 0.0,
+        "n": 745,
+        "p10": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "p90": 0.0
+      },
+      "entry_geometry_over_R": {
+        "entry_to_Fib1.272_remaining_headroom": {
+          "median": 0.3738598631909786,
+          "n": 744,
+          "p10": -0.6318729396387021,
+          "p25": 0.024612635888562846,
+          "p75": 0.6184156224467842,
+          "p90": 0.7942981919810265
+        },
+        "entry_to_Fib1.618_remaining_headroom": {
+          "median": 0.7198598631909779,
+          "n": 744,
+          "p10": -0.28587293963870136,
+          "p25": 0.37061263588856264,
+          "p75": 0.9644156224467849,
+          "p90": 1.1402981919810269
+        },
+        "entry_to_H1_distance": {
+          "median": -0.20134835527804185,
+          "n": 744,
+          "p10": -1.2094085935950742,
+          "p25": -0.5053183243004464,
+          "p75": -0.07096475030638763,
+          "p90": -0.010578726699373266
+        }
+      },
+      "eventually_confirmed_count": 745,
+      "failed_count": 0,
+      "never_confirmed_count": 0,
+      "not_executable_next_session_count": 1,
+      "not_signaled_candidate_count": 1509,
+      "policy_id": "INCUMBENT_CONFIRMED_CLOSE",
+      "signaled_candidate_count": 745,
+      "signaled_composition": {
+        "FAILED": 0,
+        "LATER_CONFIRMED": 745,
+        "NEVER_CONFIRMED": 0
+      },
+      "signaled_resolution": {
+        "SCREENED_OUT_BY_CURRENT_SYSTEM": 0,
+        "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 0,
+        "TERMINAL_CONFIRMED": 745,
+        "TERMINAL_FAILED": 0,
+        "TIMEOUT_UNRESOLVED_AT_DATA_END": 0
+      },
+      "stop_invalidation_first": {
+        "production_stop_defined": false,
+        "production_stop_semantics": "NOT_DEFINED_BY_THIS_RESEARCH_PROTOCOL",
+        "research_structural_invalidation_first_count": 0,
+        "research_structural_invalidation_first_rate_of_signals": 0.0
+      },
+      "structural_invalidation_before_confirmation": {
+        "count": 0,
+        "rate_of_failed_signals": null,
+        "rate_of_signals": 0.0
+      },
+      "total_candidate_count": 2254
+    }
+  },
+  "protocol_version": "PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1",
+  "robustness": {
+    "ARMED_HALF_RECOVERY": {
+      "CN_US": {
+        "CN": {
+          "actual_executable_next_session_entry_count": 438,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.2475604195166444,
+              "n": 438,
+              "p90": 0.7115711252653925
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 124,
+              "DATASET_END": 46,
+              "FAILURE": 92,
+              "SCREENED_OUT": 176
+            },
+            "censored_path_count": 180,
+            "empty_path_count": 0,
+            "executable_path_count": 438,
+            "signed_R": {
+              "median": -0.2475604195166444,
+              "n": 438,
+              "p90": -0.04539842873176131
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 106,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 118,
+              "structural_invalidation_before_hurdle_rate": 0.2694063926940639,
+              "success_count": 182,
+              "success_rate": 0.4155251141552511
+            },
+            "HURDLE_0618": {
+              "censored_count": 129,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 144,
+              "structural_invalidation_before_hurdle_rate": 0.3287671232876712,
+              "success_count": 132,
+              "success_rate": 0.3013698630136986
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 3.0,
+            "n": 124,
+            "p90": 13.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8194330980313426,
+              "n": 438,
+              "p90": 1.0263457379996554
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1654330980313432,
+              "n": 438,
+              "p90": 1.3723457379996553
+            },
+            "entry_to_H1_distance": {
+              "median": 0.20684012066364993,
+              "n": 438,
+              "p90": 0.4010343583595812
+            }
+          },
+          "eventually_confirmed_count": 124,
+          "failed_count": 134,
+          "never_confirmed_count": 180,
+          "signaled_candidate_count": 438,
+          "structural_invalidation_before_confirmation": {
+            "count": 99,
+            "rate_of_failed_signals": 0.7388059701492538,
+            "rate_of_signals": 0.22602739726027396
+          },
+          "total_candidate_count": 1008
+        },
+        "US": {
+          "actual_executable_next_session_entry_count": 566,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.21095653971013367,
+              "n": 566,
+              "p90": 0.6942818924756485
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 202,
+              "DATASET_END": 53,
+              "FAILURE": 134,
+              "SCREENED_OUT": 177
+            },
+            "censored_path_count": 178,
+            "empty_path_count": 0,
+            "executable_path_count": 566,
+            "signed_R": {
+              "median": -0.21095653971013367,
+              "n": 566,
+              "p90": -0.03221830014560876
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 91,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 171,
+              "structural_invalidation_before_hurdle_rate": 0.30212014134275617,
+              "success_count": 257,
+              "success_rate": 0.4540636042402827
+            },
+            "HURDLE_0618": {
+              "censored_count": 131,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 201,
+              "structural_invalidation_before_hurdle_rate": 0.3551236749116608,
+              "success_count": 185,
+              "success_rate": 0.32685512367491165
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 202,
+            "p90": 11.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8472442027827447,
+              "n": 566,
+              "p90": 1.0564685917067917
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1932442027827448,
+              "n": 566,
+              "p90": 1.4024685917067914
+            },
+            "entry_to_H1_distance": {
+              "median": 0.17071400500690995,
+              "n": 566,
+              "p90": 0.37930035745878143
+            }
+          },
+          "eventually_confirmed_count": 202,
+          "failed_count": 186,
+          "never_confirmed_count": 179,
+          "signaled_candidate_count": 567,
+          "structural_invalidation_before_confirmation": {
+            "count": 134,
+            "rate_of_failed_signals": 0.7204301075268817,
+            "rate_of_signals": 0.23633156966490299
+          },
+          "total_candidate_count": 1246
+        }
+      },
+      "depth_bands": {
+        "DEEP": {
+          "actual_executable_next_session_entry_count": 237,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.23469427038473367,
+              "n": 237,
+              "p90": 0.7377784866888252
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 73,
+              "DATASET_END": 16,
+              "FAILURE": 58,
+              "SCREENED_OUT": 90
+            },
+            "censored_path_count": 90,
+            "empty_path_count": 0,
+            "executable_path_count": 237,
+            "signed_R": {
+              "median": -0.23469427038473367,
+              "n": 237,
+              "p90": -0.04028322913140421
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 47,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 67,
+              "structural_invalidation_before_hurdle_rate": 0.28270042194092826,
+              "success_count": 103,
+              "success_rate": 0.4345991561181435
+            },
+            "HURDLE_0618": {
+              "censored_count": 61,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 79,
+              "structural_invalidation_before_hurdle_rate": 0.3333333333333333,
+              "success_count": 76,
+              "success_rate": 0.3206751054852321
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 73,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.7967528175820983,
+              "n": 237,
+              "p90": 0.9404393523492913
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1427528175820987,
+              "n": 237,
+              "p90": 1.2864393523492914
+            },
+            "entry_to_H1_distance": {
+              "median": 0.22727272727272668,
+              "n": 237,
+              "p90": 0.37397396380265835
+            }
+          },
+          "eventually_confirmed_count": 73,
+          "failed_count": 74,
+          "never_confirmed_count": 91,
+          "signaled_candidate_count": 238,
+          "structural_invalidation_before_confirmation": {
+            "count": 51,
+            "rate_of_failed_signals": 0.6891891891891891,
+            "rate_of_signals": 0.21428571428571427
+          },
+          "total_candidate_count": 570
+        },
+        "NORMAL_OR_SHALLOW": {
+          "actual_executable_next_session_entry_count": 436,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.18869527438450284,
+              "n": 436,
+              "p90": 0.5085476083539189
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 143,
+              "DATASET_END": 57,
+              "FAILURE": 95,
+              "SCREENED_OUT": 141
+            },
+            "censored_path_count": 143,
+            "empty_path_count": 0,
+            "executable_path_count": 436,
+            "signed_R": {
+              "median": -0.18869527438450284,
+              "n": 436,
+              "p90": -0.03119092033294611
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 82,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 148,
+              "structural_invalidation_before_hurdle_rate": 0.3394495412844037,
+              "success_count": 175,
+              "success_rate": 0.4013761467889908
+            },
+            "HURDLE_0618": {
+              "censored_count": 115,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 173,
+              "structural_invalidation_before_hurdle_rate": 0.3967889908256881,
+              "success_count": 116,
+              "success_rate": 0.26605504587155965
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 143,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9714872807953685,
+              "n": 436,
+              "p90": 1.0870765266449358
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.3174872807953688,
+              "n": 436,
+              "p90": 1.4330765266449355
+            },
+            "entry_to_H1_distance": {
+              "median": 0.13599827864367436,
+              "n": 436,
+              "p90": 0.25426953328613666
+            }
+          },
+          "eventually_confirmed_count": 143,
+          "failed_count": 150,
+          "never_confirmed_count": 143,
+          "signaled_candidate_count": 436,
+          "structural_invalidation_before_confirmation": {
+            "count": 118,
+            "rate_of_failed_signals": 0.7866666666666666,
+            "rate_of_signals": 0.2706422018348624
+          },
+          "total_candidate_count": 1008
+        },
+        "VERY_DEEP": {
+          "actual_executable_next_session_entry_count": 331,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.3045117505052636,
+              "n": 331,
+              "p90": 0.8310339928809894
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 110,
+              "DATASET_END": 26,
+              "FAILURE": 73,
+              "SCREENED_OUT": 122
+            },
+            "censored_path_count": 125,
+            "empty_path_count": 0,
+            "executable_path_count": 331,
+            "signed_R": {
+              "median": -0.3045117505052636,
+              "n": 331,
+              "p90": -0.040540120327003465
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 68,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 74,
+              "structural_invalidation_before_hurdle_rate": 0.22356495468277945,
+              "success_count": 161,
+              "success_rate": 0.486404833836858
+            },
+            "HURDLE_0618": {
+              "censored_count": 84,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 93,
+              "structural_invalidation_before_hurdle_rate": 0.2809667673716012,
+              "success_count": 125,
+              "success_rate": 0.3776435045317221
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 3.0,
+            "n": 110,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.6750743585250689,
+              "n": 331,
+              "p90": 0.8328656447249766
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.0210743585250688,
+              "n": 331,
+              "p90": 1.178865644724977
+            },
+            "entry_to_H1_distance": {
+              "median": 0.2857145417146449,
+              "n": 331,
+              "p90": 0.44332076335220294
+            }
+          },
+          "eventually_confirmed_count": 110,
+          "failed_count": 96,
+          "never_confirmed_count": 125,
+          "signaled_candidate_count": 331,
+          "structural_invalidation_before_confirmation": {
+            "count": 64,
+            "rate_of_failed_signals": 0.6666666666666666,
+            "rate_of_signals": 0.1933534743202417
+          },
+          "total_candidate_count": 664
+        }
+      },
+      "later_confirmed_vs_never_confirmed_failed": {
+        "FAILED": {
+          "actual_executable_next_session_entry_count": 320,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.4754461445413558,
+              "n": 320,
+              "p90": 0.8705324249226486
+            },
+            "boundary_counts": {
+              "DATASET_END": 94,
+              "FAILURE": 226
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 320,
+            "signed_R": {
+              "median": -0.4754461445413558,
+              "n": 320,
+              "p90": -0.140207063149696
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 224,
+              "structural_invalidation_before_hurdle_rate": 0.7,
+              "success_count": 17,
+              "success_rate": 0.053125
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 231,
+              "structural_invalidation_before_hurdle_rate": 0.721875,
+              "success_count": 7,
+              "success_rate": 0.021875
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.867187968742551,
+              "n": 320,
+              "p90": 1.0640660548846457
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.2131879687425495,
+              "n": 320,
+              "p90": 1.4100660548846455
+            },
+            "entry_to_H1_distance": {
+              "median": 0.20824465272113224,
+              "n": 320,
+              "p90": 0.43159745000235417
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 320,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 320,
+          "structural_invalidation_before_confirmation": {
+            "count": 233,
+            "rate_of_failed_signals": 0.728125,
+            "rate_of_signals": 0.728125
+          },
+          "total_candidate_count": 947
+        },
+        "LATER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 326,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.1079607209432562,
+              "n": 326,
+              "p90": 0.3768323852923817
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 326
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 326,
+            "signed_R": {
+              "median": -0.1079607209432562,
+              "n": 326,
+              "p90": -0.014537590960725391
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 55,
+              "structural_invalidation_before_hurdle_rate": 0.1687116564417178,
+              "success_count": 271,
+              "success_rate": 0.8312883435582822
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 103,
+              "structural_invalidation_before_hurdle_rate": 0.3159509202453988,
+              "success_count": 223,
+              "success_rate": 0.6840490797546013
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 326,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8101920249868528,
+              "n": 326,
+              "p90": 1.0342074356066144
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.156192024986853,
+              "n": 326,
+              "p90": 1.3802074356066145
+            },
+            "entry_to_H1_distance": {
+              "median": 0.1634386214550284,
+              "n": 326,
+              "p90": 0.34787673016594756
+            }
+          },
+          "eventually_confirmed_count": 326,
+          "failed_count": 0,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 326,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 745
+        },
+        "NEVER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 358,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.20066615808869986,
+              "n": 358,
+              "p90": 0.5100203234920636
+            },
+            "boundary_counts": {
+              "DATASET_END": 5,
+              "SCREENED_OUT": 353
+            },
+            "censored_path_count": 358,
+            "empty_path_count": 0,
+            "executable_path_count": 358,
+            "signed_R": {
+              "median": -0.20066615808869986,
+              "n": 358,
+              "p90": -0.045267709627579436
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 197,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 10,
+              "structural_invalidation_before_hurdle_rate": 0.027932960893854747,
+              "success_count": 151,
+              "success_rate": 0.42178770949720673
+            },
+            "HURDLE_0618": {
+              "censored_count": 260,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 11,
+              "structural_invalidation_before_hurdle_rate": 0.030726256983240222,
+              "success_count": 87,
+              "success_rate": 0.2430167597765363
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8221202314044279,
+              "n": 358,
+              "p90": 1.0437907864807325
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1681202314044277,
+              "n": 358,
+              "p90": 1.3897907864807326
+            },
+            "entry_to_H1_distance": {
+              "median": 0.1825002428889496,
+              "n": 358,
+              "p90": 0.3864407203041877
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 0,
+          "never_confirmed_count": 359,
+          "signaled_candidate_count": 359,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 562
+        }
+      },
+      "symbol_concentration": {
+        "count_leading_symbol": "LIN",
+        "count_leading_symbol_signal_count": 37,
+        "signal_counts_by_symbol": {
+          "000681.SZ": 25,
+          "000923.SZ": 32,
+          "001203.SZ": 14,
+          "001696.SZ": 20,
+          "002120.SZ": 21,
+          "002215.SZ": 21,
+          "002352.SZ": 20,
+          "002407.SZ": 23,
+          "002756.SZ": 23,
+          "002768.SZ": 28,
+          "002913.SZ": 32,
+          "600009.SH": 27,
+          "600018.SH": 30,
+          "600657.SH": 19,
+          "601360.SH": 20,
+          "601598.SH": 20,
+          "601888.SH": 26,
+          "603341.SH": 9,
+          "603919.SH": 28,
+          "ADI": 34,
+          "BAX": 29,
+          "BKNG": 34,
+          "BLDR": 32,
+          "CIFR": 18,
+          "COIN": 16,
+          "DBX": 22,
+          "LIN": 37,
+          "LRCX": 31,
+          "META": 29,
+          "MPWR": 36,
+          "MRVL": 29,
+          "NUE": 25,
+          "QCOM": 36,
+          "QLYS": 26,
+          "QTWO": 31,
+          "ROST": 31,
+          "STX": 29,
+          "TSLA": 28,
+          "YOU": 14
+        },
+        "without_count_leading_symbol": {
+          "actual_executable_next_session_entry_count": 967,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.22759405022941728,
+              "n": 967,
+              "p90": 0.7055737876618565
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 312,
+              "DATASET_END": 96,
+              "FAILURE": 217,
+              "SCREENED_OUT": 342
+            },
+            "censored_path_count": 347,
+            "empty_path_count": 0,
+            "executable_path_count": 967,
+            "signed_R": {
+              "median": -0.22759405022941728,
+              "n": 967,
+              "p90": -0.037058793052306103
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 191,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 281,
+              "structural_invalidation_before_hurdle_rate": 0.2905894519131334,
+              "success_count": 420,
+              "success_rate": 0.4343329886246122
+            },
+            "HURDLE_0618": {
+              "censored_count": 252,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 336,
+              "structural_invalidation_before_hurdle_rate": 0.3474663908996898,
+              "success_count": 301,
+              "success_rate": 0.3112719751809721
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 312,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8346298633792563,
+              "n": 967,
+              "p90": 1.0494967064312992
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.180629863379256,
+              "n": 967,
+              "p90": 1.3954967064312993
+            },
+            "entry_to_H1_distance": {
+              "median": 0.1824063817091349,
+              "n": 967,
+              "p90": 0.38963489009292906
+            }
+          },
+          "eventually_confirmed_count": 312,
+          "failed_count": 308,
+          "never_confirmed_count": 348,
+          "signaled_candidate_count": 968,
+          "structural_invalidation_before_confirmation": {
+            "count": 225,
+            "rate_of_failed_signals": 0.7305194805194806,
+            "rate_of_signals": 0.23243801652892562
+          },
+          "total_candidate_count": 2180
+        }
+      },
+      "time_split_by_candidate_ready_date": {
+        "definition": "frozen market-session ordinal midpoint",
+        "halves": {
+          "FIRST_HALF": {
+            "actual_executable_next_session_entry_count": 485,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.19958375373842252,
+                "n": 485,
+                "p90": 0.6689990955239261
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 183,
+                "DATASET_END": 33,
+                "FAILURE": 112,
+                "SCREENED_OUT": 157
+              },
+              "censored_path_count": 157,
+              "empty_path_count": 0,
+              "executable_path_count": 485,
+              "signed_R": {
+                "median": -0.19958375373842252,
+                "n": 485,
+                "p90": -0.029917946871759693
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 84,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 130,
+                "structural_invalidation_before_hurdle_rate": 0.26804123711340205,
+                "success_count": 231,
+                "success_rate": 0.4762886597938144
+              },
+              "HURDLE_0618": {
+                "censored_count": 112,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 157,
+                "structural_invalidation_before_hurdle_rate": 0.3237113402061856,
+                "success_count": 175,
+                "success_rate": 0.36082474226804123
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 3.0,
+              "n": 183,
+              "p90": 12.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.8415732838589985,
+                "n": 485,
+                "p90": 1.0599070422828807
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.1875732838589987,
+                "n": 485,
+                "p90": 1.4059070422828812
+              },
+              "entry_to_H1_distance": {
+                "median": 0.18064516129032274,
+                "n": 485,
+                "p90": 0.3888301762847756
+              }
+            },
+            "eventually_confirmed_count": 183,
+            "failed_count": 145,
+            "never_confirmed_count": 157,
+            "signaled_candidate_count": 485,
+            "structural_invalidation_before_confirmation": {
+              "count": 100,
+              "rate_of_failed_signals": 0.6896551724137931,
+              "rate_of_signals": 0.20618556701030927
+            },
+            "total_candidate_count": 1088
+          },
+          "SECOND_HALF": {
+            "actual_executable_next_session_entry_count": 519,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.2470751424962433,
+                "n": 519,
+                "p90": 0.7351245141136846
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 143,
+                "DATASET_END": 66,
+                "FAILURE": 114,
+                "SCREENED_OUT": 196
+              },
+              "censored_path_count": 201,
+              "empty_path_count": 0,
+              "executable_path_count": 519,
+              "signed_R": {
+                "median": -0.2470751424962433,
+                "n": 519,
+                "p90": -0.04398621137678421
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 113,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 159,
+                "structural_invalidation_before_hurdle_rate": 0.3063583815028902,
+                "success_count": 208,
+                "success_rate": 0.4007707129094412
+              },
+              "HURDLE_0618": {
+                "censored_count": 148,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 188,
+                "structural_invalidation_before_hurdle_rate": 0.3622350674373796,
+                "success_count": 142,
+                "success_rate": 0.27360308285163776
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 4.0,
+              "n": 143,
+              "p90": 12.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.8317484276729572,
+                "n": 519,
+                "p90": 1.0366435514509111
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.1777484276729568,
+                "n": 519,
+                "p90": 1.3826435514509117
+              },
+              "entry_to_H1_distance": {
+                "median": 0.1857209519365377,
+                "n": 519,
+                "p90": 0.3855113785322313
+              }
+            },
+            "eventually_confirmed_count": 143,
+            "failed_count": 175,
+            "never_confirmed_count": 202,
+            "signaled_candidate_count": 520,
+            "structural_invalidation_before_confirmation": {
+              "count": 133,
+              "rate_of_failed_signals": 0.76,
+              "rate_of_signals": 0.25576923076923075
+            },
+            "total_candidate_count": 1166
+          }
+        }
+      }
+    },
+    "ARMED_HALF_RECOVERY_DAILY_UPTREND": {
+      "CN_US": {
+        "CN": {
+          "actual_executable_next_session_entry_count": 171,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.2178988326848248,
+              "n": 171,
+              "p90": 0.6020408163265303
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 62,
+              "DATASET_END": 10,
+              "FAILURE": 40,
+              "SCREENED_OUT": 59
+            },
+            "censored_path_count": 59,
+            "empty_path_count": 0,
+            "executable_path_count": 171,
+            "signed_R": {
+              "median": -0.2178988326848248,
+              "n": 171,
+              "p90": -0.04040404040404172
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 37,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 45,
+              "structural_invalidation_before_hurdle_rate": 0.2631578947368421,
+              "success_count": 74,
+              "success_rate": 0.4327485380116959
+            },
+            "HURDLE_0618": {
+              "censored_count": 41,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 58,
+              "structural_invalidation_before_hurdle_rate": 0.3391812865497076,
+              "success_count": 56,
+              "success_rate": 0.32748538011695905
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 62,
+            "p90": 13.799999999999997
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8447699530516424,
+              "n": 171,
+              "p90": 1.0357795275590562
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1907699530516431,
+              "n": 171,
+              "p90": 1.3817795275590552
+            },
+            "entry_to_H1_distance": {
+              "median": 0.20545454545454547,
+              "n": 171,
+              "p90": 0.3857566765578632
+            }
+          },
+          "eventually_confirmed_count": 62,
+          "failed_count": 50,
+          "never_confirmed_count": 59,
+          "signaled_candidate_count": 171,
+          "structural_invalidation_before_confirmation": {
+            "count": 34,
+            "rate_of_failed_signals": 0.68,
+            "rate_of_signals": 0.19883040935672514
+          },
+          "total_candidate_count": 1008
+        },
+        "US": {
+          "actual_executable_next_session_entry_count": 306,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.18407728712210458,
+              "n": 306,
+              "p90": 0.6572374795005715
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 129,
+              "DATASET_END": 25,
+              "FAILURE": 65,
+              "SCREENED_OUT": 87
+            },
+            "censored_path_count": 88,
+            "empty_path_count": 0,
+            "executable_path_count": 306,
+            "signed_R": {
+              "median": -0.18407728712210458,
+              "n": 306,
+              "p90": -0.022392144005330947
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 48,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 93,
+              "structural_invalidation_before_hurdle_rate": 0.30392156862745096,
+              "success_count": 146,
+              "success_rate": 0.477124183006536
+            },
+            "HURDLE_0618": {
+              "censored_count": 64,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 113,
+              "structural_invalidation_before_hurdle_rate": 0.369281045751634,
+              "success_count": 110,
+              "success_rate": 0.35947712418300654
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 129,
+            "p90": 11.200000000000003
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8943614555383648,
+              "n": 306,
+              "p90": 1.0718681386564404
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.2403614555383649,
+              "n": 306,
+              "p90": 1.417868138656441
+            },
+            "entry_to_H1_distance": {
+              "median": 0.159116983792435,
+              "n": 306,
+              "p90": 0.32855630052749907
+            }
+          },
+          "eventually_confirmed_count": 129,
+          "failed_count": 89,
+          "never_confirmed_count": 88,
+          "signaled_candidate_count": 306,
+          "structural_invalidation_before_confirmation": {
+            "count": 68,
+            "rate_of_failed_signals": 0.7640449438202247,
+            "rate_of_signals": 0.2222222222222222
+          },
+          "total_candidate_count": 1246
+        }
+      },
+      "depth_bands": {
+        "DEEP": {
+          "actual_executable_next_session_entry_count": 106,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.26823889325049444,
+              "n": 106,
+              "p90": 0.6860181999808765
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 37,
+              "DATASET_END": 5,
+              "FAILURE": 26,
+              "SCREENED_OUT": 38
+            },
+            "censored_path_count": 38,
+            "empty_path_count": 0,
+            "executable_path_count": 106,
+            "signed_R": {
+              "median": -0.26823889325049444,
+              "n": 106,
+              "p90": -0.04524092931379316
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 23,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 27,
+              "structural_invalidation_before_hurdle_rate": 0.25471698113207547,
+              "success_count": 45,
+              "success_rate": 0.42452830188679247
+            },
+            "HURDLE_0618": {
+              "censored_count": 26,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 33,
+              "structural_invalidation_before_hurdle_rate": 0.3113207547169811,
+              "success_count": 36,
+              "success_rate": 0.33962264150943394
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 5.0,
+            "n": 37,
+            "p90": 14.399999999999999
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.7931187567181253,
+              "n": 106,
+              "p90": 0.9335211248648674
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1391187567181253,
+              "n": 106,
+              "p90": 1.2795211248648684
+            },
+            "entry_to_H1_distance": {
+              "median": 0.20866752506247038,
+              "n": 106,
+              "p90": 0.3578829965291392
+            }
+          },
+          "eventually_confirmed_count": 37,
+          "failed_count": 31,
+          "never_confirmed_count": 38,
+          "signaled_candidate_count": 106,
+          "structural_invalidation_before_confirmation": {
+            "count": 20,
+            "rate_of_failed_signals": 0.6451612903225806,
+            "rate_of_signals": 0.18867924528301888
+          },
+          "total_candidate_count": 570
+        },
+        "NORMAL_OR_SHALLOW": {
+          "actual_executable_next_session_entry_count": 244,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.16689480419232874,
+              "n": 244,
+              "p90": 0.4704455951061795
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 98,
+              "DATASET_END": 22,
+              "FAILURE": 55,
+              "SCREENED_OUT": 69
+            },
+            "censored_path_count": 69,
+            "empty_path_count": 0,
+            "executable_path_count": 244,
+            "signed_R": {
+              "median": -0.16689480419232874,
+              "n": 244,
+              "p90": -0.027745129967125862
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 40,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 84,
+              "structural_invalidation_before_hurdle_rate": 0.3442622950819672,
+              "success_count": 106,
+              "success_rate": 0.4344262295081967
+            },
+            "HURDLE_0618": {
+              "censored_count": 56,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 100,
+              "structural_invalidation_before_hurdle_rate": 0.4098360655737705,
+              "success_count": 73,
+              "success_rate": 0.29918032786885246
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 98,
+            "p90": 10.599999999999994
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9764436482540362,
+              "n": 244,
+              "p90": 1.0905198229493225
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.3224436482540356,
+              "n": 244,
+              "p90": 1.4365198229493226
+            },
+            "entry_to_H1_distance": {
+              "median": 0.1342097062076435,
+              "n": 244,
+              "p90": 0.26167460535662
+            }
+          },
+          "eventually_confirmed_count": 98,
+          "failed_count": 77,
+          "never_confirmed_count": 69,
+          "signaled_candidate_count": 244,
+          "structural_invalidation_before_confirmation": {
+            "count": 62,
+            "rate_of_failed_signals": 0.8051948051948052,
+            "rate_of_signals": 0.2540983606557377
+          },
+          "total_candidate_count": 1008
+        },
+        "VERY_DEEP": {
+          "actual_executable_next_session_entry_count": 127,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.23809523809523833,
+              "n": 127,
+              "p90": 0.8131477634463469
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 56,
+              "DATASET_END": 8,
+              "FAILURE": 24,
+              "SCREENED_OUT": 39
+            },
+            "censored_path_count": 40,
+            "empty_path_count": 0,
+            "executable_path_count": 127,
+            "signed_R": {
+              "median": -0.23809523809523833,
+              "n": 127,
+              "p90": -0.01695780227712529
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 22,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 27,
+              "structural_invalidation_before_hurdle_rate": 0.2125984251968504,
+              "success_count": 69,
+              "success_rate": 0.5433070866141733
+            },
+            "HURDLE_0618": {
+              "censored_count": 23,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 38,
+              "structural_invalidation_before_hurdle_rate": 0.2992125984251969,
+              "success_count": 57,
+              "success_rate": 0.44881889763779526
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 3.0,
+            "n": 56,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.6501040873814916,
+              "n": 127,
+              "p90": 0.8211505730621596
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 0.996104087381492,
+              "n": 127,
+              "p90": 1.1671505730621596
+            },
+            "entry_to_H1_distance": {
+              "median": 0.27264291496788146,
+              "n": 127,
+              "p90": 0.4187635959324484
+            }
+          },
+          "eventually_confirmed_count": 56,
+          "failed_count": 31,
+          "never_confirmed_count": 40,
+          "signaled_candidate_count": 127,
+          "structural_invalidation_before_confirmation": {
+            "count": 20,
+            "rate_of_failed_signals": 0.6451612903225806,
+            "rate_of_signals": 0.15748031496062992
+          },
+          "total_candidate_count": 664
+        }
+      },
+      "later_confirmed_vs_never_confirmed_failed": {
+        "FAILED": {
+          "actual_executable_next_session_entry_count": 139,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.45030777508705466,
+              "n": 139,
+              "p90": 0.8386415563311425
+            },
+            "boundary_counts": {
+              "DATASET_END": 34,
+              "FAILURE": 105
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 139,
+            "signed_R": {
+              "median": -0.45030777508705466,
+              "n": 139,
+              "p90": -0.13032965570064264
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 101,
+              "structural_invalidation_before_hurdle_rate": 0.7266187050359713,
+              "success_count": 4,
+              "success_rate": 0.02877697841726619
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 103,
+              "structural_invalidation_before_hurdle_rate": 0.7410071942446043,
+              "success_count": 1,
+              "success_rate": 0.007194244604316547
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9001310084808375,
+              "n": 139,
+              "p90": 1.0746561291159422
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.246131008480837,
+              "n": 139,
+              "p90": 1.4206561291159423
+            },
+            "entry_to_H1_distance": {
+              "median": 0.1881118021137692,
+              "n": 139,
+              "p90": 0.37623185777274604
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 139,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 139,
+          "structural_invalidation_before_confirmation": {
+            "count": 102,
+            "rate_of_failed_signals": 0.7338129496402878,
+            "rate_of_signals": 0.7338129496402878
+          },
+          "total_candidate_count": 947
+        },
+        "LATER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 191,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.0963541666666665,
+              "n": 191,
+              "p90": 0.35185062214869123
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 191
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 191,
+            "signed_R": {
+              "median": -0.0963541666666665,
+              "n": 191,
+              "p90": -0.013137139645448895
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 35,
+              "structural_invalidation_before_hurdle_rate": 0.18324607329842932,
+              "success_count": 156,
+              "success_rate": 0.8167539267015707
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 65,
+              "structural_invalidation_before_hurdle_rate": 0.3403141361256545,
+              "success_count": 126,
+              "success_rate": 0.6596858638743456
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 191,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8495856373104916,
+              "n": 191,
+              "p90": 1.0594344052947655
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1955856373104916,
+              "n": 191,
+              "p90": 1.4054344052947647
+            },
+            "entry_to_H1_distance": {
+              "median": 0.16666666666666655,
+              "n": 191,
+              "p90": 0.3291948606932358
+            }
+          },
+          "eventually_confirmed_count": 191,
+          "failed_count": 0,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 191,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 745
+        },
+        "NEVER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 147,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.1865262070659573,
+              "n": 147,
+              "p90": 0.4751048487974874
+            },
+            "boundary_counts": {
+              "DATASET_END": 1,
+              "SCREENED_OUT": 146
+            },
+            "censored_path_count": 147,
+            "empty_path_count": 0,
+            "executable_path_count": 147,
+            "signed_R": {
+              "median": -0.1865262070659573,
+              "n": 147,
+              "p90": -0.04550066085476928
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 85,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 2,
+              "structural_invalidation_before_hurdle_rate": 0.013605442176870748,
+              "success_count": 60,
+              "success_rate": 0.40816326530612246
+            },
+            "HURDLE_0618": {
+              "censored_count": 105,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 3,
+              "structural_invalidation_before_hurdle_rate": 0.02040816326530612,
+              "success_count": 39,
+              "success_rate": 0.2653061224489796
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8453076676291307,
+              "n": 147,
+              "p90": 1.046473684210526
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.191307667629131,
+              "n": 147,
+              "p90": 1.392473684210526
+            },
+            "entry_to_H1_distance": {
+              "median": 0.1673896331210379,
+              "n": 147,
+              "p90": 0.37084391347481493
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 0,
+          "never_confirmed_count": 147,
+          "signaled_candidate_count": 147,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 562
+        }
+      },
+      "symbol_concentration": {
+        "count_leading_symbol": "LIN",
+        "count_leading_symbol_signal_count": 29,
+        "signal_counts_by_symbol": {
+          "000681.SZ": 13,
+          "000923.SZ": 13,
+          "001203.SZ": 6,
+          "001696.SZ": 4,
+          "002120.SZ": 11,
+          "002215.SZ": 11,
+          "002352.SZ": 4,
+          "002407.SZ": 10,
+          "002756.SZ": 9,
+          "002768.SZ": 14,
+          "002913.SZ": 17,
+          "600009.SH": 11,
+          "600018.SH": 9,
+          "600657.SH": 2,
+          "601360.SH": 5,
+          "601598.SH": 6,
+          "601888.SH": 13,
+          "603341.SH": 3,
+          "603919.SH": 10,
+          "ADI": 19,
+          "BAX": 13,
+          "BKNG": 9,
+          "BLDR": 14,
+          "CIFR": 7,
+          "COIN": 6,
+          "DBX": 10,
+          "LIN": 29,
+          "LRCX": 21,
+          "META": 18,
+          "MPWR": 24,
+          "MRVL": 16,
+          "NUE": 13,
+          "QCOM": 23,
+          "QLYS": 11,
+          "QTWO": 17,
+          "ROST": 17,
+          "STX": 15,
+          "TSLA": 15,
+          "YOU": 9
+        },
+        "without_count_leading_symbol": {
+          "actual_executable_next_session_entry_count": 448,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.1951337994635065,
+              "n": 448,
+              "p90": 0.61019059884537
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 181,
+              "DATASET_END": 32,
+              "FAILURE": 100,
+              "SCREENED_OUT": 135
+            },
+            "censored_path_count": 136,
+            "empty_path_count": 0,
+            "executable_path_count": 448,
+            "signed_R": {
+              "median": -0.1951337994635065,
+              "n": 448,
+              "p90": -0.024626213992989327
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 79,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 132,
+              "structural_invalidation_before_hurdle_rate": 0.29464285714285715,
+              "success_count": 205,
+              "success_rate": 0.4575892857142857
+            },
+            "HURDLE_0618": {
+              "censored_count": 97,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 164,
+              "structural_invalidation_before_hurdle_rate": 0.36607142857142855,
+              "success_count": 154,
+              "success_rate": 0.34375
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 181,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8678172458172457,
+              "n": 448,
+              "p90": 1.0606114992257438
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.2138172458172458,
+              "n": 448,
+              "p90": 1.4066114992257448
+            },
+            "entry_to_H1_distance": {
+              "median": 0.1747615742281472,
+              "n": 448,
+              "p90": 0.35608270518774376
+            }
+          },
+          "eventually_confirmed_count": 181,
+          "failed_count": 131,
+          "never_confirmed_count": 136,
+          "signaled_candidate_count": 448,
+          "structural_invalidation_before_confirmation": {
+            "count": 96,
+            "rate_of_failed_signals": 0.732824427480916,
+            "rate_of_signals": 0.21428571428571427
+          },
+          "total_candidate_count": 2180
+        }
+      },
+      "time_split_by_candidate_ready_date": {
+        "definition": "frozen market-session ordinal midpoint",
+        "halves": {
+          "FIRST_HALF": {
+            "actual_executable_next_session_entry_count": 244,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.16844727344949584,
+                "n": 244,
+                "p90": 0.5564245151637223
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 113,
+                "DATASET_END": 8,
+                "FAILURE": 48,
+                "SCREENED_OUT": 75
+              },
+              "censored_path_count": 75,
+              "empty_path_count": 0,
+              "executable_path_count": 244,
+              "signed_R": {
+                "median": -0.16844727344949584,
+                "n": 244,
+                "p90": -0.022011566074267002
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 38,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 62,
+                "structural_invalidation_before_hurdle_rate": 0.2540983606557377,
+                "success_count": 128,
+                "success_rate": 0.5245901639344263
+              },
+              "HURDLE_0618": {
+                "censored_count": 54,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 75,
+                "structural_invalidation_before_hurdle_rate": 0.3073770491803279,
+                "success_count": 99,
+                "success_rate": 0.4057377049180328
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 4.0,
+              "n": 113,
+              "p90": 12.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.8770560723387736,
+                "n": 244,
+                "p90": 1.0729392192465042
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.2230560723387733,
+                "n": 244,
+                "p90": 1.4189392192465042
+              },
+              "entry_to_H1_distance": {
+                "median": 0.1710491508385808,
+                "n": 244,
+                "p90": 0.34472086268469027
+              }
+            },
+            "eventually_confirmed_count": 113,
+            "failed_count": 56,
+            "never_confirmed_count": 75,
+            "signaled_candidate_count": 244,
+            "structural_invalidation_before_confirmation": {
+              "count": 39,
+              "rate_of_failed_signals": 0.6964285714285714,
+              "rate_of_signals": 0.1598360655737705
+            },
+            "total_candidate_count": 1088
+          },
+          "SECOND_HALF": {
+            "actual_executable_next_session_entry_count": 233,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.21611272581939533,
+                "n": 233,
+                "p90": 0.6934634212218785
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 78,
+                "DATASET_END": 27,
+                "FAILURE": 57,
+                "SCREENED_OUT": 71
+              },
+              "censored_path_count": 72,
+              "empty_path_count": 0,
+              "executable_path_count": 233,
+              "signed_R": {
+                "median": -0.21611272581939533,
+                "n": 233,
+                "p90": -0.03184253852956126
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 47,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 76,
+                "structural_invalidation_before_hurdle_rate": 0.3261802575107296,
+                "success_count": 92,
+                "success_rate": 0.3948497854077253
+              },
+              "HURDLE_0618": {
+                "censored_count": 51,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 96,
+                "structural_invalidation_before_hurdle_rate": 0.41201716738197425,
+                "success_count": 67,
+                "success_rate": 0.2875536480686695
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 4.0,
+              "n": 78,
+              "p90": 12.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.8659231314255322,
+                "n": 233,
+                "p90": 1.0457852404286938
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.2119231314255319,
+                "n": 233,
+                "p90": 1.3917852404286937
+              },
+              "entry_to_H1_distance": {
+                "median": 0.17622949091352996,
+                "n": 233,
+                "p90": 0.3601456683706772
+              }
+            },
+            "eventually_confirmed_count": 78,
+            "failed_count": 83,
+            "never_confirmed_count": 72,
+            "signaled_candidate_count": 233,
+            "structural_invalidation_before_confirmation": {
+              "count": 63,
+              "rate_of_failed_signals": 0.7590361445783133,
+              "rate_of_signals": 0.2703862660944206
+            },
+            "total_candidate_count": 1166
+          }
+        }
+      }
+    },
+    "FIRST_BULLISH_RECOVERY": {
+      "CN_US": {
+        "CN": {
+          "actual_executable_next_session_entry_count": 570,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.19131564536481865,
+              "n": 570,
+              "p90": 0.5933870087711008
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 113,
+              "DATASET_END": 70,
+              "FAILURE": 197,
+              "SCREENED_OUT": 190
+            },
+            "censored_path_count": 194,
+            "empty_path_count": 0,
+            "executable_path_count": 570,
+            "signed_R": {
+              "median": -0.19131564536481865,
+              "n": 570,
+              "p90": -0.036272409958445564
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 125,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 234,
+              "structural_invalidation_before_hurdle_rate": 0.4105263157894737,
+              "success_count": 165,
+              "success_rate": 0.2894736842105263
+            },
+            "HURDLE_0618": {
+              "censored_count": 145,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 257,
+              "structural_invalidation_before_hurdle_rate": 0.45087719298245615,
+              "success_count": 121,
+              "success_rate": 0.21228070175438596
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 113,
+            "p90": 14.799999999999997
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9856386959629093,
+              "n": 570,
+              "p90": 1.2106328943430111
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.3316386959629094,
+              "n": 570,
+              "p90": 1.5566328943430112
+            },
+            "entry_to_H1_distance": {
+              "median": 0.3728760881990663,
+              "n": 570,
+              "p90": 0.716896254653016
+            }
+          },
+          "eventually_confirmed_count": 113,
+          "failed_count": 263,
+          "never_confirmed_count": 194,
+          "signaled_candidate_count": 570,
+          "structural_invalidation_before_confirmation": {
+            "count": 209,
+            "rate_of_failed_signals": 0.7946768060836502,
+            "rate_of_signals": 0.36666666666666664
+          },
+          "total_candidate_count": 1008
+        },
+        "US": {
+          "actual_executable_next_session_entry_count": 666,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.18942004343933486,
+              "n": 666,
+              "p90": 0.6006666623261322
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 179,
+              "DATASET_END": 75,
+              "FAILURE": 233,
+              "SCREENED_OUT": 179
+            },
+            "censored_path_count": 182,
+            "empty_path_count": 0,
+            "executable_path_count": 666,
+            "signed_R": {
+              "median": -0.18942004343933486,
+              "n": 666,
+              "p90": -0.026002724597014103
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 101,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 275,
+              "structural_invalidation_before_hurdle_rate": 0.41291291291291293,
+              "success_count": 223,
+              "success_rate": 0.33483483483483484
+            },
+            "HURDLE_0618": {
+              "censored_count": 136,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 299,
+              "structural_invalidation_before_hurdle_rate": 0.44894894894894893,
+              "success_count": 162,
+              "success_rate": 0.24324324324324326
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 179,
+            "p90": 12.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9831747955978053,
+              "n": 666,
+              "p90": 1.2109182789797266
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.3291747955978057,
+              "n": 666,
+              "p90": 1.5569182789797271
+            },
+            "entry_to_H1_distance": {
+              "median": 0.2640719633380948,
+              "n": 666,
+              "p90": 0.6290931080110672
+            }
+          },
+          "eventually_confirmed_count": 179,
+          "failed_count": 305,
+          "never_confirmed_count": 182,
+          "signaled_candidate_count": 666,
+          "structural_invalidation_before_confirmation": {
+            "count": 232,
+            "rate_of_failed_signals": 0.760655737704918,
+            "rate_of_signals": 0.3483483483483483
+          },
+          "total_candidate_count": 1246
+        }
+      },
+      "depth_bands": {
+        "DEEP": {
+          "actual_executable_next_session_entry_count": 303,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.19230769230769149,
+              "n": 303,
+              "p90": 0.568796677943231
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 63,
+              "DATASET_END": 31,
+              "FAILURE": 116,
+              "SCREENED_OUT": 93
+            },
+            "censored_path_count": 94,
+            "empty_path_count": 0,
+            "executable_path_count": 303,
+            "signed_R": {
+              "median": -0.19230769230769149,
+              "n": 303,
+              "p90": -0.03537624293706733
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 57,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 127,
+              "structural_invalidation_before_hurdle_rate": 0.41914191419141916,
+              "success_count": 86,
+              "success_rate": 0.2838283828382838
+            },
+            "HURDLE_0618": {
+              "censored_count": 66,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 135,
+              "structural_invalidation_before_hurdle_rate": 0.44554455445544555,
+              "success_count": 68,
+              "success_rate": 0.22442244224422442
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 5.0,
+            "n": 63,
+            "p90": 15.400000000000013
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9593614687683304,
+              "n": 303,
+              "p90": 1.2075913850308095
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.3053614687683308,
+              "n": 303,
+              "p90": 1.5535913850308094
+            },
+            "entry_to_H1_distance": {
+              "median": 0.3914209115281498,
+              "n": 303,
+              "p90": 0.6583109734928079
+            }
+          },
+          "eventually_confirmed_count": 63,
+          "failed_count": 146,
+          "never_confirmed_count": 94,
+          "signaled_candidate_count": 303,
+          "structural_invalidation_before_confirmation": {
+            "count": 110,
+            "rate_of_failed_signals": 0.7534246575342466,
+            "rate_of_signals": 0.36303630363036304
+          },
+          "total_candidate_count": 570
+        },
+        "NORMAL_OR_SHALLOW": {
+          "actual_executable_next_session_entry_count": 506,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.1598778400248989,
+              "n": 506,
+              "p90": 0.4535543769998178
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 130,
+              "DATASET_END": 69,
+              "FAILURE": 169,
+              "SCREENED_OUT": 138
+            },
+            "censored_path_count": 140,
+            "empty_path_count": 0,
+            "executable_path_count": 506,
+            "signed_R": {
+              "median": -0.1598778400248989,
+              "n": 506,
+              "p90": -0.022985484318301466
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 83,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 231,
+              "structural_invalidation_before_hurdle_rate": 0.45652173913043476,
+              "success_count": 154,
+              "success_rate": 0.30434782608695654
+            },
+            "HURDLE_0618": {
+              "censored_count": 115,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 251,
+              "structural_invalidation_before_hurdle_rate": 0.49604743083003955,
+              "success_count": 101,
+              "success_rate": 0.19960474308300397
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 130,
+            "p90": 13.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 1.0565857999688424,
+              "n": 506,
+              "p90": 1.2214185835764693
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.4025857999688427,
+              "n": 506,
+              "p90": 1.5674185835764693
+            },
+            "entry_to_H1_distance": {
+              "median": 0.21450969699992023,
+              "n": 506,
+              "p90": 0.4497235147248468
+            }
+          },
+          "eventually_confirmed_count": 130,
+          "failed_count": 236,
+          "never_confirmed_count": 140,
+          "signaled_candidate_count": 506,
+          "structural_invalidation_before_confirmation": {
+            "count": 193,
+            "rate_of_failed_signals": 0.8177966101694916,
+            "rate_of_signals": 0.3814229249011858
+          },
+          "total_candidate_count": 1008
+        },
+        "VERY_DEEP": {
+          "actual_executable_next_session_entry_count": 427,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.25152738394746904,
+              "n": 427,
+              "p90": 0.7294080489310456
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 99,
+              "DATASET_END": 45,
+              "FAILURE": 145,
+              "SCREENED_OUT": 138
+            },
+            "censored_path_count": 142,
+            "empty_path_count": 0,
+            "executable_path_count": 427,
+            "signed_R": {
+              "median": -0.25152738394746904,
+              "n": 427,
+              "p90": -0.040851776809366844
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 86,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 151,
+              "structural_invalidation_before_hurdle_rate": 0.35362997658079626,
+              "success_count": 148,
+              "success_rate": 0.34660421545667447
+            },
+            "HURDLE_0618": {
+              "censored_count": 100,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 170,
+              "structural_invalidation_before_hurdle_rate": 0.3981264637002342,
+              "success_count": 114,
+              "success_rate": 0.26697892271662765
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 99,
+            "p90": 13.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8644947715997102,
+              "n": 427,
+              "p90": 1.1829327929350582
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.2104947715997112,
+              "n": 427,
+              "p90": 1.5289327929350582
+            },
+            "entry_to_H1_distance": {
+              "median": 0.4755555555555559,
+              "n": 427,
+              "p90": 0.8133311478183441
+            }
+          },
+          "eventually_confirmed_count": 99,
+          "failed_count": 186,
+          "never_confirmed_count": 142,
+          "signaled_candidate_count": 427,
+          "structural_invalidation_before_confirmation": {
+            "count": 138,
+            "rate_of_failed_signals": 0.7419354838709677,
+            "rate_of_signals": 0.3231850117096019
+          },
+          "total_candidate_count": 664
+        }
+      },
+      "later_confirmed_vs_never_confirmed_failed": {
+        "FAILED": {
+          "actual_executable_next_session_entry_count": 568,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.2936039393978615,
+              "n": 568,
+              "p90": 0.7044698948948563
+            },
+            "boundary_counts": {
+              "DATASET_END": 138,
+              "FAILURE": 430
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 568,
+            "signed_R": {
+              "median": -0.2936039393978615,
+              "n": 568,
+              "p90": -0.0752695981362275
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 442,
+              "structural_invalidation_before_hurdle_rate": 0.778169014084507,
+              "success_count": 13,
+              "success_rate": 0.022887323943661973
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 447,
+              "structural_invalidation_before_hurdle_rate": 0.7869718309859155,
+              "success_count": 5,
+              "success_rate": 0.008802816901408451
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 1.0688060835629702,
+              "n": 568,
+              "p90": 1.2440500347714314
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.4148060835629703,
+              "n": 568,
+              "p90": 1.5900500347714317
+            },
+            "entry_to_H1_distance": {
+              "median": 0.4218823345329369,
+              "n": 568,
+              "p90": 0.757587845929248
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 568,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 568,
+          "structural_invalidation_before_confirmation": {
+            "count": 441,
+            "rate_of_failed_signals": 0.7764084507042254,
+            "rate_of_signals": 0.7764084507042254
+          },
+          "total_candidate_count": 947
+        },
+        "LATER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 292,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.09147495490752708,
+              "n": 292,
+              "p90": 0.37456251092528153
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 292
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 292,
+            "signed_R": {
+              "median": -0.09147495490752708,
+              "n": 292,
+              "p90": -0.011299774132901556
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 54,
+              "structural_invalidation_before_hurdle_rate": 0.18493150684931506,
+              "success_count": 238,
+              "success_rate": 0.815068493150685
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 95,
+              "structural_invalidation_before_hurdle_rate": 0.3253424657534247,
+              "success_count": 197,
+              "success_rate": 0.6746575342465754
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 292,
+            "p90": 13.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9043355511927449,
+              "n": 292,
+              "p90": 1.1412299838650966
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.2503355511927452,
+              "n": 292,
+              "p90": 1.4872299838650964
+            },
+            "entry_to_H1_distance": {
+              "median": 0.2136791160624597,
+              "n": 292,
+              "p90": 0.5204362644853446
+            }
+          },
+          "eventually_confirmed_count": 292,
+          "failed_count": 0,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 292,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 745
+        },
+        "NEVER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 376,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.15253629539913,
+              "n": 376,
+              "p90": 0.4964582136157437
+            },
+            "boundary_counts": {
+              "DATASET_END": 7,
+              "SCREENED_OUT": 369
+            },
+            "censored_path_count": 376,
+            "empty_path_count": 0,
+            "executable_path_count": 376,
+            "signed_R": {
+              "median": -0.15253629539913,
+              "n": 376,
+              "p90": -0.03064120345673767
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 226,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 13,
+              "structural_invalidation_before_hurdle_rate": 0.034574468085106384,
+              "success_count": 137,
+              "success_rate": 0.36436170212765956
+            },
+            "HURDLE_0618": {
+              "censored_count": 281,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 14,
+              "structural_invalidation_before_hurdle_rate": 0.03723404255319149,
+              "success_count": 81,
+              "success_rate": 0.2154255319148936
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9386666666666661,
+              "n": 376,
+              "p90": 1.1394005035397472
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.2846666666666664,
+              "n": 376,
+              "p90": 1.485400503539747
+            },
+            "entry_to_H1_distance": {
+              "median": 0.25166827084691024,
+              "n": 376,
+              "p90": 0.6148364363020489
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 0,
+          "never_confirmed_count": 376,
+          "signaled_candidate_count": 376,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 562
+        }
+      },
+      "symbol_concentration": {
+        "count_leading_symbol": "ADI",
+        "count_leading_symbol_signal_count": 44,
+        "signal_counts_by_symbol": {
+          "000681.SZ": 31,
+          "000923.SZ": 37,
+          "001203.SZ": 17,
+          "001696.SZ": 25,
+          "002120.SZ": 29,
+          "002215.SZ": 30,
+          "002352.SZ": 25,
+          "002407.SZ": 31,
+          "002756.SZ": 31,
+          "002768.SZ": 36,
+          "002913.SZ": 31,
+          "600009.SH": 35,
+          "600018.SH": 43,
+          "600657.SH": 25,
+          "600930.SH": 1,
+          "601360.SH": 32,
+          "601598.SH": 30,
+          "601888.SH": 33,
+          "603341.SH": 9,
+          "603919.SH": 39,
+          "ADI": 44,
+          "BAX": 38,
+          "BKNG": 43,
+          "BLDR": 32,
+          "CIFR": 19,
+          "COIN": 22,
+          "DBX": 26,
+          "LIN": 44,
+          "LRCX": 34,
+          "META": 34,
+          "MPWR": 37,
+          "MRVL": 35,
+          "NUE": 25,
+          "QCOM": 43,
+          "QLYS": 36,
+          "QTWO": 37,
+          "ROST": 34,
+          "STX": 31,
+          "TSLA": 33,
+          "YOU": 19
+        },
+        "without_count_leading_symbol": {
+          "actual_executable_next_session_entry_count": 1192,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.18876818260027953,
+              "n": 1192,
+              "p90": 0.5996441774641309
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 278,
+              "DATASET_END": 142,
+              "FAILURE": 412,
+              "SCREENED_OUT": 360
+            },
+            "censored_path_count": 367,
+            "empty_path_count": 0,
+            "executable_path_count": 1192,
+            "signed_R": {
+              "median": -0.18876818260027953,
+              "n": 1192,
+              "p90": -0.030016092787120058
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 219,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 491,
+              "structural_invalidation_before_hurdle_rate": 0.41191275167785235,
+              "success_count": 377,
+              "success_rate": 0.3162751677852349
+            },
+            "HURDLE_0618": {
+              "censored_count": 273,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 534,
+              "structural_invalidation_before_hurdle_rate": 0.44798657718120805,
+              "success_count": 277,
+              "success_rate": 0.23238255033557048
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 4.0,
+            "n": 278,
+            "p90": 13.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.9838803644941675,
+              "n": 1192,
+              "p90": 1.2101067944832782
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.3298803644941672,
+              "n": 1192,
+              "p90": 1.5561067944832787
+            },
+            "entry_to_H1_distance": {
+              "median": 0.31345570616920027,
+              "n": 1192,
+              "p90": 0.6840525826936209
+            }
+          },
+          "eventually_confirmed_count": 278,
+          "failed_count": 547,
+          "never_confirmed_count": 367,
+          "signaled_candidate_count": 1192,
+          "structural_invalidation_before_confirmation": {
+            "count": 428,
+            "rate_of_failed_signals": 0.7824497257769653,
+            "rate_of_signals": 0.35906040268456374
+          },
+          "total_candidate_count": 2184
+        }
+      },
+      "time_split_by_candidate_ready_date": {
+        "definition": "frozen market-session ordinal midpoint",
+        "halves": {
+          "FIRST_HALF": {
+            "actual_executable_next_session_entry_count": 581,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.17819998414531485,
+                "n": 581,
+                "p90": 0.5871821864793618
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 162,
+                "DATASET_END": 46,
+                "FAILURE": 210,
+                "SCREENED_OUT": 163
+              },
+              "censored_path_count": 163,
+              "empty_path_count": 0,
+              "executable_path_count": 581,
+              "signed_R": {
+                "median": -0.17819998414531485,
+                "n": 581,
+                "p90": -0.02825255400566409
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 97,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 227,
+                "structural_invalidation_before_hurdle_rate": 0.39070567986230637,
+                "success_count": 201,
+                "success_rate": 0.3459552495697074
+              },
+              "HURDLE_0618": {
+                "censored_count": 120,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 247,
+                "structural_invalidation_before_hurdle_rate": 0.42512908777969016,
+                "success_count": 157,
+                "success_rate": 0.270223752151463
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 4.0,
+              "n": 162,
+              "p90": 14.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.9842153209109727,
+                "n": 581,
+                "p90": 1.206782608695652
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.3302153209109726,
+                "n": 581,
+                "p90": 1.5527826086956527
+              },
+              "entry_to_H1_distance": {
+                "median": 0.31418315912601,
+                "n": 581,
+                "p90": 0.6617375231053607
+              }
+            },
+            "eventually_confirmed_count": 162,
+            "failed_count": 256,
+            "never_confirmed_count": 163,
+            "signaled_candidate_count": 581,
+            "structural_invalidation_before_confirmation": {
+              "count": 193,
+              "rate_of_failed_signals": 0.75390625,
+              "rate_of_signals": 0.33218588640275387
+            },
+            "total_candidate_count": 1088
+          },
+          "SECOND_HALF": {
+            "actual_executable_next_session_entry_count": 655,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.19888623707239442,
+                "n": 655,
+                "p90": 0.6215753424657549
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 130,
+                "DATASET_END": 99,
+                "FAILURE": 220,
+                "SCREENED_OUT": 206
+              },
+              "censored_path_count": 213,
+              "empty_path_count": 0,
+              "executable_path_count": 655,
+              "signed_R": {
+                "median": -0.19888623707239442,
+                "n": 655,
+                "p90": -0.03241027882952533
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 129,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 282,
+                "structural_invalidation_before_hurdle_rate": 0.4305343511450382,
+                "success_count": 187,
+                "success_rate": 0.28549618320610687
+              },
+              "HURDLE_0618": {
+                "censored_count": 161,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 309,
+                "structural_invalidation_before_hurdle_rate": 0.4717557251908397,
+                "success_count": 126,
+                "success_rate": 0.19236641221374046
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 5.0,
+              "n": 130,
+              "p90": 13.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.9847838369621813,
+                "n": 655,
+                "p90": 1.2153886714112683
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.3307838369621816,
+                "n": 655,
+                "p90": 1.561388671411268
+              },
+              "entry_to_H1_distance": {
+                "median": 0.310003082064508,
+                "n": 655,
+                "p90": 0.6903233125535772
+              }
+            },
+            "eventually_confirmed_count": 130,
+            "failed_count": 312,
+            "never_confirmed_count": 213,
+            "signaled_candidate_count": 655,
+            "structural_invalidation_before_confirmation": {
+              "count": 248,
+              "rate_of_failed_signals": 0.7948717948717948,
+              "rate_of_signals": 0.3786259541984733
+            },
+            "total_candidate_count": 1166
+          }
+        }
+      }
+    },
+    "H1_INTRADAY_RECLAIM": {
+      "CN_US": {
+        "CN": {
+          "actual_executable_next_session_entry_count": 255,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.2625,
+              "n": 255,
+              "p90": 0.7804163740214033
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 74,
+              "DATASET_END": 30,
+              "FAILURE": 41,
+              "SCREENED_OUT": 110
+            },
+            "censored_path_count": 114,
+            "empty_path_count": 0,
+            "executable_path_count": 255,
+            "signed_R": {
+              "median": -0.2625,
+              "n": 255,
+              "p90": -0.03021302465230013
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 60,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 58,
+              "structural_invalidation_before_hurdle_rate": 0.22745098039215686,
+              "success_count": 123,
+              "success_rate": 0.4823529411764706
+            },
+            "HURDLE_0618": {
+              "censored_count": 78,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 76,
+              "structural_invalidation_before_hurdle_rate": 0.2980392156862745,
+              "success_count": 87,
+              "success_rate": 0.3411764705882353
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 2.0,
+            "n": 74,
+            "p90": 7.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.722152627743358,
+              "n": 255,
+              "p90": 1.0210722972680588
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.068152627743357,
+              "n": 255,
+              "p90": 1.3670722972680585
+            },
+            "entry_to_H1_distance": {
+              "median": 0.07712082262210783,
+              "n": 255,
+              "p90": 0.2707806312378209
+            }
+          },
+          "eventually_confirmed_count": 74,
+          "failed_count": 67,
+          "never_confirmed_count": 114,
+          "signaled_candidate_count": 255,
+          "structural_invalidation_before_confirmation": {
+            "count": 53,
+            "rate_of_failed_signals": 0.7910447761194029,
+            "rate_of_signals": 0.20784313725490197
+          },
+          "total_candidate_count": 1008
+        },
+        "US": {
+          "actual_executable_next_session_entry_count": 308,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.18642493641970337,
+              "n": 308,
+              "p90": 0.7477643139620067
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 115,
+              "DATASET_END": 31,
+              "FAILURE": 49,
+              "SCREENED_OUT": 113
+            },
+            "censored_path_count": 114,
+            "empty_path_count": 0,
+            "executable_path_count": 308,
+            "signed_R": {
+              "median": -0.18642493641970337,
+              "n": 308,
+              "p90": -0.023083547613916906
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 56,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 78,
+              "structural_invalidation_before_hurdle_rate": 0.2532467532467532,
+              "success_count": 158,
+              "success_rate": 0.512987012987013
+            },
+            "HURDLE_0618": {
+              "censored_count": 84,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 96,
+              "structural_invalidation_before_hurdle_rate": 0.3116883116883117,
+              "success_count": 110,
+              "success_rate": 0.35714285714285715
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 2.0,
+            "n": 115,
+            "p90": 6.6000000000000085
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.7934233559579984,
+              "n": 308,
+              "p90": 1.0462612122682051
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1394233559579983,
+              "n": 308,
+              "p90": 1.3922612122682054
+            },
+            "entry_to_H1_distance": {
+              "median": 0.06408479618315367,
+              "n": 308,
+              "p90": 0.23225767000214376
+            }
+          },
+          "eventually_confirmed_count": 115,
+          "failed_count": 79,
+          "never_confirmed_count": 114,
+          "signaled_candidate_count": 308,
+          "structural_invalidation_before_confirmation": {
+            "count": 60,
+            "rate_of_failed_signals": 0.759493670886076,
+            "rate_of_signals": 0.19480519480519481
+          },
+          "total_candidate_count": 1246
+        }
+      },
+      "depth_bands": {
+        "DEEP": {
+          "actual_executable_next_session_entry_count": 119,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.2840909090909095,
+              "n": 119,
+              "p90": 0.7878781402605192
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 36,
+              "DATASET_END": 10,
+              "FAILURE": 18,
+              "SCREENED_OUT": 55
+            },
+            "censored_path_count": 55,
+            "empty_path_count": 0,
+            "executable_path_count": 119,
+            "signed_R": {
+              "median": -0.2840909090909095,
+              "n": 119,
+              "p90": -0.03284443298556465
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 22,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 26,
+              "structural_invalidation_before_hurdle_rate": 0.2184873949579832,
+              "success_count": 66,
+              "success_rate": 0.5546218487394958
+            },
+            "HURDLE_0618": {
+              "censored_count": 35,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 32,
+              "structural_invalidation_before_hurdle_rate": 0.2689075630252101,
+              "success_count": 46,
+              "success_rate": 0.3865546218487395
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 2.0,
+            "n": 36,
+            "p90": 5.5
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.6382727545019363,
+              "n": 119,
+              "p90": 0.8094320769706643
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 0.9842727545019357,
+              "n": 119,
+              "p90": 1.1554320769706643
+            },
+            "entry_to_H1_distance": {
+              "median": 0.07272727272727231,
+              "n": 119,
+              "p90": 0.24503768941529663
+            }
+          },
+          "eventually_confirmed_count": 36,
+          "failed_count": 28,
+          "never_confirmed_count": 55,
+          "signaled_candidate_count": 119,
+          "structural_invalidation_before_confirmation": {
+            "count": 22,
+            "rate_of_failed_signals": 0.7857142857142857,
+            "rate_of_signals": 0.18487394957983194
+          },
+          "total_candidate_count": 570
+        },
+        "NORMAL_OR_SHALLOW": {
+          "actual_executable_next_session_entry_count": 264,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.17943473511821292,
+              "n": 264,
+              "p90": 0.4832113428178683
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 87,
+              "DATASET_END": 33,
+              "FAILURE": 42,
+              "SCREENED_OUT": 102
+            },
+            "censored_path_count": 104,
+            "empty_path_count": 0,
+            "executable_path_count": 264,
+            "signed_R": {
+              "median": -0.17943473511821292,
+              "n": 264,
+              "p90": -0.021295550808098678
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 63,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 77,
+              "structural_invalidation_before_hurdle_rate": 0.2916666666666667,
+              "success_count": 108,
+              "success_rate": 0.4090909090909091
+            },
+            "HURDLE_0618": {
+              "censored_count": 86,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 92,
+              "structural_invalidation_before_hurdle_rate": 0.3484848484848485,
+              "success_count": 70,
+              "success_rate": 0.26515151515151514
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 2.0,
+            "n": 87,
+            "p90": 6.400000000000006
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.931446299652363,
+              "n": 264,
+              "p90": 1.0703853385875222
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.2774462996523632,
+              "n": 264,
+              "p90": 1.4163853385875222
+            },
+            "entry_to_H1_distance": {
+              "median": 0.05675311521437455,
+              "n": 264,
+              "p90": 0.19075296455263435
+            }
+          },
+          "eventually_confirmed_count": 87,
+          "failed_count": 73,
+          "never_confirmed_count": 104,
+          "signaled_candidate_count": 264,
+          "structural_invalidation_before_confirmation": {
+            "count": 57,
+            "rate_of_failed_signals": 0.7808219178082192,
+            "rate_of_signals": 0.2159090909090909
+          },
+          "total_candidate_count": 1008
+        },
+        "VERY_DEEP": {
+          "actual_executable_next_session_entry_count": 180,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.2829712705215084,
+              "n": 180,
+              "p90": 1.002963892245724
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 66,
+              "DATASET_END": 18,
+              "FAILURE": 30,
+              "SCREENED_OUT": 66
+            },
+            "censored_path_count": 69,
+            "empty_path_count": 0,
+            "executable_path_count": 180,
+            "signed_R": {
+              "median": -0.2829712705215084,
+              "n": 180,
+              "p90": -0.026690007889991204
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 31,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 33,
+              "structural_invalidation_before_hurdle_rate": 0.18333333333333332,
+              "success_count": 107,
+              "success_rate": 0.5944444444444444
+            },
+            "HURDLE_0618": {
+              "censored_count": 41,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 48,
+              "structural_invalidation_before_hurdle_rate": 0.26666666666666666,
+              "success_count": 81,
+              "success_rate": 0.45
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 2.0,
+            "n": 66,
+            "p90": 8.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.494359709806358,
+              "n": 180,
+              "p90": 0.7593537044500805
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 0.840359709806357,
+              "n": 180,
+              "p90": 1.1053537044500803
+            },
+            "entry_to_H1_distance": {
+              "median": 0.09956819913639847,
+              "n": 180,
+              "p90": 0.3470898707263602
+            }
+          },
+          "eventually_confirmed_count": 66,
+          "failed_count": 45,
+          "never_confirmed_count": 69,
+          "signaled_candidate_count": 180,
+          "structural_invalidation_before_confirmation": {
+            "count": 34,
+            "rate_of_failed_signals": 0.7555555555555555,
+            "rate_of_signals": 0.18888888888888888
+          },
+          "total_candidate_count": 664
+        }
+      },
+      "later_confirmed_vs_never_confirmed_failed": {
+        "FAILED": {
+          "actual_executable_next_session_entry_count": 146,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.5474477315727481,
+              "n": 146,
+              "p90": 1.056694741611699
+            },
+            "boundary_counts": {
+              "DATASET_END": 56,
+              "FAILURE": 90
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 146,
+            "signed_R": {
+              "median": -0.5474477315727481,
+              "n": 146,
+              "p90": -0.181358093767382
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 103,
+              "structural_invalidation_before_hurdle_rate": 0.7054794520547946,
+              "success_count": 13,
+              "success_rate": 0.08904109589041095
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 108,
+              "structural_invalidation_before_hurdle_rate": 0.7397260273972602,
+              "success_count": 6,
+              "success_rate": 0.0410958904109589
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.8131528120675959,
+              "n": 146,
+              "p90": 1.1047098144767884
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1591528120675956,
+              "n": 146,
+              "p90": 1.4507098144767885
+            },
+            "entry_to_H1_distance": {
+              "median": 0.10796924682833359,
+              "n": 146,
+              "p90": 0.42251233697586876
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 146,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 146,
+          "structural_invalidation_before_confirmation": {
+            "count": 113,
+            "rate_of_failed_signals": 0.773972602739726,
+            "rate_of_signals": 0.773972602739726
+          },
+          "total_candidate_count": 947
+        },
+        "LATER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 189,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.07707402995384086,
+              "n": 189,
+              "p90": 0.37770897064410736
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 189
+            },
+            "censored_path_count": 0,
+            "empty_path_count": 0,
+            "executable_path_count": 189,
+            "signed_R": {
+              "median": -0.07707402995384086,
+              "n": 189,
+              "p90": -0.010931264786636575
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 28,
+              "structural_invalidation_before_hurdle_rate": 0.14814814814814814,
+              "success_count": 161,
+              "success_rate": 0.8518518518518519
+            },
+            "HURDLE_0618": {
+              "censored_count": 0,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 58,
+              "structural_invalidation_before_hurdle_rate": 0.30687830687830686,
+              "success_count": 131,
+              "success_rate": 0.6931216931216931
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 2.0,
+            "n": 189,
+            "p90": 7.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.7269483013293944,
+              "n": 189,
+              "p90": 0.9810507453100861
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.072948301329395,
+              "n": 189,
+              "p90": 1.3270507453100857
+            },
+            "entry_to_H1_distance": {
+              "median": 0.05011389521640038,
+              "n": 189,
+              "p90": 0.2075504820501973
+            }
+          },
+          "eventually_confirmed_count": 189,
+          "failed_count": 0,
+          "never_confirmed_count": 0,
+          "signaled_candidate_count": 189,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 745
+        },
+        "NEVER_CONFIRMED": {
+          "actual_executable_next_session_entry_count": 228,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.22044312046173947,
+              "n": 228,
+              "p90": 0.56719686595568
+            },
+            "boundary_counts": {
+              "DATASET_END": 5,
+              "SCREENED_OUT": 223
+            },
+            "censored_path_count": 228,
+            "empty_path_count": 0,
+            "executable_path_count": 228,
+            "signed_R": {
+              "median": -0.22044312046173947,
+              "n": 228,
+              "p90": -0.04508029096683906
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 116,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 5,
+              "structural_invalidation_before_hurdle_rate": 0.021929824561403508,
+              "success_count": 107,
+              "success_rate": 0.4692982456140351
+            },
+            "HURDLE_0618": {
+              "censored_count": 162,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 6,
+              "structural_invalidation_before_hurdle_rate": 0.02631578947368421,
+              "success_count": 60,
+              "success_rate": 0.2631578947368421
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": null,
+            "n": 0,
+            "p90": null
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.72740567337352,
+              "n": 228,
+              "p90": 1.0201982018751685
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.0734056733735196,
+              "n": 228,
+              "p90": 1.3661982018751682
+            },
+            "entry_to_H1_distance": {
+              "median": 0.07166199813258628,
+              "n": 228,
+              "p90": 0.22763044924372558
+            }
+          },
+          "eventually_confirmed_count": 0,
+          "failed_count": 0,
+          "never_confirmed_count": 228,
+          "signaled_candidate_count": 228,
+          "structural_invalidation_before_confirmation": {
+            "count": 0,
+            "rate_of_failed_signals": null,
+            "rate_of_signals": 0.0
+          },
+          "total_candidate_count": 562
+        }
+      },
+      "symbol_concentration": {
+        "count_leading_symbol": "BLDR",
+        "count_leading_symbol_signal_count": 27,
+        "signal_counts_by_symbol": {
+          "000681.SZ": 14,
+          "000923.SZ": 15,
+          "001203.SZ": 10,
+          "001696.SZ": 9,
+          "002120.SZ": 10,
+          "002215.SZ": 15,
+          "002352.SZ": 13,
+          "002407.SZ": 10,
+          "002756.SZ": 13,
+          "002768.SZ": 18,
+          "002913.SZ": 21,
+          "600009.SH": 15,
+          "600018.SH": 18,
+          "600657.SH": 15,
+          "601360.SH": 13,
+          "601598.SH": 13,
+          "601888.SH": 14,
+          "603341.SH": 6,
+          "603919.SH": 13,
+          "ADI": 15,
+          "BAX": 16,
+          "BKNG": 21,
+          "BLDR": 27,
+          "CIFR": 8,
+          "COIN": 6,
+          "DBX": 8,
+          "LIN": 23,
+          "LRCX": 19,
+          "META": 16,
+          "MPWR": 22,
+          "MRVL": 11,
+          "NUE": 16,
+          "QCOM": 18,
+          "QLYS": 13,
+          "QTWO": 17,
+          "ROST": 19,
+          "STX": 18,
+          "TSLA": 9,
+          "YOU": 6
+        },
+        "without_count_leading_symbol": {
+          "actual_executable_next_session_entry_count": 536,
+          "adverse_excursion_until_resolution": {
+            "adverse_magnitude_R": {
+              "median": 0.22392986879740462,
+              "n": 536,
+              "p90": 0.7511011615011728
+            },
+            "boundary_counts": {
+              "CONFIRMATION": 182,
+              "DATASET_END": 56,
+              "FAILURE": 86,
+              "SCREENED_OUT": 212
+            },
+            "censored_path_count": 217,
+            "empty_path_count": 0,
+            "executable_path_count": 536,
+            "signed_R": {
+              "median": -0.22392986879740462,
+              "n": 536,
+              "p90": -0.024705518141898506
+            }
+          },
+          "common_fixed_structural_hurdles": {
+            "HURDLE_0272": {
+              "censored_count": 113,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 126,
+              "structural_invalidation_before_hurdle_rate": 0.23507462686567165,
+              "success_count": 267,
+              "success_rate": 0.498134328358209
+            },
+            "HURDLE_0618": {
+              "censored_count": 155,
+              "same_bar_ambiguous_count": 0,
+              "structural_invalidation_before_hurdle_count": 162,
+              "structural_invalidation_before_hurdle_rate": 0.30223880597014924,
+              "success_count": 187,
+              "success_rate": 0.34888059701492535
+            }
+          },
+          "confirmation_latency_saved_sessions": {
+            "median": 2.0,
+            "n": 182,
+            "p90": 7.0
+          },
+          "entry_geometry_over_R": {
+            "entry_to_Fib1.272_remaining_headroom": {
+              "median": 0.7573441075820808,
+              "n": 536,
+              "p90": 1.0401673052362708
+            },
+            "entry_to_Fib1.618_remaining_headroom": {
+              "median": 1.1033441075820807,
+              "n": 536,
+              "p90": 1.3861673052362709
+            },
+            "entry_to_H1_distance": {
+              "median": 0.07126984126984104,
+              "n": 536,
+              "p90": 0.2474623525739289
+            }
+          },
+          "eventually_confirmed_count": 182,
+          "failed_count": 137,
+          "never_confirmed_count": 217,
+          "signaled_candidate_count": 536,
+          "structural_invalidation_before_confirmation": {
+            "count": 104,
+            "rate_of_failed_signals": 0.7591240875912408,
+            "rate_of_signals": 0.19402985074626866
+          },
+          "total_candidate_count": 2182
+        }
+      },
+      "time_split_by_candidate_ready_date": {
+        "definition": "frozen market-session ordinal midpoint",
+        "halves": {
+          "FIRST_HALF": {
+            "actual_executable_next_session_entry_count": 267,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.19958375373842252,
+                "n": 267,
+                "p90": 0.7308263695450322
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 103,
+                "DATASET_END": 24,
+                "FAILURE": 43,
+                "SCREENED_OUT": 97
+              },
+              "censored_path_count": 97,
+              "empty_path_count": 0,
+              "executable_path_count": 267,
+              "signed_R": {
+                "median": -0.19958375373842252,
+                "n": 267,
+                "p90": -0.019382306262930117
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 51,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 64,
+                "structural_invalidation_before_hurdle_rate": 0.2397003745318352,
+                "success_count": 136,
+                "success_rate": 0.5093632958801498
+              },
+              "HURDLE_0618": {
+                "censored_count": 68,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 80,
+                "structural_invalidation_before_hurdle_rate": 0.299625468164794,
+                "success_count": 102,
+                "success_rate": 0.38202247191011235
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 2.0,
+              "n": 103,
+              "p90": 6.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.7694766200514707,
+                "n": 267,
+                "p90": 1.047192437858886
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.1154766200514696,
+                "n": 267,
+                "p90": 1.393192437858886
+              },
+              "entry_to_H1_distance": {
+                "median": 0.06387956762507538,
+                "n": 267,
+                "p90": 0.2335436697484472
+              }
+            },
+            "eventually_confirmed_count": 103,
+            "failed_count": 67,
+            "never_confirmed_count": 97,
+            "signaled_candidate_count": 267,
+            "structural_invalidation_before_confirmation": {
+              "count": 50,
+              "rate_of_failed_signals": 0.746268656716418,
+              "rate_of_signals": 0.18726591760299627
+            },
+            "total_candidate_count": 1088
+          },
+          "SECOND_HALF": {
+            "actual_executable_next_session_entry_count": 296,
+            "adverse_excursion_until_resolution": {
+              "adverse_magnitude_R": {
+                "median": 0.23910074150050414,
+                "n": 296,
+                "p90": 0.7732217853880659
+              },
+              "boundary_counts": {
+                "CONFIRMATION": 86,
+                "DATASET_END": 37,
+                "FAILURE": 47,
+                "SCREENED_OUT": 126
+              },
+              "censored_path_count": 131,
+              "empty_path_count": 0,
+              "executable_path_count": 296,
+              "signed_R": {
+                "median": -0.23910074150050414,
+                "n": 296,
+                "p90": -0.04079044854096124
+              }
+            },
+            "common_fixed_structural_hurdles": {
+              "HURDLE_0272": {
+                "censored_count": 65,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 72,
+                "structural_invalidation_before_hurdle_rate": 0.24324324324324326,
+                "success_count": 145,
+                "success_rate": 0.48986486486486486
+              },
+              "HURDLE_0618": {
+                "censored_count": 94,
+                "same_bar_ambiguous_count": 0,
+                "structural_invalidation_before_hurdle_count": 92,
+                "structural_invalidation_before_hurdle_rate": 0.3108108108108108,
+                "success_count": 95,
+                "success_rate": 0.32094594594594594
+              }
+            },
+            "confirmation_latency_saved_sessions": {
+              "median": 2.0,
+              "n": 86,
+              "p90": 7.0
+            },
+            "entry_geometry_over_R": {
+              "entry_to_Fib1.272_remaining_headroom": {
+                "median": 0.7435377120359357,
+                "n": 296,
+                "p90": 1.0318013698913502
+              },
+              "entry_to_Fib1.618_remaining_headroom": {
+                "median": 1.0895377120359353,
+                "n": 296,
+                "p90": 1.3778013698913503
+              },
+              "entry_to_H1_distance": {
+                "median": 0.0756097748174144,
+                "n": 296,
+                "p90": 0.26528941088390834
+              }
+            },
+            "eventually_confirmed_count": 86,
+            "failed_count": 79,
+            "never_confirmed_count": 131,
+            "signaled_candidate_count": 296,
+            "structural_invalidation_before_confirmation": {
+              "count": 63,
+              "rate_of_failed_signals": 0.7974683544303798,
+              "rate_of_signals": 0.21283783783783783
+            },
+            "total_candidate_count": 1166
+          }
+        }
+      }
+    }
+  },
+  "source_artifacts": {
+    "dataset_manifest": {
+      "path": "artifacts/phase5j_v3_development_holdout/development_holdout_dataset_manifest.json",
+      "sha256": "sha256:6b45900458f0d1a5ef857ba54745f6ec456482fbb8a30943ccf01edb0cb7e48d"
+    },
+    "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+    "protocol": {
+      "path": "research/protocols/pre_confirmation_early_entry_causal_research_v1.json",
+      "sha256": "sha256:fe4c482d89d02e37ddfba5dd160d299a64cf31f75f7c52dee601a62fdf783c68"
+    },
+    "replay_aggregate_hash": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+    "replay_input": {
+      "path": "artifacts/phase5j_v3_development_holdout/development_holdout_replay_input.jsonl.gz",
+      "sha256": "sha256:b7e93a50b883337c45a504b993f314b92411411b5560b591d57206895adb87d2"
+    },
+    "replay_wrapper": {
+      "path": "artifacts/phase5j_v3_development_holdout/development_holdout_replay_manifest.json",
+      "sha256": "sha256:7194da0aa11d0b461377a654a641ee3191e6fa7acc54a479e8d2c2c95194f818"
+    }
+  },
+  "status": "READY_FOR_DECISION",
+  "validation": {
+    "all_anchor_confirmed_as_of_observation": true,
+    "cohort_eventual_status_conserved": true,
+    "cohort_resolution_conserved": true,
+    "cohort_unique_lifecycle_count": 2254,
+    "early_policy_signals_strictly_before_confirmation": true,
+    "exact_next_session_open_only": true,
+    "future_data_used_only_after_signal_for_evaluation": true,
+    "policy_ids_match_registered_protocol": true,
+    "policy_validation": {
+      "ARMED_HALF_RECOVERY": {
+        "early_signals_strictly_before_confirmation": true,
+        "entry_index_strictly_after_signal": true,
+        "signal_count": 1005,
+        "unique_candidate_signal_count": 1005
+      },
+      "ARMED_HALF_RECOVERY_DAILY_UPTREND": {
+        "early_signals_strictly_before_confirmation": true,
+        "entry_index_strictly_after_signal": true,
+        "signal_count": 477,
+        "unique_candidate_signal_count": 477
+      },
+      "FIRST_BULLISH_RECOVERY": {
+        "early_signals_strictly_before_confirmation": true,
+        "entry_index_strictly_after_signal": true,
+        "signal_count": 1236,
+        "unique_candidate_signal_count": 1236
+      },
+      "H1_INTRADAY_RECLAIM": {
+        "early_signals_strictly_before_confirmation": true,
+        "entry_index_strictly_after_signal": true,
+        "signal_count": 563,
+        "unique_candidate_signal_count": 563
+      },
+      "INCUMBENT_CONFIRMED_CLOSE": {
+        "early_signals_strictly_before_confirmation": true,
+        "entry_index_strictly_after_signal": true,
+        "signal_count": 745,
+        "unique_candidate_signal_count": 745
+      }
+    },
+    "preconfirmation_window_rows_retained_even_when_not_observed": true,
+    "signal_definition_uses_outcomes": false
+  }
+}

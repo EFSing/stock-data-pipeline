@@ -5,23 +5,29 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`SETUP_01_DEEP_WAVE2_STRUCTURE_QUALITY_V1`；已完成固定 Phase 5J-v3
-  Development frozen holdout 研究及本次 corrective research，PR #88 已 squash merge
-  到 `main`，研究结论已正式进入主线。
+- 当前任务：`PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1`；已从 frozen
+  Development replay 的 primary/alternate Wave2 contexts 完成完整 causal cohort
+  研究，当前研究结果为 `READY_FOR_DECISION`。早入场 fixed policies 的 headroom
+  证据不足以证明可以在不引入大量最终 FAILED/never-CONFIRMED candidates 的前提下
+  进入下一 execution/cost 阶段；不产生 production authorization。PR #88 的
+  Deep Wave2 corrective conclusion 已 squash merge 到 `main`。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87 均已合并到 `main`，本轮没有修改
-  production strategy。
-- 本轮只在固定 Development frozen holdout 上按预注册三档 Wave2 depth 做
-  Development research；结构结果只评价 T 之后的路径，未访问 Final OOS。
+- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87、PR #88 已合并到 `main`，PR #89
+  保持 OPEN/READY_FOR_DECISION，本轮没有修改 production strategy。
+- 本轮在固定 Development frozen holdout 上完成 PR #88 的预注册三档 Wave2 depth
+  corrective research 与 PR #89 的完整 pre-confirmation causal research；两者均为
+  Development-only，未访问 Final OOS。
 
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
 - PR #84、PR #85、PR #87、PR #88 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`main`；PR #89 `research/pre-confirmation-early-entry-causal-v1` 保持独立，
-  等待在 #88 合并后的最新 `main` 上更新与复核。
-- PR #84、PR #85、PR #88 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
+- 当前分支：`research/pre-confirmation-early-entry-causal-v1`；从最新
+  `origin/main`（已包含 PR #88 及其 post-merge closeout）更新的独立 research 分支；
+  PR #89 不改变 production semantics。
+- PR #84、PR #85、PR #87、PR #88 已合并；其 branch HEAD、base、merge commit 和 CI checks
+  等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
   改动混入策略 PR，相关动态状态由用户单独从 Git/GitHub 实时查询。
@@ -58,18 +64,25 @@
   `CONFIRMED` 的条件下没有看到 deep Wave2 continuation 更弱；这不证明
   pre-confirmation early entry 有效，只支持把它作为下一项包含未确认候选的独立
   因果研究假设，不是 early-entry 或 depth gate 的生产授权。
+- 注册 `research/protocols/pre_confirmation_early_entry_causal_research_v1.json`，并
+  新增对应 research module、focused tests 与 compact JSON/Markdown artifact。
+  Cohort 从 primary/alternate strict as-of Wave2 anchor contexts 重建：`2,254`
+  contexts，`745` later-CONFIRMED、`947` FAILED、`562` never-CONFIRMED，其中
+  `551` 被 current system later-screened、`11` timeout/unresolved；另保留 `12`
+  invalid Wave2 geometry contexts。固定 incumbent + 四个 pre-confirmation policies
+  均只用 signal-time data，T+1 只取 exact next frozen-session OPEN。
 
 ## 4. Validation（验证结果）
 
-- focused：deep Wave2 research tests → `8 tests passed`。
-- full：`python -m unittest discover -s tests -v` → `744 tests passed, 3 skipped, OK`；
-  现有 generic operational shadow checks 继续通过。
-- `python -m py_compile` 覆盖本轮 research module；research artifact 重新生成并核对
-  frozen hash binding、745 confirmed、117/63/18 category conservation、81 Fib-near、
-  Fib identity、三档 depth exhaustive/mutually-exclusive、signal(T) as-of、严格
-  T 后 outcome path、common normalized excursion/hurdle identity、现有 Decision
-  parity 与 compact event-detail hash；
-  `git diff --check` 通过。
+- focused：PR #89 pre-confirmation causal research tests → `9 tests passed`；#88 deep
+  Wave2 research tests 在合并前为 `8 tests passed`。
+- full：`python -m unittest discover -s tests -v` → `753 tests passed, OK`（#88 合并后
+  新增 8 个 deep Wave2 research tests）；现有 generic operational shadow checks 继续通过。
+- `python -m py_compile` 覆盖 research module/test；research artifact 已重复运行并
+  得到相同 JSON SHA，核对了 `2,254` candidate conservation、primary/alternate
+  visibility、anchor as-of、pre-confirmation signal-before-confirmation、exact
+  next-session OPEN、fixed hurdles、market/time/depth/concentration robustness
+  与 no-outcome signal definition；`git diff --check` 通过。
 - PR #88 已 squash merge；Deep Wave2 corrective conclusion 已进入 `main`。PR #89
   仍为独立 research-only 分支；本轮没有访问 Final OOS、没有参数搜索/threshold sweep、
   没有真实 holdings 读取、Sheets 写入、state write 或 broker order；PR #82 保持独立。
@@ -77,28 +90,34 @@
 ## 5. Blocker（当前 Blockers / 决策节点）
 
 - 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`；研究节点为
-  `READY_FOR_DECISION`。
-- 本轮结论为 `EARLY_ENTRY_RESEARCH_CANDIDATE`，且必须限定为
-  `conditional_on_having_reached_CONFIRMED`：共同 normalized excursion 与两项固定
-  hurdle 没有显示 DEEP/VERY_DEEP continuation 更弱。固定 81 个 Fib-near 中 64
-  个仍在 T 后先达到 Fib1.272 只作原几何背景，不能证明 pre-confirmation early
-  entry 的策略优势。
-- Early Entry 仅作为下一项独立 `PRE-CONFIRMATION` causal research 候选；该研究
-  必须从 Wave2 candidates 同时纳入后来 CONFIRMED 与从未 CONFIRMED/后来失效者，
-  防止 survivorship/conditioning bias。本轮不实现 early entry。
+  `READY_FOR_DECISION`，且 `HANDOFF_CURRENT_AND_CONSISTENT`。
+- PR #88 的结论必须限定为 `conditional_on_having_reached_CONFIRMED`：共同 normalized
+  excursion 与两项固定 hurdle 没有显示 DEEP/VERY_DEEP continuation 更弱；它不证明
+  deep Wave2 更优，不证明 pre-confirmation early entry 有效，不批准 depth gate 或
+  production early entry。
 - 现有 T-day gates 已排除全部 `DEEP`（183/183）与 `VERY_DEEP`（217/217）进入
   `ENTRY_ALLOWED`，因此新增 depth gate 在本总体上可能高度冗余；当前不实现任何
   depth gate 或 early-entry rule。
-- PR #82（Node 24 maintenance）保持完全独立；交易成本、正式
-  `EARLY_WAVE3_ENTRY_RESEARCH`、SETUP_03 formal validation、SETUP_04、Final OOS
-  与 broker execution 仍未启动。
+- 当前 full causal cohort 已包含 primary/alternate Wave2 contexts、later
+  CONFIRMED、FAILED/structural invalidation、never-CONFIRMED、current-system
+  screened-out 与 timeout/unresolved rows；没有 survivorship-only cohort。
+- 四个 fixed early policy 都在 matched later-CONFIRMED 子集产生更多 normalized
+  headroom（约 `+0.170R` 至 `+0.337R` 中位数），但 signaled rows 的
+  FAILED/never-CONFIRMED 比例约 `59.9%`–`76.4%`；当前证据不支持进入
+  execution/cost research，不支持任何 production entry/confirmation/Stop/Target/RR
+  变化。该判断不使用 P&L 或 Final OOS。
+- Early Entry 研究已完成，但只支持用户决定是否继续独立 fresh-validation research；
+  不支持 execution/cost research，也不产生 production authorization。
+- PR #82（Node 24 maintenance）保持完全独立；交易成本、SETUP_03 formal validation、
+  SETUP_04、Final OOS、真实 holdings、broker、state/Sheets mutation 均未启动。
 
 ## 6. Next Action（下一步）
 
-1. 将 PR #89 更新到 #88 合并后的最新 `main`，人工 reconcile 其治理文件并重新完成
-   PRE-CONFIRMATION causal research 验证。
-2. 停在 PR #89 `OPEN / READY_FOR_DECISION`，等待用户最终 merge 决策；不得自动 merge
-   PR #89 或改变 production strategy。
+1. Review the completed pre-confirmation causal report and make the final merge decision for
+   PR #89；the current decision node is whether to continue Early Entry fresh-validation
+   research, not whether to modify production。
+2. Do not merge PR #89 automatically; any follow-up study must have a new explicitly approved
+   protocol and remain outside the production path。
 3. 任何后续任务前仍须 fetch/pull 并实时核对 Git/GitHub 状态。
 
 ## 7. Constraints（关键约束）
@@ -134,9 +153,9 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `main`（PR #89 分支为 `research/pre-confirmation-early-entry-causal-v1`）
-- current PR: PR #88 已 squash merge；PR #89 保持 OPEN 且独立；PR #86、PR #87 已
-  squash merge；PR #82 保持独立
+- active branch: `research/pre-confirmation-early-entry-causal-v1`
+- current PR: PR #89 remains OPEN and independent after update onto the main containing
+  squash-merged PR #88；PR #86、PR #87 已 squash merge；PR #82 保持独立
 - working tree expected: clean after the research commit/push；本轮无 credentials、Final
   OOS 或真实 holdings-derived 数据
 - 动态 branch、HEAD、`origin/main`、PR、CI checks 与 merge 状态
