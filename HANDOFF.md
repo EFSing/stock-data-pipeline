@@ -12,8 +12,8 @@
   进入下一 execution/cost 阶段；不产生 production authorization。PR #88 的
   Deep Wave2 corrective conclusion 已 squash merge 到 `main`。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87 均已合并到 `main`，本轮没有修改
-  production strategy。
+- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87、PR #88 已合并到 `main`，PR #89
+  保持 OPEN/READY_FOR_DECISION，本轮没有修改 production strategy。
 - 本轮只在固定 Development frozen holdout 上按预注册三档 Wave2 depth 做
   Development research；结构结果只评价 T 之后的路径，未访问 Final OOS。
 
@@ -75,8 +75,8 @@
 
 - focused：PR #89 pre-confirmation causal research tests → `9 tests passed`；#88 deep
   Wave2 research tests 在合并前为 `8 tests passed`。
-- full：`python -m unittest discover -s tests -v` → `745 tests passed, OK`；
-  现有 generic operational shadow checks 继续通过。
+- full：`python -m unittest discover -s tests -v` → `753 tests passed, OK`（#88 合并后
+  新增 8 个 deep Wave2 research tests）；现有 generic operational shadow checks 继续通过。
 - `python -m py_compile` 覆盖 research module/test；research artifact 已重复运行并
   得到相同 JSON SHA，核对了 `2,254` candidate conservation、primary/alternate
   visibility、anchor as-of、pre-confirmation signal-before-confirmation、exact
