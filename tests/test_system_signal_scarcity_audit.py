@@ -115,6 +115,53 @@ class SystemSignalScarcityAuditTests(unittest.TestCase):
         self.assertIsNone(audit._rate(1, 0))
         self.assertIsNone(audit._round(None))
 
+    def test_distribution_is_deterministic_and_reports_requested_quantiles(self) -> None:
+        summary = audit._distribution((1, 2, 3, 4, 5))
+        self.assertEqual(summary["count"], 5)
+        self.assertEqual(summary["median"], 3.0)
+        self.assertEqual(summary["p10"], 1.4)
+        self.assertEqual(summary["p90"], 4.6)
+        self.assertIsNone(audit._distribution((None, float("nan")))["median"])
+
+    def test_rr_failure_component_attribution_uses_fixed_counterfactuals(self) -> None:
+        self.assertEqual(
+            audit._rr_component_attribution(100, 90, 80, (125, 140))["category"],
+            "EXECUTION_STOP_DISTANCE_TOO_LARGE",
+        )
+        self.assertEqual(
+            audit._rr_component_attribution(100, 90, 90, (115, 130))["category"],
+            "FIRST_FORMAL_TARGET_DISTANCE_TOO_CLOSE",
+        )
+        self.assertEqual(
+            audit._rr_component_attribution(100, 90, 80, (115, 130))["category"],
+            "BOTH_STOP_AND_TARGET_DISTANCE",
+        )
+        self.assertEqual(
+            audit._rr_component_attribution(100, 90, 80, (115,))["category"],
+            "INSUFFICIENT_COMPONENT_EVIDENCE",
+        )
+
+    def test_entry_zone_diagnostic_preserves_existing_strict_gate(self) -> None:
+        record, _, _ = _valid_entry_zone_record()
+        result = audit._entry_zone_diagnostics(
+            (record,),
+            {"US": {date(2026, 1, 2): "EARLY"}},
+        )
+        total = result["total"]
+        self.assertEqual(total["confirmed_events"], 1)
+        self.assertEqual(total["above_entry_zone_events"], 1)
+        self.assertEqual(total["above_entry_zone_rate_of_confirmed_pct"], 100.0)
+        self.assertGreater(total["overshoot_atr_normalized"]["median"], 0)
+
+    def test_dashboard_contract_marks_armed_result_gap_without_renderer_math(self) -> None:
+        contract = audit._dashboard_contract_audit()
+        fields = contract["causal_availability_in_structural_evaluator"]
+        self.assertTrue(fields["confirmation_trigger_price"]["available"])
+        self.assertFalse(fields["confirmation_trigger_price"]["current_daily_result_exposed"])
+        self.assertTrue(fields["structural_invalidation"]["available"])
+        self.assertFalse(fields["current_close"]["current_daily_result_exposed"])
+        self.assertFalse(contract["dashboard_current_behavior"]["renderer_recomputes_trade_math"])
+
     def test_overlap_conservation_and_pair_triple_intersection(self) -> None:
         records = (
             _decision_record(
@@ -277,11 +324,19 @@ class SystemSignalScarcityAuditTests(unittest.TestCase):
             )
         )
         self.assertEqual(payload["status"], "READY_FOR_DECISION")
-        self.assertEqual(payload["decision"]["classification_code"], "F")
+        self.assertEqual(
+            payload["decision"]["classification_code"],
+            "STRUCTURAL_GATE_COLLISION_OBSERVED",
+        )
         self.assertEqual(payload["validation"]["current_production_funnel_parity"], True)
         self.assertEqual(payload["validation"]["source_event_snapshot_unchanged"], True)
         self.assertEqual(payload["validation"]["cn_us_symbol_session_conservation"], True)
         self.assertEqual(payload["validation"]["single_gate_ablation_one_at_a_time"], True)
+        self.assertIn("top_bottlenecks", payload)
+        self.assertIn("confirmation_diagnostics", payload)
+        self.assertIn("entry_zone_diagnostics", payload)
+        self.assertIn("rr_diagnostics", payload)
+        self.assertIn("target_upside_gate_contribution", payload)
 
 
 if __name__ == "__main__":

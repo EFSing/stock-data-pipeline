@@ -183,27 +183,20 @@ def _distribution(values: Iterable[Any]) -> dict[str, Any]:
             "count": 0,
             "min": None,
             "p10": None,
-            "p25": None,
             "median": None,
-            "p75": None,
             "p90": None,
             "max": None,
             "mean": None,
-            "stddev": None,
         }
     mean = sum(finite_values) / len(finite_values)
-    variance = sum((value - mean) ** 2 for value in finite_values) / len(finite_values)
     return {
         "count": len(finite_values),
         "min": _round(min(finite_values)),
         "p10": _round(_percentile(finite_values, 0.10)),
-        "p25": _round(_percentile(finite_values, 0.25)),
         "median": _round(_percentile(finite_values, 0.50)),
-        "p75": _round(_percentile(finite_values, 0.75)),
         "p90": _round(_percentile(finite_values, 0.90)),
         "max": _round(max(finite_values)),
         "mean": _round(mean),
-        "stddev": _round(math.sqrt(variance)),
     }
 
 
@@ -704,6 +697,29 @@ def _setup_summary(
             for row in life_rows
         )
         confirmed_without_armed = confirmed_lifecycles - confirmed_with_armed
+        conversion_rates_pct = {
+            "candidate_to_wave_eligible": _round(
+                _rate(wave_eligible_lifecycles, candidate_lifecycles, 100.0)
+            ),
+            "wave_eligible_to_watch": _round(
+                _rate(watch_lifecycles, wave_eligible_lifecycles, 100.0)
+            ),
+            "watch_to_armed": _round(_rate(armed_lifecycles, watch_lifecycles, 100.0)),
+            "armed_to_confirmed": _round(
+                _rate(confirmed_with_armed, armed_lifecycles, 100.0)
+            ),
+            "confirmed_to_decision_calculable": _round(
+                _rate(calculable_decisions, confirmed_lifecycles, 100.0)
+            ),
+            "confirmed_to_no_trade": _round(_rate(no_trade, confirmed_lifecycles, 100.0)),
+            "confirmed_to_entry_allowed": _round(
+                _rate(entry_allowed, confirmed_lifecycles, 100.0)
+            ),
+            "entry_allowed_to_t_plus_1_attempt": _round(
+                _rate(attempts, entry_allowed, 100.0)
+            ),
+            "t_plus_1_attempt_to_executed": _round(_rate(executed, attempts, 100.0)),
+        }
         return {
             "wave_scenario_eligible_symbol_sessions": sum(bool(getattr(row, wave_field)) for row in session_rows),
             "structural_eligible_symbol_sessions": sum(states[state] for state in (SetupState.WATCH.value, SetupState.ARMED.value, SetupState.CONFIRMED.value, SetupState.FAILED.value)),
@@ -730,6 +746,7 @@ def _setup_summary(
             "t1_skipped": attempts - executed,
             "stage_counts": stage_counts,
             "stage_rows": stage_rows,
+            "conversion_rates_pct": conversion_rates_pct,
             "state_day_counts": dict(sorted(states.items())),
             "decision_gate_reason_counts": dict(sorted(gate_counts.items())),
             "t_plus_1_outcome_counts": dict(sorted(outcome_counts.items())),
@@ -787,6 +804,36 @@ def _merge_funnel_scope_rows(
         }
         for stage, count in stage_counts.items()
     ]
+    confirmed_with_armed = int(result.get("confirmed_lifecycles_with_armed", 0))
+    result["conversion_rates_pct"] = {
+        "candidate_to_wave_eligible": _round(
+            _rate(stage_counts.get("WAVE_ELIGIBLE", 0), stage_counts.get("CANDIDATE", 0), 100.0)
+        ),
+        "wave_eligible_to_watch": _round(
+            _rate(stage_counts.get("WATCH", 0), stage_counts.get("WAVE_ELIGIBLE", 0), 100.0)
+        ),
+        "watch_to_armed": _round(
+            _rate(stage_counts.get("ARMED", 0), stage_counts.get("WATCH", 0), 100.0)
+        ),
+        "armed_to_confirmed": _round(
+            _rate(confirmed_with_armed, stage_counts.get("ARMED", 0), 100.0)
+        ),
+        "confirmed_to_decision_calculable": _round(
+            _rate(stage_counts.get("DECISION_CALCULABLE", 0), stage_counts.get("CONFIRMED", 0), 100.0)
+        ),
+        "confirmed_to_no_trade": _round(
+            _rate(stage_counts.get("NO_TRADE", 0), stage_counts.get("CONFIRMED", 0), 100.0)
+        ),
+        "confirmed_to_entry_allowed": _round(
+            _rate(stage_counts.get("ENTRY_ALLOWED", 0), stage_counts.get("CONFIRMED", 0), 100.0)
+        ),
+        "entry_allowed_to_t_plus_1_attempt": _round(
+            _rate(stage_counts.get("T_PLUS_1_EXECUTION_ATTEMPT", 0), stage_counts.get("ENTRY_ALLOWED", 0), 100.0)
+        ),
+        "t_plus_1_attempt_to_executed": _round(
+            _rate(stage_counts.get("EXECUTED", 0), stage_counts.get("T_PLUS_1_EXECUTION_ATTEMPT", 0), 100.0)
+        ),
+    }
     result["scope"] = {"market": None, "time_half": None, "provenance": None}
     result["setup_type"] = "AGGREGATE"
     return result
@@ -1130,9 +1177,9 @@ def _snapshot_for_event(record: DecisionRecord) -> Any:
     return record.event.setup01 if record.setup_type == SETUP01 else record.event.setup02
 
 
-def _lifecycle_key_for_record(record: DecisionRecord) -> tuple[str, int | None]:
+def _lifecycle_key_for_record(record: DecisionRecord) -> tuple[str, str, int | None]:
     snapshot = _snapshot_for_event(record)
-    return record.event.symbol, snapshot.lifecycle_index
+    return record.setup_type, record.event.symbol, snapshot.lifecycle_index
 
 
 def _structure_targets_at_snapshot(setup_type: str, snapshot: Any) -> dict[str, float]:
@@ -1278,7 +1325,9 @@ def _confirmation_diagnostics(
     quotes_by_symbol: Mapping[str, Sequence[Quote]],
     half_map: Mapping[str, Mapping[date, str]],
 ) -> dict[str, Any]:
-    life_map = {(row.symbol, row.lifecycle_index): row for row in lifecycles}
+    life_map = {
+        (row.setup_type, row.symbol, row.lifecycle_index): row for row in lifecycles
+    }
     entries = []
     for record in records:
         entry = _confirmation_metric_entry(
@@ -1302,7 +1351,39 @@ def _confirmation_diagnostics(
             and (provenance is None or entry["provenance"] == provenance)
             and (time_half is None or entry["time_half"] == time_half)
         ]
-        return _confirmation_metric_summary(rows)
+        if not rows and provenance in {PROVENANCE_FORMAL, PROVENANCE_DYNAMIC_CANDIDATE}:
+            return {
+                "status": "NOT_REPRESENTED_IN_FROZEN_HOLDOUT",
+                "confirmed_events": 0,
+                "confirmed_with_armed": 0,
+                "confirmed_without_armed": 0,
+                "armed_lifecycles": 0,
+                "armed_without_confirmed": 0,
+                "armed_to_confirmed_rate_pct": None,
+            }
+        scoped_lifecycles = [
+            lifecycle
+            for lifecycle in lifecycles
+            if (market is None or lifecycle.market == market)
+            and (provenance is None or lifecycle.provenance == provenance)
+            and (time_half is None or lifecycle.time_half == time_half)
+        ]
+        summary = _confirmation_metric_summary(rows)
+        armed_lifecycles = sum(
+            lifecycle.first_armed_index is not None for lifecycle in scoped_lifecycles
+        )
+        summary.update(
+            {
+                "armed_lifecycles": armed_lifecycles,
+                "armed_without_confirmed": max(
+                    armed_lifecycles - summary["confirmed_with_armed"], 0
+                ),
+                "armed_to_confirmed_rate_pct": _round(
+                    _rate(summary["confirmed_with_armed"], armed_lifecycles, 100.0)
+                ),
+            }
+        )
+        return summary
 
     return {
         "setup_type": setup_type,
@@ -1310,9 +1391,6 @@ def _confirmation_diagnostics(
         "by_market": {market: scoped(market=market) for market in ("CN", "US")},
         "by_provenance": {
             provenance: scoped(provenance=provenance) for provenance in PROVENANCES
-        },
-        "by_time_half": {
-            time_half: scoped(time_half=time_half) for time_half in ("EARLY", "LATE")
         },
     }
 
@@ -1369,24 +1447,26 @@ def _entry_zone_diagnostics(
         provenance: str | None = None,
         time_half: str | None = None,
     ) -> dict[str, Any]:
-        return _entry_zone_metric_summary(
-            [
-                entry
-                for entry in entries
-                if (market is None or entry["market"] == market)
-                and (provenance is None or entry["provenance"] == provenance)
-                and (time_half is None or entry["time_half"] == time_half)
-            ]
-        )
+        rows = [
+            entry
+            for entry in entries
+            if (market is None or entry["market"] == market)
+            and (provenance is None or entry["provenance"] == provenance)
+            and (time_half is None or entry["time_half"] == time_half)
+        ]
+        if not rows and provenance in {PROVENANCE_FORMAL, PROVENANCE_DYNAMIC_CANDIDATE}:
+            return {
+                "status": "NOT_REPRESENTED_IN_FROZEN_HOLDOUT",
+                "confirmed_events": 0,
+                "above_entry_zone_events": 0,
+            }
+        return _entry_zone_metric_summary(rows)
 
     return {
         "total": scoped(),
         "by_market": {market: scoped(market=market) for market in ("CN", "US")},
         "by_provenance": {
             provenance: scoped(provenance=provenance) for provenance in PROVENANCES
-        },
-        "by_time_half": {
-            time_half: scoped(time_half=time_half) for time_half in ("EARLY", "LATE")
         },
     }
 
@@ -1464,11 +1544,18 @@ def _rr_distance_summary(entries: Sequence[Mapping[str, Any]]) -> dict[str, Any]
 def _rr_component_summary(entries: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     failure_entries = [entry for entry in entries if entry.get("component_category") is not None]
     counts = Counter(str(entry["component_category"]) for entry in failure_entries)
+    supported = sum(
+        category != "INSUFFICIENT_COMPONENT_EVIDENCE"
+        for category in counts.elements()
+    )
     return {
         "rr_below_minimum_events": len(failure_entries),
         "component_rows": _reason_rows(counts, len(failure_entries)),
         "component_category_counts": dict(sorted(counts.items())),
-        "component_evidence_coverage_pct": _round(_rate(len(failure_entries), len(entries), 100.0)),
+        "component_attribution_supported_events": supported,
+        "component_attribution_supported_rate_pct": _round(
+            _rate(supported, len(failure_entries), 100.0)
+        ),
         "distance_summary_all_calculable": _rr_distance_summary(entries),
         "distance_summary_rr_failures": _rr_distance_summary(failure_entries),
     }
@@ -1532,6 +1619,12 @@ def _rr_diagnostics(
             and (provenance is None or entry["provenance"] == provenance)
             and (time_half is None or entry["time_half"] == time_half)
         ]
+        if not rows and provenance in {PROVENANCE_FORMAL, PROVENANCE_DYNAMIC_CANDIDATE}:
+            return {
+                "status": "NOT_REPRESENTED_IN_FROZEN_HOLDOUT",
+                "rr_below_minimum_events": 0,
+                "component_category_counts": {},
+            }
         return _rr_component_summary(rows)
 
     return {
@@ -1539,9 +1632,6 @@ def _rr_diagnostics(
         "by_market": {market: scoped(market=market) for market in ("CN", "US")},
         "by_provenance": {
             provenance: scoped(provenance=provenance) for provenance in PROVENANCES
-        },
-        "by_time_half": {
-            time_half: scoped(time_half=time_half) for time_half in ("EARLY", "LATE")
         },
         "definitions": {
             "execution_stop_distance": "absolute T-day distance from planned entry to existing execution stop",
@@ -2273,40 +2363,47 @@ def _final_classification(
 ) -> dict[str, Any]:
     confirmed_count = len(records)
     candidate_count = len(lifecycles)
-    above = int(entry_zone.get("total", {}).get("above_entry_zone_events", 0))
+    total_entry_zone = entry_zone.get("total", {})
+    above = int(total_entry_zone.get("above_entry_zone_events", 0))
     above_rate = _rate(above, confirmed_count)
     pairwise = overlap.get("pairwise_overlap", [])
     strongest_pair = pairwise[0] if pairwise else None
-    formal_candidate_insufficient = (
-        provenance.get("comparison_status")
-        == "INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE"
+    entry_allowed = sum(
+        _enum_value(record.decision.action) == DecisionAction.ENTRY_ALLOWED.value
+        for record in records
     )
 
     if not records or not lifecycles:
         classification = "INSUFFICIENT_EVIDENCE"
+        classification_name = classification
         reason = "The frozen replay did not produce enough lifecycle and Decision events for attribution."
     elif above_rate is not None and above_rate >= 0.50:
         classification = "STRUCTURAL_GATE_COLLISION_OBSERVED"
+        classification_name = classification
         reason = (
             f"{above} of {confirmed_count} confirmed events ({above_rate * 100:.2f}%) "
             "were already above the unchanged Entry Zone upper bound on the confirmation close; this is a recurring confirmation/entry-zone interaction, not a single-day example."
         )
-    elif formal_candidate_insufficient:
+    elif provenance.get("comparison_status") == "INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE":
         classification = "INSUFFICIENT_EVIDENCE"
-        reason = "The Development replay is sufficient for internal funnel attribution, but the frozen population cannot support a formal-pool versus live-Candidate comparison."
+        classification_name = classification
+        reason = "The frozen replay supports internal funnel attribution, but its population cannot support a formal-pool versus live-Candidate comparison."
     else:
         classification = "SYSTEM_WORKING_AS_DESIGNED_BUT_SIGNAL_SPARSE"
-        reason = "The observed low frequency is explained by the unchanged causal validity and economic gates without a measured structural collision at the requested scale."
+        classification_name = classification
+        reason = "Observed low frequency is explained by the unchanged causal validity and economic gates without a measured structural collision at the requested scale."
 
     return {
         "classification_code": classification,
-        "classification": classification,
+        "classification": classification_name,
         "reason": reason,
         "evidence": {
             "candidate_lifecycles": candidate_count,
             "confirmed_events": confirmed_count,
+            "entry_allowed_events": entry_allowed,
             "above_entry_zone_events": above,
             "above_entry_zone_rate_of_confirmed": _round(above_rate),
+            "entry_allowed_events": entry_allowed,
             "highest_pairwise_overlap": strongest_pair,
             "formal_vs_dynamic_candidate_comparison": provenance.get("comparison_status"),
         },
@@ -2549,6 +2646,9 @@ def _render_markdown(payload: Mapping[str, Any]) -> str:
     def pct(value: Any) -> str:
         return "—" if value is None else f"{float(value):.2f}%"
 
+    def dist(value: Mapping[str, Any], key: str = "median") -> str:
+        return fmt(value.get(key)) if value.get("count", 0) else "—"
+
     lines = [
         "<!-- DEVELOPMENT_ONLY; NOT_FORMAL_VALIDATION; NOT_FINAL_OOS -->",
         "# SYSTEM_SIGNAL_SCARCITY_AUDIT_V1",
@@ -2736,60 +2836,19 @@ def run_audit(
         SETUP02: _first_fail_attribution(lifecycles02, records02),
         "aggregate_confirmed_decision": _first_fail_attribution(all_lifecycles, all_records)["confirmed_decision_unit"],
     }
-    confirmation_diagnostics = {
-        SETUP01: _confirmation_diagnostics(
-            SETUP01,
-            {SETUP01: reports01},
-            lifecycles01,
-            records01,
-            quotes_by_symbol,
-            half_map,
-        ),
-        SETUP02: _confirmation_diagnostics(
-            SETUP02,
-            {SETUP02: reports02},
-            lifecycles02,
-            records02,
-            quotes_by_symbol,
-            half_map,
-        ),
-        "aggregate": _confirmation_diagnostics(
-            "AGGREGATE",
-            {SETUP01: reports01, SETUP02: reports02},
-            all_lifecycles,
-            all_records,
-            quotes_by_symbol,
-            half_map,
-        ),
-    }
-    entry_zone_diagnostics = {
-        SETUP01: _entry_zone_diagnostics(records01, half_map),
-        SETUP02: _entry_zone_diagnostics(records02, half_map),
-        "aggregate": _entry_zone_diagnostics(all_records, half_map),
-    }
-    rr_diagnostics = {
-        SETUP01: _rr_diagnostics(records01, half_map),
-        SETUP02: _rr_diagnostics(records02, half_map),
-        "aggregate": _rr_diagnostics(all_records, half_map),
-    }
-    target_upside_contribution = _target_upside_gate_contribution(
-        all_records, overlap_all, ablation
-    )
     provenance = _provenance_summary(observations, lifecycles_by_setup, records_by_setup)
-    dashboard_contract = _dashboard_contract_audit()
-    bottlenecks = _top_bottlenecks(
-        all_lifecycles,
-        all_records,
-        first_fail["aggregate_confirmed_decision"],
-    )
     architecture = _architecture_classification(overlap_all)
     frequency = _frequency_context(observations, records_by_setup, lifecycles_by_setup, half_map)
+    entry_zone_row = next(
+        (row for row in overlap_all["gate_rows"] if row["gate"] == "ABOVE_ENTRY_ZONE"),
+        {"raw_rejection_count": 0},
+    )
     decision = _final_classification(
         all_records,
         all_lifecycles,
         ablation,
         overlap_all,
-        entry_zone_diagnostics["aggregate"],
+        {"total": {"above_entry_zone_events": entry_zone_row["raw_rejection_count"]}},
         provenance,
     )
     recent_live = _recent_live_context(reports_root)
@@ -2850,6 +2909,11 @@ def run_audit(
             "candidate_selector_rerun": False,
             "history_minimum_bars": HISTORY_MINIMUM_BARS,
             "time_half_definition": "market-local sorted observed session-date midpoint",
+            "provenance_scopes": list(PROVENANCES),
+            "formal_strategy_pool_rows": 0,
+            "dynamic_candidate_rows": 0,
+            "development_holdout_roster_rows": len({row.symbol for row in observations}),
+            "provenance_comparison_status": provenance["comparison_status"],
         },
         "funnel": {
             "symbol_session": symbol_session,
@@ -2897,9 +2961,12 @@ def run_audit(
         "event_level_rows_persisted": 0,
     }
     output_json.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    output_json.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     output_markdown.parent.mkdir(parents=True, exist_ok=True)
-    output_markdown.write_text(_render_markdown(payload) + "\n", encoding="utf-8")
+    output_markdown.write_text(_render_markdown(payload).rstrip() + "\n", encoding="utf-8")
     return payload
 
 

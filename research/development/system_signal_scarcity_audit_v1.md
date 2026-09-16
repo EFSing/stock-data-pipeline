@@ -5,8 +5,8 @@
 
 ## 1. 结论
 
-- 最终分类：`F` — `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。
-- 证据摘要：The confirmation stage removes a large theoretical cohort, while at least one downstream gate has measurable independent one-gate recovery.
+- 最终分类：`STRUCTURAL_GATE_COLLISION_OBSERVED` — `STRUCTURAL_GATE_COLLISION_OBSERVED`。
+- 证据摘要：595 of 999 confirmed events (59.56%) were already above the unchanged Entry Zone upper bound on the confirmation close; this is a recurring confirmation/entry-zone interaction, not a single-day example.
 - 研究状态：`READY_FOR_DECISION`。
 - Confirmation ablation 仅为理论 signal-loss accounting；不得把 pre-confirmation rows 当作合法 `ENTRY_ALLOWED`。
 
@@ -180,4 +180,3 @@ Symbol concentration is retained in JSON under `frequency`; it is descriptive, n
 - If a follow-up is approved, it must be a new protocol. Depending on the evidence, the safe next study is hard-gate-vs-ranking architecture research or fresh-validation Early Entry; no same-dataset unbounded filter search is authorized.
 
 `READY_FOR_DECISION`
-
