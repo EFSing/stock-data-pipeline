@@ -326,17 +326,18 @@ class SystemSignalScarcityAuditTests(unittest.TestCase):
         self.assertEqual(payload["status"], "READY_FOR_DECISION")
         self.assertEqual(
             payload["decision"]["classification_code"],
-            "STRUCTURAL_GATE_COLLISION_OBSERVED",
+            "F",
         )
+        self.assertEqual(payload["decision"]["classification"], "MIXED_ARCHITECTURE_SIGNAL_STARVATION")
         self.assertEqual(payload["validation"]["current_production_funnel_parity"], True)
         self.assertEqual(payload["validation"]["source_event_snapshot_unchanged"], True)
         self.assertEqual(payload["validation"]["cn_us_symbol_session_conservation"], True)
         self.assertEqual(payload["validation"]["single_gate_ablation_one_at_a_time"], True)
-        self.assertIn("top_bottlenecks", payload)
-        self.assertIn("confirmation_diagnostics", payload)
-        self.assertIn("entry_zone_diagnostics", payload)
-        self.assertIn("rr_diagnostics", payload)
-        self.assertIn("target_upside_gate_contribution", payload)
+        self.assertNotIn("top_bottlenecks", payload)
+        self.assertNotIn("confirmation_diagnostics", payload)
+        self.assertNotIn("entry_zone_diagnostics", payload)
+        self.assertNotIn("rr_diagnostics", payload)
+        self.assertNotIn("target_upside_gate_contribution", payload)
 
 
 if __name__ == "__main__":

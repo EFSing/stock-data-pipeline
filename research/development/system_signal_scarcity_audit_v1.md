@@ -5,8 +5,8 @@
 
 ## 1. 结论
 
-- 最终分类：`STRUCTURAL_GATE_COLLISION_OBSERVED` — `STRUCTURAL_GATE_COLLISION_OBSERVED`。
-- 证据摘要：595 of 999 confirmed events (59.56%) were already above the unchanged Entry Zone upper bound on the confirmation close; this is a recurring confirmation/entry-zone interaction, not a single-day example.
+- 最终分类：`F` — `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。
+- 证据摘要：The fixed PR #89 incumbent reference leaves 1509 of 2254 confirmation cohorts not signaled (66.95%), while unchanged downstream one-gate counterfactuals recover RR_BELOW_MINIMUM=+100 ENTRY_ALLOWED, FORMAL_T1_CONFIRMED_SWING_HIGH=+14 ENTRY_ALLOWED, ENTRY_ZONE=+6 ENTRY_ALLOWED. Both upstream confirmation and downstream gates make material independent contributions; this is a research classification, not production authorization.
 - 研究状态：`READY_FOR_DECISION`。
 - Confirmation ablation 仅为理论 signal-loss accounting；不得把 pre-confirmation rows 当作合法 `ENTRY_ALLOWED`。
 

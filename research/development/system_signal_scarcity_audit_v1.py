@@ -2368,30 +2368,90 @@ def _final_classification(
     above_rate = _rate(above, confirmed_count)
     pairwise = overlap.get("pairwise_overlap", [])
     strongest_pair = pairwise[0] if pairwise else None
+    confirmation_gate = ablation.get("gates", {}).get(CONFIRMATION_ABLATION_GATE, {})
+    confirmation_cohort = int(confirmation_gate.get("base_confirmed_events", 0) or 0)
+    confirmation_not_signaled = int(
+        confirmation_gate.get("theoretical_cohort_not_signaled_by_confirmation", 0) or 0
+    )
+    confirmation_loss_rate = _rate(confirmation_not_signaled, confirmation_cohort)
+    downstream_increment = {
+        gate: int(row.get("incremental_entry_allowed", 0) or 0)
+        for gate, row in ablation.get("gates", {}).items()
+        if gate != CONFIRMATION_ABLATION_GATE
+    }
+    downstream_recovery = any(value > 0 for value in downstream_increment.values())
     entry_allowed = sum(
         _enum_value(record.decision.action) == DecisionAction.ENTRY_ALLOWED.value
         for record in records
     )
+    post_confirmation_not_allowed_rate = _rate(
+        confirmed_count - entry_allowed,
+        confirmed_count,
+    )
+    lifecycle_not_confirmed_rate = _rate(
+        candidate_count - confirmed_count,
+        candidate_count,
+    )
+    strongest_jaccard = (
+        float(strongest_pair.get("jaccard"))
+        if strongest_pair and strongest_pair.get("jaccard") is not None
+        else None
+    )
 
     if not records or not lifecycles:
-        classification = "INSUFFICIENT_EVIDENCE"
-        classification_name = classification
+        classification = "G"
+        classification_name = "INSUFFICIENT_EVIDENCE"
         reason = "The frozen replay did not produce enough lifecycle and Decision events for attribution."
-    elif above_rate is not None and above_rate >= 0.50:
-        classification = "STRUCTURAL_GATE_COLLISION_OBSERVED"
-        classification_name = classification
-        reason = (
-            f"{above} of {confirmed_count} confirmed events ({above_rate * 100:.2f}%) "
-            "were already above the unchanged Entry Zone upper bound on the confirmation close; this is a recurring confirmation/entry-zone interaction, not a single-day example."
+    elif confirmation_loss_rate is not None and confirmation_loss_rate >= 0.50 and downstream_recovery:
+        classification = "F"
+        classification_name = "MIXED_ARCHITECTURE_SIGNAL_STARVATION"
+        recovered = ", ".join(
+            f"{gate}=+{value} ENTRY_ALLOWED"
+            for gate, value in downstream_increment.items()
+            if value > 0
         )
-    elif provenance.get("comparison_status") == "INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE":
-        classification = "INSUFFICIENT_EVIDENCE"
-        classification_name = classification
-        reason = "The frozen replay supports internal funnel attribution, but its population cannot support a formal-pool versus live-Candidate comparison."
+        reason = (
+            f"The fixed PR #89 incumbent reference leaves {confirmation_not_signaled} of "
+            f"{confirmation_cohort} confirmation cohorts not signaled ({confirmation_loss_rate * 100:.2f}%), "
+            f"while unchanged downstream one-gate counterfactuals recover {recovered}. "
+            "Both upstream confirmation and downstream gates make material independent contributions; this is a research classification, not production authorization."
+        )
+    elif confirmation_loss_rate is not None and confirmation_loss_rate >= 0.50:
+        classification = "C"
+        classification_name = "CONFIRMATION_DOMINATES_SIGNAL_STARVATION"
+        reason = (
+            f"The fixed PR #89 incumbent reference leaves {confirmation_not_signaled} of "
+            f"{confirmation_cohort} confirmation cohorts not signaled ({confirmation_loss_rate * 100:.2f}%), "
+            "and no downstream one-gate counterfactual recovers an ENTRY_ALLOWED event."
+        )
+    elif downstream_recovery and post_confirmation_not_allowed_rate is not None and post_confirmation_not_allowed_rate >= 0.80:
+        classification = "D"
+        classification_name = "TARGET_RR_GEOMETRY_DOMINATES_SIGNAL_STARVATION"
+        reason = (
+            f"Post-confirmation Decision gates reject {post_confirmation_not_allowed_rate * 100:.2f}% of confirmed events, "
+            "and at least one downstream geometry ablation produces incremental ENTRY_ALLOWED events."
+        )
+    elif lifecycle_not_confirmed_rate is not None and lifecycle_not_confirmed_rate >= 0.50 and not downstream_recovery:
+        classification = "E"
+        classification_name = "UPSTREAM_WAVE_SETUP_SCARCITY_DOMINATES"
+        reason = (
+            f"{lifecycle_not_confirmed_rate * 100:.2f}% of candidate lifecycles do not reach CONFIRMED, "
+            "while downstream one-gate counterfactuals provide no independent recovery."
+        )
+    elif strongest_jaccard is not None and strongest_jaccard >= 0.80:
+        classification = "B"
+        classification_name = "REDUNDANT_HARD_GATES_CAUSE_SIGNAL_STARVATION"
+        reason = (
+            f"The strongest all-fail gate pair has Jaccard overlap {strongest_jaccard:.4f}, "
+            "indicating substantial redundant hard-gate rejection."
+        )
     else:
-        classification = "SYSTEM_WORKING_AS_DESIGNED_BUT_SIGNAL_SPARSE"
-        classification_name = classification
-        reason = "Observed low frequency is explained by the unchanged causal validity and economic gates without a measured structural collision at the requested scale."
+        classification = "A"
+        classification_name = "CURRENT_LOW_FREQUENCY_IS_STRUCTURALLY_JUSTIFIED"
+        reason = (
+            "The replay does not show a dominant confirmation bottleneck, downstream geometry recovery, "
+            "upstream lifecycle scarcity, or high-overlap redundant gate pair."
+        )
 
     return {
         "classification_code": classification,
@@ -2403,8 +2463,14 @@ def _final_classification(
             "entry_allowed_events": entry_allowed,
             "above_entry_zone_events": above,
             "above_entry_zone_rate_of_confirmed": _round(above_rate),
-            "entry_allowed_events": entry_allowed,
             "highest_pairwise_overlap": strongest_pair,
+            "highest_pairwise_jaccard": _round(strongest_jaccard),
+            "confirmation_reference_cohort": confirmation_cohort,
+            "confirmation_reference_not_signaled": confirmation_not_signaled,
+            "confirmation_reference_not_signaled_rate": _round(confirmation_loss_rate),
+            "downstream_incremental_entry_allowed": downstream_increment,
+            "post_confirmation_not_allowed_rate": _round(post_confirmation_not_allowed_rate),
+            "lifecycle_not_confirmed_rate": _round(lifecycle_not_confirmed_rate),
             "formal_vs_dynamic_candidate_comparison": provenance.get("comparison_status"),
         },
         "status": "DESCRIPTIVE_RESEARCH_CLASSIFICATION_NOT_PRODUCTION_AUTHORIZATION",
