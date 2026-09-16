@@ -5,7 +5,7 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-16（SETUP_01 Deep Wave2 + pre-confirmation early-entry
-> causal research state）。
+> causal research 已合并；Signal Scarcity Audit 待启动）。
 
 ## 项目身份
 
@@ -146,6 +146,11 @@
   normalized headroom，但同时引入大量最终未确认/失败候选；研究结论为
   `READY_FOR_DECISION`，仅支持用户决定是否继续独立研究，不支持 execution/cost
   研究或任何 production authorization。
+- 上述 `PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1` 已 squash merge；正式研究
+  含义保持为：`close > H1` 消耗部分 entry headroom，但也提供强 failure filtering；
+  固定 early milestones 不足以替代 confirmation，不支持 production early entry、
+  execution/cost research，或在同一 Development dataset 上继续无约束搜索。该研究
+  不改变任何 production Strategy / Wave / Swing / Entry / Target / RR 语义。
 - 有 generic synthetic operational shadow 与 development-only replay evidence；
   尚未接入生产自动执行（生产日历集成是已登记前置条件）。
 

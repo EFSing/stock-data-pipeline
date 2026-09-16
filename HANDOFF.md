@@ -5,15 +5,15 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：`PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1`；已从 frozen
-  Development replay 的 primary/alternate Wave2 contexts 完成完整 causal cohort
-  研究，当前研究结果为 `READY_FOR_DECISION`。早入场 fixed policies 的 headroom
-  证据不足以证明可以在不引入大量最终 FAILED/never-CONFIRMED candidates 的前提下
-  进入下一 execution/cost 阶段；不产生 production authorization。PR #88 的
-  Deep Wave2 corrective conclusion 已 squash merge 到 `main`。
+- 当前任务：PR #89 的 `PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1` 已完成
+  squash merge 与 post-merge governance closeout；下一项独立研究为
+  `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1`。早入场 fixed policies 的 headroom 证据不足以
+  证明可以在不引入大量最终 FAILED/never-CONFIRMED candidates 的前提下进入下一
+  execution/cost 阶段；不产生 production authorization。PR #88 的 Deep Wave2
+  corrective conclusion 也已 squash merge 到 `main`。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87、PR #88 已合并到 `main`，PR #89
-  保持 OPEN/READY_FOR_DECISION，本轮没有修改 production strategy。
+- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87、PR #88、PR #89 已合并到 `main`，
+  本轮没有修改 production strategy。
 - 本轮在固定 Development frozen holdout 上完成 PR #88 的预注册三档 Wave2 depth
   corrective research 与 PR #89 的完整 pre-confirmation causal research；两者均为
   Development-only，未访问 Final OOS。
@@ -23,10 +23,9 @@
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
 - PR #84、PR #85、PR #87、PR #88 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`research/pre-confirmation-early-entry-causal-v1`；从最新
-  `origin/main`（已包含 PR #88 及其 post-merge closeout）更新的独立 research 分支；
+- 当前分支：`main`；已从远端同步至包含 PR #89 squash merge 的最新 `origin/main`。
   PR #89 不改变 production semantics。
-- PR #84、PR #85、PR #87、PR #88 已合并；其 branch HEAD、base、merge commit 和 CI checks
+- PR #84、PR #85、PR #87、PR #88、PR #89 已合并；其 branch HEAD、base、merge commit 和 CI checks
   等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
@@ -71,6 +70,10 @@
   `551` 被 current system later-screened、`11` timeout/unresolved；另保留 `12`
   invalid Wave2 geometry contexts。固定 incumbent + 四个 pre-confirmation policies
   均只用 signal-time data，T+1 只取 exact next frozen-session OPEN。
+- PR #89 的正式结论为：`close > H1` 确实消耗部分 entry headroom，但同时提供强
+  failure filtering；四个简单 early milestones 不足以替代 confirmation，不支持
+  production early entry、execution/cost research，或在同一 Development dataset 上
+  无约束搜索更多 early filters。production strategy 完全不变。
 
 ## 4. Validation（验证结果）
 
@@ -83,8 +86,8 @@
   visibility、anchor as-of、pre-confirmation signal-before-confirmation、exact
   next-session OPEN、fixed hurdles、market/time/depth/concentration robustness
   与 no-outcome signal definition；`git diff --check` 通过。
-- PR #88 已 squash merge；Deep Wave2 corrective conclusion 已进入 `main`。PR #89
-  仍为独立 research-only 分支；本轮没有访问 Final OOS、没有参数搜索/threshold sweep、
+- PR #88、PR #89 均已 squash merge；相关 Development-only conclusions 已进入
+  `main`。本轮没有访问 Final OOS、没有参数搜索/threshold sweep、
   没有真实 holdings 读取、Sheets 写入、state write 或 broker order；PR #82 保持独立。
 
 ## 5. Blocker（当前 Blockers / 决策节点）
@@ -113,11 +116,10 @@
 
 ## 6. Next Action（下一步）
 
-1. Review the completed pre-confirmation causal report and make the final merge decision for
-   PR #89；the current decision node is whether to continue Early Entry fresh-validation
-   research, not whether to modify production。
-2. Do not merge PR #89 automatically; any follow-up study must have a new explicitly approved
-   protocol and remain outside the production path。
+1. 从最新 `main` 创建并执行独立的 `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1`，严格保持
+   Development-only、counterfactual-only 与 production semantics 不变。
+2. 完成审计后创建独立 PR；等待 CI 全绿并停在 `READY_FOR_DECISION`，不要自动合并
+   Signal Scarcity Audit PR。
 3. 任何后续任务前仍须 fetch/pull 并实时核对 Git/GitHub 状态。
 
 ## 7. Constraints（关键约束）
@@ -153,9 +155,10 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `research/pre-confirmation-early-entry-causal-v1`
-- current PR: PR #89 remains OPEN and independent after update onto the main containing
-  squash-merged PR #88；PR #86、PR #87 已 squash merge；PR #82 保持独立
+- active branch: `main`（下一项审计须从此最新 main 创建
+  `research/system-signal-scarcity-audit-v1`）
+- current PR: PR #89 已 squash merge；PR #86、PR #87、PR #88 已 squash merge；PR #82
+  保持独立。Signal Scarcity Audit 尚未创建 PR。
 - working tree expected: clean after the research commit/push；本轮无 credentials、Final
   OOS 或真实 holdings-derived 数据
 - 动态 branch、HEAD、`origin/main`、PR、CI checks 与 merge 状态
