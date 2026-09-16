@@ -393,22 +393,38 @@ def load_ephemeral_market_data(
             primary_quotes: list[Any] = []
             verifier_quotes: list[Any] = []
             if not config_errors:
-                for source, target in (
-                    (primary_source, primary_quotes),
-                    (verifier_source, verifier_quotes),
-                ):
-                    try:
-                        quotes = fetch_latest_with_retry(
-                            source, dict(watch), as_of_date, retry_count, retry_wait,
-                            target_trade_date=as_of_date,
-                        )
-                        if any(not _quote_identity_is_valid(quote, watch) for quote in quotes):
-                            raise ValueError("latest provider identity mismatch")
-                        target.extend(quotes)
-                        provider_detail[f"latest_{source}"] = "OK"
-                    except Exception as exc:
-                        provider_detail[f"latest_{source}"] = f"FAILED:{type(exc).__name__}"
-                        symbol_errors.append(f"latest {source}: {_safe_error(exc)}")
+                try:
+                    quotes = fetch_latest_with_retry(
+                        primary_source, dict(watch), as_of_date, retry_count, retry_wait,
+                        target_trade_date=as_of_date,
+                    )
+                    if any(not _quote_identity_is_valid(quote, watch) for quote in quotes):
+                        raise ValueError("latest provider identity mismatch")
+                    primary_quotes.extend(quotes)
+                    provider_detail[f"latest_{primary_source}"] = "OK"
+                except Exception as exc:
+                    provider_detail[f"latest_{primary_source}"] = f"FAILED:{type(exc).__name__}"
+                    symbol_errors.append(f"latest {primary_source}: {_safe_error(exc)}")
+
+                excluded_verifier_sources = tuple(sorted({
+                    str(quote.source).strip()
+                    for quote in primary_quotes
+                    if str(getattr(quote, "source", "")).strip()
+                }))
+                provider_detail["latest_verifier_excluded_sources"] = list(excluded_verifier_sources)
+                try:
+                    quotes = fetch_latest_with_retry(
+                        verifier_source, dict(watch), as_of_date, retry_count, retry_wait,
+                        target_trade_date=as_of_date,
+                        excluded_sources=excluded_verifier_sources,
+                    )
+                    if any(not _quote_identity_is_valid(quote, watch) for quote in quotes):
+                        raise ValueError("latest provider identity mismatch")
+                    verifier_quotes.extend(quotes)
+                    provider_detail[f"latest_{verifier_source}"] = "OK"
+                except Exception as exc:
+                    provider_detail[f"latest_{verifier_source}"] = f"FAILED:{type(exc).__name__}"
+                    symbol_errors.append(f"latest {verifier_source}: {_safe_error(exc)}")
                 try:
                     latest_snapshot = evaluate_latest_snapshot(
                         primary_quotes,
@@ -437,6 +453,16 @@ def load_ephemeral_market_data(
                             provider_detail["latest_preclose_source"] = preclose_source
                         status["latest"] = latest_snapshot.displayed_status or "UNAVAILABLE"
                         provider_detail["latest_status"] = status["latest"]
+                        provider_detail["latest_configured_primary_source"] = primary_source
+                        provider_detail["latest_configured_verifier_source"] = verifier_source
+                        provider_detail["latest_actual_primary_source"] = (
+                            latest_snapshot.primary.source if latest_snapshot.primary else None
+                        )
+                        provider_detail["latest_actual_verifier_source"] = (
+                            latest_snapshot.verifier.source if latest_snapshot.verifier else None
+                        )
+                        if latest_snapshot.fallback_notes:
+                            provider_detail["latest_fallback_notes"] = list(latest_snapshot.fallback_notes)
                         if latest_snapshot.chosen.trade_date != as_of_date:
                             symbol_errors.append(
                                 f"latest date {latest_snapshot.chosen.trade_date.isoformat()} != T {as_of_date.isoformat()}"

@@ -412,6 +412,87 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(calls[0]["auto_adjust"])
         chart.assert_called_once_with(watch, "qfq", date(2026, 8, 1), date(2026, 8, 28))
 
+    def test_yfinance_qfq_stale_complete_payload_uses_chart_for_exact_target(self):
+        calls = []
+
+        class StaleTailTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, **kwargs):
+                calls.append(kwargs)
+                frame = pd.DataFrame(
+                    {
+                        "Open": [99.0, 101.0],
+                        "High": [101.0, 103.0],
+                        "Low": [98.0, 100.0],
+                        "Close": [100.0, 102.0],
+                        "Volume": [1_000_000, 2_000_000],
+                    },
+                    index=pd.to_datetime(["2026-09-12", "2026-09-14"]),
+                )
+                frame.index.name = "Date"
+                return frame
+
+        target = date(2026, 9, 15)
+        fallback = [quote("YahooChart", day=target)]
+        fake_yfinance = SimpleNamespace(Ticker=StaleTailTicker)
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD", "时区": "America/New_York",
+        }
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
+            "providers._fetch_yahoo_chart", return_value=fallback
+        ) as chart:
+            result = fetch_with_retry(
+                "yfinance", watch, "qfq", date(2026, 9, 1), target,
+                1, 0, target_trade_date=target,
+            )
+
+        self.assertEqual(result, fallback)
+        self.assertTrue(calls[0]["auto_adjust"])
+        chart.assert_called_once_with(watch, "qfq", date(2026, 9, 1), target)
+
+    def test_yfinance_qfq_stale_chart_remains_fail_closed(self):
+        class StaleTailTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, **kwargs):
+                frame = pd.DataFrame(
+                    {
+                        "Open": [99.0, 101.0],
+                        "High": [101.0, 103.0],
+                        "Low": [98.0, 100.0],
+                        "Close": [100.0, 102.0],
+                        "Volume": [1_000_000, 2_000_000],
+                    },
+                    index=pd.to_datetime(["2026-09-12", "2026-09-14"]),
+                )
+                frame.index.name = "Date"
+                return frame
+
+        target = date(2026, 9, 15)
+        fallback = [quote("YahooChart", day=date(2026, 9, 14))]
+        fake_yfinance = SimpleNamespace(Ticker=StaleTailTicker)
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD", "时区": "America/New_York",
+        }
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), patch(
+            "providers._fetch_yahoo_chart", return_value=fallback
+        ) as chart:
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"2026-09-14.*2026-09-15",
+            ):
+                fetch_with_retry(
+                    "yfinance", watch, "qfq", date(2026, 9, 1), target,
+                    1, 0, target_trade_date=target,
+                )
+
+        chart.assert_called_once_with(watch, "qfq", date(2026, 9, 1), target)
+
     def test_yfinance_latest_uses_bounded_window_when_period_tail_is_incomplete(self):
         calls = []
 
@@ -721,6 +802,36 @@ class ValidationTests(unittest.TestCase):
                 target_trade_date=date(2026, 8, 20),
             )
         self.assertEqual(result, current)
+
+    def test_latest_source_fallback_skips_excluded_actual_source(self):
+        watch = {"统一代码": "BABA", "市场": "US"}
+        t_day = date(2026, 8, 20)
+        current = [quote("Sina", day=t_day)]
+        with patch.dict("providers.LATEST_PROVIDERS", {
+            "Tencent": lambda *args: [quote("Tencent", day=t_day)],
+            "Sina": lambda *args: current,
+        }, clear=True):
+            result = fetch_latest_with_retry(
+                "Tencent", watch, t_day, 1, 0,
+                target_trade_date=t_day,
+                excluded_sources={"Tencent"},
+            )
+        self.assertEqual(result, current)
+
+    def test_latest_source_fallback_rejects_internal_collision_before_returning(self):
+        watch = {"统一代码": "BABA", "市场": "US"}
+        t_day = date(2026, 8, 20)
+        with patch.dict("providers.LATEST_PROVIDERS", {
+            "yfinance": lambda *args: [quote("YahooChart", day=t_day)],
+            "Tencent": lambda *args: [quote("Tencent", day=t_day)],
+            "Sina": lambda *args: [quote("Sina", day=t_day)],
+        }, clear=True):
+            result = fetch_latest_with_retry(
+                "yfinance", watch, t_day, 1, 0,
+                target_trade_date=t_day,
+                excluded_sources={"YahooChart"},
+            )
+        self.assertEqual(result[0].source, "Tencent")
 
     def test_replay_fetch_can_preserve_source_order_for_quality_gate(self):
         watch = {"统一代码": "603199.SH", "市场": "CN"}

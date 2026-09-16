@@ -7,7 +7,11 @@ import unittest
 from unittest.mock import patch
 
 from core import Quote
-from scripts.run_cloud_daily_report import resolve_cloud_trade_date, run_cloud_daily_report
+from scripts.run_cloud_daily_report import (
+    main as cloud_report_main,
+    resolve_cloud_trade_date,
+    run_cloud_daily_report,
+)
 from trading.daily_dashboard import build_dashboard_projection, render_dashboard_html
 from trading.daily_report_email import render_daily_report_email_html
 from trading.ephemeral_market_data import (
@@ -27,6 +31,8 @@ from tests.test_production_prerequisites import (
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "daily_dashboard_v1.json"
+US_T_DAY = date(2026, 9, 15)
+US_AFTER_CLOSE = datetime(2026, 9, 15, 21, 0, tzinfo=timezone.utc)
 
 
 def _quote(symbol, market, trade_date, source, currency, preclose=101.0, close=102.0):
@@ -64,6 +70,25 @@ def _cloud_client():
         "收盘时间": "15:00",
         "BaoStock代码": "sh.600000",
         "yfinance代码": "600000.SS",
+    }]
+    client.header_rows["自选清单"] = tuple(client.rows["自选清单"][0])
+    return client
+
+
+def _cloud_us_client():
+    client = _rows()
+    client.rows["自选清单"] = [{
+        "启用": "TRUE",
+        "市场": "US",
+        "统一代码": "AAPL",
+        "名称": "AAPL",
+        "币种": "USD",
+        "主数据源": "yfinance",
+        "校验数据源": "Tencent",
+        "历史数据源": "yfinance",
+        "时区": "America/New_York",
+        "收盘时间": "16:00",
+        "yfinance代码": "AAPL",
     }]
     client.header_rows["自选清单"] = tuple(client.rows["自选清单"][0])
     return client
@@ -296,6 +321,91 @@ class CloudDailyReportTests(unittest.TestCase):
             "Tencent",
         )
 
+    def test_ephemeral_loader_selects_next_independent_source_after_primary_fallback(self):
+        client = _cloud_us_client()
+        latest_calls = []
+
+        def latest(source, watch, end, retry_count, retry_wait, **kwargs):
+            del watch, end, retry_count, retry_wait
+            excluded = tuple(sorted(kwargs.get("excluded_sources", ())))
+            latest_calls.append((source, excluded))
+            if source == "yfinance":
+                return [_quote("AAPL", "US", US_T_DAY, "Tencent", "USD")]
+            self.assertEqual(source, "Tencent")
+            self.assertEqual(excluded, ("Tencent",))
+            return [_quote("AAPL", "US", US_T_DAY, "Sina", "USD")]
+
+        def history(source, watch, adjustment, start, end, *args, **kwargs):
+            del source, watch, adjustment, start, end, args, kwargs
+            return [_quote("AAPL", "US", US_T_DAY, "yfinance", "USD")]
+
+        with patch("trading.ephemeral_market_data.fetch_latest_with_retry", side_effect=latest), \
+             patch("trading.ephemeral_market_data.fetch_with_retry", side_effect=history):
+            snapshot = load_ephemeral_market_data(
+                client, market="US", as_of_date=US_T_DAY, now=US_AFTER_CLOSE
+            )
+
+        self.assertEqual(latest_calls, [
+            ("yfinance", ()),
+            ("Tencent", ("Tencent",)),
+        ])
+        self.assertEqual(snapshot.errors, ())
+        self.assertEqual(snapshot.latest_rows[0]["主数据源"], "Tencent")
+        self.assertEqual(snapshot.latest_rows[0]["校验数据源"], "Sina")
+        provider_status = snapshot.provider_status["AAPL"]
+        self.assertEqual(provider_status["latest_actual_primary_source"], "Tencent")
+        self.assertEqual(provider_status["latest_actual_verifier_source"], "Sina")
+        self.assertIn("主数据源yfinance回退至Tencent", provider_status["latest_fallback_notes"])
+        self.assertIn("校验数据源Tencent回退至Sina", provider_status["latest_fallback_notes"])
+
+    def test_ephemeral_loader_keeps_single_source_when_independent_fallback_fails(self):
+        client = _cloud_us_client()
+
+        def latest(source, watch, end, retry_count, retry_wait, **kwargs):
+            del watch, end, retry_count, retry_wait
+            if source == "yfinance":
+                return [_quote("AAPL", "US", US_T_DAY, "Tencent", "USD")]
+            self.assertEqual(tuple(sorted(kwargs.get("excluded_sources", ()))), ("Tencent",))
+            raise RuntimeError("Sina unavailable")
+
+        def history(source, watch, adjustment, start, end, *args, **kwargs):
+            del source, watch, adjustment, start, end, args, kwargs
+            return [_quote("AAPL", "US", US_T_DAY, "yfinance", "USD")]
+
+        with patch("trading.ephemeral_market_data.fetch_latest_with_retry", side_effect=latest), \
+             patch("trading.ephemeral_market_data.fetch_with_retry", side_effect=history):
+            snapshot = load_ephemeral_market_data(
+                client, market="US", as_of_date=US_T_DAY, now=US_AFTER_CLOSE
+            )
+
+        self.assertEqual(snapshot.latest_rows[0]["主数据源"], "Tencent")
+        self.assertEqual(snapshot.latest_rows[0]["校验数据源"], "Tencent")
+        self.assertEqual(snapshot.provider_status["AAPL"]["latest_status"], "单源可用")
+        self.assertIsNone(snapshot.provider_status["AAPL"]["latest_actual_verifier_source"])
+        self.assertTrue(any("latest validation: 单源可用" in error for error in snapshot.errors))
+
+    def test_ephemeral_loader_keeps_normal_dual_source_validation(self):
+        client = _cloud_us_client()
+
+        def latest(source, watch, end, retry_count, retry_wait, **kwargs):
+            del watch, end, retry_count, retry_wait, kwargs
+            return [_quote("AAPL", "US", US_T_DAY, source, "USD")]
+
+        def history(source, watch, adjustment, start, end, *args, **kwargs):
+            del source, watch, adjustment, start, end, args, kwargs
+            return [_quote("AAPL", "US", US_T_DAY, "yfinance", "USD")]
+
+        with patch("trading.ephemeral_market_data.fetch_latest_with_retry", side_effect=latest), \
+             patch("trading.ephemeral_market_data.fetch_with_retry", side_effect=history):
+            snapshot = load_ephemeral_market_data(
+                client, market="US", as_of_date=US_T_DAY, now=US_AFTER_CLOSE
+            )
+
+        self.assertEqual(snapshot.errors, ())
+        self.assertEqual(snapshot.provider_status["AAPL"]["latest_status"], "已验证")
+        self.assertEqual(snapshot.latest_rows[0]["主数据源"], "yfinance")
+        self.assertEqual(snapshot.latest_rows[0]["校验数据源"], "Tencent")
+
     def test_runner_market_scope_is_read_only_and_does_not_require_other_market(self):
         client = _rows()
         client.rows["策略账户"][1]["币种"] = "CNY"
@@ -396,6 +506,47 @@ class CloudDailyReportTests(unittest.TestCase):
             self.assertNotIn("<script", email_html.lower())
             self.assertNotIn("<select", email_html.lower())
             self.assertEqual(payload["cloud_daily_report"]["notifications"]["bark"]["status"], "SENT")
+
+    def test_partial_data_quality_is_persisted_and_keeps_existing_cli_failure_semantics(self):
+        fixture_payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        fake_ephemeral = EphemeralMarketDataSnapshot(
+            market="US", as_of_date=US_T_DAY, fetched_at=US_AFTER_CLOSE,
+            required_symbols=("AAPL",), active_paper_symbols=(),
+            latest_rows=(), qfq_rows=(),
+            symbol_status={"AAPL": {"latest": "单源可用", "qfq": "OK", "errors": ["latest validation: 单源可用"]}},
+            provider_status={"AAPL": {"latest_status": "单源可用"}},
+            errors=("US|AAPL: latest validation: 单源可用",),
+            input_fingerprint="fingerprint", retry_count=1, history_days=1000,
+        )
+        with TemporaryDirectory() as directory, \
+             patch("scripts.run_cloud_daily_report.load_ephemeral_market_data", return_value=fake_ephemeral), \
+             patch("scripts.run_cloud_daily_report.run_production_daily_decision", return_value=fixture_payload), \
+             patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}), \
+             patch("scripts.run_cloud_daily_report.send_optional_email", return_value={"status": "SENT"}) as email:
+            payload = run_cloud_daily_report(
+                market="US", as_of_date=US_T_DAY, output_dir=directory,
+                now=US_AFTER_CLOSE, client=object(), notify=True,
+            )
+            saved = json.loads(Path(directory, "daily-report.json").read_text(encoding="utf-8"))
+            dashboard_html = Path(directory, "daily-report.html").read_text(encoding="utf-8")
+
+        self.assertEqual(payload["cloud_daily_report"]["status"], "PARTIAL_DATA_QUALITY")
+        self.assertEqual(saved["cloud_daily_report"]["status"], "PARTIAL_DATA_QUALITY")
+        self.assertIn("PARTIAL_DATA_QUALITY", dashboard_html)
+        self.assertIn("部分数据异常", email.call_args.kwargs["html_body"])
+
+        with patch(
+            "scripts.run_cloud_daily_report.resolve_cloud_trade_date",
+            return_value=US_T_DAY,
+        ), patch(
+            "scripts.run_cloud_daily_report.run_cloud_daily_report",
+            return_value={"cloud_daily_report": {"status": "PARTIAL_DATA_QUALITY"}},
+        ):
+            exit_code = cloud_report_main([
+                "--market", "US", "--date", US_T_DAY.isoformat(),
+                "--output", "unused-output",
+            ])
+        self.assertEqual(exit_code, 1)
 
     def test_mobile_dashboard_uses_human_wave_mapping_and_collapsed_raw_data(self):
         payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
