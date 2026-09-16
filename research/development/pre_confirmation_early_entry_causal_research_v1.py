@@ -1104,6 +1104,67 @@ def _paired_headroom(
     }
 
 
+def _compact_summary(summary: Mapping[str, Any]) -> dict[str, Any]:
+    """Project robustness slices without repeating the full policy payload."""
+    def compact_distribution(distribution: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            key: distribution.get(key)
+            for key in ("n", "median", "p90")
+        }
+
+    geometry = summary["entry_geometry_over_R"]
+    adverse = summary["adverse_excursion_until_resolution"]
+    hurdles = {
+        hurdle_id: {
+            "success_count": value["success_count"],
+            "success_rate": value["success_rate"],
+            "structural_invalidation_before_hurdle_count": value["outcomes"][
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE"
+            ]["count"],
+            "structural_invalidation_before_hurdle_rate": value["outcomes"][
+                "STRUCTURAL_INVALIDATION_BEFORE_HURDLE"
+            ]["rate"],
+            "same_bar_ambiguous_count": value["outcomes"]["SAME_BAR_AMBIGUOUS"]["count"],
+            "censored_count": value["outcomes"]["CENSORED_INSUFFICIENT_PATH"]["count"],
+        }
+        for hurdle_id, value in summary["common_fixed_structural_hurdles"].items()
+    }
+    return {
+        "total_candidate_count": summary["total_candidate_count"],
+        "signaled_candidate_count": summary["signaled_candidate_count"],
+        "actual_executable_next_session_entry_count": summary[
+            "actual_executable_next_session_entry_count"
+        ],
+        "eventually_confirmed_count": summary["eventually_confirmed_count"],
+        "never_confirmed_count": summary["never_confirmed_count"],
+        "failed_count": summary["failed_count"],
+        "structural_invalidation_before_confirmation": summary[
+            "structural_invalidation_before_confirmation"
+        ],
+        "entry_geometry_over_R": {
+            "entry_to_H1_distance": compact_distribution(geometry["entry_to_H1_distance"]),
+            "entry_to_Fib1.272_remaining_headroom": compact_distribution(
+                geometry["entry_to_Fib1.272_remaining_headroom"]
+            ),
+            "entry_to_Fib1.618_remaining_headroom": compact_distribution(
+                geometry["entry_to_Fib1.618_remaining_headroom"]
+            ),
+        },
+        "adverse_excursion_until_resolution": {
+            "signed_R": compact_distribution(adverse["signed_R"]),
+            "adverse_magnitude_R": compact_distribution(adverse["adverse_magnitude_R"]),
+            "executable_path_count": adverse["executable_path_count"],
+            "censored_path_count": adverse["censored_path_count"],
+            "empty_path_count": adverse["empty_path_count"],
+            "boundary_counts": adverse["boundary_counts"],
+        },
+        "confirmation_latency_saved_sessions": compact_distribution(
+            summary["confirmation_latency_saved_sessions"]
+        ),
+        "common_fixed_structural_hurdles": hurdles,
+    }
+
+
 def _subset_summary(
     policy_id: str,
     candidates: Sequence[CandidateLifecycle],
@@ -1131,60 +1192,35 @@ def _robustness(
     symbol_quotes: Mapping[str, Sequence[Quote]],
     market_session_dates: Mapping[str, Sequence[date]],
 ) -> dict[str, Any]:
-    markets = {
-        market: _subset_summary(
-            policy_id,
-            candidates,
-            signals,
-            symbol_quotes,
-            market_session_dates,
-            lambda candidate, market=market: candidate.market == market,
+    def compact(predicate: Callable[[CandidateLifecycle], bool]) -> dict[str, Any]:
+        return _compact_summary(
+            _subset_summary(
+                policy_id,
+                candidates,
+                signals,
+                symbol_quotes,
+                market_session_dates,
+                predicate,
+            )
         )
+
+    markets = {
+        market: compact(lambda candidate, market=market: candidate.market == market)
         for market in sorted({candidate.market for candidate in candidates})
     }
     time_halves = {
-        half: _subset_summary(
-            policy_id,
-            candidates,
-            signals,
-            symbol_quotes,
-            market_session_dates,
-            lambda candidate, half=half: candidate.time_half == half,
-        )
+        half: compact(lambda candidate, half=half: candidate.time_half == half)
         for half in ("FIRST_HALF", "SECOND_HALF")
     }
     depths = {
-        band: _subset_summary(
-            policy_id,
-            candidates,
-            signals,
-            symbol_quotes,
-            market_session_dates,
-            lambda candidate, band=band: candidate.depth_band == band,
-        )
+        band: compact(lambda candidate, band=band: candidate.depth_band == band)
         for band in DEPTH_BANDS
     }
     outcome_strata = {
-        status: _subset_summary(
-            policy_id,
-            candidates,
-            signals,
-            symbol_quotes,
-            market_session_dates,
-            lambda candidate, status=status: candidate.eventual_status == status,
+        status: compact(
+            lambda candidate, status=status: candidate.eventual_status == status
         )
         for status in EVENTUAL_STATUSES
-    }
-    resolution_strata = {
-        resolution: _subset_summary(
-            policy_id,
-            candidates,
-            signals,
-            symbol_quotes,
-            market_session_dates,
-            lambda candidate, resolution=resolution: candidate.resolution == resolution,
-        )
-        for resolution in RESOLUTIONS
     }
     signal_counts = Counter(signal.symbol for signal in signals)
     leading_symbol = (
@@ -1194,13 +1230,8 @@ def _robustness(
     )
     without_leader = None
     if leading_symbol is not None:
-        without_leader = _subset_summary(
-            policy_id,
-            candidates,
-            signals,
-            symbol_quotes,
-            market_session_dates,
-            lambda candidate: candidate.symbol != leading_symbol,
+        without_leader = compact(
+            lambda candidate: candidate.symbol != leading_symbol
         )
     return {
         "CN_US": markets,
@@ -1210,7 +1241,6 @@ def _robustness(
         },
         "depth_bands": depths,
         "later_confirmed_vs_never_confirmed_failed": outcome_strata,
-        "resolution_strata": resolution_strata,
         "symbol_concentration": {
             "signal_counts_by_symbol": dict(sorted(signal_counts.items())),
             "count_leading_symbol": leading_symbol,
