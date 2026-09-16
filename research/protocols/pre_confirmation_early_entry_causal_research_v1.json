@@ -1,0 +1,152 @@
+{
+  "schema_version": "pre-confirmation-early-entry-causal-research-v1",
+  "protocol_version": "PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1",
+  "registered_date": "2026-09-16",
+  "status": "REGISTERED_FOR_DEVELOPMENT_RESEARCH",
+  "scope": "DEVELOPMENT_ONLY_RESEARCH_NOT_PRODUCTION_AUTHORIZATION",
+  "research_question": "Does the existing SETUP_01 close > H1 confirmation arrive too late, and can a pre-confirmation rule using only information available at t obtain more Wave3 headroom without introducing a large population of eventual failures or materially worse adverse excursion?",
+  "source_contract": {
+    "dataset_identity": "FROZEN_DATASET_MARKET_SESSION_SET",
+    "dataset_mode": "DEVELOPMENT_EXPOSED",
+    "replay_input": "artifacts/phase5j_v3_development_holdout/development_holdout_replay_input.jsonl.gz",
+    "dataset_manifest": "artifacts/phase5j_v3_development_holdout/development_holdout_dataset_manifest.json",
+    "replay_wrapper": "artifacts/phase5j_v3_development_holdout/development_holdout_replay_manifest.json",
+    "construction": "Run the existing strict as-of Wave Scenario evaluation for every frozen symbol and retain every primary or alternate WAVE_2_TO_3_CANDIDATE anchor context whose LOW0, H1, and LOW2 Swing identities are confirmed as of the observation. Match existing SETUP_01 CONFIRMED/FAILED events when the current system emitted them; retain contexts that were later screened out or unresolved. Do not start from, filter to, or infer the cohort from the 745 CONFIRMED events.",
+    "inclusion": [
+      "primary or alternate WAVE_2_TO_3_CANDIDATE as of the observation, including contexts later hidden by current primary-scenario selection",
+      "origin, H1, and LOW2 are existing confirmed Swing identities with confirmed_index <= t",
+      "one cohort row per distinct causal Wave2 anchor context (symbol, LOW0 pivot, H1 pivot, LOW2 pivot); a later context replacement/reselection is retained as a screened-out unresolved row",
+      "later CONFIRMED, FAILED/structurally invalidated, never-CONFIRMED, timeout/unresolved, and later-screened candidates are all retained",
+      "Wave2 contexts that fail the existing LOW2 < H1 geometry are retained as invalid/screened cohort rows and cannot emit a policy signal or depth-band metric"
+    ],
+    "exclusion": [
+      "Final OOS or any formal validation set",
+      "future Swing/ZigZag labels, final wave labels, future bars, MFE/MAE/outcome fields in signal definition",
+      "survivorship, confirmation conditioning, result-based symbol removal, or result-based candidate replacement"
+    ]
+  },
+  "fixed_geometry": {
+    "wave1_range_R": "H1 - LOW0",
+    "retracement_ratio_r": "(H1 - LOW2) / R",
+    "fib_1_272": "LOW2 + 1.272 * R",
+    "fib_1_618": "LOW2 + 1.618 * R",
+    "common_hurdles": {
+      "HURDLE_0272": "H1 + 0.272 * R",
+      "HURDLE_0618": "H1 + 0.618 * R"
+    },
+    "depth_bands": {
+      "NORMAL_OR_SHALLOW": "r <= 0.618",
+      "DEEP": "0.618 < r <= 0.786",
+      "VERY_DEEP": "r > 0.786"
+    },
+    "fixed_existing_threshold": {
+      "name": "SETUP01_RECOVERY_RATIO",
+      "value": 0.5,
+      "expression": "LOW2 + 0.5 * (H1 - LOW2)",
+      "role": "existing ARMED milestone; not searched or re-estimated"
+    }
+  },
+  "candidate_policies": [
+    {
+      "id": "INCUMBENT_CONFIRMED_CLOSE",
+      "role": "incumbent_comparator",
+      "signal": "first causal day with state == CONFIRMED, which requires close > H1",
+      "pre_confirmation": false,
+      "entry": "exact next frozen market-session OPEN after the confirmation day",
+      "selection": "one signal per lifecycle; no Decision/RR/target gate is added to this structural timing comparator"
+    },
+    {
+      "id": "FIRST_BULLISH_RECOVERY",
+      "role": "pre_confirmation_candidate",
+      "signal": "first causal primary/alternate WAVE_2_TO_3 context observation on or after all three Swing anchors are confirmed, before confirmation/invalidation, where close > previous close, close > LOW2, and close <= H1",
+      "pre_confirmation": true,
+      "entry": "exact next frozen market-session OPEN; no same-bar fill and no later-bar substitution",
+      "selection": "one first signal per anchor context; previous close is the immediately preceding observed bar for that symbol"
+    },
+    {
+      "id": "ARMED_HALF_RECOVERY",
+      "role": "pre_confirmation_candidate",
+      "signal": "first causal primary/alternate WAVE_2_TO_3 context observation before confirmation/invalidation where close >= LOW2 + 0.5 * (H1 - LOW2) and close <= H1",
+      "pre_confirmation": true,
+      "entry": "exact next frozen market-session OPEN; no same-bar fill and no later-bar substitution",
+      "selection": "one first signal per anchor context; threshold is the existing fixed SETUP_01 ARMED milestone"
+    },
+    {
+      "id": "H1_INTRADAY_RECLAIM",
+      "role": "pre_confirmation_candidate",
+      "signal": "first causal primary/alternate WAVE_2_TO_3 context observation before confirmation/invalidation where high >= H1 and close <= H1",
+      "pre_confirmation": true,
+      "entry": "exact next frozen market-session OPEN; no same-bar fill and no later-bar substitution",
+      "selection": "one first signal per anchor context; intraday high is known at that day's close and is not the confirmation rule"
+    },
+    {
+      "id": "ARMED_HALF_RECOVERY_DAILY_UPTREND",
+      "role": "pre_confirmation_candidate_regime_subset",
+      "signal": "first causal ARMED_HALF_RECOVERY day with existing as-of daily_state == UPTREND and weekly_state != DOWNTREND",
+      "pre_confirmation": true,
+      "entry": "exact next frozen market-session OPEN; no same-bar fill and no later-bar substitution",
+      "selection": "one first signal per anchor context; regime is existing Wave context, not a newly fitted filter"
+    }
+  ],
+  "execution_and_evaluation": {
+    "signal_information": "Only Quote data and existing causal replay/Wave/Swing state with data <= signal_date",
+    "actual_executable_next_session": "The exact next date in the frozen market-session union must have a unique finite OPEN for the symbol; otherwise the signal is not executable and is censored for entry metrics",
+    "entry_price": "exact next-session OPEN",
+    "entry_to_H1_over_R": "(H1 - entry_price) / R",
+    "entry_to_Fib1_272_remaining_headroom_over_R": "(fib_1_272 - entry_price) / R",
+    "entry_to_Fib1_618_remaining_headroom_over_R": "(fib_1_618 - entry_price) / R",
+    "confirmation_latency_saved": "frozen market-session distance from the early signal date to the later CONFIRMED date; only defined for later-CONFIRMED lifecycles",
+    "adverse_excursion": "for pre-confirmation policies, minimum observed low from the executable entry session through the first confirmation, close-based structural invalidation, screened-out replacement boundary, or dataset end; for the incumbent, confirmation is already before entry, so continue from its next-session OPEN through the first later structural invalidation or dataset end; report signed and positive adverse magnitude normalized by R",
+    "structural_invalidation": "existing causal close <= LOW2 or close <= LOW0 semantics; no execution Stop is defined or selected by this protocol",
+    "common_hurdles": "H1 + 0.272R and H1 + 0.618R, evaluated after the executable entry through the first structural invalidation or dataset end; later-CONFIRMED paths continue beyond confirmation, failed paths stop at failure, and never-CONFIRMED screened/timeout paths are censored at their boundary; same-bar hurdle/invalidation ordering is AMBIGUOUS",
+    "outcome_use": "All confirmation, failure, adverse-excursion, hurdle, and headroom results are post-definition research evaluation only and never feed back into signal selection"
+  },
+  "required_reporting": [
+    "total cohort and policy-signal candidate counts",
+    "eventually confirmed, never confirmed, failed, screened-out, timeout/unresolved composition",
+    "actual executable next-session entry count and missing-next-session count",
+    "structural invalidation before confirmation rate",
+    "entry-to-H1, entry-to-Fib1.272, and entry-to-Fib1.618 remaining headroom over R",
+    "adverse excursion until resolution, confirmation latency saved, common hurdle success",
+    "research structural-invalidation-first and no-production-stop status",
+    "censored and ambiguous counts"
+  ],
+  "robustness": {
+    "markets": ["CN", "US"],
+    "time_split": "Within each market, split by the midpoint of the frozen market-session ordinal using candidate ready date, fixed before outcome analysis",
+    "symbol_concentration": "Within each policy, identify the count-leading symbol by signal count only, then repeat metrics after removing that symbol",
+    "depth_bands": ["NORMAL_OR_SHALLOW", "DEEP", "VERY_DEEP"],
+    "outcome_strata": ["LATER_CONFIRMED", "NEVER_CONFIRMED", "FAILED_OR_STRUCTURALLY_INVALIDATED", "SCREENED_OUT", "TIMEOUT_UNRESOLVED"],
+    "no_result_selection": true
+  },
+  "selection_order": [
+    "first determine whether an earlier signal adds headroom while retaining a broad, non-survivorship cohort and without a large eventual-failure/invalidation population",
+    "only if that structural question supports continuation may a separate execution/cost research protocol be proposed",
+    "do not use P&L, win rate, expectancy, or broker outcomes as the first-layer selection criterion"
+  ],
+  "forbidden": [
+    "production rule change",
+    "modifying confirmation, target semantics, 5% gate, 2R, Stop, Wave, Swing, or Fib",
+    "Final OOS",
+    "parameter optimization or threshold sweep",
+    "broker, state write, or Sheets mutation",
+    "PR #82 changes"
+  ],
+  "outputs": {
+    "json": "research/development/pre_confirmation_early_entry_causal_research_v1.json",
+    "markdown": "research/development/pre_confirmation_early_entry_causal_research_v1.md",
+    "event_detail": "compact aggregate only; no raw bars or private holdings"
+  },
+  "governance": {
+    "research_only": true,
+    "production_strategy_unchanged": true,
+    "final_oos_accessed": false,
+    "parameter_search": false,
+    "threshold_sweep": false,
+    "state_writes": 0,
+    "sheets_writes": 0,
+    "broker_orders": 0,
+    "pr82_mixed_in": false,
+    "requires_ready_for_decision": true
+  }
+}

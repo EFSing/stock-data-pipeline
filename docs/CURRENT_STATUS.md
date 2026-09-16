@@ -135,6 +135,16 @@
   production early entry。现有 funnel 中 DEEP `183/183`、VERY_DEEP `217/217`
   均未进入 `ENTRY_ALLOWED`，因此新增 depth gate 高度冗余；Early Entry 仅进入
   独立 PRE-CONFIRMATION causal research，不改变任何 production Decision 语义。
+- `research/protocols/pre_confirmation_early_entry_causal_research_v1.json` 与对应
+  `research/development/pre_confirmation_early_entry_causal_research_v1.py/.json/.md`
+  已完成 `PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1`：从 primary/alternate
+  strict as-of Wave2 context 重建 `2,254` 个 causal anchor contexts，含 `745`
+  later-CONFIRMED、`947` FAILED、`562` never-CONFIRMED（其中 `551` 被当前系统
+  later-screened、`11` timeout/unresolved），固定比较 incumbent 与四个
+  pre-confirmation milestones。早入场在 matched later-CONFIRMED 子集保留更多
+  normalized headroom，但同时引入大量最终未确认/失败候选；研究结论为
+  `READY_FOR_DECISION`，仅支持用户决定是否继续独立研究，不支持 execution/cost
+  研究或任何 production authorization。
 - 有 generic synthetic operational shadow 与 development-only replay evidence；
   尚未接入生产自动执行（生产日历集成是已登记前置条件）。
 
