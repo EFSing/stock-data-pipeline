@@ -4,7 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-16（SETUP_01 Deep Wave2 corrective research state）。
+> 最后实质更新：2026-09-16（SETUP_01 Deep Wave2 + pre-confirmation early-entry
+> causal research state）。
 
 ## 项目身份
 

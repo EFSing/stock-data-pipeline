@@ -14,8 +14,9 @@
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
 - 正式状态：`READY_FOR_DECISION`；PR #86、PR #87、PR #88 已合并到 `main`，PR #89
   保持 OPEN/READY_FOR_DECISION，本轮没有修改 production strategy。
-- 本轮只在固定 Development frozen holdout 上按预注册三档 Wave2 depth 做
-  Development research；结构结果只评价 T 之后的路径，未访问 Final OOS。
+- 本轮在固定 Development frozen holdout 上完成 PR #88 的预注册三档 Wave2 depth
+  corrective research 与 PR #89 的完整 pre-confirmation causal research；两者均为
+  Development-only，未访问 Final OOS。
 
 ## 2. Current State（当前正式状态）
 
