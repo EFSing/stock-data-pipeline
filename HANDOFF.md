@@ -5,34 +5,39 @@
 
 ## 1. Current Task（当前任务）
 
-- 当前任务：PR #89 的 `PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1` 已完成
-  squash merge 与 post-merge governance closeout；下一项独立研究为
-  `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1`。早入场 fixed policies 的 headroom 证据不足以
-  证明可以在不引入大量最终 FAILED/never-CONFIRMED candidates 的前提下进入下一
-  execution/cost 阶段；不产生 production authorization。PR #88 的 Deep Wave2
-  corrective conclusion 也已 squash merge 到 `main`。
+- 当前任务：`US_CLOUD_DAILY_REPORT_DATA_FRESHNESS_HOTFIX_V1`。这是与
+  `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1` 完全独立的 operational hotfix，使用独立
+  worktree/branch；当前工作区、PR #82 和另一研究分支均不在本任务范围内。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
-- 正式状态：`READY_FOR_DECISION`；PR #86、PR #87、PR #88、PR #89 已合并到 `main`，
-  本轮没有修改 production strategy。
-- 本轮在固定 Development frozen holdout 上完成 PR #88 的预注册三档 Wave2 depth
-  corrective research 与 PR #89 的完整 pre-confirmation causal research；两者均为
-  Development-only，未访问 Final OOS。
+- 已完成 provider / ephemeral latest fallback 修复与 focused/full regression；生产
+  strategy、Wave、Swing、Setup、Entry、Target、Risk、Paper、Sheets 与 broker 语义均未改。
+- 当前待用户决定：`PARTIAL_DATA_QUALITY` 在报告 artifact 已成功形成后是否应映射为
+  workflow execution success；本 branch 暂不改变既有 CLI exit semantics。
 
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
 - PR #84、PR #85、PR #87、PR #88 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`main`；已从远端同步至包含 PR #89 squash merge 的最新 `origin/main`。
-  PR #89 不改变 production semantics。
+- 当前分支：`hotfix/us-cloud-daily-report-freshness-v1`，从当时最新 `origin/main`
+  创建；PR #89 已在 base main，且不改变 production semantics。
 - PR #84、PR #85、PR #87、PR #88、PR #89 已合并；其 branch HEAD、base、merge commit 和 CI checks
   等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
   改动混入策略 PR，相关动态状态由用户单独从 Git/GitHub 实时查询。
+- 本 hotfix 尚未自动 merge；独立 PR 创建后仍须等待用户决定，不触碰 PR #82。
 
 ## 3. Completed（已完成）
 
+- 已基于 2026-09-16 US Daily Report 的只读 GitHub Actions 日志确认现场：BABA/RKLB
+  latest configured paths 均返回 OK，但 actual source collision 使状态为 `单源可用`；
+  qfq yfinance 返回 T-1，报告与 Bark/email/artifact 成功后 CLI 仍返回 1。
+- `providers.py` 已让 exact-target qfq 在完整但 stale 的 yfinance payload 后尝试现有
+  Yahoo Chart fallback；`trading/ephemeral_market_data.py` 已让 verifier 按 actual source
+  排除同源候选，并保留 configured/actual/fallback diagnostics。
+- 新增回归覆盖 T-1/T、T-1/T-1、Tencent→Sina、独立 fallback 失败、正常双源、partial
+  artifact/report 与既有 CLI exit contract；未改变 production strategy 或任何写入边界。
 - 已保留上一轮未提交的
   `research/development/setup01_wave2_to_wave3_structure_scale_diagnostic_v1.json`，
   并在本分支一并纳入；没有 reset、覆盖或丢弃该研究成果。
@@ -77,50 +82,35 @@
 
 ## 4. Validation（验证结果）
 
-- focused：PR #89 pre-confirmation causal research tests → `9 tests passed`；#88 deep
-  Wave2 research tests 在合并前为 `8 tests passed`。
-- full：`python -m unittest discover -s tests -v` → `753 tests passed, OK`（#88 合并后
-  新增 8 个 deep Wave2 research tests）；现有 generic operational shadow checks 继续通过。
-- `python -m py_compile` 覆盖 research module/test；research artifact 已重复运行并
-  得到相同 JSON SHA，核对了 `2,254` candidate conservation、primary/alternate
-  visibility、anchor as-of、pre-confirmation signal-before-confirmation、exact
-  next-session OPEN、fixed hurdles、market/time/depth/concentration robustness
-  与 no-outcome signal definition；`git diff --check` 通过。
-- PR #88、PR #89 均已 squash merge；相关 Development-only conclusions 已进入
-  `main`。本轮没有访问 Final OOS、没有参数搜索/threshold sweep、
-  没有真实 holdings 读取、Sheets 写入、state write 或 broker order；PR #82 保持独立。
+- focused provider + Cloud Daily Report：`77 tests passed`。
+- full：`python -m unittest discover -s tests -v` → `761 tests passed, 3 skipped, OK`；
+  generic operational shadow checks 继续通过。
+- `python -m py_compile providers.py latest_snapshot.py trading/ephemeral_market_data.py
+  scripts/run_cloud_daily_report.py tests/test_validation.py tests/test_cloud_daily_report.py`
+  与 `git diff --check` 均通过。
+- 本轮仅使用 synthetic/provider stubs 与 GitHub read-only log；没有真实 holdings、Final
+  OOS、Sheets/state/cache/artifact raw-data 写入或 broker order。PR #82、PR #88、PR #89
+  与 Signal Scarcity Audit 的 branch/history 保持独立。
 
 ## 5. Blocker（当前 Blockers / 决策节点）
 
-- 当前没有实现安全 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`；研究节点为
-  `READY_FOR_DECISION`，且 `HANDOFF_CURRENT_AND_CONSISTENT`。
-- PR #88 的结论必须限定为 `conditional_on_having_reached_CONFIRMED`：共同 normalized
-  excursion 与两项固定 hurdle 没有显示 DEEP/VERY_DEEP continuation 更弱；它不证明
-  deep Wave2 更优，不证明 pre-confirmation early entry 有效，不批准 depth gate 或
-  production early entry。
-- 现有 T-day gates 已排除全部 `DEEP`（183/183）与 `VERY_DEEP`（217/217）进入
-  `ENTRY_ALLOWED`，因此新增 depth gate 在本总体上可能高度冗余；当前不实现任何
-  depth gate 或 early-entry rule。
-- 当前 full causal cohort 已包含 primary/alternate Wave2 contexts、later
-  CONFIRMED、FAILED/structural invalidation、never-CONFIRMED、current-system
-  screened-out 与 timeout/unresolved rows；没有 survivorship-only cohort。
-- 四个 fixed early policy 都在 matched later-CONFIRMED 子集产生更多 normalized
-  headroom（约 `+0.170R` 至 `+0.337R` 中位数），但 signaled rows 的
-  FAILED/never-CONFIRMED 比例约 `59.9%`–`76.4%`；当前证据不支持进入
-  execution/cost research，不支持任何 production entry/confirmation/Stop/Target/RR
-  变化。该判断不使用 P&L 或 Final OOS。
-- Early Entry 研究已完成，但只支持用户决定是否继续独立 fresh-validation research；
-  不支持 execution/cost research，也不产生 production authorization。
-- PR #82（Node 24 maintenance）保持完全独立；交易成本、SETUP_03 formal validation、
-  SETUP_04、Final OOS、真实 holdings、broker、state/Sheets mutation 均未启动。
+- 当前没有 provider 实现 blocker，也没有 `PROJECT_GOVERNANCE_STATE_CONFLICT`。
+- `READY_FOR_DECISION_REPORT_EXIT_SEMANTICS`：当前 CLI 仍只将 `SUCCESS` 与
+  `SKIPPED_NON_SESSION` 映射为 exit 0；报告已生成但数据质量为
+  `PARTIAL_DATA_QUALITY` 时仍 exit 1。是否把“执行成功”和“数据质量警告”分离为
+  workflow success，需要用户/运维明确决定，本 branch 未擅自修改。
+- `validate_quotes` 的双源标准保持严格：同一 actual source 仍是 `单源可用`；若下一
+  独立 source 不可用，日报继续保留 `PARTIAL_DATA_QUALITY`，不伪造成 `SUCCESS`。
+- PR #88 / PR #89 的 Development-only 研究结论与 `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1`
+  的独立状态不属于本 hotfix scope；PR #82 保持完全独立。
 
 ## 6. Next Action（下一步）
 
-1. 从最新 `main` 创建并执行独立的 `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1`，严格保持
-   Development-only、counterfactual-only 与 production semantics 不变。
-2. 完成审计后创建独立 PR；等待 CI 全绿并停在 `READY_FOR_DECISION`，不要自动合并
-   Signal Scarcity Audit PR。
-3. 任何后续任务前仍须 fetch/pull 并实时核对 Git/GitHub 状态。
+1. 等待用户决定 `READY_FOR_DECISION_REPORT_EXIT_SEMANTICS`：PARTIAL report 是否应成为
+   workflow execution success；在决定前保持当前 CLI exit 1。
+2. 等待独立 PR #90 的 CI/review 与用户决定；不要自动 merge。
+3. 后续任务前仍须 fetch/pull 并实时核对 Git/GitHub 状态，不要触碰 PR #82、PR #89 或
+   `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1`。
 
 ## 7. Constraints（关键约束）
 
@@ -146,6 +136,8 @@
   email-safe 摘要 renderer，不要在邮件层复制第二套 Dashboard renderer。
 - Notification 是非核心 delivery；SMTP/Bark 失败不得改写报告状态，但 SMTP 附件
   失败必须保留 `attachment.status=FAILED` metadata。
+- Cloud verifier 的独立性按返回 Quote 的 actual source 判断，不能按 configured source
+  名称判断；primary fallback 与 verifier fallback 必须保留可解释的 source notes。
 - 不要因本地目录不同、缺少 service-account env 或没有真实 holdings 就扩大本轮范围；
   GitHub remote 与 PR 是跨设备权威恢复点。
 - 不要读取 Final OOS；不要把 PR #82 rebase/merge 到本策略 branch。
@@ -155,12 +147,11 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `main`（下一项审计须从此最新 main 创建
-  `research/system-signal-scarcity-audit-v1`）
-- current PR: PR #89 已 squash merge；PR #86、PR #87、PR #88 已 squash merge；PR #82
-  保持独立。Signal Scarcity Audit 尚未创建 PR。
-- working tree expected: clean after the research commit/push；本轮无 credentials、Final
-  OOS 或真实 holdings-derived 数据
+- active branch: `hotfix/us-cloud-daily-report-freshness-v1`
+- current PR: 独立 Cloud Daily Report hotfix PR #90 已创建，未 merge；PR #82、PR #89 与
+  `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1` 保持独立。
+- working tree expected: clean after the governance commit/push；本轮无 credentials、Final
+  OOS 或真实 holdings-derived 数据。
 - 动态 branch、HEAD、`origin/main`、PR、CI checks 与 merge 状态
   必须在恢复现场时从 Git/GitHub 实时查询；本文件不固定保存这些 SHA、CI run 或
   mergeability 信息。
@@ -168,19 +159,22 @@
 
 ```bash
 git fetch --all --prune
-git switch main
-git pull --ff-only origin main
+git worktree list
+git status --short --branch
 ```
 
 公司电脑本地路径可不同；不依赖 `D:\`、本机绝对路径、stash、未上传 artifact、
-临时 worktree 或 Codex session memory。下一项任务开始前再从 Git/GitHub 核对动态事实。
+临时 worktree 或 Codex session memory。下一项任务开始前再从 Git/GitHub 核对动态事实；
+如需继续本 hotfix，使用 `hotfix/us-cloud-daily-report-freshness-v1` 的隔离 worktree。
 
 ---
 
 状态标记：
 
-`READY_FOR_DECISION`
+`READY_FOR_DECISION_REPORT_EXIT_SEMANTICS`
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
 `CROSS_DEVICE_HANDOFF_READY`
+
+`PR_READY_FOR_USER_DECISION`
