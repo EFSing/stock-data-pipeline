@@ -6,8 +6,8 @@
 ## 1. Current Task（当前任务）
 
 - 当前任务：`SETUP_01_DEEP_WAVE2_STRUCTURE_QUALITY_V1`；已完成固定 Phase 5J-v3
-  Development frozen holdout 研究及本次 corrective research，PR #88 仍等待 review，
-  未自动 merge。
+  Development frozen holdout 研究及本次 corrective research，PR #88 已 squash merge
+  到 `main`，研究结论已正式进入主线。
 - 长期总体交易框架的唯一正式事实源：`docs/TRADING_SYSTEM_SPEC.md`。
 - 正式状态：`READY_FOR_DECISION`；PR #86、PR #87 均已合并到 `main`，本轮没有修改
   production strategy。
@@ -17,11 +17,11 @@
 ## 2. Current State（当前正式状态）
 
 - 项目：`EFSing/stock-data-pipeline`；默认分支：`main`。
-- PR #84、PR #85、PR #87 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
+- PR #84、PR #85、PR #87、PR #88 均已 squash merge 到 `main`；`origin/main` 的当前 SHA、main CI
   以及其他动态状态必须从 Git/GitHub 实时查询，不在本文件固定保存。
-- 当前分支：`codex/setup01-deep-wave2-structure-quality-v1`；从 PR #87 收口后的
-  最新 `main` 建立，PR #88 已创建并等待 review，未自动 merge。
-- PR #84、PR #85 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
+- 当前分支：`main`；PR #89 `research/pre-confirmation-early-entry-causal-v1` 保持独立，
+  等待在 #88 合并后的最新 `main` 上更新与复核。
+- PR #84、PR #85、PR #88 已合并；其 branch HEAD、base、merge commit 和 CI checks 等动态状态
   仍须从 Git/GitHub 实时查询。
 - PR #82（Node 24 maintenance）保持独立；本轮没有 merge、rebase 或把 maintenance
   改动混入策略 PR，相关动态状态由用户单独从 Git/GitHub 实时查询。
@@ -70,8 +70,9 @@
   T 后 outcome path、common normalized excursion/hurdle identity、现有 Decision
   parity 与 compact event-detail hash；
   `git diff --check` 通过。
-- 本轮没有访问 Final OOS、没有参数搜索/threshold sweep、没有真实 holdings 读取、
-  Sheets 写入、state write 或 broker order；PR #82 保持独立。
+- PR #88 已 squash merge；Deep Wave2 corrective conclusion 已进入 `main`。PR #89
+  仍为独立 research-only 分支；本轮没有访问 Final OOS、没有参数搜索/threshold sweep、
+  没有真实 holdings 读取、Sheets 写入、state write 或 broker order；PR #82 保持独立。
 
 ## 5. Blocker（当前 Blockers / 决策节点）
 
@@ -94,10 +95,10 @@
 
 ## 6. Next Action（下一步）
 
-1. Review the deep Wave2 structure-quality report and decide whether to approve a separate
-   early-entry causal research task。
-2. Do not merge this research PR or change production strategy automatically；this branch
-   does not implement a depth gate or early-entry rule。
+1. 将 PR #89 更新到 #88 合并后的最新 `main`，人工 reconcile 其治理文件并重新完成
+   PRE-CONFIRMATION causal research 验证。
+2. 停在 PR #89 `OPEN / READY_FOR_DECISION`，等待用户最终 merge 决策；不得自动 merge
+   PR #89 或改变 production strategy。
 3. 任何后续任务前仍须 fetch/pull 并实时核对 Git/GitHub 状态。
 
 ## 7. Constraints（关键约束）
@@ -133,9 +134,9 @@
 `CROSS_DEVICE_HANDOFF_READY`
 
 - authoritative repo: `EFSing/stock-data-pipeline`
-- active branch: `codex/setup01-deep-wave2-structure-quality-v1`
-- current PR: PR #88 已开放 review、未自动 merge；PR #86、PR #87 已 squash merge；
-  PR #82 保持独立
+- active branch: `main`（PR #89 分支为 `research/pre-confirmation-early-entry-causal-v1`）
+- current PR: PR #88 已 squash merge；PR #89 保持 OPEN 且独立；PR #86、PR #87 已
+  squash merge；PR #82 保持独立
 - working tree expected: clean after the research commit/push；本轮无 credentials、Final
   OOS 或真实 holdings-derived 数据
 - 动态 branch、HEAD、`origin/main`、PR、CI checks 与 merge 状态
