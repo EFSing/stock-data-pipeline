@@ -180,9 +180,21 @@ def _rows_for_mail(projection: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
         if _priority(row) is not None:
             rows.append(row)
     rank = {key: index for index, key in enumerate(_PRIORITY_LABELS)}
+    def armed_distance(row: Mapping[str, Any]) -> float:
+        if _priority(row) != "armed":
+            return 0.0
+        value = _mapping(row.get("armed_opportunity")).get(
+            "distance_to_confirmation_pct"
+        )
+        try:
+            return abs(float(value))
+        except (TypeError, ValueError):
+            return float("inf")
+
     rows.sort(
         key=lambda row: (
             rank.get(_priority(row) or "", len(rank)),
+            armed_distance(row),
             _text(row.get("market")),
             _text(row.get("symbol")).casefold(),
             _text(row.get("name")).casefold(),
@@ -451,6 +463,34 @@ def _plan_html(row: Mapping[str, Any]) -> str:
     )
 
 
+def _armed_html(row: Mapping[str, Any]) -> str:
+    if _priority(row) != "armed":
+        return ""
+    armed = _mapping(row.get("armed_opportunity"))
+    if armed.get("status") != "AVAILABLE":
+        reasons = "、".join(
+            _text(value) for value in _sequence(armed.get("missing_reasons")) if _text(value)
+        )
+        return (
+            '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
+            '<div style="font-weight:700;">机会观察｜不是买入信号</div>'
+            '<div>数据不足，不能猜测。</div>'
+            f'<div>缺失原因：{_escape(reasons, "机会投影字段不完整")}</div></div>'
+        )
+    low = _escape(armed.get("expected_entry_zone_low_display"))
+    high = _escape(armed.get("expected_entry_zone_high_display"))
+    return (
+        '<div style="margin-top:10px;padding:10px;background-color:#f4f8ff;border-left:3px solid #356ae6;">'
+        '<div style="font-weight:700;">机会观察｜不是买入信号</div>'
+        f'<div>当前收盘价：{_escape(armed.get("current_close_display"))}</div>'
+        f'<div>确认价：{_escape(armed.get("confirmation_level_display"))}</div>'
+        f'<div>距确认：{_escape(armed.get("distance_to_confirmation_display"))}（{_escape(armed.get("distance_to_confirmation_pct_display"))}）</div>'
+        f'<div>预计入场区（按当前 ATR，仅供观察）：{low}～{high}</div>'
+        f'<div>结构失效价：{_escape(armed.get("structural_invalidation_display"))}</div>'
+        f'<div style="margin-top:6px;color:#687386;">{_escape(armed.get("guidance"))}</div></div>'
+    )
+
+
 def _row_html(category: str, row: Mapping[str, Any]) -> str:
     name = _escape(row.get("name"), "未命名标的")
     symbol = _escape(row.get("symbol"), "未知代码")
@@ -470,6 +510,7 @@ def _row_html(category: str, row: Mapping[str, Any]) -> str:
         f'<div style="margin:5px 0;"><span style="color:#687386;">还差什么 / 下一步：</span>{next_step}</div>'
         f'<div style="margin:5px 0;"><span style="color:#687386;">是否已有交易计划：</span>{has_plan}</div>'
         + _plan_html(row)
+        + _armed_html(row)
         + _no_trade_html(row)
         + "</div></td></tr>"
     )

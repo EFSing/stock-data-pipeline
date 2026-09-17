@@ -648,3 +648,17 @@ Wave2→Wave3 假设成立时的结构投射目标。两者混为一个 T1 会�
 **Decision:** SUCCESS 与 SKIPPED_NON_SESSION 的 exit 0 含义保持；PARTIAL_DATA_QUALITY 在 exact T usable data 存在、核心计算完成且 final JSON/HTML 形成时也 exit 0，但 report quality 仍为 partial，单源 provenance 明确保留。无 exact T/stale、核心异常、artifact 失败继续 non-zero；不降低 production data gates，不改变通知失败 contract。
 
 **Reason:** 用户明确区分一次只读报告运行完成与报告内数据质量警告；不可把 warning 伪装成 SUCCESS 或以 T-1 替代 T。
+
+## 2026-09-17 — Post-confirmation retest hypothesis 关闭
+
+**Decision:** `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1` 不进入 production
+design，也不单独进行 fresh validation。confirmed→wait-for-retest 在逻辑上成立，但
+当前 Development evidence 只恢复极少量 executable，且全部集中 EARLY，不足以证明
+broad/time-stable improvement，不值得引入新的 production waiting lifecycle。除非未来
+出现新的独立证据，不重复启动同类 retest 参数研究。
+
+confirmation、Entry Zone、ATR multiplier、5%、2R、Swing、Wave、Target、Stop 与
+T→T+1 semantics 全部保持不变。
+
+**Reason:** 小量、时间分布不稳定的 Development 恢复不能支持生产架构扩张，也不能
+证明现有 Entry Zone 错误；保留负结果比继续在同一数据上搜索 waiting 参数更可靠。
