@@ -4,7 +4,7 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 
 ## Current Task
 
-当前 main 已包含 #91 和 #90 squash merge；下一步从最新 main 创建独立 Development-only retest research branch。
+当前分支：`codex/post-confirmation-retest-entry-causal-research-v1`，从包含 #90/#91 的最新 main 创建；独立 Development-only research，protocol 已固定，尚未运行。
 
 ## Current State
 
@@ -29,7 +29,7 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 
 ## Next Action
 
-从最新 main 创建研究分支并完成固定 A/B retest 研究，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
+执行已固定 A/B protocol、focused/full tests、deterministic/hash checks，提交独立 PR，不自动 merge，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
 
 ## Constraints / Pitfalls
 
