@@ -4,8 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-17（SETUP_01/02 Post-confirmation Retest Causal Research 已完成，
-> 保持 Development-only，未接入生产）。
+> 最后实质更新：2026-09-17（Post-confirmation Retest hypothesis 已关闭；
+> ARMED Opportunity Projection V1 进入独立产品验收）。
 
 ## 项目身份
 
@@ -216,6 +216,11 @@
   new CONFIRMED 的 primary reason 统计 `ABOVE_ENTRY_ZONE`、目标空间不足、RR
   不足、其他 NO_TRADE、仍可交易，并统计可见 T+1 gap/空间衰减 skip；不使用事后
   最低点或 future bars。
+- `ARMED_OPPORTUNITY_PROJECTION_V1` 在 `daily_decision_chain` 内对当前 ARMED
+  SETUP_01/02 暴露只读 causal context：当前 close、confirmation level、距确认绝对值/
+  百分比、structural invalidation、ATR14 与按现有正式 multiplier 得到的预期 Entry Zone。
+  缺字段时 fail closed 并给出原因；它不产生 Decision、event、plan、Paper/state write、
+  ranking 或交易 gate。
  - `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
    它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
    enum/protocol/交易语义。首页默认是“今日重点”，只展示 ENTRY_ALLOWED、
@@ -280,6 +285,10 @@
 - Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
   宽表、可点击区域至少 44px），首页优先展示数据异常、持仓、交易方案、新确认和接近
   确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。
+- Dashboard / email 复用上述 ARMED projection 展示“机会观察”，明确标记“观察中，
+  不是买入信号”；交易方案保持优先，ARMED 仅按距确认百分比绝对值作展示排序，
+  renderer 不计算 ATR/Entry Zone 等策略公式。邮件只展示有限重点项，完整列表保留在
+  Dashboard；已 CONFIRMED 的 NO_TRADE 继续显示原 Decision 拒绝原因。
 - CN/US live smoke 已通过，且 production state、paper ledger、broker order 与 raw/QFQ
   persistence 均为零；final artifact allowlist 已通过。旧 `asia-close` / `us-close`
   scheduled writer 已移除，仅保留原有 `workflow_dispatch`、latest/full 手工维护能力、
@@ -348,7 +357,12 @@
 
 ## 研究中的能力 / 明确未接入生产
 
-- `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1` 已完成固定 Development-only A/B replay：从 existing production semantics 的 999 CONFIRMED 重建 incumbent 8 ENTRY_ALLOWED / 4 exact T+1 executed。A（exact T+1 OPEN retest）新增执行 0；B（first legal frozen-zone close retest → exact next OPEN）8 plans、5 新增执行，SETUP_01/02=4/1、CN/US=1/4、EARLY/LATE=5/0。ABOVE_ENTRY_ZONE 595 cohort 中恢复 7 plans / 4 executions（0.672%）。固定 confirmation/Entry Zone/Stop/T-known targets/provenance/5%/2R/causal context，不设置 waiting window；终止原因、latency、concentration、去重 event/lifecycle conservation 与 canonical self-hash 均保留在 compact JSON/Markdown。恢复很少且 time-half 不稳定，正式节点为 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`；仅等待独立 production design/fresh validation 是否继续的用户决策，未修改 production code/semantics。父审计总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`，不把本研究解释为 Entry Zone 已被证明错误。
+- `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1` 已关闭并保留为正式负研究结论：
+  confirmed→wait-for-retest 在逻辑上成立，但固定 Development-only A/B replay 只恢复极少量
+  executable，且全部集中 EARLY，不证明 broad/time-stable improvement，不进入 production
+  design，也不单独 fresh validation。confirmation、Entry Zone、ATR multiplier、5%、2R、
+  Swing、Wave、Target、Stop 与 T→T+1 均不变；除非未来出现新的独立证据，不重复启动
+  同类 retest 参数研究。父审计分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。
 
 - Candidate Universe：已接入人工触发的 production Daily Decision Chain V1；动态
   Candidate-only 仍是 discovery-only，进入正式生命周期必须人工加入

@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 import html
 import json
+import math
 from pathlib import Path
 import re
 from typing import Any
@@ -709,7 +710,9 @@ def _missing_condition(
 
 
 def _invalidation_text(result: Mapping[str, Any], decision: Mapping[str, Any]) -> str:
+    armed = _mapping(result.get("armed_opportunity"))
     value = _first_value(
+        armed.get("structural_invalidation"),
         result.get("wave_invalidation"),
         result.get("structural_invalidation"),
         result.get("invalidation"),
@@ -795,7 +798,9 @@ def _reason_text(result: Mapping[str, Any]) -> str:
 
 
 def _confirmation_value(result: Mapping[str, Any], decision: Mapping[str, Any]) -> Any:
+    armed = _mapping(result.get("armed_opportunity"))
     return _first_value(
+        armed.get("confirmation_level"),
         result.get("confirmation_level"),
         result.get("confirmation_threshold"),
         result.get("trigger_threshold"),
@@ -1077,6 +1082,28 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
     data_blocked = _is_data_blocked(result, position_management)
     event_is_new = _event_is_new(result)
     freshness = dict(_mapping(result.get("opportunity_freshness")))
+    armed_raw = dict(_mapping(result.get("armed_opportunity")))
+    armed_opportunity = {
+        **armed_raw,
+        "current_close_display": _format_price(armed_raw.get("current_close")),
+        "confirmation_level_display": _format_price(armed_raw.get("confirmation_level")),
+        "distance_to_confirmation_display": _format_price(
+            armed_raw.get("distance_to_confirmation")
+        ),
+        "distance_to_confirmation_pct_display": _format_percent(
+            armed_raw.get("distance_to_confirmation_pct"), signed=True
+        ),
+        "structural_invalidation_display": _format_price(
+            armed_raw.get("structural_invalidation")
+        ),
+        "atr14_display": _format_price(armed_raw.get("atr14")),
+        "expected_entry_zone_low_display": _format_price(
+            armed_raw.get("expected_entry_zone_low")
+        ),
+        "expected_entry_zone_high_display": _format_price(
+            armed_raw.get("expected_entry_zone_high")
+        ),
+    }
     for key in (
         "t1_open",
         "t1_gap_vs_planned_entry_pct",
@@ -1172,6 +1199,7 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "plan": _price_plan(decision, freshness),
         "position": _position_projection(result, universe, symbol, position_management),
         "opportunity_freshness": freshness,
+        "armed_opportunity": armed_opportunity,
         "decision": decision,
         "portfolio_result": _mapping(result.get("portfolio_result")),
         "position_management": position_management,
@@ -1391,7 +1419,19 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         stage for stage in STAGE_ORDER if stage not in DEFAULT_FOCUS_STAGES
     )
     stage_rank = {stage: index for index, stage in enumerate(presentation_order)}
-    rows.sort(key=lambda row: (stage_rank.get(row["stage_key"], len(STAGE_ORDER)), row["market"], row["symbol"], row["account_id"]))
+    def presentation_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+        armed = _mapping(row.get("armed_opportunity"))
+        distance = _numeric(armed.get("distance_to_confirmation_pct"))
+        armed_distance = abs(distance) if distance is not None else math.inf
+        return (
+            stage_rank.get(row["stage_key"], len(STAGE_ORDER)),
+            armed_distance if row["stage_key"] == "ARMED" else 0.0,
+            row["market"],
+            row["symbol"],
+            row["account_id"],
+        )
+
+    rows.sort(key=presentation_key)
 
     preflight = _mapping(payload.get("preflight"))
     cloud_daily = _mapping(payload.get("cloud_daily_report"))
@@ -1628,6 +1668,14 @@ def _compact_price(row: Mapping[str, Any]) -> str:
         if _has_display_value(position.get("active_protective_stop")):
             values.append(f"保护止损：{_display(position.get('active_protective_stop'))}")
         return " · ".join(values)
+    if stage == "ARMED":
+        armed = _mapping(row.get("armed_opportunity"))
+        if armed.get("status") != "AVAILABLE":
+            return "观察中 · 数据不足，不猜测"
+        return (
+            f"现价：{_display(armed.get('current_close_display'))} · "
+            f"距确认：{_display(armed.get('distance_to_confirmation_pct_display'))}"
+        )
     return ""
 
 
@@ -1733,6 +1781,46 @@ def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
     )
 
 
+def _render_armed_opportunity(row: Mapping[str, Any]) -> str:
+    if row.get("stage_key") != "ARMED":
+        return ""
+    armed = _mapping(row.get("armed_opportunity"))
+    if not armed:
+        return (
+            '<section class="panel opportunity-panel"><h3>机会观察</h3>'
+            '<p>观察中，不是买入信号。缺少 ARMED 机会投影，不能猜测价格条件。</p></section>'
+        )
+    if armed.get("status") != "AVAILABLE":
+        reasons = "、".join(_raw_text(value) for value in _sequence(armed.get("missing_reasons")))
+        return (
+            '<section class="panel opportunity-panel"><h3>机会观察</h3>'
+            '<p>观察中，不是买入信号。数据不足，不能猜测。</p>'
+            f'<p>缺失原因：{_escape(reasons or "机会投影字段不完整")}</p></section>'
+        )
+    entry_zone = (
+        f"{armed.get('expected_entry_zone_low_display')} – "
+        f"{armed.get('expected_entry_zone_high_display')}"
+    )
+    return (
+        '<section class="panel opportunity-panel"><h3>机会观察</h3>'
+        '<p><strong>观察中，不是买入信号</strong></p>'
+        + _render_field_grid(
+            (
+                ("Setup", armed.get("setup_type")),
+                ("当前收盘价", armed.get("current_close_display")),
+                ("确认价", armed.get("confirmation_level_display")),
+                ("距确认价", armed.get("distance_to_confirmation_display")),
+                ("距确认百分比", armed.get("distance_to_confirmation_pct_display")),
+                ("当前 ATR14", armed.get("atr14_display")),
+                ("确认后预期观察入场区", entry_zone),
+                ("结构失效价", armed.get("structural_invalidation_display")),
+            ),
+            extra_class="plan-grid",
+        )
+        + f'<p>{_escape(armed.get("guidance"))}</p></section>'
+    )
+
+
 def _dashboard_search_text(row: Mapping[str, Any]) -> str:
     return f'{_raw_text(row.get("symbol"))} {_raw_text(row.get("name"))}'
 
@@ -1805,6 +1893,7 @@ def _render_details(row: Mapping[str, Any]) -> str:
         f'<section><h3>失效条件</h3><p>{_escape(row.get("invalidation"))}</p></section>'
         f'<section><h3>备选情景</h3><p>{_escape(row.get("alternate_wave_label"))}</p></section>'
         '</section>'
+        + _render_armed_opportunity(row)
         + _render_plan(row)
         + _render_opportunity_freshness(row)
         + (_render_position({**row, "position": position}) if row.get("is_position") else "")
@@ -2318,7 +2407,7 @@ def render_dashboard_html(value: Any) -> str:
     )
     nav_specs = (
         ("focus", "今日重点", sum(row["default_focus"] for row in projection["rows"])),
-        ("ARMED", "接近确认", summary["armed_count"]),
+        ("ARMED", "机会观察", summary["armed_count"]),
         ("WATCH", "观察中", summary["watch_count"]),
         ("confirmed", "新确认", summary["new_confirmed_count"]),
         ("STRATEGY_PROPOSAL", "交易方案", summary["strategy_proposal_count"]),

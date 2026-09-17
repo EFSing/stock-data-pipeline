@@ -43,6 +43,7 @@ from trading.risk import (
     target_upside_band,
     target_upside_pct,
 )
+from trading.indicators import atr
 from trading.position_management import (
     POSITION_MANAGEMENT_PROTOCOL_VERSION,
     PositionAction,
@@ -54,6 +55,8 @@ from trading.position_management import (
 )
 from trading.setup01 import evaluate_setup01
 from trading.setup01_decision import (
+    SETUP01_ATR_PERIOD,
+    SETUP01_ENTRY_ZONE_ATR,
     Setup01Decision,
     evaluate_setup01_decision,
     execute_setup01_t1_open,
@@ -63,6 +66,8 @@ from trading.setup01_decision import (
 from trading.setup01_replay import Setup01ReplayEvent, Setup01ReplayReport, replay_setup01_history
 from trading.setup02 import evaluate_setup02
 from trading.setup02_decision import (
+    SETUP02_ATR_PERIOD,
+    SETUP02_ENTRY_ZONE_ATR,
     SETUP02_DECISION_PROTOCOL_VERSION,
     Setup02Decision,
     evaluate_setup02_decision,
@@ -77,6 +82,7 @@ DAILY_DECISION_CHAIN_PROTOCOL_VERSION = "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-0
 OPPORTUNITY_FRESHNESS_DIAGNOSTICS_PROTOCOL_VERSION = (
     "OPPORTUNITY-FRESHNESS-DIAGNOSTICS-2026-09-14-v1"
 )
+ARMED_OPPORTUNITY_PROJECTION_VERSION = "ARMED_OPPORTUNITY_PROJECTION_V1"
 PRODUCTION_STRATEGY_UNIVERSE_REQUIRED = "PRODUCTION_STRATEGY_UNIVERSE_REQUIRED"
 STRATEGY_PROPOSAL = "STRATEGY_PROPOSAL"
 STRATEGY_PROPOSAL_APPROVAL_REQUIRED = "STRATEGY_PROPOSAL_APPROVAL_REQUIRED"
@@ -253,6 +259,7 @@ class DailyDecisionResult:
     t1_gap_vs_planned_entry_pct: float | None = None
     remaining_target_upside_pct: float | None = None
     opportunity_freshness: dict[str, Any] = field(default_factory=dict)
+    armed_opportunity: dict[str, Any] = field(default_factory=dict)
     # Retained as an internal bridge for explicit paper tracking and other
     # read-only explainers.  It is the same selected replay event already
     # used by this result; no second event identity or evaluation is created.
@@ -1018,6 +1025,11 @@ class DailyDecisionChain:
             decision,
             settlement_execution,
         )
+        armed_opportunity = _armed_opportunity_projection(
+            item,
+            setup01_current,
+            setup02_current,
+        )
         if prior_result is not None and not settlement:
             prior_freshness = getattr(prior_result, "opportunity_freshness", {})
             if isinstance(prior_freshness, Mapping):
@@ -1057,6 +1069,7 @@ class DailyDecisionChain:
             t1_gap_vs_planned_entry_pct=row.get("t1_gap_vs_planned_entry_pct"),
             remaining_target_upside_pct=row.get("remaining_target_upside_pct"),
             opportunity_freshness=opportunity_freshness,
+            armed_opportunity=armed_opportunity,
             reasons=tuple(str(value) for value in row.get("reasons", ())),
             blocking_prerequisites=tuple(str(value) for value in row.get("blocking", ())),
             protocol_versions={
@@ -1317,6 +1330,99 @@ def _opportunity_freshness_payload(
         "t1_gap_vs_planned_entry_pct": t1_gap,
         "remaining_target_upside_pct": remaining,
     }
+
+
+def _armed_opportunity_projection(
+    item: DailySymbolInput,
+    setup01: Any,
+    setup02: Any,
+) -> dict[str, Any]:
+    """Project current causal ARMED context without creating a trade decision."""
+
+    armed = [
+        ("SETUP_01", setup01, SETUP01_ATR_PERIOD, SETUP01_ENTRY_ZONE_ATR),
+        ("SETUP_02", setup02, SETUP02_ATR_PERIOD, SETUP02_ENTRY_ZONE_ATR),
+    ]
+    armed = [row for row in armed if getattr(row[1], "state", None) is SetupState.ARMED]
+    if not armed:
+        return {}
+
+    base: dict[str, Any] = {
+        "projection": ARMED_OPPORTUNITY_PROJECTION_VERSION,
+        "status": "DATA_UNAVAILABLE",
+        "setup_type": None,
+        "as_of_date": item.as_of_date.isoformat(),
+        "current_close": None,
+        "confirmation_level": None,
+        "distance_to_confirmation": None,
+        "distance_to_confirmation_pct": None,
+        "structural_invalidation": None,
+        "atr14": None,
+        "expected_entry_zone_low": None,
+        "expected_entry_zone_high": None,
+        "guidance": "数据不足，不能形成机会观察投影。",
+        "missing_reasons": (),
+        "is_trade_signal": False,
+    }
+    if len(armed) != 1:
+        base["missing_reasons"] = ("MULTIPLE_ARMED_SETUPS",)
+        return base
+
+    setup_type, snapshot, atr_period, entry_zone_atr = armed[0]
+    close = float(item.qfq_history[-1].close) if item.qfq_history else None
+    confirmation = _finite_positive(getattr(snapshot, "confirmation_level", None))
+    invalidation = _finite_positive(
+        getattr(snapshot, "structural_invalidation", None)
+    )
+    atr14 = None
+    if item.qfq_history:
+        atr_values = atr(item.qfq_history, atr_period)
+        atr14 = _finite_positive(atr_values[-1] if atr_values else None)
+
+    missing: list[str] = []
+    if close is None or not math.isfinite(close) or close <= 0:
+        close = None
+        missing.append("CURRENT_CLOSE_UNAVAILABLE")
+    if confirmation is None:
+        missing.append("CONFIRMATION_LEVEL_UNAVAILABLE")
+    if invalidation is None:
+        missing.append("STRUCTURAL_INVALIDATION_UNAVAILABLE")
+    if atr14 is None:
+        missing.append("ATR14_UNAVAILABLE")
+
+    base.update(
+        setup_type=setup_type,
+        current_close=close,
+        confirmation_level=confirmation,
+        structural_invalidation=invalidation,
+        atr14=atr14,
+        missing_reasons=tuple(missing),
+    )
+    if missing:
+        return base
+
+    distance = confirmation - close
+    base.update(
+        status="AVAILABLE",
+        distance_to_confirmation=distance,
+        distance_to_confirmation_pct=distance / close,
+        expected_entry_zone_low=confirmation,
+        expected_entry_zone_high=confirmation + entry_zone_atr * atr14,
+        guidance=(
+            "等待收盘确认；当前仅为观察，不是买入信号。确认后只观察现有入场区，"
+            "不要追价；结构失效则放弃。"
+        ),
+        missing_reasons=(),
+    )
+    return base
+
+
+def _finite_positive(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number > 0 else None
 
 
 def opportunity_freshness_funnel(
