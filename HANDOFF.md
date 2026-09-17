@@ -10,7 +10,7 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Current State
 
-- 当前分支：`codex/post-confirmation-retest-entry-causal-research-v1`，从包含 #90/#91 squash merge 的最新 main 创建；提交独立 research PR，保持 OPEN、不自动 merge。
+- 当前分支：`codex/post-confirmation-retest-entry-causal-research-v1`，从包含 #90/#91 squash merge 的最新 main 创建；独立 research PR #92 已创建，保持 OPEN、不自动 merge。
 - PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
 - PR #90 已落实用户明确的 partial-report operational exit 语义，经 full/focused tests、CI 与只读 US manual smoke 后 squash merge；main 交接已同步。
 - PR #82 完全独立，保持 OPEN；本次没有 merge/rebase/mix。其 HEAD、CI 与冲突状态实时从 GitHub 查询。
@@ -22,7 +22,7 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 - incumbent：999 CONFIRMED、8 ENTRY_ALLOWED、4 exact T+1 executed。
 - A：620 个 previously non-ENTRY_ALLOWED confirmed pending facts，新增 executable 0；其中 ABOVE_ENTRY_ZONE pending 352。
 - B：8 个 plan（7 个 previously non-ENTRY_ALLOWED，另 1 个 incumbent T+1 skip 后 retest plan），新增 executable 5；SETUP_01/02 为 4/1，CN/US 为 1/4，EARLY/LATE 为 5/0。
-- ABOVE_ENTRY_ZONE 595 个事件：B 78 个 first-close retests，7 个 plans，4 个 executable（0.672%）；其 first-retetst economic failures、T1 exhaustion、context replacement、structural invalidation、next-open gap 与 right censoring 全部守恒记录。
+- ABOVE_ENTRY_ZONE 595 个事件：B 78 个 first-close retests，7 个 plans，4 个 executable（0.672%）；其 first-retest economic failures、T1 exhaustion、context replacement、structural invalidation、next-open gap 与 right censoring 全部守恒记录。
 - 新增执行来自 5 个 symbol，每个 1 次；剔除按 count/lexicographic tie-break 的 top symbol 后仍为 4。执行 retest latency 为 3–17 sessions，中位数 6；不选择等待窗口。
 - 2,050 candidate lifecycles = 999 confirmed + 1,051 non-confirmed；confirmed 的 incumbent/A/B executed sets 去重无重叠，executed union 9 + non-executed 990 = 999；A/B terminal reasons 各守恒 999。
 - JSON/Markdown 是 compact aggregate，无 raw bars/event dump；production code 和 strategy semantics 未改。
