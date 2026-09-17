@@ -358,7 +358,7 @@
   T+1 executions；`ARMED → CONFIRMED` 为 `442/862 = 51.28%`，另有 `420` 个
   ARMED lifecycle 未确认。Decision first-fail 为 `ABOVE_ENTRY_ZONE 595/999`、
   `TARGET_UPSIDE_BELOW_MINIMUM 277/999`、`RR_BELOW_MINIMUM 100/999`，最终分类
-  `STRUCTURAL_GATE_COLLISION_OBSERVED`。该结论只支持后续研究决策，不改变
+  `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。该结论只支持后续研究决策，不改变
   confirmation、Entry Zone、5%、RR、Swing、Target 或任何 production semantics。
   固定 5% gate 的一门移除反事实新增 `ENTRY_ALLOWED=0`；RR 分解报告 stop distance、
   first-target distance、both 与 insufficient-evidence 四类。formal pool 与 live
