@@ -10,7 +10,7 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Current State
 
-- 当前分支：`codex/armed-opportunity-projection-v1`，从已 squash merge PR #92 的最新 main 创建；本分支尚待创建独立 PR。
+- 当前分支：`codex/armed-opportunity-projection-v1`，从已 squash merge PR #92 的最新 main 创建；独立 PR #93 已创建并保持 OPEN，等待 UI/产品验收，不自动 merge。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
 - PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
 - PR #90 已落实用户明确的 partial-report operational exit 语义，经 full/focused tests、CI 与只读 US manual smoke 后 squash merge；main 交接已同步。
@@ -29,7 +29,7 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 - ARMED projection / Dashboard / email / Daily Chain focused：73 tests，OK。
 - full `python -m unittest discover -s tests -v`：789 tests、3 skipped、OK。
-- `python -m py_compile` 与 `git diff --check` 通过；PR ready 前仍需提交、push、创建 PR 并实时核对 CI / mergeability。
+- `python -m py_compile` 与 `git diff --check` 通过；PR #93 final HEAD 的 CI / mergeability 以 GitHub 实时状态为准。
 - #91 focused 14/full 767，artifact full parity 与 self-hash 通过；#90 focused 79/full 777 和三项 PR CI 通过。
 - #90 一次只读 US smoke：exact XNYS 2026-09-16，PARTIAL_DATA_QUALITY 保留、workflow exit 0；220 DATA_OK、2 DATA_UNAVAILABLE，actual primary Tencent/verifier Sina；两条 unavailable QFQ 继续 blocked，未用 T-1 替代 T；final JSON/HTML 与 transport digest 核验通过，无 state/Sheets/Paper/raw writes 或 broker action。可复核 workflow 链接见 #90 PR 描述。
 
@@ -40,7 +40,7 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Next Action
 
-提交并 push 当前分支，创建独立 PR，等待 CI 后停在 UI/产品验收节点。
+等待 PR #93 CI 完成后停在 UI/产品验收节点。
 不继续扩展策略研究、参数、persistent state、Protocol 或生产 lifecycle。
 
 ## Constraints
