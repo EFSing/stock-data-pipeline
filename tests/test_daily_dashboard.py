@@ -480,7 +480,23 @@ class DailyDashboardTests(unittest.TestCase):
             "structural_invalidation": 90.0,
             "execution_stop": 95.0,
             "targets": [110.49, 125.0],
-            "target_candidates": [{"price": 110.49, "source": "CONFIRMED_SWING_HIGH"}],
+            "target_candidates": [
+                {
+                    "price": 127.2,
+                    "source": "WAVE3_FIB_EXTENSION",
+                    "provenance": [{"extension_ratio": 1.272}],
+                },
+                {
+                    "price": 110.49,
+                    "source": "CONFIRMED_SWING_HIGH",
+                    "provenance": [{
+                        "source": "CONFIRMED_SWING_HIGH",
+                        "pivot_date": "2026-09-17",
+                        "confirmed_date": "2026-09-18",
+                        "extension_ratio": 1.111,
+                    }],
+                },
+            ],
             "target_upside_pct": 0.1049,
             "minimum_target_upside_pct": 0.05,
             "entry_zone_upper_distance_pct": -0.01,
@@ -488,6 +504,16 @@ class DailyDashboardTests(unittest.TestCase):
             "target_projection": {
                 "current_effective_t1": 110.49,
                 "effective_t1_source": "CONFIRMED_SWING_HIGH",
+                "effective_t1_candidate": {
+                    "price": 110.49,
+                    "source": "CONFIRMED_SWING_HIGH",
+                    "provenance": [{
+                        "source": "CONFIRMED_SWING_HIGH",
+                        "pivot_date": "2026-09-17",
+                        "confirmed_date": "2026-09-18",
+                        "extension_ratio": 1.111,
+                    }],
+                },
                 "nearest_wave3_fib_extension": {
                     "price": 127.2,
                     "ratio": 1.272,
@@ -508,11 +534,12 @@ class DailyDashboardTests(unittest.TestCase):
             "Execution Stop（执行止损）",
             "第一目标候选 / 当前正式 T1",
             "T1 来源",
+            "T1 来源信息",
             "目标上涨空间",
             "系统最低目标上涨空间",
             "对应 T1 R/R",
             "Wave3 结构目标",
-            "Fib ratio / target provenance",
+            "Wave3 Fib ratio",
             "首个失败 Gate",
             "最终结论",
         )
@@ -524,11 +551,18 @@ class DailyDashboardTests(unittest.TestCase):
                 self.assertEqual(fields["参考价格 / 当前价格"], "100")
                 self.assertEqual(fields["第一目标候选 / 当前正式 T1"], "110.49")
                 self.assertEqual(fields["T1 来源"], "最近已确认历史阻力")
+                self.assertEqual(
+                    fields["T1 来源信息"],
+                    "枢轴日期 2026-09-17；确认日期 2026-09-18；extension ratio 1.111",
+                )
+                self.assertNotIn("1.272", fields["T1 来源信息"])
                 self.assertEqual(fields["目标上涨空间"], "10.49%")
                 self.assertEqual(fields["系统最低目标上涨空间"], "5.00%")
                 self.assertEqual(fields["对应 T1 R/R"], "0.26")
                 self.assertEqual(fields["Wave3 结构目标"], "127.2")
-                self.assertIn("ratio 1.272", fields["Fib ratio / target provenance"])
+                self.assertEqual(fields["Wave3 Fib ratio"], "1.272")
+                self.assertNotIn("2026-09-18", fields["Wave3 Fib ratio"])
+                self.assertNotIn("Fib ratio / target provenance", fields)
                 self.assertIn("R/R不足", row["decision_card"]["summary"])
                 self.assertIn("确认成功", row["decision_card"]["summary"])
                 self.assertIn("T1空间 10.49%", row["decision_card"]["summary"])
@@ -541,6 +575,7 @@ class DailyDashboardTests(unittest.TestCase):
                 card_html = rendered[start:end]
                 positions = [card_html.index(label) for label in expected_labels]
                 self.assertEqual(positions, sorted(positions))
+                self.assertNotIn("decision-summary-strip", card_html)
                 self.assertIn("这些是本次 Decision gate 的计算依据，不是买入/止盈建议。", card_html)
 
     def test_decision_card_distinguishes_no_valid_target_from_missing_data(self):
@@ -580,6 +615,8 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(missing_fields[target_label], "数据缺失")
         self.assertEqual(missing_fields["目标上涨空间"], "数据缺失")
         self.assertEqual(missing_fields["对应 T1 R/R"], "数据缺失")
+        self.assertNotIn("T1 来源信息", missing_fields)
+        self.assertNotIn("Wave3 Fib ratio", missing_fields)
 
     def test_watch_and_armed_never_invent_entry(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}

@@ -293,17 +293,21 @@ def _target_projection_display(
     overhead = _mapping(projection.get("nearest_overhead_confirmed_swing_high"))
     fib = _mapping(projection.get("nearest_wave3_fib_extension"))
     target_candidates = _sequence(decision.get("target_candidates"))
-    first_candidate = _mapping(target_candidates[0]) if target_candidates else {}
     effective_t1 = _first_value(
         projection.get("current_effective_t1"),
         target_values[0] if target_values else None,
     )
+    effective_candidate = _mapping(projection.get("effective_t1_candidate"))
+    if not effective_candidate and effective_t1 is not None:
+        effective_t1_display = _format_price(effective_t1)
+        for candidate_value in target_candidates:
+            candidate = _mapping(candidate_value)
+            if candidate and _format_price(candidate.get("price")) == effective_t1_display:
+                effective_candidate = candidate
+                break
     effective_source = projection.get("effective_t1_source")
     if effective_source is None:
-        effective_candidate = _mapping(projection.get("effective_t1_candidate"))
         effective_source = effective_candidate.get("source")
-    if effective_source is None:
-        effective_source = first_candidate.get("source")
     overhead_price = _first_value(
         overhead.get("price"),
         projection.get("nearest_overhead_confirmed_swing_high_price"),
@@ -344,23 +348,30 @@ def _target_projection_display(
             "现有最近优先规则仍把它作为当前保守第一障碍。"
         )
     provenance_labels = []
-    for item in _sequence(first_candidate.get("provenance")):
+    for item in _sequence(effective_candidate.get("provenance")):
         item = _mapping(item)
         if not item:
             continue
+        pivot_date = _text(item.get("pivot_date"))
         ratio = _numeric(item.get("extension_ratio"))
         confirmed_date = _text(item.get("confirmed_date"))
-        if ratio is not None:
-            provenance_labels.append(f"Fib ratio {_format_number(ratio, 3)}")
+        if pivot_date:
+            provenance_labels.append(f"枢轴日期 {pivot_date}")
         if confirmed_date:
             provenance_labels.append(f"确认日期 {confirmed_date}")
+        if ratio is not None:
+            provenance_labels.append(f"extension ratio {_format_number(ratio, 3)}")
+    effective_t1_provenance = "；".join(provenance_labels) or "—"
     return {
         "target_projection": dict(projection),
         "has_target_projection": bool(projection),
         "effective_t1": _format_price(effective_t1),
         "effective_t1_source": _display(effective_source),
         "effective_t1_source_label": _target_source_label(effective_source),
-        "first_target_provenance": "；".join(provenance_labels) or "—",
+        "effective_t1_provenance": effective_t1_provenance,
+        # Keep the existing projection key for internal consumers while making
+        # its scope explicit: it is the current effective T1 only.
+        "first_target_provenance": effective_t1_provenance,
         "nearest_overhead_confirmed_swing_high": _format_price(overhead_price),
         "overhead_resistance_upside_pct": _format_percent(overhead_upside),
         "nearest_wave3_fib_extension": _format_price(fib_price),
@@ -1314,12 +1325,10 @@ def _decision_card(
 
     wave3_target = plan.get("nearest_wave3_fib_extension")
     wave3_ratio = plan.get("nearest_wave3_fib_extension_ratio")
-    target_provenance = plan.get("first_target_provenance")
-    fib_provenance_parts = []
-    if _has_display_value(wave3_ratio):
-        fib_provenance_parts.append(f"ratio {_display(wave3_ratio)}")
-    if _has_display_value(target_provenance):
-        fib_provenance_parts.append(_display(target_provenance))
+    t1_source_info = plan.get(
+        "effective_t1_provenance",
+        plan.get("first_target_provenance"),
+    )
 
     final_conclusion = (
         "不交易（不追高）"
@@ -1347,16 +1356,18 @@ def _decision_card(
         (
             ("第一目标候选 / 当前正式 T1", target_value),
             ("T1 来源", target_source),
-            ("目标上涨空间", target_upside),
         )
     )
+    if _has_display_value(t1_source_info):
+        basis_fields.append(("T1 来源信息", t1_source_info))
+    basis_fields.append(("目标上涨空间", target_upside))
     if minimum_present:
         basis_fields.append(("系统最低目标上涨空间", minimum_target_upside))
     basis_fields.append(("对应 T1 R/R", t1_rr))
     if _has_display_value(wave3_target):
         basis_fields.append(("Wave3 结构目标", wave3_target))
-    if fib_provenance_parts:
-        basis_fields.append(("Fib ratio / target provenance", "；".join(fib_provenance_parts)))
+    if _has_display_value(wave3_ratio):
+        basis_fields.append(("Wave3 Fib ratio", wave3_ratio))
     basis_fields.extend(
         (
             ("首个失败 Gate", failed_gate),
@@ -1968,7 +1979,6 @@ def _render_decision_card(row: Mapping[str, Any]) -> str:
     card = _mapping(row.get("decision_card"))
     if not card.get("available"):
         return ""
-    summary = _text(card.get("summary"), "Decision 已计算")
     plan_label = "是" if card.get("has_trade_plan") else "否"
     summary_lines = (
         ("当前浪型", row.get("current_wave_label")),
@@ -1985,7 +1995,6 @@ def _render_decision_card(row: Mapping[str, Any]) -> str:
     return (
         '<section class="decision-card-panel">'
         f'<div class="decision-summary-lines">{line_html}</div>'
-        f'<div class="decision-summary-strip">{_escape(summary)}</div>'
         '<section class="decision-basis">'
         '<div class="decision-basis-heading"><h3>Decision 计算依据</h3></div>'
         + _render_field_grid(fields, extra_class="decision-basis-grid")

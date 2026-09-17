@@ -29,6 +29,7 @@ Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading 
 - 本任务已将 ARMED 的所有用户入口改为“等待确认”；确认日已计算且最终 NO_TRADE 时，Dashboard/email 首层复用既有 gate、Entry Zone 状态、T1 空间与 T1 R/R 字段；策略持仓标为“策略跟踪持仓”，Paper ledger 标为“模拟持仓”。
 - 本任务已将 Dashboard 主卡片统一为 `DAILY_REPORT_DENSE_DECISION_CARD_V1`：CN/US 共用同一固定顺序的四行摘要与 Decision 计算依据；前置 Gate、`NO_VALID_TARGET`、数据缺失分别显示，不在 renderer 中补算 Target / ATR / Entry Zone / Stop / R/R。大段波浪、机会新鲜度和开发者审计信息压缩到 secondary / collapsed detail。
 - ARMED 首层只复用现有 `armed_opportunity`（Setup、收盘价、确认价、距离、ATR14、观察区、结构失效）并明确“不是买入信号”；WATCH 不生成伪造 Decision 字段。CN/US synthetic HTML 已完成桌面与 390px 手机宽度人工检查。
+- 本次最终 presentation correction 已将当前 effective T1 的 provenance 与独立 Wave3 structural target 的 Fib ratio 分栏展示为 `T1 来源` / `T1 来源信息` / `Wave3 结构目标` / `Wave3 Fib ratio`；缺少 payload 时省略，不跨 target 交叉展示。Decision 四行摘要下方重复的 `decision-summary-strip` 已移除，Decision basis 数字与 RR rejection 保持不变。
 - Decision/RR payload 未携带可直接消费的 minimum RR；因此 Dashboard/email 只格式化实际 R/R，并以既有 `gate_reason=RR_BELOW_MINIMUM` 展示“R/R不足”，不在 presentation 层复制正式阈值。
 - 本次能力仍是 presentation/read-only only；production trading semantics unchanged，Post-confirmation Retest hypothesis remains closed，不进入 persistent/retest lifecycle。
 - Post-confirmation Retest 正式结论已同步到 CURRENT_STATUS / DECISION_LOG：逻辑可行但恢复极少且全在 EARLY，不证明 broad/time-stable improvement，不改任何现有交易语义。
@@ -36,8 +37,9 @@ Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading 
 ## Validation
 
 - 本任务 Dashboard / email / Cloud Daily Report focused：66 tests，OK。
+- 本次 presentation correction focused `tests.test_daily_dashboard`：28 tests，OK；确认 CN / US 共用 renderer contract、T1/Wave3 provenance 分离及重复 summary strip 不再输出。
 - 本任务 full `python -m unittest discover -s tests -v`：799 tests，OK。
-- 本任务 `python -m py_compile` 与 `git diff --check` 通过；CN/US synthetic HTML smoke 已覆盖 ABOVE_ENTRY_ZONE、RR_BELOW_MINIMUM、NO_VALID_TARGET、ARMED、WATCH、字段顺序与缺失语义，并完成桌面/390px 手机宽度检查。
+- 本任务 `python -m py_compile` 与 `git diff --check` 通过；CN/US synthetic HTML smoke 已覆盖 ABOVE_ENTRY_ZONE、RR_BELOW_MINIMUM、NO_VALID_TARGET、ARMED、WATCH、confirmed Swing High T1 + Wave3 Fib target provenance 分离、字段顺序与缺失语义，并重新生成验收文件。
 - PR #96 当前 HEAD 的 4 个 GitHub Actions check 均在 job 启动前失败；GitHub annotation 指向账号 billing/spending-limit 外部阻塞，没有执行任何 workflow step。该状态不表示代码测试失败，需账号/仓库 billing 恢复后再重跑 exact-head CI。
 - PR #94 合并前 4/4 GitHub checks 已通过且无冲突，随后已 squash merge；合并后的 main 状态与 CI 以 GitHub 实时状态为准。
 - PR #93 final HEAD 4/4 checks passed、无冲突并已 squash merge，merge 后 main push CI green。
@@ -52,8 +54,8 @@ Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading 
 
 ## Next Action
 
-已完成 PR #96 当前 HEAD 的 exact-head CI 核对；由于仅有外部 billing blocker，停在
-`READY_FOR_DAILY_HTML_PRODUCT_ACCEPTANCE`，等待产品验收及 CI 外部恢复后重跑；不自动 merge。
+已完成 PR #96 当前 HEAD 的 exact-head CI 核对及本次 UI presentation correction，停在
+`READY_FOR_DAILY_HTML_PRODUCT_ACCEPTANCE_FINAL`；GitHub CI 仍仅受外部 billing blocker 影响，恢复后再重跑，不自动 merge。
 
 ## Constraints
 
