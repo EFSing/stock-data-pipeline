@@ -569,6 +569,9 @@ class CloudDailyReportTests(unittest.TestCase):
         row["reasons"] = ["UPSTREAM_EVALUATION_FAILED: controlled"]
         self.assertFalse(_status_from_result(result, snapshot)[1]["operationally_complete"])
         row["reasons"] = []
+        row["position_management"] = {"status": "POSITION_MANAGEMENT_EVALUATION_FAILED"}
+        self.assertFalse(_status_from_result(result, snapshot)[1]["operationally_complete"])
+        row["position_management"] = None
         from dataclasses import replace
         stale = replace(snapshot, qfq_rows=({"统一代码": "TEST", "市场": "US", "交易日期": "2020-01-01"},))
         self.assertFalse(_status_from_result(result, stale)[1]["operationally_complete"])

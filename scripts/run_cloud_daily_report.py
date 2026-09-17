@@ -196,6 +196,9 @@ def _status_from_result(
     core_failed = any("EVALUATION_FAILED" in str(reason) or
                       "QFQ_HISTORY_MUST_REACH_COMPLETED_SESSION_T" in str(reason)
                       for row in rows for reason in row.get("reasons", ()))
+    core_failed = core_failed or any(
+        "EVALUATION_FAILED" in str((row.get("position_management") or {}).get("status", ""))
+        for row in rows)
     operationally_complete = bool(report_values) and not core_failed and bool(
         exact_rows or latest_symbols.intersection(qfq_symbols))
     quality = {
