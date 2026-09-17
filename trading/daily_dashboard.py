@@ -873,7 +873,7 @@ def _confirmation_no_trade_summary(
         fragments.append(f"T1空间 {_format_percent(target_number)}")
 
     if reason == "RR_BELOW_MINIMUM" and _numeric(first_rr) is not None:
-        fragments.append(f"R/R {_format_rr(first_rr)} < 2")
+        fragments.append(f"R/R {_format_rr(first_rr)}")
 
     rejection_labels = {
         "ABOVE_ENTRY_ZONE": "超过入场区",
@@ -890,7 +890,6 @@ def _confirmation_no_trade_summary(
             and target_number is not None
             and minimum_number is not None
         )
-        or (reason == "RR_BELOW_MINIMUM" and _numeric(first_rr) is not None)
     )
     if rejection and not detail_is_present and rejection not in fragments:
         fragments.append(rejection)
@@ -1800,7 +1799,7 @@ def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
             )
             bullets.append(
                 f"参考价格：{_display(plan.get('planned_entry'))}；第一目标候选：{_display(plan.get('target_1'))}；"
-                f"RR：{_first_rr_text(plan.get('rr'))}；最低 RR：2.00R"
+                f"RR：{_first_rr_text(plan.get('rr'))}"
             )
             if plan.get("has_target_projection"):
                 bullets.append(

@@ -33,7 +33,6 @@ _STATUS_LABELS = {
 }
 _MARKET_LABELS = {"CN": "A股", "US": "美股"}
 _PLAN_STAGES = frozenset(("ENTRY_ALLOWED", "STRATEGY_PROPOSAL"))
-_MINIMUM_RR_TEXT = "2.00R"
 _EXECUTION_COPY = {
     "EXECUTED": "T+1 开盘已通过执行检查并记录模拟成交",
     "SKIP_TARGET_UPSIDE_BELOW_MINIMUM": "T+1 剩余第一目标空间低于5%，已跳过，不追入",
@@ -387,7 +386,6 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
             f'<div style="margin:2px 0;">目标上涨空间：{_escape(plan.get("target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
-            f'<div style="margin:2px 0;">最低 RR 要求：{_MINIMUM_RR_TEXT}</div>'
             + _target_semantics_html(plan, no_trade=True)
             + '<div style="margin:7px 0 0 0;color:#687386;">说明：目标空间不足；这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
             + '</div>'
@@ -402,7 +400,6 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
             f'<div style="margin:2px 0;">目标上涨空间：{_escape(plan.get("target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
-            f'<div style="margin:2px 0;">最低 RR 要求：{_MINIMUM_RR_TEXT}</div>'
             + _target_semantics_html(plan)
             + '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
             + '</div>'

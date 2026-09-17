@@ -326,7 +326,7 @@ class DailyDashboardTests(unittest.TestCase):
                     "entry_zone_upper_distance_pct": -0.01,
                     "rr": {"rr_ratios": [0.88], "quality": "NO_TRADE"},
                 },
-                ("确认成功", "仍在入场区", "T1空间 14.26%", "R/R 0.88 < 2", "→ 不交易"),
+                ("确认成功", "仍在入场区", "T1空间 14.26%", "R/R 0.88", "R/R不足", "→ 不交易"),
             ),
             (
                 "STALE_CONFIRMATION_GEOMETRY",
@@ -369,7 +369,9 @@ class DailyDashboardTests(unittest.TestCase):
 
         row = build_dashboard_projection(payload)["rows"][0]
 
-        self.assertIn("R/R 0.88 < 2", row["waiting"])
+        self.assertIn("R/R 0.88", row["waiting"])
+        self.assertIn("R/R不足", row["waiting"])
+        self.assertNotIn("< 2", row["waiting"])
         self.assertNotIn("T1空间", row["waiting"])
         self.assertNotIn("仍在入场区", row["waiting"])
 
@@ -533,6 +535,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("目标空间不足", rendered)
         self.assertIn("0.53%", rendered)
         self.assertIn("5.00%", rendered)
+        self.assertNotIn("最低 RR", rendered)
 
     def test_near_swing_only_projection_shows_resistance_and_farther_wave3_target(self):
         payload = {

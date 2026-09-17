@@ -238,7 +238,7 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("目标上涨空间：0.53%", rendered)
         self.assertIn("系统最低要求：5.00%", rendered)
         self.assertIn("对应 RR：0.14R", rendered)
-        self.assertIn("最低 RR 要求：2.00R", rendered)
+        self.assertNotIn("最低 RR 要求", rendered)
         self.assertIn("这些是本次 Decision gate 的计算依据，不是买入/止盈建议。", rendered)
         self.assertIn("是否已有交易计划：</span>否", rendered)
         self.assertNotIn("交易计划（来自真实 Decision）", rendered)
@@ -267,7 +267,8 @@ class DailyReportEmailTests(unittest.TestCase):
             "确认成功",
             "仍在入场区",
             "T1空间 14.26%",
-            "R/R 0.88 &lt; 2",
+            "R/R 0.88",
+            "R/R不足",
             "→ 不交易",
         ):
             self.assertIn(fragment, rendered)
