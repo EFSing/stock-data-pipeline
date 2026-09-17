@@ -662,3 +662,21 @@ T→T+1 semantics 全部保持不变。
 
 **Reason:** 小量、时间分布不稳定的 Development 恢复不能支持生产架构扩张，也不能
 证明现有 Entry Zone 错误；保留负结果比继续在同一数据上搜索 waiting 参数更可靠。
+
+## 2026-09-17 — ARMED opportunity projection presentation boundary
+
+**Decision:** `ARMED_OPPORTUNITY_PROJECTION_V1` 已随 PR #93 进入 `main`。它是
+presentation/read-only only：Dashboard/email 可以展示当前 ARMED as-of 的 close、确认价、
+距离、structural invalidation、ATR14 与按当前 ATR/现有正式 multiplier 形成的预计入场区，
+但必须明确“当前仅为观察，不是买入信号”。未来若形成正式 `CONFIRMED`，以确认日正式
+Decision 重新计算为准；确认时超过正式 Entry Zone 继续不追价、`NO_TRADE`，不等待后续回踩
+补入，不创建 persistent/retest lifecycle；结构失效则放弃。
+
+该 presentation boundary 不改变任何 calculation、排序、strategy threshold、Entry Zone、
+Decision、T→T+1、Paper 或 production trading semantics。`POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1`
+remains closed；下一阶段优先观察真实 prospective Cloud Daily Reports /
+Paper 数据，不自动启动新的 strategy threshold research。
+
+**Reason:** ARMED projection 的价值是让无 `ENTRY_ALLOWED` 的日报仍可读，同时避免把当前
+ATR estimate 误读为正式买入区，或把已关闭的 confirmed→wait-for-retest hypothesis 误读为
+生产 lifecycle。

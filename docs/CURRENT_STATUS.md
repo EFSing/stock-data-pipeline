@@ -5,7 +5,7 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-17（Post-confirmation Retest hypothesis 已关闭；
-> ARMED Opportunity Projection V1 进入独立产品验收）。
+> ARMED Opportunity Projection V1 已进入 main，下一阶段观察真实 prospective Cloud/Paper 数据）。
 
 ## 项目身份
 
@@ -216,11 +216,14 @@
   new CONFIRMED 的 primary reason 统计 `ABOVE_ENTRY_ZONE`、目标空间不足、RR
   不足、其他 NO_TRADE、仍可交易，并统计可见 T+1 gap/空间衰减 skip；不使用事后
   最低点或 future bars。
-- `ARMED_OPPORTUNITY_PROJECTION_V1` 在 `daily_decision_chain` 内对当前 ARMED
-  SETUP_01/02 暴露只读 causal context：当前 close、confirmation level、距确认绝对值/
-  百分比、structural invalidation、ATR14 与按现有正式 multiplier 得到的预期 Entry Zone。
-  缺字段时 fail closed 并给出原因；它不产生 Decision、event、plan、Paper/state write、
-  ranking 或交易 gate。
+- `ARMED_OPPORTUNITY_PROJECTION_V1` 已随 PR #93 squash merge 进入 main；它在
+  `daily_decision_chain` 内对当前 ARMED SETUP_01/02 暴露只读 causal context：当前 close、
+  confirmation level、距确认绝对值/百分比、structural invalidation、ATR14 与按现有正式
+  multiplier 得到的预期 Entry Zone。该 Entry Zone 是按当前 ARMED as-of ATR 的 read-only
+  estimate，仅供观察；正式确认时以确认日 Decision 重新计算为准，确认时超过正式区则不追价、
+  不等待后续回踩补入，结构失效则放弃。缺字段时 fail closed 并给出原因；它不产生
+  Decision、event、plan、Paper/state write、ranking 或交易 gate，production trading semantics
+  unchanged。
  - `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
    它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
    enum/protocol/交易语义。首页默认是“今日重点”，只展示 ENTRY_ALLOWED、
@@ -287,14 +290,19 @@
   确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。
 - Dashboard / email 复用上述 ARMED projection 展示“机会观察”，明确标记“观察中，
   不是买入信号”；交易方案保持优先，ARMED 仅按距确认百分比绝对值作展示排序，
-  renderer 不计算 ATR/Entry Zone 等策略公式。邮件只展示有限重点项，完整列表保留在
-  Dashboard；已 CONFIRMED 的 NO_TRADE 继续显示原 Decision 拒绝原因。
+  renderer 不计算 ATR/Entry Zone 等策略公式；Entry Zone 标为“预计入场区（按当前 ATR，仅供
+  观察）”，并明确未来以确认日 Decision 为准、超过正式区不追价且不等待回踩补入。邮件只
+  展示有限重点项，完整列表保留在 Dashboard；已 CONFIRMED 的 NO_TRADE 继续显示原 Decision
+  拒绝原因。该能力为 presentation/read-only only，不改变 production trading semantics。
 - CN/US live smoke 已通过，且 production state、paper ledger、broker order 与 raw/QFQ
   persistence 均为零；final artifact allowlist 已通过。旧 `asia-close` / `us-close`
   scheduled writer 已移除，仅保留原有 `workflow_dispatch`、latest/full 手工维护能力、
   Google Sheets credentials contract 与 legacy 手工逻辑；自动调度只由 CN/US Cloud
   Daily Report 承担，避免两套定时路径并行。Bark/SMTP 仍为可选通知，当前
   `NOT_CONFIGURED`。
+- 下一阶段优先观察真实 prospective Cloud Daily Reports / Paper 数据的正常 production
+  runs；这些 observational acceptance 不自动启动新的 strategy threshold research，也不
+  打开已关闭的 post-confirmation retest lifecycle。
  - Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
    空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
    最低要求及可用的 RR 诊断。SETUP_01 target projection 额外把“保守第一障碍
