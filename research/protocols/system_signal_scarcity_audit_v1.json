@@ -6,7 +6,9 @@
     "Is the observed low frequency structurally justified by independent safety/economic constraints?",
     "Do multiple gates repeat the same target/entry geometry?",
     "Do upstream Wave/Setup/confirmation stages or downstream target/RR stages dominate signal loss?",
-    "Is the recent daily-report observation distinguishable from long-run Development evidence?"
+    "Is the recent daily-report observation distinguishable from long-run Development evidence?",
+    "How much causal opportunity space is consumed from ARMED to CONFIRMED, including latency, price/ATR movement, and structural target headroom?",
+    "Does confirmation-close-above-trigger structurally collide with the unchanged confirmation-to-confirmation-plus-0.5-ATR Entry Zone, and what is the marginal contribution of the unchanged 5% target-upside gate?"
   ],
   "population": {
     "dataset_role": "PRIMARY_DEVELOPMENT_ATTRIBUTION_DATASET",
@@ -18,7 +20,13 @@
     "markets": ["CN", "US"],
     "candidate_universe_semantics": "The frozen holdout roster is the fixed Development audit input. The live Candidate selector is not re-run and no post-outcome universe replacement is permitted.",
     "history_sufficient_minimum_bars": 60,
-    "time_half_definition": "Within each market, EARLY/LATE is split at the midpoint of the sorted union of observed frozen session dates; this is descriptive only."
+    "time_half_definition": "Within each market, EARLY/LATE is split at the midpoint of the sorted union of observed frozen session dates; this is descriptive only.",
+    "provenance_scopes": [
+      "FORMAL_STRATEGY_POOL",
+      "DYNAMIC_CANDIDATE",
+      "DEVELOPMENT_HOLDOUT_CANDIDATE"
+    ],
+    "provenance_comparison_rule": "Formal and live dynamic Candidate rows are not synthesized from the frozen holdout. Zero rows for those scopes are reported as not represented, not as zero production signal rate."
   },
   "production_semantics": {
     "setup_types": ["SETUP_01", "SETUP_02"],
@@ -117,6 +125,13 @@
     "confirmation_reference": "research/development/pre_confirmation_early_entry_causal_research_v1.json",
     "confirmation_constraint": "The four fixed pre-confirmation policies in PR #89 had eventual FAILED + never-CONFIRMED shares of approximately 59.9% to 76.4%; this is a safety boundary, not a production rule."
   },
+  "requested_diagnostics": {
+    "armed_to_confirmed": "For each causal confirmed event, anchor on the first ARMED day in the same lifecycle and report session latency, close movement, ATR-normalized movement, and headroom to the existing structural extension targets. Report direct confirmations without an observed ARMED row separately.",
+    "confirmation_entry_zone": "For every confirmed event with valid existing Decision geometry, report confirmation-day close relative to the unchanged Entry Zone upper bound in raw percentage and ATR units, plus ABOVE_ENTRY_ZONE rate.",
+    "rr_components": "For RR_BELOW_MINIMUM events, use fixed counterfactual labels for unchanged structural invalidation versus existing execution stop and first versus next existing formal target. Labels are descriptive attribution, not independent production gates.",
+    "target_upside_gate": "Report first-fail and one-gate-ablation counts for the unchanged 5% target-upside gate, retaining Target-before-RR and exact T+1 semantics.",
+    "dashboard_armed_contract": "Audit whether causal trigger, current close distance, expected Entry Zone, structural invalidation, and setup type are exposed to the ARMED Dashboard result; propose only a minimum result-contract/presentation fix."
+  },
   "architecture_classification": {
     "safety_validity_hard_gate": true,
     "economic_hard_gate": true,
@@ -143,7 +158,7 @@
     "return, P&L, MFE, MAE, win-rate, expectancy, Sharpe, or optimized performance metrics"
   ],
   "integrity": {
-    "protocol_sha256": "sha256:999588092e14c90f41c618124cdd1378f1064edcaf6a99aad384cccd7bb80124",
+    "protocol_sha256": "sha256:c42dc3f675d2c6beaa3f2699e912bdfd0bb52928781be8244b9052179820ccfe",
     "hash_scope": "canonical JSON with integrity.protocol_sha256=null"
   },
   "required_status": "READY_FOR_DECISION"

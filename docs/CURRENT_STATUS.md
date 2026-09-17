@@ -372,7 +372,8 @@
   executable，且全部集中 EARLY，不证明 broad/time-stable improvement，不进入 production
   design，也不单独 fresh validation。confirmation、Entry Zone、ATR multiplier、5%、2R、
   Swing、Wave、Target、Stop 与 T→T+1 均不变；除非未来出现新的独立证据，不重复启动
-  同类 retest 参数研究。父审计分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。
+  同类 retest 参数研究。父审计的当前确定性分类为 `STRUCTURAL_GATE_COLLISION_OBSERVED`；
+  PR #91 已合并，后续 follow-up 只补齐研究 artifact contract，不改变策略。
 
 - Candidate Universe：已接入人工触发的 production Daily Decision Chain V1；动态
   Candidate-only 仍是 discovery-only，进入正式生命周期必须人工加入
@@ -384,12 +385,15 @@
   holdout 的 SETUP_01/SETUP_02 causal replay，覆盖 symbol-session、candidate
   lifecycle、CONFIRMED、Decision、exact T+1 OPEN、first-fail、all-fail overlap、
   one-gate ablation、CN/US/time-half frequency、concentration 与 architecture
-  classification。结果为 `86,305` symbol-sessions、`2,050` candidate lifecycles、
+  classification；artifact 另保留 ARMED→CONFIRMED latency/price/ATR/headroom、
+  confirmation-close Entry Zone overshoot、RR component attribution、5% gate
+  marginal contribution 与 formal/dynamic/holdout provenance 分层。结果为
+  `86,305` symbol-sessions、`2,050` candidate lifecycles、
   `1,004 WATCH`、`862 ARMED`、`999 CONFIRMED`、`8 ENTRY_ALLOWED`、`4` exact
   T+1 executions；`ARMED → CONFIRMED` 为 `442/862 = 51.28%`，另有 `420` 个
   ARMED lifecycle 未确认。Decision first-fail 为 `ABOVE_ENTRY_ZONE 595/999`、
   `TARGET_UPSIDE_BELOW_MINIMUM 277/999`、`RR_BELOW_MINIMUM 100/999`，最终分类
-  `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。该结论只支持后续研究决策，不改变
+  `STRUCTURAL_GATE_COLLISION_OBSERVED`。该结论只支持后续研究决策，不改变
   confirmation、Entry Zone、5%、RR、Swing、Target 或任何 production semantics。
   固定 5% gate 的一门移除反事实新增 `ENTRY_ALLOWED=0`；RR 分解报告 stop distance、
   first-target distance、both 与 insufficient-evidence 四类。formal pool 与 live

@@ -1305,15 +1305,6 @@ def _confirmation_metric_summary(entries: Sequence[Mapping[str, Any]]) -> dict[s
             "price_move": confirmed - stats("price_move")["count"],
             "price_move_atr_normalized": confirmed - stats("price_move_atr")["count"],
         },
-        "definitions": {
-            "armed_anchor": "first causal replay day in the confirmed lifecycle whose state is ARMED",
-            "latency_sessions": "symbol-local replay index difference from first ARMED day to first CONFIRMED event day",
-            "price_move": "confirmation-day close minus first-ARMED-day close",
-            "price_move_atr_normalized": "price_move divided by ATR14 calculated on the prefix ending at first ARMED day",
-            "headroom": "canonical existing extension target from the first ARMED structure minus confirmation-day close; negative means target already passed",
-            "headroom_atr_normalized": "headroom divided by confirmation-day causal ATR14 from the existing Decision geometry",
-            "consumed_fraction": "(confirmation close - ARMED close) / (extension target - ARMED close); descriptive and not a gate",
-        },
     }
 
 
@@ -1392,6 +1383,15 @@ def _confirmation_diagnostics(
         "by_provenance": {
             provenance: scoped(provenance=provenance) for provenance in PROVENANCES
         },
+        "definitions": {
+            "armed_anchor": "first causal replay day in the confirmed lifecycle whose state is ARMED",
+            "latency_sessions": "symbol-local replay index difference from first ARMED day to first CONFIRMED event day",
+            "price_move": "confirmation-day close minus first-ARMED-day close",
+            "price_move_atr_normalized": "price_move divided by ATR14 calculated on the prefix ending at first ARMED day",
+            "headroom": "canonical existing extension target from the first ARMED structure minus confirmation-day close; negative means target already passed",
+            "headroom_atr_normalized": "headroom divided by confirmation-day causal ATR14 from the existing Decision geometry",
+            "consumed_fraction": "(confirmation close - ARMED close) / (extension target - ARMED close); descriptive and not a gate",
+        },
     }
 
 
@@ -1408,12 +1408,6 @@ def _entry_zone_metric_summary(entries: Sequence[Mapping[str, Any]]) -> dict[str
         "above_entry_zone_rate_of_valid_geometry_pct": _round(_rate(above, len(valid), 100.0)),
         "overshoot_pct_vs_upper": _distribution(entry.get("overshoot_pct") for entry in valid),
         "overshoot_atr_normalized": _distribution(entry.get("overshoot_atr") for entry in valid),
-        "definitions": {
-            "entry_zone_upper": "confirmation_level + existing 0.5 * ATR14; no rule was changed",
-            "overshoot_pct_vs_upper": "(confirmation-day close - Entry Zone upper) / Entry Zone upper; positive means above upper",
-            "overshoot_atr_normalized": "(confirmation-day close - Entry Zone upper) / confirmation-day ATR14",
-            "above_entry_zone": "the existing strict production predicate planned_entry > entry_zone_high",
-        },
     }
 
 
@@ -1467,6 +1461,12 @@ def _entry_zone_diagnostics(
         "by_market": {market: scoped(market=market) for market in ("CN", "US")},
         "by_provenance": {
             provenance: scoped(provenance=provenance) for provenance in PROVENANCES
+        },
+        "definitions": {
+            "entry_zone_upper": "confirmation_level + existing 0.5 * ATR14; no rule was changed",
+            "overshoot_pct_vs_upper": "(confirmation-day close - Entry Zone upper) / Entry Zone upper; positive means above upper",
+            "overshoot_atr_normalized": "(confirmation-day close - Entry Zone upper) / confirmation-day ATR14",
+            "above_entry_zone": "the existing strict production predicate planned_entry > entry_zone_high",
         },
     }
 
@@ -2399,58 +2399,31 @@ def _final_classification(
     )
 
     if not records or not lifecycles:
-        classification = "G"
-        classification_name = "INSUFFICIENT_EVIDENCE"
+        classification = "INSUFFICIENT_EVIDENCE"
+        classification_name = classification
         reason = "The frozen replay did not produce enough lifecycle and Decision events for attribution."
-    elif confirmation_loss_rate is not None and confirmation_loss_rate >= 0.50 and downstream_recovery:
-        classification = "F"
-        classification_name = "MIXED_ARCHITECTURE_SIGNAL_STARVATION"
-        recovered = ", ".join(
-            f"{gate}=+{value} ENTRY_ALLOWED"
-            for gate, value in downstream_increment.items()
-            if value > 0
-        )
+    elif above_rate is not None and above_rate >= 0.50:
+        classification = "STRUCTURAL_GATE_COLLISION_OBSERVED"
+        classification_name = classification
         reason = (
-            f"The fixed PR #89 incumbent reference leaves {confirmation_not_signaled} of "
-            f"{confirmation_cohort} confirmation cohorts not signaled ({confirmation_loss_rate * 100:.2f}%), "
-            f"while unchanged downstream one-gate counterfactuals recover {recovered}. "
-            "Both upstream confirmation and downstream gates make material independent contributions; this is a research classification, not production authorization."
+            f"{above} of {confirmed_count} confirmed events ({above_rate * 100:.2f}%) "
+            "were already above the unchanged Entry Zone upper bound on the confirmation close. "
+            "This recurring confirmation/Entry Zone interaction is a structural collision observation, "
+            "not a recommendation to change either rule."
         )
-    elif confirmation_loss_rate is not None and confirmation_loss_rate >= 0.50:
-        classification = "C"
-        classification_name = "CONFIRMATION_DOMINATES_SIGNAL_STARVATION"
+    elif provenance.get("comparison_status") == "INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE":
+        classification = "INSUFFICIENT_EVIDENCE"
+        classification_name = classification
         reason = (
-            f"The fixed PR #89 incumbent reference leaves {confirmation_not_signaled} of "
-            f"{confirmation_cohort} confirmation cohorts not signaled ({confirmation_loss_rate * 100:.2f}%), "
-            "and no downstream one-gate counterfactual recovers an ENTRY_ALLOWED event."
-        )
-    elif downstream_recovery and post_confirmation_not_allowed_rate is not None and post_confirmation_not_allowed_rate >= 0.80:
-        classification = "D"
-        classification_name = "TARGET_RR_GEOMETRY_DOMINATES_SIGNAL_STARVATION"
-        reason = (
-            f"Post-confirmation Decision gates reject {post_confirmation_not_allowed_rate * 100:.2f}% of confirmed events, "
-            "and at least one downstream geometry ablation produces incremental ENTRY_ALLOWED events."
-        )
-    elif lifecycle_not_confirmed_rate is not None and lifecycle_not_confirmed_rate >= 0.50 and not downstream_recovery:
-        classification = "E"
-        classification_name = "UPSTREAM_WAVE_SETUP_SCARCITY_DOMINATES"
-        reason = (
-            f"{lifecycle_not_confirmed_rate * 100:.2f}% of candidate lifecycles do not reach CONFIRMED, "
-            "while downstream one-gate counterfactuals provide no independent recovery."
-        )
-    elif strongest_jaccard is not None and strongest_jaccard >= 0.80:
-        classification = "B"
-        classification_name = "REDUNDANT_HARD_GATES_CAUSE_SIGNAL_STARVATION"
-        reason = (
-            f"The strongest all-fail gate pair has Jaccard overlap {strongest_jaccard:.4f}, "
-            "indicating substantial redundant hard-gate rejection."
+            "The frozen replay supports internal funnel attribution, but its population cannot support "
+            "a formal-strategy-pool versus live-Candidate comparison."
         )
     else:
-        classification = "A"
-        classification_name = "CURRENT_LOW_FREQUENCY_IS_STRUCTURALLY_JUSTIFIED"
+        classification = "SYSTEM_WORKING_AS_DESIGNED_BUT_SIGNAL_SPARSE"
+        classification_name = classification
         reason = (
-            "The replay does not show a dominant confirmation bottleneck, downstream geometry recovery, "
-            "upstream lifecycle scarcity, or high-overlap redundant gate pair."
+            "The replay does not show a recurring confirmation/Entry Zone collision at the audit threshold; "
+            "the observed low frequency is attributable to the unchanged causal validity and economic gates."
         )
 
     return {
@@ -2787,7 +2760,28 @@ def _render_markdown(payload: Mapping[str, Any]) -> str:
     for key, value in payload["validation"].items():
         if isinstance(value, (bool, int, str)):
             lines.append(f"- validation `{key}`: `{value}`")
-    lines.extend(["", "## 12. Remaining boundary", "", "- No production gate, threshold, Entry Zone, confirmation, Fib, Swing, Wave, depth band, state path, Sheets path, or broker path was changed.", "- If a follow-up is approved, it must be a new protocol. Depending on the evidence, the safe next study is hard-gate-vs-ranking architecture research or fresh-validation Early Entry; no same-dataset unbounded filter search is authorized.", "", f"`{payload['status']}`", ""])
+    lines.extend(["", "## 12. Remaining boundary", "", "- No production gate, threshold, Entry Zone, confirmation, Fib, Swing, Wave, depth band, state path, Sheets path, or broker path was changed.", "- If a follow-up is approved, it must be a new protocol. Depending on the evidence, the safe next study is presentation-only ARMED context, hard-gate-vs-ranking architecture research, or fresh-validation Early Entry; no same-dataset unbounded filter search is authorized.", "", f"`{payload['status']}`", ""])
+    lines.extend(["", "## 13. Complete diagnostic funnel", "", "### Top three bottlenecks", "", "| node | count | denominator | rate | unit |", "|---|---:|---:|---:|---|"])
+    for row in payload.get("top_bottlenecks", []):
+        lines.append(f"| {row['node']} | {row['count']} | {row['denominator']} | {pct(row['rate_pct'])} | {row['unit']} |")
+    lines.extend(["", "### Funnel by provenance", "", "| setup/scope | candidate lifecycles | WATCH | ARMED | CONFIRMED | Decision calculable | NO_TRADE | ENTRY_ALLOWED | T+1 attempts | EXECUTED |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"])
+    for setup in SETUPS:
+        for provenance in PROVENANCES:
+            row = payload["funnel"][setup]["by_provenance"][provenance]
+            lines.append(f"| {setup}/{provenance} | {row['candidate_lifecycles']} | {row['lifecycles_with_watch']} | {row['lifecycles_with_armed']} | {row['confirmed_events']} | {row['decision_calculable']} | {row['no_trade']} | {row['entry_allowed']} | {row['t1_execution_attempts']} | {row['executed']} |")
+    lines.extend(["", "### ARMED → CONFIRMED", "", "| setup/scope | ARMED lifecycles | confirmed with ARMED | ARMED without CONFIRMED | transition rate | latency median/p90 | close move % median/p90 | move ATR median/p90 | 1.272 headroom % median/p90 |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|"])
+    for setup in (SETUP01, SETUP02, "aggregate"):
+        row = payload["confirmation_diagnostics"][setup]["total"]
+        headroom = row.get("headroom_at_confirmation_by_extension_ratio", {}).get("1.272", {})
+        lines.append(f"| {setup} | {fmt(row.get('armed_lifecycles'))} | {fmt(row.get('confirmed_with_armed'))} | {fmt(row.get('armed_without_confirmed'))} | {pct(row.get('armed_to_confirmed_rate_pct'))} | {dist(row.get('latency_sessions'))}/{dist(row.get('latency_sessions'), 'p90')} | {dist(row.get('price_move_pct'))}/{dist(row.get('price_move_pct'), 'p90')} | {dist(row.get('price_move_atr_normalized'))}/{dist(row.get('price_move_atr_normalized'), 'p90')} | {dist(headroom.get('pct', {}))}/{dist(headroom.get('pct', {}), 'p90')} |")
+    lines.append("- The ARMED transition table is a lifecycle diagnostic. Direct CONFIRMED events without an observed ARMED row are reported separately and are not silently forced into the transition denominator.")
+    lines.extend(["", "### CONFIRMED → Entry Zone and RR", "", "| setup/scope | confirmed | valid Entry Zone geometry | above upper | above-upper rate | overshoot % median/p90 | overshoot ATR median/p90 | RR failures | stop-too-large | target-too-close | both | insufficient evidence |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"])
+    for setup in (SETUP01, SETUP02, "aggregate"):
+        entry = payload["entry_zone_diagnostics"][setup]["total"]
+        rr = payload["rr_diagnostics"][setup]["total"]
+        categories = rr.get("component_category_counts", {})
+        lines.append(f"| {setup} | {fmt(entry.get('confirmed_events'))} | {fmt(entry.get('valid_entry_zone_geometry_events'))} | {fmt(entry.get('above_entry_zone_events'))} | {pct(entry.get('above_entry_zone_rate_of_confirmed_pct'))} | {dist(entry.get('overshoot_pct_vs_upper'))}/{dist(entry.get('overshoot_pct_vs_upper'), 'p90')} | {dist(entry.get('overshoot_atr_normalized'))}/{dist(entry.get('overshoot_atr_normalized'), 'p90')} | {fmt(rr.get('rr_below_minimum_events'))} | {fmt(categories.get('EXECUTION_STOP_DISTANCE_TOO_LARGE', 0))} | {fmt(categories.get('FIRST_FORMAL_TARGET_DISTANCE_TOO_CLOSE', 0))} | {fmt(categories.get('BOTH_STOP_AND_TARGET_DISTANCE', 0))} | {fmt(categories.get('INSUFFICIENT_COMPONENT_EVIDENCE', 0))} |")
+    lines.extend(["", "### 5% target-upside contribution", "", f"- New 5% gate first-fail events: `{payload['target_upside_gate_contribution']['events_stopped_at_new_5pct_gate']}` / `{payload['target_upside_gate_contribution']['confirmed_denominator']}` ({pct(payload['target_upside_gate_contribution']['events_stopped_at_new_5pct_gate_rate_pct'])}).", f"- One-gate removal with all other rules fixed: `+{payload['target_upside_gate_contribution']['one_gate_counterfactual_incremental_entry_allowed']}` `ENTRY_ALLOWED`, `+{payload['target_upside_gate_contribution']['one_gate_counterfactual_incremental_t1_executable']}` executable T+1 events.", "- This is marginal accounting only; it does not select a replacement threshold.", "", "### Dashboard ARMED contract", "", f"- {payload['dashboard_contract_audit']['contract_gap']}", f"- Minimum follow-up location: `{payload['dashboard_contract_audit']['minimum_follow_up_fix']['correct_location']}`.", f"- Required fields: {', '.join(payload['dashboard_contract_audit']['minimum_follow_up_fix']['fields'])}.", ""])
     return "\n".join(lines)
 
 
@@ -2902,19 +2896,62 @@ def run_audit(
         SETUP02: _first_fail_attribution(lifecycles02, records02),
         "aggregate_confirmed_decision": _first_fail_attribution(all_lifecycles, all_records)["confirmed_decision_unit"],
     }
+    confirmation_diagnostics = {
+        SETUP01: _confirmation_diagnostics(
+            SETUP01,
+            {SETUP01: reports01},
+            lifecycles01,
+            records01,
+            quotes_by_symbol,
+            half_map,
+        ),
+        SETUP02: _confirmation_diagnostics(
+            SETUP02,
+            {SETUP02: reports02},
+            lifecycles02,
+            records02,
+            quotes_by_symbol,
+            half_map,
+        ),
+        "aggregate": _confirmation_diagnostics(
+            "AGGREGATE",
+            {SETUP01: reports01, SETUP02: reports02},
+            all_lifecycles,
+            all_records,
+            quotes_by_symbol,
+            half_map,
+        ),
+    }
+    entry_zone_diagnostics = {
+        SETUP01: _entry_zone_diagnostics(records01, half_map),
+        SETUP02: _entry_zone_diagnostics(records02, half_map),
+        "aggregate": _entry_zone_diagnostics(all_records, half_map),
+    }
+    rr_diagnostics = {
+        SETUP01: _rr_diagnostics(records01, half_map),
+        SETUP02: _rr_diagnostics(records02, half_map),
+        "aggregate": _rr_diagnostics(all_records, half_map),
+    }
+    target_upside_contribution = _target_upside_gate_contribution(
+        all_records,
+        overlap_all,
+        ablation,
+    )
     provenance = _provenance_summary(observations, lifecycles_by_setup, records_by_setup)
     architecture = _architecture_classification(overlap_all)
     frequency = _frequency_context(observations, records_by_setup, lifecycles_by_setup, half_map)
-    entry_zone_row = next(
-        (row for row in overlap_all["gate_rows"] if row["gate"] == "ABOVE_ENTRY_ZONE"),
-        {"raw_rejection_count": 0},
+    dashboard_contract = _dashboard_contract_audit()
+    bottlenecks = _top_bottlenecks(
+        all_lifecycles,
+        all_records,
+        first_fail["aggregate_confirmed_decision"],
     )
     decision = _final_classification(
         all_records,
         all_lifecycles,
         ablation,
         overlap_all,
-        {"total": {"above_entry_zone_events": entry_zone_row["raw_rejection_count"]}},
+        entry_zone_diagnostics["aggregate"],
         provenance,
     )
     recent_live = _recent_live_context(reports_root)
@@ -2995,6 +3032,13 @@ def run_audit(
             "highest_overlaps": overlap_all["pairwise_overlap"][:5],
         },
         "single_gate_ablation": ablation,
+        "confirmation_diagnostics": confirmation_diagnostics,
+        "entry_zone_diagnostics": entry_zone_diagnostics,
+        "rr_diagnostics": rr_diagnostics,
+        "target_upside_gate_contribution": target_upside_contribution,
+        "provenance": provenance,
+        "top_bottlenecks": bottlenecks,
+        "dashboard_contract_audit": dashboard_contract,
         "frequency": frequency,
         "architecture_classification": architecture,
         "decision": decision,

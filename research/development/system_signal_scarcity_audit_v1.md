@@ -5,8 +5,8 @@
 
 ## 1. 结论
 
-- 最终分类：`F` — `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。
-- 证据摘要：The fixed PR #89 incumbent reference leaves 1509 of 2254 confirmation cohorts not signaled (66.95%), while unchanged downstream one-gate counterfactuals recover RR_BELOW_MINIMUM=+100 ENTRY_ALLOWED, FORMAL_T1_CONFIRMED_SWING_HIGH=+14 ENTRY_ALLOWED, ENTRY_ZONE=+6 ENTRY_ALLOWED. Both upstream confirmation and downstream gates make material independent contributions; this is a research classification, not production authorization.
+- 最终分类：`STRUCTURAL_GATE_COLLISION_OBSERVED` — `STRUCTURAL_GATE_COLLISION_OBSERVED`。
+- 证据摘要：595 of 999 confirmed events (59.56%) were already above the unchanged Entry Zone upper bound on the confirmation close. This recurring confirmation/Entry Zone interaction is a structural collision observation, not a recommendation to change either rule.
 - 研究状态：`READY_FOR_DECISION`。
 - Confirmation ablation 仅为理论 signal-loss accounting；不得把 pre-confirmation rows 当作合法 `ENTRY_ALLOWED`。
 
@@ -177,6 +177,57 @@ Symbol concentration is retained in JSON under `frequency`; it is descriptive, n
 ## 12. Remaining boundary
 
 - No production gate, threshold, Entry Zone, confirmation, Fib, Swing, Wave, depth band, state path, Sheets path, or broker path was changed.
-- If a follow-up is approved, it must be a new protocol. Depending on the evidence, the safe next study is hard-gate-vs-ranking architecture research or fresh-validation Early Entry; no same-dataset unbounded filter search is authorized.
+- If a follow-up is approved, it must be a new protocol. Depending on the evidence, the safe next study is presentation-only ARMED context, hard-gate-vs-ranking architecture research, or fresh-validation Early Entry; no same-dataset unbounded filter search is authorized.
 
 `READY_FOR_DECISION`
+
+
+## 13. Complete diagnostic funnel
+
+### Top three bottlenecks
+
+| node | count | denominator | rate | unit |
+|---|---:|---:|---:|---|
+| CANDIDATE_LIFECYCLE_NOT_CONFIRMED | 1051 | 2050 | 51.27% | candidate lifecycle |
+| CONFIRMED_TO_ABOVE_ENTRY_ZONE | 595 | 999 | 59.56% | confirmed event |
+| CONFIRMED_TO_TARGET_UPSIDE_BELOW_MINIMUM | 277 | 999 | 27.73% | confirmed event |
+
+### Funnel by provenance
+
+| setup/scope | candidate lifecycles | WATCH | ARMED | CONFIRMED | Decision calculable | NO_TRADE | ENTRY_ALLOWED | T+1 attempts | EXECUTED |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| SETUP_01/FORMAL_STRATEGY_POOL | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| SETUP_01/DYNAMIC_CANDIDATE | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| SETUP_01/DEVELOPMENT_HOLDOUT_CANDIDATE | 1503 | 680 | 566 | 745 | 745 | 740 | 5 | 5 | 4 |
+| SETUP_02/FORMAL_STRATEGY_POOL | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| SETUP_02/DYNAMIC_CANDIDATE | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| SETUP_02/DEVELOPMENT_HOLDOUT_CANDIDATE | 547 | 324 | 296 | 254 | 254 | 251 | 3 | 3 | 0 |
+
+### ARMED → CONFIRMED
+
+| setup/scope | ARMED lifecycles | confirmed with ARMED | ARMED without CONFIRMED | transition rate | latency median/p90 | close move % median/p90 | move ATR median/p90 | 1.272 headroom % median/p90 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| SETUP_01 | 566 | 299 | 267 | 52.83% | 3.000/10.000 | 0.037/0.086 | 1.262/2.507 | 0.066/0.201 |
+| SETUP_02 | 296 | 143 | 153 | 48.31% | 4.000/10.000 | 0.052/0.125 | 1.617/3.039 | 0.002/0.119 |
+| aggregate | 862 | 442 | 420 | 51.28% | 3.000/10.000 | 0.040/0.097 | 1.370/2.794 | 0.056/0.185 |
+- The ARMED transition table is a lifecycle diagnostic. Direct CONFIRMED events without an observed ARMED row are reported separately and are not silently forced into the transition denominator.
+
+### CONFIRMED → Entry Zone and RR
+
+| setup/scope | confirmed | valid Entry Zone geometry | above upper | above-upper rate | overshoot % median/p90 | overshoot ATR median/p90 | RR failures | stop-too-large | target-too-close | both | insufficient evidence |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| SETUP_01 | 745 | 745 | 464 | 62.28% | 0.007/0.124 | 0.272/2.960 | 718 | 7 | 22 | 11 | 678 |
+| SETUP_02 | 254 | 240 | 131 | 51.57% | 0.002/0.043 | 0.075/1.205 | 224 | 0 | 4 | 3 | 217 |
+| aggregate | 999 | 985 | 595 | 59.56% | 0.006/0.101 | 0.219/2.684 | 942 | 7 | 26 | 14 | 895 |
+
+### 5% target-upside contribution
+
+- New 5% gate first-fail events: `277` / `999` (27.73%).
+- One-gate removal with all other rules fixed: `+0` `ENTRY_ALLOWED`, `+0` executable T+1 events.
+- This is marginal accounting only; it does not select a replacement threshold.
+
+### Dashboard ARMED contract
+
+- The underlying structural evaluator has trigger and invalidation, but DailyDecisionResult does not carry the current ARMED snapshot/close/ATR projection. Therefore the missing ARMED values are a result-contract gap plus presentation gap, not evidence that the structural evaluator lacks causal inputs.
+- Minimum follow-up location: `daily_decision_chain read-only result projection, reusing a shared causal pre-confirmation/Entry Zone projection helper from the existing setup Decision layer`.
+- Required fields: setup_type, current_close, confirmation_trigger_price, distance_to_trigger, distance_to_trigger_pct, expected_entry_zone_low, expected_entry_zone_high, structural_invalidation, atr14_as_of_current_close.

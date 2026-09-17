@@ -13,22 +13,25 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 - 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
-- PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
+- PR #91 已 squash merge，但其合并 artifact 仍保留旧的 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`
+  标签；本 follow-up 将确定性分类修正为 `STRUCTURAL_GATE_COLLISION_OBSERVED`。
+  `ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
 - PR #90 已落实用户明确的 partial-report operational exit 语义，经 full/focused tests、CI 与只读 US manual smoke 后 squash merge；main 交接已同步。
 - PR #82 完全独立，保持 OPEN；本次没有 merge/rebase/mix。其 HEAD、CI 与冲突状态实时从 GitHub 查询。
 - 长期总体交易规则以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一正式事实源。
 
 ## Completed
 
-- `DailyDecisionResult.armed_opportunity` 复用当前 causal SETUP_01/02 ARMED snapshot 与 as-of T history，暴露 close、confirmation、距离、structural invalidation、ATR14 和现有正式 Entry Zone 公式结果。
-- 缺 confirmation / invalidation / ATR 等字段时 fail closed；projection 明确 `is_trade_signal=false`，不创建 Decision/event/plan/Paper/state write。
-- Dashboard 新增“机会观察”详情与 compact 距确认信息；交易方案优先，ARMED 仅按距确认百分比绝对值作展示排序。
-- Dashboard/email 将 Entry Zone 标为“预计入场区（按当前 ATR，仅供观察）”；共享 guidance 明确当前不是买入信号、未来以确认日 Decision 为准、超过正式入场区不追价且不等待后续回踩补入，结构失效则放弃。
-- email 复用同一 projection，保持移动端有限重点项；renderer 不重算策略公式。已 CONFIRMED NO_TRADE 的原拒绝原因路径保持不变。
-- 本任务已将 ARMED 的所有用户入口改为“等待确认”；确认日已计算且最终 NO_TRADE 时，Dashboard/email 首层复用既有 gate、Entry Zone 状态、T1 空间与 T1 R/R 字段；策略持仓标为“策略跟踪持仓”，Paper ledger 标为“模拟持仓”。
-- Decision/RR payload 未携带可直接消费的 minimum RR；因此 Dashboard/email 只格式化实际 R/R，并以既有 `gate_reason=RR_BELOW_MINIMUM` 展示“R/R不足”，不在 presentation 层复制正式阈值。
-- 本次能力仍是 presentation/read-only only；production trading semantics unchanged，Post-confirmation Retest hypothesis remains closed，不进入 persistent/retest lifecycle。
-- Post-confirmation Retest 正式结论已同步到 CURRENT_STATUS / DECISION_LOG：逻辑可行但恢复极少且全在 EARLY，不证明 broad/time-stable improvement，不改任何现有交易语义。
+- 当前任务：`SYSTEM_SIGNAL_SCARCITY_AUDIT_V1` follow-up，补齐已合并 PR #91 中仍为旧版的
+  deterministic artifact/classification/diagnostic contract；本分支从当前 `origin/main`
+  独立创建，保持 Development-only、causal、read-only。
+- PR #91 已在外部状态变化中 squash merge；本轮没有执行 merge、force-push 或回滚。
+  其旧 artifact 仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`，本 follow-up 只修正审计
+  研究输出，不改变 production strategy。
+- 新版 audit 已固定报告 `STRUCTURAL_GATE_COLLISION_OBSERVED`、完整 funnel、
+  ARMED→CONFIRMED latency/headroom、Entry Zone overshoot、RR component attribution、
+  5% marginal contribution、provenance 分层与 Dashboard ARMED contract。
+- 当前基线已包含 PR #92/#93/#94 的独立后续工作；本 follow-up 未修改其 production 代码。
 
 ## Validation
 

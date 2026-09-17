@@ -326,18 +326,33 @@ class SystemSignalScarcityAuditTests(unittest.TestCase):
         self.assertEqual(payload["status"], "READY_FOR_DECISION")
         self.assertEqual(
             payload["decision"]["classification_code"],
-            "F",
+            "STRUCTURAL_GATE_COLLISION_OBSERVED",
         )
-        self.assertEqual(payload["decision"]["classification"], "MIXED_ARCHITECTURE_SIGNAL_STARVATION")
+        self.assertEqual(
+            payload["decision"]["classification"],
+            "STRUCTURAL_GATE_COLLISION_OBSERVED",
+        )
         self.assertEqual(payload["validation"]["current_production_funnel_parity"], True)
         self.assertEqual(payload["validation"]["source_event_snapshot_unchanged"], True)
         self.assertEqual(payload["validation"]["cn_us_symbol_session_conservation"], True)
         self.assertEqual(payload["validation"]["single_gate_ablation_one_at_a_time"], True)
-        self.assertNotIn("top_bottlenecks", payload)
-        self.assertNotIn("confirmation_diagnostics", payload)
-        self.assertNotIn("entry_zone_diagnostics", payload)
-        self.assertNotIn("rr_diagnostics", payload)
-        self.assertNotIn("target_upside_gate_contribution", payload)
+        self.assertIn("top_bottlenecks", payload)
+        self.assertIn("confirmation_diagnostics", payload)
+        self.assertIn("entry_zone_diagnostics", payload)
+        self.assertIn("rr_diagnostics", payload)
+        self.assertIn("target_upside_gate_contribution", payload)
+        self.assertEqual(payload["funnel"]["aggregate"]["candidate_lifecycles"], 2050)
+        self.assertEqual(payload["funnel"]["aggregate"]["confirmed_events"], 999)
+        self.assertEqual(payload["funnel"]["aggregate"]["entry_allowed"], 8)
+        self.assertEqual(payload["funnel"]["aggregate"]["executed"], 4)
+        self.assertEqual(
+            payload["entry_zone_diagnostics"]["aggregate"]["total"]["above_entry_zone_events"],
+            595,
+        )
+        self.assertEqual(
+            payload["target_upside_gate_contribution"]["one_gate_counterfactual_incremental_entry_allowed"],
+            0,
+        )
 
 
 if __name__ == "__main__":
