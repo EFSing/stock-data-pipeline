@@ -5,14 +5,14 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 ## Current Task
 
 `DAILY_REPORT_DENSE_DECISION_CARD_V1` 正在独立分支
-`fix/daily-report-dense-decision-card-v1` 上收尾，范围仅为 CN / US Cloud Daily Report
+`fix/daily-report-dense-decision-card-v1` 上，PR #96 OPEN、未合并；范围仅为 CN / US Cloud Daily Report
 完整 HTML 主报告的共享高密度 Decision / ARMED / WATCH 展示；不改变策略计算、Gate、
 Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading semantics。
 
 ## Current State
 
 - 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
-- 当前开发 branch：`fix/daily-report-dense-decision-card-v1`，从 live `main` 独立创建；本任务 PR 尚待推送创建，未与其他 PR 混合。
+- 当前开发 branch：`fix/daily-report-dense-decision-card-v1`，从 live `main` 独立创建；PR #96 为本任务唯一 PR，未与其他 PR 混合。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
 - PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
 - PR #90 已落实用户明确的 partial-report operational exit 语义，经 full/focused tests、CI 与只读 US manual smoke 后 squash merge；main 交接已同步。
@@ -50,7 +50,7 @@ Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading 
 
 ## Next Action
 
-完成独立 PR 的 exact-head CI 核对后，停在 `READY_FOR_DAILY_HTML_PRODUCT_ACCEPTANCE`，等待产品验收；不自动 merge。
+完成 PR #96 当前 HEAD 的 exact-head CI 核对后，停在 `READY_FOR_DAILY_HTML_PRODUCT_ACCEPTANCE`，等待产品验收；不自动 merge。
 
 ## Constraints
 
