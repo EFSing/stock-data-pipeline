@@ -4,14 +4,13 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Current Task
 
-`CLOUD_DAILY_REPORT_PRODUCT_SEMANTICS_V1` 已在独立分支
-`fix/cloud-report-product-semantics-v1` 上完成最小 presentation/read-only 修正，并通过 PR #94 squash merge 到 `main`；
-当前以 `main` 为恢复基线。范围仅为 Cloud Daily Report 的等待确认、确认日 NO_TRADE 首层摘要、
-策略跟踪持仓／模拟持仓标签，不改变交易策略或任何持久化语义。
+`SYSTEM_SIGNAL_SCARCITY_AUDIT_V1` follow-up 已在独立 branch
+`research/system-signal-scarcity-audit-v1-complete` 上完成，PR #95 保持 OPEN 等待 review/用户决策；
+范围是补齐已合并 PR #91 的 deterministic artifact、classification 与诊断 contract，不改变交易策略或持久化语义。
 
 ## Current State
 
-- 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
+- 当前恢复基线：`main`；PR #94 已 squash merge，PR #95 以当前 main 为 base 保持 OPEN。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
 - PR #91 已 squash merge，但其合并 artifact 仍保留旧的 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`
   标签；本 follow-up 将确定性分类修正为 `STRUCTURAL_GATE_COLLISION_OBSERVED`。
@@ -35,6 +34,12 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Validation
 
+- 本 follow-up focused `tests.test_system_signal_scarcity_audit`：14 tests，OK；本地 full
+  `python -m unittest discover -s tests -v`：795 tests、3 skipped、OK；固定 replay 重建
+  `86,305` symbol-sessions、`2,050` lifecycles、`999` confirmed、`8` ENTRY_ALLOWED、
+  `4` executed，artifact self-hash/compactness 与 `git diff --check` 通过。
+- PR #95 current CI：test、Daily Decision Chain generic-shadow、Portfolio Risk
+  generic-shadow 均 SUCCESS；PR #95 保持 OPEN，不自动 merge。
 - 本任务 Dashboard / email / Cloud Daily Report focused：62 tests，OK。
 - 本任务 full `python -m unittest discover -s tests -v`：795 tests、3 skipped、OK。
 - 本任务 `python -m py_compile` 与 `git diff --check` 通过；US synthetic HTML/text smoke 已覆盖首屏标签、确认日 RR 拒绝摘要、静态邮件与通知。
@@ -45,13 +50,14 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Blocker
 
-无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在。
+无实现安全 blocker；PR #91 已外部 merge 的事实与旧 artifact 分类已核实，当前 follow-up
+由 PR #95 承载，`PROJECT_GOVERNANCE_STATE_CONFLICT` 已解除。
 如无可安全复用的现有 Cloud Daily Report 输入，只使用 synthetic/现有 fixture 做只读 UI smoke，不访问 Sheets/state/Paper/broker/Final OOS。
 
 ## Next Action
 
-以 `main` 为当前恢复基线，继续观察真实 prospective Cloud Daily Reports / Paper 数据，不自动启动新的 strategy
-threshold research，也不扩展 persistent state、Protocol 或生产 lifecycle。
+等待 PR #95 review 与用户选择下一项互斥研究方向；保持 PR #95 OPEN，不自动 merge，不启动新的
+strategy threshold research，也不扩展 persistent state、Paper 或生产 lifecycle。
 
 ## Constraints
 
