@@ -4,8 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-16（SETUP_01 Deep Wave2 + pre-confirmation early-entry
-> causal research 已合并；Signal Scarcity Audit 待启动）。
+> 最后实质更新：2026-09-17（SETUP_01/02 System Signal Scarcity Audit 已完成，
+> 保持 Development-only，未接入生产）。
 
 ## 项目身份
 
@@ -353,6 +353,25 @@
   state write 或 broker execution。仅在显式 `--paper-track` 下，Candidate-only 的新
   `CONFIRMED + ENTRY_ALLOWED` 才会进入独立 Paper ledger；这不改变其 discovery-only
   production 身份。
+- `SYSTEM_SIGNAL_SCARCITY_AUDIT_V1`：已注册并完成固定 Phase 5J-v3 Development
+  holdout 的 SETUP_01/SETUP_02 causal replay，覆盖 symbol-session、candidate
+  lifecycle、CONFIRMED、Decision、exact T+1 OPEN、first-fail、all-fail overlap、
+  one-gate ablation、CN/US/time-half frequency、concentration 与 architecture
+  classification。结果为 `86,305` symbol-sessions、`2,050` candidate lifecycles、
+  `1,004 WATCH`、`862 ARMED`、`999 CONFIRMED`、`8 ENTRY_ALLOWED`、`4` exact
+  T+1 executions；`ARMED → CONFIRMED` 为 `442/862 = 51.28%`，另有 `420` 个
+  ARMED lifecycle 未确认。Decision first-fail 为 `ABOVE_ENTRY_ZONE 595/999`、
+  `TARGET_UPSIDE_BELOW_MINIMUM 277/999`、`RR_BELOW_MINIMUM 100/999`，最终分类
+  `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。该结论只支持后续研究决策，不改变
+  confirmation、Entry Zone、5%、RR、Swing、Target 或任何 production semantics。
+  固定 5% gate 的一门移除反事实新增 `ENTRY_ALLOWED=0`；RR 分解报告 stop distance、
+  first-target distance、both 与 insufficient-evidence 四类。formal pool 与 live
+  Dynamic Candidate 未进入冻结样本，比较状态为
+  `INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE`。Dashboard 审计发现 ARMED
+  causal snapshot 没有由 DailyDecisionResult 透传到 renderer；最小修复位置是
+  `daily_decision_chain` 的只读 context projection，不在本轮改 UI。最近 production
+  daily-report 样本不足时明确标记为 `INSUFFICIENT_RECENT_LIVE_SAMPLE`。对应 protocol、
+  research module 与 compact JSON/Markdown artifact 均为 Development-only，未接入生产。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
