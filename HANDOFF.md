@@ -12,7 +12,7 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 
 - PR #91 production code、研究算法、阈值和 artifact 未改。
 - Focused 14 tests；full 767 tests，3 skipped，OK；artifact self-hash tests 通过。
-- frozen Development loader 已核验 40 symbols、86,305 bars 和固定 manifest/replay identities；完整重放的所有内容与已提交 artifact 一致，初次 hash 差异仅为 protocol CRLF/LF file bytes，正在以 Git LF bytes 完成确定性复核。
+- frozen Development loader 已核验 40 symbols、86,305 bars 和固定 manifest/replay identities；完整重放的所有内容与已提交 artifact 一致，初次 hash 差异仅为 protocol CRLF/LF file bytes，已以 Git LF bytes 完成复核，canonical artifact SHA 完全匹配。
 
 ## Next Action
 
