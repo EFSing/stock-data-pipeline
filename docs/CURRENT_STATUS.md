@@ -288,6 +288,11 @@
 - Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
   宽表、可点击区域至少 44px），首页优先展示数据异常、策略跟踪持仓、交易方案、新确认和等待
   确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。
+- `CONFIRMED` / Decision 行使用共享的 `DAILY_REPORT_DENSE_DECISION_CARD_V1` 展示契约：
+  首层固定呈现当前浪型、今日结论、下一步、是否已有计划，再按固定顺序展示参考/当前价格、
+  Entry Zone、结构失效、既有 Execution Stop、T1、来源、目标空间、既有最低要求、既有 T1 R/R、
+  可用的 Wave3/Fib provenance、首个失败 Gate 与最终结论。前置 Gate 终止时标为“未计算”，
+  `NO_VALID_TARGET` 与“数据缺失”分别保留独立含义；renderer 不补算 target、ATR、Entry Zone 或 R/R。
 - Dashboard / email 复用上述 ARMED projection 展示“机会观察”，明确标记“观察中，
   不是买入信号”；交易方案保持优先，ARMED 仅按距确认百分比绝对值作展示排序，
   renderer 不计算 ATR/Entry Zone 等策略公式；Entry Zone 标为“预计入场区（按当前 ATR，仅供

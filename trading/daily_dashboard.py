@@ -100,7 +100,37 @@ TARGET_UPSIDE_BAND_LABELS = {
 _TARGET_SOURCE_LABELS = {
     "CONFIRMED_SWING_HIGH": "最近已确认历史阻力",
     "WAVE3_FIB_EXTENSION": "Wave3 Fib 结构投射",
+    "CONTINUATION_FIB_EXTENSION": "延续结构 Fib 投射",
+    "FIB_EXTENSION": "Fib 结构投射",
 }
+
+_DECISION_GATE_LABELS = {
+    "ABOVE_ENTRY_ZONE": "超过允许入场区上沿",
+    "ATR_UNAVAILABLE": "ATR14 数据不可用",
+    "BELOW_BREAKOUT": "尚未突破确认价",
+    "BELOW_STRUCTURAL_INVALIDATION": "低于结构失效价",
+    "ENTRY_ALLOWED": "无失败 Gate（已通过）",
+    "FUTURE_OR_INVALID_CONFIRMATION_CONTEXT": "确认上下文无效或包含未来信息",
+    "INVALID_STRUCTURE": "结构未通过检查",
+    "NO_VALID_TARGET": "没有有效目标",
+    "OTHER_NO_TRADE": "交易条件未通过",
+    "RR_BELOW_MINIMUM": "R/R 低于系统要求",
+    "STALE_CONFIRMATION_GEOMETRY": "确认结构已过期",
+    "TARGET_UPSIDE_BELOW_MINIMUM": "第一目标上涨空间低于系统要求",
+}
+_DECISION_SHORT_CIRCUIT_REASONS = frozenset(
+    {
+        "ABOVE_ENTRY_ZONE",
+        "ATR_UNAVAILABLE",
+        "BELOW_BREAKOUT",
+        "BELOW_STRUCTURAL_INVALIDATION",
+        "FUTURE_OR_INVALID_CONFIRMATION_CONTEXT",
+        "INVALID_STRUCTURE",
+        "OTHER_NO_TRADE",
+        "STALE_CONFIRMATION_GEOMETRY",
+    }
+)
+_DECISION_NOTE = "这些是本次 Decision gate 的计算依据，不是买入/止盈建议。"
 
 WAVE_LABELS = {
     "WAVE_2_TO_3_CANDIDATE": "2浪调整结束候选，等待3浪启动",
@@ -262,6 +292,8 @@ def _target_projection_display(
     projection = _mapping(decision.get("target_projection"))
     overhead = _mapping(projection.get("nearest_overhead_confirmed_swing_high"))
     fib = _mapping(projection.get("nearest_wave3_fib_extension"))
+    target_candidates = _sequence(decision.get("target_candidates"))
+    first_candidate = _mapping(target_candidates[0]) if target_candidates else {}
     effective_t1 = _first_value(
         projection.get("current_effective_t1"),
         target_values[0] if target_values else None,
@@ -270,6 +302,8 @@ def _target_projection_display(
     if effective_source is None:
         effective_candidate = _mapping(projection.get("effective_t1_candidate"))
         effective_source = effective_candidate.get("source")
+    if effective_source is None:
+        effective_source = first_candidate.get("source")
     overhead_price = _first_value(
         overhead.get("price"),
         projection.get("nearest_overhead_confirmed_swing_high_price"),
@@ -309,12 +343,24 @@ def _target_projection_display(
             f"但当前价格上方 {_format_percent(overhead_upside)} 存在已确认历史阻力；"
             "现有最近优先规则仍把它作为当前保守第一障碍。"
         )
+    provenance_labels = []
+    for item in _sequence(first_candidate.get("provenance")):
+        item = _mapping(item)
+        if not item:
+            continue
+        ratio = _numeric(item.get("extension_ratio"))
+        confirmed_date = _text(item.get("confirmed_date"))
+        if ratio is not None:
+            provenance_labels.append(f"Fib ratio {_format_number(ratio, 3)}")
+        if confirmed_date:
+            provenance_labels.append(f"确认日期 {confirmed_date}")
     return {
         "target_projection": dict(projection),
         "has_target_projection": bool(projection),
         "effective_t1": _format_price(effective_t1),
         "effective_t1_source": _display(effective_source),
         "effective_t1_source_label": _target_source_label(effective_source),
+        "first_target_provenance": "；".join(provenance_labels) or "—",
         "nearest_overhead_confirmed_swing_high": _format_price(overhead_price),
         "overhead_resistance_upside_pct": _format_percent(overhead_upside),
         "nearest_wave3_fib_extension": _format_price(fib_price),
@@ -1070,6 +1116,276 @@ def _price_plan(
     }
 
 
+def _decision_gate_reason(decision: Mapping[str, Any]) -> str:
+    return _text(decision.get("gate_reason")).upper()
+
+
+def _decision_downstream_status(reason: str, *, field: str = "downstream") -> str:
+    """Explain why a downstream Decision field has no value.
+
+    This is a presentation mapping only.  In particular, it never infers a
+    target, an upside percentage, or an R/R from other prices.
+    """
+
+    if reason == "NO_VALID_TARGET":
+        return "无有效目标" if field in {"target", "source"} else "未计算（无有效目标）"
+    if reason == "ABOVE_ENTRY_ZONE":
+        return "未计算（前置 Entry Zone gate 已终止）"
+    if reason in _DECISION_SHORT_CIRCUIT_REASONS:
+        return "未计算（前置 gate 已终止）"
+    return "数据缺失"
+
+
+def _formatted_entry_zone(decision: Mapping[str, Any]) -> str:
+    low = _format_price(decision.get("entry_zone_low"), "")
+    high = _format_price(decision.get("entry_zone_high"), "")
+    if low and high:
+        return f"{low} – {high}"
+    return low or high or "数据缺失"
+
+
+def _decision_first_target_source(
+    decision: Mapping[str, Any], plan: Mapping[str, Any]
+) -> str:
+    source_label = _text(plan.get("effective_t1_source_label"))
+    if source_label and source_label != "—":
+        return source_label
+    candidates = _sequence(decision.get("target_candidates"))
+    source = _text(_mapping(candidates[0]).get("source")) if candidates else ""
+    return _target_source_label(source) if source else ""
+
+
+def _decision_first_rr(decision: Mapping[str, Any]) -> Any:
+    rr = _mapping(decision.get("rr"))
+    ratios = _sequence(rr.get("rr_ratios"))
+    return _first_value(ratios[0] if ratios else None, rr.get("rr"))
+
+
+def _decision_summary(
+    result: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    *,
+    stage: str,
+    event_is_new: bool,
+) -> str:
+    """Build a compact summary from existing Decision fields only."""
+
+    action = _text(decision.get("action")).upper()
+    reason = _decision_gate_reason(decision)
+    if action == "NO_TRADE":
+        if event_is_new:
+            summary = _confirmation_no_trade_summary(result, decision)
+            if summary:
+                return summary
+        fragments = ["不追高" if reason == "ABOVE_ENTRY_ZONE" else "不交易"]
+        if reason == "ABOVE_ENTRY_ZONE":
+            fragments.append("超过入场区")
+        elif reason == "NO_VALID_TARGET":
+            fragments.append("没有有效 T1 目标")
+        else:
+            target_upside = _text(plan.get("target_upside_pct"))
+            first_rr = _decision_first_rr(decision)
+            if target_upside and target_upside != "—":
+                fragments.append(f"T1空间 {target_upside}")
+            if first_rr is not None and reason == "RR_BELOW_MINIMUM":
+                fragments.append(f"R/R {_format_rr(first_rr)}")
+            if reason == "TARGET_UPSIDE_BELOW_MINIMUM":
+                fragments.append("T1空间不足")
+            elif reason == "RR_BELOW_MINIMUM":
+                fragments.append("R/R不足")
+            elif reason:
+                fragments.append(_DECISION_GATE_LABELS.get(reason, reason))
+        fragments.append("→ 不交易")
+        return "｜".join(fragments)
+
+    if action == "ENTRY_ALLOWED":
+        fragments = ["可入场" if stage == "ENTRY_ALLOWED" else "已形成交易方案"]
+        entry_zone = _formatted_entry_zone(decision)
+        if entry_zone != "数据缺失":
+            fragments.append(f"入场区 {entry_zone}")
+        target = _text(plan.get("effective_t1"))
+        if target and target != "—":
+            fragments.append(f"T1 {target}")
+        upside = _text(plan.get("target_upside_pct"))
+        if upside and upside != "—":
+            fragments.append(f"空间 {upside}")
+        first_rr = _decision_first_rr(decision)
+        if first_rr is not None:
+            fragments.append(f"R/R {_format_rr(first_rr)}")
+        return "｜".join(fragments)
+
+    return _display(decision.get("action"), "Decision 已计算")
+
+
+def _decision_card(
+    result: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    freshness: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    *,
+    stage: str,
+    current_wave_label: str,
+    today_conclusion: str,
+    next_step: str,
+    event_is_new: bool,
+) -> dict[str, Any]:
+    """Project one shared, dense Decision card contract for CN and US.
+
+    Every value below is copied or formatted from the production result.  The
+    gate-aware status strings intentionally distinguish a short-circuited
+    calculation from a missing field and from ``NO_VALID_TARGET``.
+    """
+
+    if not decision:
+        return {"available": False}
+
+    reason = _decision_gate_reason(decision)
+    action = _text(decision.get("action")).upper()
+    target_values = _targets(decision)
+    target_projection = _mapping(decision.get("target_projection"))
+    target_raw = _first_value(
+        target_projection.get("current_effective_t1"),
+        target_values[0] if target_values else None,
+    )
+    downstream_stopped = reason in _DECISION_SHORT_CIRCUIT_REASONS or reason == "NO_VALID_TARGET"
+    if downstream_stopped:
+        target_raw = None
+
+    armed = _mapping(result.get("armed_opportunity"))
+    reference_raw = _first_value(
+        decision.get("planned_entry"),
+        result.get("current_price"),
+        result.get("current_close"),
+        result.get("close"),
+        armed.get("current_close"),
+    )
+    current_raw = _first_value(
+        result.get("current_price"),
+        result.get("current_close"),
+        result.get("close"),
+        armed.get("current_close"),
+    )
+    reference_value = _format_price(reference_raw, "数据缺失")
+    if reference_raw is not None and current_raw is not None:
+        current_value = _format_price(current_raw, "数据缺失")
+        if current_value != reference_value:
+            reference_value = f"参考 {reference_value} / 当前 {current_value}"
+    structural_raw = _first_value(
+        decision.get("structural_invalidation"),
+        result.get("structural_invalidation"),
+        result.get("wave_invalidation"),
+        decision.get("wave_scenario_invalidation"),
+    )
+    execution_raw = decision.get("execution_stop")
+    target_upside_raw = _first_value(
+        decision.get("target_upside_pct"), freshness.get("target_upside_pct")
+    )
+    rr_raw = None if downstream_stopped else _decision_first_rr(decision)
+    if downstream_stopped:
+        target_upside_raw = None
+
+    target_value = (
+        _format_price(target_raw)
+        if target_raw is not None
+        else _decision_downstream_status(reason, field="target")
+    )
+    target_source = _decision_first_target_source(decision, plan)
+    if target_raw is None:
+        target_source = _decision_downstream_status(reason, field="source")
+    elif not target_source:
+        target_source = "数据缺失"
+    target_upside = (
+        _format_percent(target_upside_raw)
+        if target_upside_raw is not None
+        else _decision_downstream_status(reason, field="downstream")
+    )
+    t1_rr = (
+        _format_rr(rr_raw)
+        if rr_raw is not None
+        else _decision_downstream_status(reason, field="downstream")
+    )
+    minimum_raw = _first_value(
+        decision.get("minimum_target_upside_pct"),
+        freshness.get("minimum_target_upside_pct"),
+    )
+    minimum_present = minimum_raw is not None
+    minimum_target_upside = _format_percent(minimum_raw) if minimum_present else ""
+
+    wave3_target = plan.get("nearest_wave3_fib_extension")
+    wave3_ratio = plan.get("nearest_wave3_fib_extension_ratio")
+    target_provenance = plan.get("first_target_provenance")
+    fib_provenance_parts = []
+    if _has_display_value(wave3_ratio):
+        fib_provenance_parts.append(f"ratio {_display(wave3_ratio)}")
+    if _has_display_value(target_provenance):
+        fib_provenance_parts.append(_display(target_provenance))
+
+    final_conclusion = (
+        "不交易（不追高）"
+        if action == "NO_TRADE" and reason == "ABOVE_ENTRY_ZONE"
+        else "不交易"
+        if action == "NO_TRADE"
+        else "可入场"
+        if action == "ENTRY_ALLOWED" and stage == "ENTRY_ALLOWED"
+        else "已形成交易方案"
+        if action == "ENTRY_ALLOWED"
+        else _display(decision.get("action"), "数据缺失")
+    )
+    failed_gate = _DECISION_GATE_LABELS.get(reason)
+    if not failed_gate:
+        failed_gate = "数据缺失（Decision 未提供 gate_reason）" if not reason else reason
+
+    basis_fields: list[tuple[str, Any]] = [
+        ("参考价格 / 当前价格", reference_value),
+        ("允许入场区", _formatted_entry_zone(decision)),
+        ("结构失效 / 结构止损", _format_price(structural_raw, "数据缺失")),
+    ]
+    if execution_raw is not None:
+        basis_fields.append(("Execution Stop（执行止损）", _format_price(execution_raw, "数据缺失")))
+    basis_fields.extend(
+        (
+            ("第一目标候选 / 当前正式 T1", target_value),
+            ("T1 来源", target_source),
+            ("目标上涨空间", target_upside),
+        )
+    )
+    if minimum_present:
+        basis_fields.append(("系统最低目标上涨空间", minimum_target_upside))
+    basis_fields.append(("对应 T1 R/R", t1_rr))
+    if _has_display_value(wave3_target):
+        basis_fields.append(("Wave3 结构目标", wave3_target))
+    if fib_provenance_parts:
+        basis_fields.append(("Fib ratio / target provenance", "；".join(fib_provenance_parts)))
+    basis_fields.extend(
+        (
+            ("首个失败 Gate", failed_gate),
+            ("最终结论", final_conclusion),
+        )
+    )
+    return {
+        "available": True,
+        "stage": stage,
+        "action": action,
+        "gate_reason": reason,
+        "gate_label": failed_gate,
+        "summary": _decision_summary(
+            result,
+            decision,
+            plan,
+            stage=stage,
+            event_is_new=event_is_new,
+        ),
+        "current_wave": current_wave_label,
+        "today_conclusion": today_conclusion,
+        "next_step": next_step,
+        "has_trade_plan": action == "ENTRY_ALLOWED" and stage in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"},
+        "basis_fields": tuple(basis_fields),
+        "final_conclusion": final_conclusion,
+        "note": _DECISION_NOTE,
+    }
+
+
 def _position_projection(
     result: Mapping[str, Any], universe: Mapping[str, Any], symbol: str,
     position_management: Mapping[str, Any],
@@ -1226,6 +1542,19 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         candidate_only=candidate_only,
         position_management=position_management,
     )
+    today_conclusion = _today_conclusion(result, decision, stage)
+    plan = _price_plan(decision, freshness)
+    decision_card = _decision_card(
+        result,
+        decision,
+        freshness,
+        plan,
+        stage=stage,
+        current_wave_label=current_wave_label,
+        today_conclusion=today_conclusion,
+        next_step=next_step,
+        event_is_new=event_is_new,
+    )
     return {
         "account_id": _text(entry.get("account_id"), "—"),
         "symbol": symbol,
@@ -1262,7 +1591,7 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "event_is_new": event_is_new,
         "default_focus": stage in DEFAULT_FOCUS_STAGES or event_is_new,
         "confirmation_level": _format_price(confirmation),
-        "today_conclusion": _today_conclusion(result, decision, stage),
+        "today_conclusion": today_conclusion,
         "why": _plain_why(
             stage,
             result,
@@ -1279,7 +1608,8 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
             position_management=position_management,
         ),
         "invalidation": _invalidation_text(result, decision),
-        "plan": _price_plan(decision, freshness),
+        "plan": plan,
+        "decision_card": decision_card,
         "position": _position_projection(result, universe, symbol, position_management),
         "opportunity_freshness": freshness,
         "armed_opportunity": armed_opportunity,
@@ -1634,6 +1964,36 @@ def _render_field_grid(
     )
 
 
+def _render_decision_card(row: Mapping[str, Any]) -> str:
+    card = _mapping(row.get("decision_card"))
+    if not card.get("available"):
+        return ""
+    summary = _text(card.get("summary"), "Decision 已计算")
+    plan_label = "是" if card.get("has_trade_plan") else "否"
+    summary_lines = (
+        ("当前浪型", row.get("current_wave_label")),
+        ("今日结论", row.get("today_conclusion")),
+        ("还差什么 / 下一步", row.get("next_step")),
+        ("是否已有交易计划", plan_label),
+    )
+    line_html = "".join(
+        f'<div class="decision-line"><span class="decision-line-label">{_escape(label)}：</span>'
+        f'<span>{_escape(value)}</span></div>'
+        for label, value in summary_lines
+    )
+    fields = tuple(card.get("basis_fields") or ())
+    return (
+        '<section class="decision-card-panel">'
+        f'<div class="decision-summary-lines">{line_html}</div>'
+        f'<div class="decision-summary-strip">{_escape(summary)}</div>'
+        '<section class="decision-basis">'
+        '<div class="decision-basis-heading"><h3>Decision 计算依据</h3></div>'
+        + _render_field_grid(fields, extra_class="decision-basis-grid")
+        + f'<p class="decision-note">{_escape(card.get("note") or _DECISION_NOTE)}</p>'
+        + "</section></section>"
+    )
+
+
 def _render_plan(row: Mapping[str, Any]) -> str:
     plan = _mapping(row.get("plan"))
     if row.get("stage_key") not in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}:
@@ -1890,10 +2250,11 @@ def _render_armed_opportunity(row: Mapping[str, Any]) -> str:
         + _render_field_grid(
             (
                 ("Setup", armed.get("setup_type")),
+                ("当前状态", "等待确认"),
                 ("当前收盘价", armed.get("current_close_display")),
                 ("确认价", armed.get("confirmation_level_display")),
-                ("距确认价", armed.get("distance_to_confirmation_display")),
-                ("距确认百分比", armed.get("distance_to_confirmation_pct_display")),
+                ("距确认（绝对值）", armed.get("distance_to_confirmation_display")),
+                ("距确认（百分比）", armed.get("distance_to_confirmation_pct_display")),
                 ("当前 ATR14", armed.get("atr14_display")),
                 ("预计入场区（按当前 ATR，仅供观察）", entry_zone),
                 ("结构失效价", armed.get("structural_invalidation_display")),
@@ -1967,16 +2328,28 @@ def _render_details(row: Mapping[str, Any]) -> str:
         for value in _sequence(result.get("blocking_prerequisites"))
         if (translated := _translate_reason(value))
     )
+    risk_section = (
+        '<section><h4>Risk / Portfolio Risk</h4>'
+        f'<p>R/R quality：{_escape(_mapping(row.get("plan")).get("rr_quality"))}</p>'
+        f'<p>Portfolio Risk：{_escape(_mapping(row.get("portfolio_result")).get("status"))} / {_escape(_mapping(row.get("portfolio_result")).get("reason"))}</p>'
+        f'<p>Risk group：{_escape(_mapping(row.get("portfolio_result")).get("risk_group"))}</p></section>'
+        if decision or row.get("is_position") or row.get("portfolio_result")
+        else '<section><h4>Risk / Portfolio Risk</h4><p>尚未形成 Decision，不展示交易风险字段。</p></section>'
+    )
     return (
         '<details class="details"><summary>查看交易依据（查看详情）</summary><div class="detail-body">'
-        '<section class="plain-summary">'
-        f'<section><h3>当前波浪</h3><p>{_escape(row.get("current_wave_label"))}</p><p>{_escape(row.get("today_conclusion"))}</p></section>'
-        f'<section><h3>为什么</h3><p>{_escape(row.get("why"))}</p></section>'
-        f'<section><h3>还差什么 / 现在要做什么</h3><p>{_escape(row.get("missing_condition"))}</p></section>'
-        f'<section><h3>失效条件</h3><p>{_escape(row.get("invalidation"))}</p></section>'
-        f'<section><h3>备选情景</h3><p>{_escape(row.get("alternate_wave_label"))}</p></section>'
-        '</section>'
-        + _render_armed_opportunity(row)
+        '<section class="plain-summary compact-secondary-summary"><h3>补充说明</h3>'
+        + _render_field_grid(
+            (
+                ("当前波浪", row.get("current_wave_label")),
+                ("为什么", row.get("why")),
+                ("还差什么 / 现在要做什么", row.get("missing_condition")),
+                ("失效条件", row.get("invalidation")),
+                ("备选情景", row.get("alternate_wave_label")),
+            ),
+            extra_class="secondary-grid",
+        )
+        + '</section>'
         + _render_plan(row)
         + _render_opportunity_freshness(row)
         + (_render_position({**row, "position": position}) if row.get("is_position") else "")
@@ -1994,11 +2367,8 @@ def _render_details(row: Mapping[str, Any]) -> str:
         f'<p>Setup：{_escape(row.get("setup"))}</p>'
         f'<p>Gate / confirmation：{_escape(_mapping(row.get("decision")).get("gate_reason"))} / {_escape(confirmation)}</p>'
         f'<p>Entry zone：{_escape(_mapping(row.get("plan")).get("entry_zone_low"))} — {_escape(_mapping(row.get("plan")).get("entry_zone_high"))}</p></section>'
-        '<section><h4>Risk / Portfolio Risk</h4>'
-        f'<p>R/R quality：{_escape(_mapping(row.get("plan")).get("rr_quality"))}</p>'
-        f'<p>Portfolio Risk：{_escape(_mapping(row.get("portfolio_result")).get("status"))} / {_escape(_mapping(row.get("portfolio_result")).get("reason"))}</p>'
-        f'<p>Risk group：{_escape(_mapping(row.get("portfolio_result")).get("risk_group"))}</p></section>'
-        '<section><h4>策略跟踪持仓管理（Position Management）</h4>'
+        + risk_section
+        + '<section><h4>策略跟踪持仓管理（Position Management）</h4>'
         f'<p>状态：{_escape(_mapping(row.get("position_management")).get("status"))}</p>'
         f'<p>Wave5：{_escape(position.get("wave5_context"))}；Target status：{_escape(position.get("target_status"))}</p>'
         f'<p>Waiting / blocking：{_escape(row.get("waiting"))}</p>'
@@ -2054,6 +2424,8 @@ def _render_row(row: Mapping[str, Any]) -> str:
         + '</div><div class="row-actions"><div class="identity-row">'
         + identity
         + '</div></div>'
+        + _render_decision_card(row)
+        + (_render_armed_opportunity(row) if row.get("stage_key") == "ARMED" else "")
         + _render_details(row)
         + '</div>'
         + '</article>'
@@ -2571,6 +2943,9 @@ def render_dashboard_html(value: Any) -> str:
 .today-paper-focus {{ margin-bottom:12px; }} .paper-focus-cards {{ display:flex; flex-direction:column; gap:7px; }} .paper-focus-card {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 10px; align-items:center; background:#fff; border:1px solid var(--line); border-left:4px solid var(--teal); border-radius:10px; padding:9px 12px; }} .paper-focus-card span {{ color:var(--muted); font-size:13px; }} .paper-focus-meta {{ display:block; font-size:12px !important; }} .paper-focus-values {{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 14px; }}
 @media (max-width:1050px) {{ .paper-summary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} .performance-summary-grid {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }}
 @media (max-width:620px) {{ .paper-summary,.performance-summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .paper-grid,.paper-human-grid,.rules-grid,.performance-groups {{ grid-template-columns:1fr; }} .coverage-grid {{ grid-template-columns:1fr; }} }}
+.decision-card-panel {{ margin-top:9px; border-top:1px solid var(--line); padding-top:9px; }} .decision-summary-strip {{ margin-bottom:8px; padding:8px 10px; border-left:4px solid var(--amber); border-radius:8px; background:var(--amber-soft); color:#7a4300; font-weight:750; overflow-wrap:anywhere; }} .decision-summary-lines {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px 14px; padding:2px 0 8px; }} .decision-line {{ min-width:0; overflow-wrap:anywhere; }} .decision-line-label {{ color:var(--muted); }} .decision-basis {{ margin-top:2px; padding:10px 11px; border:1px solid #cfdceb; border-radius:10px; background:#f7faff; }} .decision-basis-heading {{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:8px; }} .decision-basis-heading h3 {{ margin:0; color:var(--blue); font-size:14px; }} .decision-conclusion {{ color:var(--red); font-size:13px; font-weight:800; text-align:right; }} .decision-basis-grid {{ grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px 11px; }} .decision-basis-grid .field-value {{ font-size:14px; }} .decision-note {{ margin:9px 0 0; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }} .secondary-grid {{ margin-top:7px; }}
+@media (max-width:1050px) {{ .decision-basis-grid {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }}
+@media (max-width:620px) {{ .decision-summary-lines {{ grid-template-columns:1fr; }} .decision-basis-grid {{ grid-template-columns:1fr; }} .decision-basis-heading {{ align-items:flex-start; flex-direction:column; gap:3px; }} .decision-conclusion {{ text-align:left; }} }}
 </style>
 </head>
 <body>

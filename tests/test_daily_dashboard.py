@@ -43,6 +43,47 @@ def _new_confirmation_no_trade_payload(gate_reason: str, **decision_fields) -> d
     }
 
 
+def _dense_decision_payload(
+    symbol: str,
+    market: str,
+    decision: dict,
+    *,
+    event_was_new: bool = True,
+    final_status: str = "NO_TRADE",
+    name: str = "密度示例",
+) -> dict:
+    return {
+        "as_of_date": "2026-09-18",
+        "cloud_daily_report": {
+            "market": market,
+            "market_label": "A股" if market == "CN" else "美股",
+            "status": "SUCCESS",
+        },
+        "universe": {
+            "provenance": {symbol: ["FORMAL_STRATEGY_POOL"]},
+            "symbol_metadata": {symbol: {"name": name, "sector": "示例行业"}},
+        },
+        "results": [{
+            "symbol": symbol,
+            "market": market,
+            "as_of_date": "2026-09-18",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "NONE",
+            "primary_action": decision.get("action", "NO_TRADE"),
+            "event_was_new": event_was_new,
+            "individual_decision": decision,
+            "portfolio_result": None,
+            "position_management": None,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": final_status,
+        }],
+    }
+
+
 class DailyDashboardTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -382,6 +423,164 @@ class DailyDashboardTests(unittest.TestCase):
 
         self.assertEqual(row["waiting"], "今天出现确认，但当前入场条件没有通过。")
 
+    def test_dense_decision_card_short_circuits_after_entry_zone_gate(self):
+        payload = _dense_decision_payload(
+            "600803.SH",
+            "CN",
+            {
+                "action": "NO_TRADE",
+                "gate_reason": "ABOVE_ENTRY_ZONE",
+                "planned_entry": 18.78,
+                "entry_zone_low": 18.09,
+                "entry_zone_high": 18.36,
+                "structural_invalidation": 16.8,
+                "execution_stop": 17.5,
+                # These fields should not be consumed after the production
+                # Entry Zone gate has terminated.
+                "targets": [20.0],
+                "target_upside_pct": 0.06,
+                "minimum_target_upside_pct": 0.05,
+                "rr": {"rr_ratios": [1.2], "quality": "NO_TRADE"},
+            },
+            name="入场区示例",
+        )
+
+        projection = build_dashboard_projection(payload)
+        row = projection["rows"][0]
+        card = row["decision_card"]
+        fields = dict(card["basis_fields"])
+
+        self.assertEqual(fields["参考价格 / 当前价格"], "18.78")
+        self.assertEqual(fields["允许入场区"], "18.09 – 18.36")
+        self.assertEqual(fields["结构失效 / 结构止损"], "16.8")
+        self.assertEqual(fields["Execution Stop（执行止损）"], "17.5")
+        self.assertEqual(fields["第一目标候选 / 当前正式 T1"], "未计算（前置 Entry Zone gate 已终止）")
+        self.assertEqual(fields["目标上涨空间"], "未计算（前置 Entry Zone gate 已终止）")
+        self.assertEqual(fields["对应 T1 R/R"], "未计算（前置 Entry Zone gate 已终止）")
+        self.assertEqual(fields["首个失败 Gate"], "超过允许入场区上沿")
+        self.assertEqual(fields["最终结论"], "不交易（不追高）")
+
+        rendered = render_dashboard_html(payload)
+        card_start = rendered.index('data-search="600803.SH')
+        card_end = rendered.index("</article>", card_start)
+        card_html = rendered[card_start:card_end].split(
+            '<details class="technical-details">', 1
+        )[0]
+        self.assertIn("未计算（前置 Entry Zone gate 已终止）", card_html)
+        self.assertIn("首个失败 Gate", card_html)
+        self.assertNotIn("20.0", card_html)
+
+    def test_dense_decision_card_preserves_rr_rejection_and_shared_cn_us_order(self):
+        decision = {
+            "action": "NO_TRADE",
+            "gate_reason": "RR_BELOW_MINIMUM",
+            "planned_entry": 100.0,
+            "entry_zone_low": 98.0,
+            "entry_zone_high": 102.0,
+            "structural_invalidation": 90.0,
+            "execution_stop": 95.0,
+            "targets": [110.49, 125.0],
+            "target_candidates": [{"price": 110.49, "source": "CONFIRMED_SWING_HIGH"}],
+            "target_upside_pct": 0.1049,
+            "minimum_target_upside_pct": 0.05,
+            "entry_zone_upper_distance_pct": -0.01,
+            "rr": {"rr_ratios": [0.26, 0.8], "quality": "NO_TRADE"},
+            "target_projection": {
+                "current_effective_t1": 110.49,
+                "effective_t1_source": "CONFIRMED_SWING_HIGH",
+                "nearest_wave3_fib_extension": {
+                    "price": 127.2,
+                    "ratio": 1.272,
+                    "upside_pct": 0.272,
+                },
+                "nearest_wave3_fib_extension_ratio": 1.272,
+                "wave3_fib_upside_pct": 0.272,
+            },
+        }
+        payloads = (
+            _dense_decision_payload("600941.SH", "CN", decision, name="A股 RR 示例"),
+            _dense_decision_payload("USRR", "US", decision, name="美股 RR 示例"),
+        )
+        expected_labels = (
+            "参考价格 / 当前价格",
+            "允许入场区",
+            "结构失效 / 结构止损",
+            "Execution Stop（执行止损）",
+            "第一目标候选 / 当前正式 T1",
+            "T1 来源",
+            "目标上涨空间",
+            "系统最低目标上涨空间",
+            "对应 T1 R/R",
+            "Wave3 结构目标",
+            "Fib ratio / target provenance",
+            "首个失败 Gate",
+            "最终结论",
+        )
+
+        for payload in payloads:
+            with self.subTest(market=payload["cloud_daily_report"]["market"]):
+                row = build_dashboard_projection(payload)["rows"][0]
+                fields = dict(row["decision_card"]["basis_fields"])
+                self.assertEqual(fields["参考价格 / 当前价格"], "100")
+                self.assertEqual(fields["第一目标候选 / 当前正式 T1"], "110.49")
+                self.assertEqual(fields["T1 来源"], "最近已确认历史阻力")
+                self.assertEqual(fields["目标上涨空间"], "10.49%")
+                self.assertEqual(fields["系统最低目标上涨空间"], "5.00%")
+                self.assertEqual(fields["对应 T1 R/R"], "0.26")
+                self.assertEqual(fields["Wave3 结构目标"], "127.2")
+                self.assertIn("ratio 1.272", fields["Fib ratio / target provenance"])
+                self.assertIn("R/R不足", row["decision_card"]["summary"])
+                self.assertIn("确认成功", row["decision_card"]["summary"])
+                self.assertIn("T1空间 10.49%", row["decision_card"]["summary"])
+                self.assertIn("R/R 0.26", row["decision_card"]["summary"])
+                self.assertIn("→ 不交易", row["decision_card"]["summary"])
+
+                rendered = render_dashboard_html(payload)
+                start = rendered.index('data-search="')
+                end = rendered.index("</article>", start)
+                card_html = rendered[start:end]
+                positions = [card_html.index(label) for label in expected_labels]
+                self.assertEqual(positions, sorted(positions))
+                self.assertIn("这些是本次 Decision gate 的计算依据，不是买入/止盈建议。", card_html)
+
+    def test_decision_card_distinguishes_no_valid_target_from_missing_data(self):
+        no_target = _dense_decision_payload(
+            "NOTARGET",
+            "CN",
+            {
+                "action": "NO_TRADE",
+                "gate_reason": "NO_VALID_TARGET",
+                "planned_entry": 100.0,
+                "entry_zone_low": 98.0,
+                "entry_zone_high": 102.0,
+                "structural_invalidation": 90.0,
+                "execution_stop": 95.0,
+            },
+        )
+        missing = _dense_decision_payload(
+            "MISSING",
+            "US",
+            {
+                "action": "NO_TRADE",
+                "gate_reason": "RR_BELOW_MINIMUM",
+                "planned_entry": 100.0,
+                "entry_zone_low": 98.0,
+                "entry_zone_high": 102.0,
+                "structural_invalidation": 90.0,
+                "execution_stop": 95.0,
+            },
+        )
+
+        no_target_fields = dict(build_dashboard_projection(no_target)["rows"][0]["decision_card"]["basis_fields"])
+        missing_fields = dict(build_dashboard_projection(missing)["rows"][0]["decision_card"]["basis_fields"])
+        target_label = "第一目标候选 / 当前正式 T1"
+        self.assertEqual(no_target_fields[target_label], "无有效目标")
+        self.assertEqual(no_target_fields["目标上涨空间"], "未计算（无有效目标）")
+        self.assertEqual(no_target_fields["对应 T1 R/R"], "未计算（无有效目标）")
+        self.assertEqual(missing_fields[target_label], "数据缺失")
+        self.assertEqual(missing_fields["目标上涨空间"], "数据缺失")
+        self.assertEqual(missing_fields["对应 T1 R/R"], "数据缺失")
+
     def test_watch_and_armed_never_invent_entry(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
 
@@ -390,6 +589,79 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["600002.SH"]["waiting"], "等待收盘突破 123.45。")
         self.assertEqual(rows["600002.SH"]["plan"]["planned_entry"], "尚未形成")
         self.assertEqual(rows["600002.SH"]["plan"]["execution_stop"], "—")
+
+    def test_armed_card_uses_existing_projection_and_watch_has_no_fake_decision(self):
+        armed_payload = _dense_decision_payload(
+            "ARMED.US",
+            "US",
+            {},
+            event_was_new=False,
+            final_status="NO_TRADE",
+            name="等待确认示例",
+        )
+        armed_result = armed_payload["results"][0]
+        armed_result.update({
+            "primary_action": "WAIT_CONFIRMATION",
+            "individual_decision": None,
+            "setup01_state": "ARMED",
+            "setup02_state": "NONE",
+            "armed_opportunity": {
+                "status": "AVAILABLE",
+                "setup_type": "SETUP_01",
+                "current_close": 100.0,
+                "confirmation_level": 105.0,
+                "distance_to_confirmation": 5.0,
+                "distance_to_confirmation_pct": 0.05,
+                "atr14": 2.0,
+                "expected_entry_zone_low": 104.0,
+                "expected_entry_zone_high": 106.0,
+                "structural_invalidation": 90.0,
+                "guidance": "当前不是买入信号，未来以确认日 Decision 为准。",
+                "is_trade_signal": False,
+            },
+        })
+        watch_payload = _dense_decision_payload(
+            "WATCH.US",
+            "US",
+            {},
+            event_was_new=False,
+            final_status="NO_TRADE",
+            name="观察示例",
+        )
+        watch_result = watch_payload["results"][0]
+        watch_result.update({
+            "primary_action": "WATCH",
+            "individual_decision": None,
+            "setup01_state": "WATCH",
+            "setup02_state": "NONE",
+        })
+
+        armed_row = build_dashboard_projection(armed_payload)["rows"][0]
+        self.assertFalse(armed_row["decision_card"]["available"])
+        armed_html = render_dashboard_html(armed_payload)
+        armed_start = armed_html.index('data-search="ARMED.US')
+        armed_card = armed_html[armed_start:armed_html.index("</article>", armed_start)]
+        self.assertIn("机会观察", armed_card)
+        self.assertIn("当前状态", armed_card)
+        self.assertIn("等待确认", armed_card)
+        self.assertIn("当前收盘价", armed_card)
+        self.assertIn("距确认（绝对值）", armed_card)
+        self.assertIn("距确认（百分比）", armed_card)
+        self.assertIn("当前 ATR14", armed_card)
+        self.assertIn("104 – 106", armed_card)
+        self.assertIn("不是买入信号", armed_card)
+        self.assertNotIn("Decision 计算依据", armed_card)
+        self.assertNotIn("目标价 T1", armed_card)
+        self.assertNotIn("R/R", armed_card)
+
+        watch_row = build_dashboard_projection(watch_payload)["rows"][0]
+        self.assertFalse(watch_row["decision_card"]["available"])
+        watch_html = render_dashboard_html(watch_payload)
+        watch_start = watch_html.index('data-search="WATCH.US')
+        watch_card = watch_html[watch_start:watch_html.index("</article>", watch_start)]
+        self.assertNotIn("Decision 计算依据", watch_card)
+        self.assertNotIn("目标价 T1", watch_card)
+        self.assertNotIn("R/R", watch_card)
 
     def test_search_matches_ticker_and_company_name(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
