@@ -5,13 +5,13 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 ## Current Task
 
 `CLOUD_DAILY_REPORT_PRODUCT_SEMANTICS_V1` 已在独立分支
-`fix/cloud-report-product-semantics-v1` 上完成最小 presentation/read-only 修正并创建 PR #94；
-PR 保持 OPEN、不自动 merge，等待 UI/product acceptance。范围仅为 Cloud Daily Report 的等待确认、确认日 NO_TRADE 首层摘要、
+`fix/cloud-report-product-semantics-v1` 上完成最小 presentation/read-only 修正，并通过 PR #94 squash merge 到 `main`；
+当前以 `main` 为恢复基线。范围仅为 Cloud Daily Report 的等待确认、确认日 NO_TRADE 首层摘要、
 策略跟踪持仓／模拟持仓标签，不改变交易策略或任何持久化语义。
 
 ## Current State
 
-- 当前分支：`fix/cloud-report-product-semantics-v1`；PR #94 已创建、保持 OPEN、未合并，4/4 GitHub checks 已通过且无冲突。基线 main 已包含 PR #93 的 ARMED projection。
+- 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
 - PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
 - PR #90 已落实用户明确的 partial-report operational exit 语义，经 full/focused tests、CI 与只读 US manual smoke 后 squash merge；main 交接已同步。
@@ -26,6 +26,7 @@ PR 保持 OPEN、不自动 merge，等待 UI/product acceptance。范围仅为 C
 - Dashboard/email 将 Entry Zone 标为“预计入场区（按当前 ATR，仅供观察）”；共享 guidance 明确当前不是买入信号、未来以确认日 Decision 为准、超过正式入场区不追价且不等待后续回踩补入，结构失效则放弃。
 - email 复用同一 projection，保持移动端有限重点项；renderer 不重算策略公式。已 CONFIRMED NO_TRADE 的原拒绝原因路径保持不变。
 - 本任务已将 ARMED 的所有用户入口改为“等待确认”；确认日已计算且最终 NO_TRADE 时，Dashboard/email 首层复用既有 gate、Entry Zone 状态、T1 空间与 T1 R/R 字段；策略持仓标为“策略跟踪持仓”，Paper ledger 标为“模拟持仓”。
+- Decision/RR payload 未携带可直接消费的 minimum RR；因此 Dashboard/email 只格式化实际 R/R，并以既有 `gate_reason=RR_BELOW_MINIMUM` 展示“R/R不足”，不在 presentation 层复制正式阈值。
 - 本次能力仍是 presentation/read-only only；production trading semantics unchanged，Post-confirmation Retest hypothesis remains closed，不进入 persistent/retest lifecycle。
 - Post-confirmation Retest 正式结论已同步到 CURRENT_STATUS / DECISION_LOG：逻辑可行但恢复极少且全在 EARLY，不证明 broad/time-stable improvement，不改任何现有交易语义。
 
@@ -34,7 +35,7 @@ PR 保持 OPEN、不自动 merge，等待 UI/product acceptance。范围仅为 C
 - 本任务 Dashboard / email / Cloud Daily Report focused：62 tests，OK。
 - 本任务 full `python -m unittest discover -s tests -v`：795 tests、3 skipped、OK。
 - 本任务 `python -m py_compile` 与 `git diff --check` 通过；US synthetic HTML/text smoke 已覆盖首屏标签、确认日 RR 拒绝摘要、静态邮件与通知。
-- PR #94 的 4/4 GitHub checks 已通过且无冲突；Actions 仅报告 Node.js 20 deprecated warning（当前被强制使用 Node.js 24），未执行 merge。
+- PR #94 合并前 4/4 GitHub checks 已通过且无冲突，随后已 squash merge；合并后的 main 状态与 CI 以 GitHub 实时状态为准。
 - PR #93 final HEAD 4/4 checks passed、无冲突并已 squash merge，merge 后 main push CI green。
 - #91 focused 14/full 767，artifact full parity 与 self-hash 通过；#90 focused 79/full 777 和三项 PR CI 通过。
 - #90 一次只读 US smoke：exact XNYS 2026-09-16，PARTIAL_DATA_QUALITY 保留、workflow exit 0；220 DATA_OK、2 DATA_UNAVAILABLE，actual primary Tencent/verifier Sina；两条 unavailable QFQ 继续 blocked，未用 T-1 替代 T；final JSON/HTML 与 transport digest 核验通过，无 state/Sheets/Paper/raw writes 或 broker action。可复核 workflow 链接见 #90 PR 描述。
@@ -46,7 +47,7 @@ PR 保持 OPEN、不自动 merge，等待 UI/product acceptance。范围仅为 C
 
 ## Next Action
 
-保持 PR #94 不合并，完成 UI/product acceptance；之后再回到真实 prospective Cloud Daily Reports / Paper 数据观察，不自动启动新的 strategy
+以 `main` 为当前恢复基线，继续观察真实 prospective Cloud Daily Reports / Paper 数据，不自动启动新的 strategy
 threshold research，也不扩展 persistent state、Protocol 或生产 lifecycle。
 
 ## Constraints
