@@ -18,11 +18,11 @@ EMAIL_MAX_HIGHLIGHTS = 20
 
 _PRIORITY_LABELS = {
     "data": "数据异常",
-    "position": "持仓",
+    "position": "策略跟踪持仓",
     "plan": "已形成交易计划",
     "no_trade": "今日不交易",
     "confirmed": "今日新确认",
-    "armed": "接近确认",
+    "armed": "等待确认",
 }
 _STATUS_LABELS = {
     "SUCCESS": "数据正常",
@@ -299,7 +299,7 @@ def _next_step(row: Mapping[str, Any], category: str) -> str:
     value = _text(row.get("missing_condition")) or _text(row.get("next_step"))
     defaults = {
         "data": "等待数据恢复，本日不生成交易信号。",
-        "position": "按现有持仓管理结果处理。",
+        "position": "按现有策略跟踪持仓管理结果处理。",
         "plan": "交易方案已经形成，按现有流程继续。",
         "no_trade": "本次不形成交易计划，等待下一次满足入场条件的机会。",
         "confirmed": "等待入场条件评估。",
@@ -314,10 +314,10 @@ def _today_text(row: Mapping[str, Any], category: str) -> str:
         return f"{conclusion}；原因：{reason}"
     defaults = {
         "data": "行情或生产前置数据没有达到可用要求。",
-        "position": "该标的已经进入持仓管理。",
+        "position": "该标的已经进入策略跟踪持仓。",
         "plan": "现有结构、入场区间和目标风险收益已经形成交易方案。",
         "confirmed": "今天出现新的确认信号。",
-        "armed": "当前接近确认，仍需满足确认条件。",
+        "armed": "当前等待确认，仍需满足确认条件。",
     }
     conclusion = _human(row.get("today_conclusion"), _PRIORITY_LABELS[category])
     why = _human(row.get("why"), defaults[category])
@@ -580,7 +580,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     if not groups:
         groups.append(
             '<tr><td style="padding:16px 0;color:#536176;">'
-            "今天没有数据异常、持仓、交易方案、新确认或接近确认的重点标的。"
+            "今天没有数据异常、策略跟踪持仓、交易方案、新确认或等待确认的重点标的。"
             "</td></tr>"
         )
 
@@ -610,9 +610,9 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>T</strong>：{trade_date}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>数据状态</strong>：{status}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>新确认数量</strong>：{summary["new_confirmed"]}</div>'
-        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>接近确认数量</strong>：{summary["armed"]}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>等待确认数量</strong>：{summary["armed"]}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>交易方案数量</strong>：{summary["plans"]}</div>'
-        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>持仓数量</strong>：{summary["positions"]}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>策略跟踪持仓数量</strong>：{summary["positions"]}</div>'
         f'<div style="padding:4px 0;"><strong>数据异常数量</strong>：{summary["data_issues"]}</div>'
         "</td></tr>"
         + _alert_html(projection, summary["data_issues"])

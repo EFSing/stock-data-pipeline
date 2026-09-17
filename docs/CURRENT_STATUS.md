@@ -286,14 +286,16 @@
   中明确为 `FAILED`。standalone `daily-report.html` 仍是完整 Browser Dashboard artifact
   的唯一渲染产物，邮件正文不嵌入完整 Dashboard。
 - Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
-  宽表、可点击区域至少 44px），首页优先展示数据异常、持仓、交易方案、新确认和接近
+  宽表、可点击区域至少 44px），首页优先展示数据异常、策略跟踪持仓、交易方案、新确认和等待
   确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。
 - Dashboard / email 复用上述 ARMED projection 展示“机会观察”，明确标记“观察中，
   不是买入信号”；交易方案保持优先，ARMED 仅按距确认百分比绝对值作展示排序，
   renderer 不计算 ATR/Entry Zone 等策略公式；Entry Zone 标为“预计入场区（按当前 ATR，仅供
   观察）”，并明确未来以确认日 Decision 为准、超过正式区不追价且不等待回踩补入。邮件只
   展示有限重点项，完整列表保留在 Dashboard；已 CONFIRMED 的 NO_TRADE 继续显示原 Decision
-  拒绝原因。该能力为 presentation/read-only only，不改变 production trading semantics。
+  拒绝原因；确认日已计算但最终不交易时，首层摘要直接展示确认成功、入场区状态、可用的 T1 空间与
+  T1 R/R 拒绝依据。策略跟踪持仓与模拟持仓分别标注，不将模拟账本计数写成当前真实持仓。该能力为
+  presentation/read-only only，不改变 production trading semantics。
 - CN/US live smoke 已通过，且 production state、paper ledger、broker order 与 raw/QFQ
   persistence 均为零；final artifact allowlist 已通过。旧 `asia-close` / `us-close`
   scheduled writer 已移除，仅保留原有 `workflow_dispatch`、latest/full 手工维护能力、

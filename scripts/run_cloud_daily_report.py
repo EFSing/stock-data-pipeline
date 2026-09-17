@@ -300,9 +300,9 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
             f"数据日期：{projection.get('as_of_date', '—')}\n"
             f"数据状态：{status}\n"
             f"新确认：{summary.get('new_confirmed_count', 0)}\n"
-            f"接近确认：{summary.get('armed_count', 0)}\n"
+            f"等待确认：{summary.get('armed_count', 0)}\n"
             f"交易方案：{plan_count}\n"
-            f"持仓：{summary.get('position_count', 0)}\n"
+            f"策略跟踪持仓：{summary.get('position_count', 0)}\n"
             f"数据异常：{summary.get('data_blocked_count', 0)}\n"
             f"目标空间不足：{freshness.get('target_upside_below_minimum_count', 0) if isinstance(freshness, Mapping) else 0}"
         )

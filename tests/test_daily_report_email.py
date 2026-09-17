@@ -130,9 +130,11 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("市场：美股", rendered)
         self.assertIn("数据状态</strong>：数据正常", rendered)
         self.assertIn("新确认数量</strong>：1", rendered)
-        self.assertIn("接近确认数量</strong>：0", rendered)
+        self.assertIn("等待确认数量</strong>：0", rendered)
         self.assertIn("交易方案数量</strong>：2", rendered)
-        self.assertIn("持仓数量</strong>：0", rendered)
+        self.assertIn("策略跟踪持仓数量</strong>：0", rendered)
+        self.assertNotIn("接近确认数量", rendered)
+        self.assertNotIn("<strong>持仓数量</strong>", rendered)
         self.assertIn("数据异常数量</strong>：0", rendered)
         self.assertIn("示例云计算", rendered)
         self.assertNotIn("示例制造", rendered)
@@ -158,6 +160,14 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("是否已有交易计划：</span>否", rendered)
         for forbidden in ("Entry", "Stop", "Targets", "RR", "入场（", "止损（", "目标（", "风险收益比（"):
             self.assertNotIn(forbidden, rendered)
+
+    def test_formal_position_email_uses_strategy_tracked_position_label(self):
+        rendered = render_daily_report_email_html(_cloud_payload("CN"))
+
+        self.assertIn(
+            '<h2 style="margin:0;color:#172033;font-size:18px;line-height:1.35;">策略跟踪持仓（1）</h2>',
+            rendered,
+        )
 
     def test_real_decision_plan_displays_only_real_price_fields(self):
         payload = _cloud_payload("US")
@@ -233,6 +243,34 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("是否已有交易计划：</span>否", rendered)
         self.assertNotIn("交易计划（来自真实 Decision）", rendered)
         self.assertNotIn("入场（Entry）", rendered)
+
+    def test_new_confirmation_no_trade_email_surfaces_rejection_summary_first(self):
+        payload = _cloud_payload("US")
+        report = payload["reports"][1]
+        result = deepcopy(report["报告"]["results"][1])
+        result["symbol"] = "SPCX"
+        result["event_was_new"] = True
+        result["primary_action"] = "NO_TRADE"
+        result["final_status"] = "NO_TRADE"
+        result["individual_decision"] = {
+            "action": "NO_TRADE",
+            "gate_reason": "RR_BELOW_MINIMUM",
+            "target_upside_pct": 0.1426,
+            "entry_zone_upper_distance_pct": -0.01,
+            "rr": {"rr_ratios": [0.88], "quality": "NO_TRADE"},
+        }
+        report["报告"]["results"] = [result]
+
+        rendered = render_daily_report_email_html(payload)
+
+        for fragment in (
+            "确认成功",
+            "仍在入场区",
+            "T1空间 14.26%",
+            "R/R 0.88 &lt; 2",
+            "→ 不交易",
+        ):
+            self.assertIn(fragment, rendered)
 
     def test_no_trade_email_separates_near_resistance_from_wave3_structure_target(self):
         rendered = render_daily_report_email_html(

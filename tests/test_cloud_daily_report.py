@@ -9,6 +9,7 @@ from unittest.mock import patch
 from core import Quote
 from scripts.run_cloud_daily_report import (
     main as cloud_report_main,
+    _notification_text,
     _status_from_result,
     resolve_cloud_trade_date,
     run_cloud_daily_report,
@@ -96,6 +97,17 @@ def _cloud_us_client():
 
 
 class CloudDailyReportTests(unittest.TestCase):
+    def test_notification_uses_explicit_confirmation_and_position_semantics(self):
+        payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        payload["cloud_daily_report"] = {"market": "US", "status": "SUCCESS"}
+
+        _, body = _notification_text(payload)
+
+        self.assertIn("等待确认：", body)
+        self.assertIn("策略跟踪持仓：", body)
+        self.assertNotIn("接近确认：", body)
+        self.assertNotIn("\n持仓：", body)
+
     def test_automatic_trade_date_uses_exchange_local_date_and_completed_session(self):
         provider = ExactExchangeCalendarProvider()
         cases = (
@@ -601,7 +613,7 @@ class CloudDailyReportTests(unittest.TestCase):
         rows = {row["symbol"]: row for row in projection["rows"]}
         self.assertEqual(rows["600001.SH"]["current_wave_label"], "2浪调整中｜继续观察")
         self.assertEqual(rows["600002.SH"]["current_wave_label"], "3浪进行中｜等待延续确认")
-        self.assertEqual(rows["600003.SH"]["current_wave_label"], "3浪结构持仓管理中")
+        self.assertEqual(rows["600003.SH"]["current_wave_label"], "3浪结构策略跟踪持仓中")
         self.assertEqual(rows["AAA"]["current_wave_label"], "3浪启动条件已确认")
         self.assertEqual(rows["600002.SH"]["missing_condition"], "还差：收盘价有效突破前一段上涨高点 123.45")
         html = render_dashboard_html(payload)

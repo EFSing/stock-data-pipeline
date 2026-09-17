@@ -15,6 +15,34 @@ from trading.daily_dashboard import (
 FIXTURE = Path(__file__).with_name("fixtures") / "daily_dashboard_v1.json"
 
 
+def _new_confirmation_no_trade_payload(gate_reason: str, **decision_fields) -> dict:
+    decision = {
+        "action": "NO_TRADE",
+        "gate_reason": gate_reason,
+        **decision_fields,
+    }
+    return {
+        "as_of_date": "2026-09-14",
+        "results": [{
+            "symbol": "CONFIRM_REJECT",
+            "market": "US",
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UNKNOWN",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "NONE",
+            "primary_action": "NO_TRADE",
+            "event_was_new": True,
+            "individual_decision": decision,
+            "portfolio_result": None,
+            "position_management": None,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "NO_TRADE",
+        }],
+    }
+
+
 class DailyDashboardTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -55,11 +83,11 @@ class DailyDashboardTests(unittest.TestCase):
             {"CN": "DATA_OK", "US": "DATA_OK"},
         )
         self.assertEqual(rows["600001.SH"]["stage_label"], "观察中")
-        self.assertEqual(rows["600002.SH"]["stage_label"], "接近确认")
+        self.assertEqual(rows["600002.SH"]["stage_label"], "等待确认")
         self.assertEqual(rows["AAA"]["stage_label"], "今天出现新的确认")
         self.assertEqual(rows["BBB"]["stage_label"], "已形成交易方案")
         self.assertEqual(rows["CCC"]["stage_label"], "可入场")
-        self.assertEqual(rows["600003.SH"]["stage_label"], "持仓管理")
+        self.assertEqual(rows["600003.SH"]["stage_label"], "策略跟踪持仓")
 
     def test_default_focus_contains_only_actionable_or_exception_rows(self):
         projection = build_dashboard_projection(self.payload)
@@ -274,6 +302,83 @@ class DailyDashboardTests(unittest.TestCase):
 
         self.assertEqual(rows["AAA"]["waiting"], "今天出现确认，但当前入场条件没有通过。")
         self.assertNotIn("等待交易方案形成", rows["AAA"]["waiting"])
+
+    def test_new_confirmation_no_trade_first_layer_exposes_existing_gate_facts(self):
+        cases = (
+            (
+                "ABOVE_ENTRY_ZONE",
+                {"entry_zone_upper_distance_pct": 0.03},
+                ("确认成功", "超过入场区", "→ 不交易"),
+            ),
+            (
+                "TARGET_UPSIDE_BELOW_MINIMUM",
+                {
+                    "target_upside_pct": 0.03,
+                    "minimum_target_upside_pct": 0.05,
+                    "entry_zone_upper_distance_pct": -0.01,
+                },
+                ("确认成功", "仍在入场区", "T1空间 3.00% < 5.00%", "→ 不交易"),
+            ),
+            (
+                "RR_BELOW_MINIMUM",
+                {
+                    "target_upside_pct": 0.1426,
+                    "entry_zone_upper_distance_pct": -0.01,
+                    "rr": {"rr_ratios": [0.88], "quality": "NO_TRADE"},
+                },
+                ("确认成功", "仍在入场区", "T1空间 14.26%", "R/R 0.88 < 2", "→ 不交易"),
+            ),
+            (
+                "STALE_CONFIRMATION_GEOMETRY",
+                {},
+                ("确认成功", "确认结构已过期", "→ 不交易"),
+            ),
+            (
+                "NO_VALID_TARGET",
+                {},
+                ("确认成功", "没有有效 T1 目标", "→ 不交易"),
+            ),
+        )
+
+        for gate_reason, fields, expected_fragments in cases:
+            with self.subTest(gate_reason=gate_reason):
+                payload = _new_confirmation_no_trade_payload(gate_reason, **fields)
+                projection = build_dashboard_projection(payload)
+                row = projection["rows"][0]
+                self.assertEqual(row["stage_key"], "CONFIRMED")
+                for fragment in expected_fragments:
+                    self.assertIn(fragment, row["waiting"])
+
+                rendered = render_dashboard_html(payload)
+                card_start = rendered.index('data-search="CONFIRM_REJECT')
+                card_end = rendered.index("</article>", card_start)
+                first_layer = rendered[card_start:card_end].split(
+                    '<details class="technical-details">', 1
+                )[0]
+                for fragment in expected_fragments:
+                    self.assertIn(fragment.replace("<", "&lt;"), first_layer)
+
+    def test_new_confirmation_no_trade_missing_display_facts_does_not_recompute_them(self):
+        payload = _new_confirmation_no_trade_payload(
+            "RR_BELOW_MINIMUM",
+            planned_entry=100.0,
+            targets=[114.26],
+            execution_stop=90.0,
+            rr={"rr_ratios": [0.88], "quality": "NO_TRADE"},
+        )
+
+        row = build_dashboard_projection(payload)["rows"][0]
+
+        self.assertIn("R/R 0.88 < 2", row["waiting"])
+        self.assertNotIn("T1空间", row["waiting"])
+        self.assertNotIn("仍在入场区", row["waiting"])
+
+    def test_unknown_confirmation_rejection_keeps_generic_fallback(self):
+        payload = _new_confirmation_no_trade_payload("UNMAPPED_GATE")
+
+        row = build_dashboard_projection(payload)["rows"][0]
+
+        self.assertEqual(row["waiting"], "今天出现确认，但当前入场条件没有通过。")
 
     def test_watch_and_armed_never_invent_entry(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
@@ -519,7 +624,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["600001.SH"]["primary_wave_label"], "2浪调整结束候选，等待3浪启动")
         self.assertEqual(rows["AAA"]["identity_labels"], ("候选观察池", "尚未进入正式策略池"))
         self.assertEqual(rows["BBB"]["identity_labels"], ("正式策略池",))
-        self.assertEqual(rows["600003.SH"]["identity_labels"], ("正式策略池", "持仓管理"))
+        self.assertEqual(rows["600003.SH"]["identity_labels"], ("正式策略池", "策略跟踪持仓"))
         self.assertEqual(self.payload, original)
 
     def test_missing_name_falls_back_to_dash(self):
@@ -545,6 +650,10 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("候选观察池", html)
         self.assertIn("尚未进入正式策略池", html)
         self.assertIn("今天出现新的确认", html)
+        self.assertIn("等待确认", html)
+        self.assertIn("策略跟踪持仓", html)
+        self.assertNotIn("接近确认", html)
+        self.assertNotIn("当前持仓", html)
         self.assertIn("查看详情", html)
         self.assertIn("查看技术详情 / 审计信息", html)
         self.assertNotIn('<details class="technical-details" open>', html)
@@ -684,6 +793,8 @@ class DailyDashboardTests(unittest.TestCase):
         html = render_dashboard_html(payload)
         for label in ("模拟交易", "绩效统计", "策略规则", "为什么买／为什么关注", "有没有真正模拟成交", "现在怎么样", "目标价只记录状态，不自动止盈"):
             self.assertIn(label, html)
+        self.assertIn("模拟持仓", html)
+        self.assertNotIn("当前持仓", html)
         self.assertIn("样本连续", html)
         self.assertIn("平均收益", html)
         self.assertIn("2浪调整结束后，价格重新突破1浪高点", html)
