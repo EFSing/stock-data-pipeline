@@ -4,7 +4,7 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-17（SETUP_01/02 System Signal Scarcity Audit 已完成，
+> 最后实质更新：2026-09-17（SETUP_01/02 Post-confirmation Retest Causal Research 已完成，
 > 保持 Development-only，未接入生产）。
 
 ## 项目身份
@@ -347,6 +347,8 @@
   声称是 broker execution。
 
 ## 研究中的能力 / 明确未接入生产
+
+- `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1` 已完成固定 Development-only A/B replay：从 existing production semantics 的 999 CONFIRMED 重建 incumbent 8 ENTRY_ALLOWED / 4 exact T+1 executed。A（exact T+1 OPEN retest）新增执行 0；B（first legal frozen-zone close retest → exact next OPEN）8 plans、5 新增执行，SETUP_01/02=4/1、CN/US=1/4、EARLY/LATE=5/0。ABOVE_ENTRY_ZONE 595 cohort 中恢复 7 plans / 4 executions（0.672%）。固定 confirmation/Entry Zone/Stop/T-known targets/provenance/5%/2R/causal context，不设置 waiting window；终止原因、latency、concentration、去重 event/lifecycle conservation 与 canonical self-hash 均保留在 compact JSON/Markdown。恢复很少且 time-half 不稳定，正式节点为 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`；仅等待独立 production design/fresh validation 是否继续的用户决策，未修改 production code/semantics。父审计总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`，不把本研究解释为 Entry Zone 已被证明错误。
 
 - Candidate Universe：已接入人工触发的 production Daily Decision Chain V1；动态
   Candidate-only 仍是 discovery-only，进入正式生命周期必须人工加入

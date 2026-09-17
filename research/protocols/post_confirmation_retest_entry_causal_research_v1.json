@@ -1,0 +1,94 @@
+{
+  "protocol_version": "POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1",
+  "registered_date": "2026-09-17",
+  "scope": "DEVELOPMENT_ONLY_NOT_PRODUCTION_AUTHORIZED",
+  "question": "Can strict confirmation remain a quality filter while confirmed factual state is decoupled from immediate entry, without enlarging chase range or relaxing any production parameter?",
+  "dataset": {
+    "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+    "manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+    "replay_input_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+    "session_identity": "FROZEN_DATASET_MARKET_SESSION_SET",
+    "symbols": 40,
+    "bars": 86305,
+    "tracked_manifest": "research/development_holdout/dataset_manifest.json",
+    "tracked_wrapper": "research/development_holdout/replay_manifest.json"
+  },
+  "parent_audit": {
+    "classification": "MIXED_ARCHITECTURE_SIGNAL_STARVATION",
+    "canonical_payload_sha256": "sha256:a3185bdd9a648e845445a54a014058ad9cd2fd70ccd297351b0a689ccd069b6b"
+  },
+  "cohort": {
+    "definition": "Every existing SETUP_01/02 first-entry CONFIRMED event; separately report incumbent ENTRY_ALLOWED/executed and primary first-fail ABOVE_ENTRY_ZONE cohort. No post-result removals.",
+    "expected_confirmed": 999,
+    "expected_above_entry_zone": 595,
+    "expected_incumbent_entry_allowed": 8,
+    "expected_incumbent_exact_t1_executed": 4
+  },
+  "fixed_geometry": [
+    "confirmation level",
+    "canonical confirmation-day ATR14 Entry Zone",
+    "structural invalidation",
+    "execution stop",
+    "T-known nearest-first targets including provenance; never replace T1 with T2/T3",
+    "existing confirmation/Swing/Wave/Fib parameters",
+    "5% minimum gross T1 upside and 2R at retest plan/actual OPEN",
+    "existing target reasonableness"
+  ],
+  "policies": {
+    "A": {
+      "name": "CONFIRMED_T1_OPEN_RETEST",
+      "pending_fact": "Retain confirmed geometry even if confirmation CLOSE above Entry Zone. A recovered pending plan is a previously non-ENTRY_ALLOWED event with provable frozen geometry/target and unexhausted T1; it is not a production plan.",
+      "execution": "Check only exact T+1 OPEN, frozen Entry Zone/invalidation, T1 >=5% remaining upside, actual RR >=2 and existing target reasonableness; reuse incumbent exact-session OPEN executor. Do not read T+1 HIGH/LOW/CLOSE to decide A."
+    },
+    "B": {
+      "name": "CONFIRMED_FIRST_CLOSE_RETEST",
+      "eligibility": "Residual events not executed by incumbent or A at T+1. Missing exact T+1 proof terminates B; do not fall forward.",
+      "signal": "Strict as-of replay, find first CLOSE within frozen zone before any existing termination. First close must satisfy frozen T1 >=5%, RR >=2 and existing target reasonableness. If first retest fails, record reason and do not seek a later close.",
+      "execution": "Only exact next-session OPEN after retest plan; frozen zone/invalidation/5%/2R rechecked through existing executor; next-open skip ends observation.",
+      "termination_precedence": [
+        "data/session proof absent",
+        "CLOSE <= frozen structural invalidation (existing close-based structure rule); T+1 OPEN <= invalidation terminates immediately",
+        "existing candidate extraction becomes ineligible or its existing lifecycle key changes, or replay lifecycle changes",
+        "known HIGH >= frozen T1; confirmation-day HIGH is known at T close; T+1 OPEN >= T1 also exhausts before B",
+        "first close in frozen Entry Zone",
+        "dataset end right-censoring"
+      ],
+      "context_source": "Existing trading.setup01/02._candidate_from_wave and candidate.key plus strict-as-of replay lifecycle; no new context thresholds.",
+      "same_session_ambiguity": "Any known structural/context/T1 termination before a close plan wins conservatively; never infer a favorable intraday ordering.",
+      "waiting_window": null
+    }
+  },
+  "reporting": {
+    "dimensions": [
+      "SETUP_01 vs SETUP_02",
+      "CN vs US",
+      "EARLY vs LATE confirmation-session market-union midpoint",
+      "ABOVE_ENTRY_ZONE separately",
+      "symbol concentration and excluding top count symbol"
+    ],
+    "conservation": "One original event/lifecycle per confirmed fact, at most one execution per event; incumbent/A/B executable sets mutually disjoint. Separate events, plans, executions and terminal reasons. Preserve original event snapshots.",
+    "latency": "Market-session ordinals, first retest close latency distribution and exact next-session execution; no calendar-day substitutions.",
+    "outputs": "Compact aggregate JSON/Markdown only, no raw bars or event dumps",
+    "post_entry_outcomes": "None; no performance metrics used or generated."
+  },
+  "forbidden": [
+    "production code changes",
+    "threshold sweep",
+    "waiting-day search",
+    "ATR multiplier search",
+    "additional timing policies",
+    "multi-gate combination search",
+    "Final OOS",
+    "holdings/account secrets",
+    "provider fetch",
+    "Sheets/state/Paper writes",
+    "broker orders",
+    "outcome optimization",
+    "best parameters"
+  ],
+  "required_status": "READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE",
+  "integrity": {
+    "protocol_sha256": "sha256:c6a8d3f5efdad96fc9cf7cf9c59619a0d608e5e1124b64b48a79d1fe11352662",
+    "hash_scope": "canonical JSON with integrity.protocol_sha256=null"
+  }
+}
