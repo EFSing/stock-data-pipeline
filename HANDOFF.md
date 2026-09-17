@@ -2,7 +2,11 @@
 
 Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 和 mergeability。
 
-## Current Task / State
+## Current Task
+
+当前 branch：`research/system-signal-scarcity-audit-v1`，独立 PR #91。
+
+## Current State
 
 - 本次任务：先修正并验证 PR #91 的治理分类冲突，squash merge；随后在 PR #90 原分支落实 usable exact-session partial report 的 exit 0 运维语义，验证并 squash merge；再从最新 main 开展 `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1`。
 - PR #91 仍 OPEN，正在按本次用户授权完成验证与合并；PR #90 仍 OPEN；PR #82 完全独立，不 merge/rebase/mix。
@@ -13,6 +17,10 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 - PR #91 production code、研究算法、阈值和 artifact 未改。
 - Focused 14 tests；full 767 tests，3 skipped，OK；artifact self-hash tests 通过。
 - frozen Development loader 已核验 40 symbols、86,305 bars 和固定 manifest/replay identities；完整重放的所有内容与已提交 artifact 一致，初次 hash 差异仅为 protocol CRLF/LF file bytes，已以 Git LF bytes 完成复核，canonical artifact SHA 完全匹配。
+
+## Blocker
+
+无研究实现 blocker；等待最终 PR CI，通过后继续用户已授权的合并与研究。
 
 ## Next Action
 
@@ -27,3 +35,8 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 - 本机默认 ignored manifest 路径不存在时使用 Git-tracked `research/development_holdout/dataset_manifest.json` 与 `replay_manifest.json`；不重新抓取冻结数据。
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
+
+总体主线：Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit。
+四类 Setup：SETUP_01、SETUP_02、SETUP_03、SETUP_04；SETUP_03 只是四类 Setup 之一。
+
+`CROSS_DEVICE_HANDOFF_READY`
