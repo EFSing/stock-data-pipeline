@@ -54,11 +54,11 @@ NAV_VIEW_ORDER = (
 
 STAGE_LABELS = {
     "WATCH": "观察中",
-    "ARMED": "接近确认",
+    "ARMED": "等待确认",
     "CONFIRMED": "今天出现新的确认",
     "STRATEGY_PROPOSAL": "已形成交易方案",
     "ENTRY_ALLOWED": "可入场",
-    "POSITION_MANAGEMENT": "持仓管理",
+    "POSITION_MANAGEMENT": "策略跟踪持仓",
     "FAILED": "已失效",
     "DATA_BLOCKED": "数据异常",
     "NO_TRADE": "今天不交易",
@@ -66,12 +66,12 @@ STAGE_LABELS = {
 
 STATUS_LABELS = {
     "WATCH": "观察中",
-    "ARMED": "接近确认",
+    "ARMED": "等待确认",
     "CONFIRMED": "出现新的确认",
     "STRATEGY_PROPOSAL": "已形成交易方案",
     "ENTRY_ALLOWED": "可入场",
     "PORTFOLIO_ALLOWED": "可入场",
-    "POSITION_MANAGEMENT": "持仓管理",
+    "POSITION_MANAGEMENT": "策略跟踪持仓",
     "FAILED": "已失效",
     "DATA_BLOCKED": "数据异常",
     "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED": "数据异常",
@@ -81,7 +81,7 @@ STATUS_LABELS = {
 
 ACTION_LABELS = {
     "WATCH": "观察中",
-    "ARMED": "接近确认",
+    "ARMED": "等待确认",
     "WAIT_CONFIRMATION": "继续观察",
     "ENTRY_ALLOWED": "当前满足入场条件",
     "NO_TRADE": "今天不交易",
@@ -667,7 +667,7 @@ def _human_wave_stage_label(
         if stage in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}:
             return "3浪交易条件已确认｜已形成交易计划"
         if stage == "POSITION_MANAGEMENT":
-            return "3浪结构持仓管理中"
+            return "3浪结构策略跟踪持仓中"
         if _has_persistent_confirmation(result):
             return "3浪条件此前已确认｜今天没有新的交易信号"
     if primary_wave == "WAVE_3_CONTINUATION_CANDIDATE":
@@ -680,7 +680,7 @@ def _human_wave_stage_label(
         if stage in {"STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}:
             return "3浪交易条件已确认｜已形成交易计划"
         if stage == "POSITION_MANAGEMENT":
-            return "3浪结构持仓管理中"
+            return "3浪结构策略跟踪持仓中"
         if _has_persistent_confirmation(result):
             return "3浪条件此前已确认｜今天没有新的交易信号"
     if primary_wave == "ABC_CORRECTION_CANDIDATE":
@@ -819,6 +819,86 @@ def _earliest_execution_session(result: Mapping[str, Any], decision: Mapping[str
     )
 
 
+def _confirmation_no_trade_summary(
+    result: Mapping[str, Any], decision: Mapping[str, Any]
+) -> str:
+    """Summarise an existing confirmation-day rejection for the first layer.
+
+    This is deliberately a formatter only.  All values come from the existing
+    Daily Decision and opportunity-freshness payload; no entry, target, or RR
+    geometry is recomputed here.
+    """
+
+    if (
+        _text(result.get("final_status")).upper() != "NO_TRADE"
+        or _decision_action(decision) != "NO_TRADE"
+    ):
+        return ""
+
+    reason = _raw_text(decision.get("gate_reason")).upper()
+    if not reason:
+        return "今天出现确认，但当前入场条件没有通过。"
+
+    freshness = _mapping(result.get("opportunity_freshness"))
+    target_upside = _first_value(
+        decision.get("target_upside_pct"), freshness.get("target_upside_pct")
+    )
+    minimum_upside = _first_value(
+        decision.get("minimum_target_upside_pct"),
+        freshness.get("minimum_target_upside_pct"),
+    )
+    entry_zone_distance = _first_value(
+        decision.get("entry_zone_upper_distance_pct"),
+        freshness.get("entry_zone_upper_distance_pct"),
+    )
+    rr = _mapping(decision.get("rr"))
+    rr_ratios = _sequence(rr.get("rr_ratios"))
+    first_rr = _first_value(rr_ratios[0] if rr_ratios else None, rr.get("rr"))
+
+    fragments = ["确认成功"]
+    distance = _numeric(entry_zone_distance)
+    if reason == "ABOVE_ENTRY_ZONE":
+        fragments.append("超过入场区")
+    elif distance is not None:
+        fragments.append("超过入场区" if distance > 0 else "仍在入场区")
+
+    target_number = _numeric(target_upside)
+    minimum_number = _numeric(minimum_upside)
+    if reason == "TARGET_UPSIDE_BELOW_MINIMUM" and target_number is not None:
+        target_text = f"T1空间 {_format_percent(target_number)}"
+        if minimum_number is not None:
+            target_text += f" < {_format_percent(minimum_number)}"
+        fragments.append(target_text)
+    elif target_number is not None:
+        fragments.append(f"T1空间 {_format_percent(target_number)}")
+
+    if reason == "RR_BELOW_MINIMUM" and _numeric(first_rr) is not None:
+        fragments.append(f"R/R {_format_rr(first_rr)}")
+
+    rejection_labels = {
+        "ABOVE_ENTRY_ZONE": "超过入场区",
+        "TARGET_UPSIDE_BELOW_MINIMUM": "T1空间不足",
+        "RR_BELOW_MINIMUM": "R/R不足",
+        "STALE_CONFIRMATION_GEOMETRY": "确认结构已过期",
+        "NO_VALID_TARGET": "没有有效 T1 目标",
+    }
+    rejection = rejection_labels.get(reason)
+    detail_is_present = (
+        reason == "ABOVE_ENTRY_ZONE"
+        or (
+            reason == "TARGET_UPSIDE_BELOW_MINIMUM"
+            and target_number is not None
+            and minimum_number is not None
+        )
+    )
+    if rejection and not detail_is_present and rejection not in fragments:
+        fragments.append(rejection)
+    if not rejection:
+        return "今天出现确认，但当前入场条件没有通过。"
+    fragments.append("→ 不交易")
+    return "｜".join(fragments)
+
+
 def _waiting(
     stage: str,
     result: Mapping[str, Any],
@@ -838,6 +918,9 @@ def _waiting(
         # T-day confirmation is already followed by the existing individual
         # Decision calculation.  Do not imply that a plan is still forming.
         if _event_is_new(result):
+            no_trade_summary = _confirmation_no_trade_summary(result, decision)
+            if no_trade_summary:
+                return no_trade_summary
             return "今天出现确认，但当前入场条件没有通过。"
         return _reason_text(result) or "今天没有新的交易信号。"
     if stage == "STRATEGY_PROPOSAL":
@@ -854,9 +937,9 @@ def _waiting(
         return {
             "HOLD": "继续持有。",
             "NO_ADD": "继续持有，暂不加仓。",
-            "PROFIT_PROTECTION": "保护利润，按现有持仓管理规则推进。",
-            "EXIT": "按现有持仓管理结果执行退出。",
-        }.get(action, _reason_text(result) or "按现有持仓管理结果处理。")
+            "PROFIT_PROTECTION": "保护利润，按现有策略跟踪持仓管理规则推进。",
+            "EXIT": "按现有策略跟踪持仓管理结果执行退出。",
+        }.get(action, _reason_text(result) or "按现有策略跟踪持仓管理结果处理。")
     if stage == "FAILED":
         return "当前交易结构已失效。"
     if stage == "DATA_BLOCKED":
@@ -878,7 +961,7 @@ def _plain_why(
     if stage == "WATCH":
         return f"当前关注“{primary_wave_label}”结构，但确认条件还没有出现。"
     if stage == "ARMED":
-        return f"当前接近“{primary_wave_label}”确认，仍需满足确认条件。"
+        return f"当前等待“{primary_wave_label}”确认，仍需满足确认条件。"
     if stage == "CONFIRMED":
         return f"今天出现新的“{primary_wave_label}”确认信号。"
     if stage == "STRATEGY_PROPOSAL":
@@ -888,7 +971,7 @@ def _plain_why(
     if stage == "ENTRY_ALLOWED":
         return "现有交易方案满足入场条件，仍需按 T+1 执行规则检查。"
     if stage == "POSITION_MANAGEMENT":
-        return "该标的已经进入持仓管理，当前只评估持仓动作。"
+        return "该标的已经进入策略跟踪持仓，当前只评估持仓动作。"
     if stage == "FAILED":
         return "最终整体状态明确显示交易结构已经失效。"
     if stage == "DATA_BLOCKED":
@@ -1222,7 +1305,7 @@ def _identity_labels(labels: Sequence[str], candidate_only: bool, is_position: b
         if "FORMAL_STRATEGY_POOL" in labels:
             result.append("正式策略池")
         if is_position or "ACTIVE_STRATEGY_POSITION" in labels:
-            result.append("持仓管理")
+            result.append("策略跟踪持仓")
         if "PAPER_TRACKED" in labels:
             result.append("模拟跟踪")
         if "DYNAMIC_CANDIDATE" in labels:
@@ -1633,7 +1716,7 @@ def _render_position(row: Mapping[str, Any]) -> str:
     if not field_grid:
         return ""
     return (
-        '<section class="panel position-panel"><h3>持仓管理</h3>'
+        '<section class="panel position-panel"><h3>策略跟踪持仓管理</h3>'
         + field_grid
         + "</section>"
     )
@@ -1685,7 +1768,7 @@ def _compact_position(row: Mapping[str, Any]) -> str:
     for label, key in (("当前", "current_r"), ("MFE", "mfe_r"), ("MAE", "mae_r")):
         if _has_display_value(position.get(key)):
             values.append(f"{label} {_display(position.get(key))}")
-    return "持仓管理：" + " · ".join(values) if values else "持仓管理中"
+    return "策略跟踪持仓管理：" + " · ".join(values) if values else "策略跟踪持仓中"
 
 
 def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
@@ -1716,7 +1799,7 @@ def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
             )
             bullets.append(
                 f"参考价格：{_display(plan.get('planned_entry'))}；第一目标候选：{_display(plan.get('target_1'))}；"
-                f"RR：{_first_rr_text(plan.get('rr'))}；最低 RR：2.00R"
+                f"RR：{_first_rr_text(plan.get('rr'))}"
             )
             if plan.get("has_target_projection"):
                 bullets.append(
@@ -1915,7 +1998,7 @@ def _render_details(row: Mapping[str, Any]) -> str:
         f'<p>R/R quality：{_escape(_mapping(row.get("plan")).get("rr_quality"))}</p>'
         f'<p>Portfolio Risk：{_escape(_mapping(row.get("portfolio_result")).get("status"))} / {_escape(_mapping(row.get("portfolio_result")).get("reason"))}</p>'
         f'<p>Risk group：{_escape(_mapping(row.get("portfolio_result")).get("risk_group"))}</p></section>'
-        '<section><h4>Position Management</h4>'
+        '<section><h4>策略跟踪持仓管理（Position Management）</h4>'
         f'<p>状态：{_escape(_mapping(row.get("position_management")).get("status"))}</p>'
         f'<p>Wave5：{_escape(position.get("wave5_context"))}；Target status：{_escape(position.get("target_status"))}</p>'
         f'<p>Waiting / blocking：{_escape(row.get("waiting"))}</p>'
@@ -2323,7 +2406,7 @@ def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
         ("已形成方案", performance.get("plans", 0)),
         ("实际模拟成交", performance.get("executed", 0)),
         ("跳过", performance.get("skipped", 0)),
-        ("当前持仓", performance.get("open", 0)),
+        ("模拟持仓", performance.get("open", 0)),
         ("已结束", performance.get("closed", 0)),
         ("胜率", _format_stat(performance.get("win_rate"), kind="percent")),
         ("平均 R", _format_stat(performance.get("average_r"), kind="r")),
@@ -2369,7 +2452,7 @@ def _render_performance_workspace(paper: Mapping[str, Any]) -> str:
     return (
         '<section id="performance-workspace" class="workspace-panel" hidden>'
         '<div class="workspace-heading"><h2>绩效统计</h2>'
-        '<p>只统计已经结束的模拟交易；未成交方案和当前持仓不进入胜率分母。</p></div>'
+        '<p>只统计已经结束的模拟交易；未成交方案和模拟持仓不进入胜率分母。</p></div>'
         f'{summary}{warning}{"".join(groups)}'
         '<p class="paper-stat-note">胜率只统计已结束的盈利／亏损交易；模拟持仓中和未成交方案不进入胜率分母。样本不足时不显示误导性的 0%。</p>'
         '</section>'
@@ -2386,7 +2469,7 @@ def _render_rules_workspace(rules: Sequence[Mapping[str, Any]]) -> str:
     return (
         '<section id="rules-workspace" class="workspace-panel" hidden>'
         '<div class="workspace-heading"><h2>策略规则</h2>'
-        '<p>本页只解释当前已实现的 Wave → Setup → Decision → T+1 → Position Management 规则。</p></div>'
+        '<p>本页只解释当前已实现的 Wave → Setup → Decision → T+1 → 策略跟踪持仓管理规则。</p></div>'
         f'<section class="rules-grid">{cards}</section></section>'
     )
 
@@ -2412,7 +2495,7 @@ def render_dashboard_html(value: Any) -> str:
         ("confirmed", "新确认", summary["new_confirmed_count"]),
         ("STRATEGY_PROPOSAL", "交易方案", summary["strategy_proposal_count"]),
         ("ENTRY_ALLOWED", "可入场", summary["entry_allowed_count"]),
-        ("POSITION_MANAGEMENT", "持仓", summary["position_count"]),
+        ("POSITION_MANAGEMENT", "策略跟踪持仓", summary["position_count"]),
         ("all", "全部/诊断", len(projection["rows"])),
     )
     stage_nav = "".join(
@@ -2492,13 +2575,13 @@ def render_dashboard_html(value: Any) -> str:
 </head>
 <body>
 <main class="shell">
-<header class="hero"><div class="eyebrow">每日收盘报告 · 只读</div>{demo_banner}{cloud_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有结构分析、交易决策、风险和持仓管理结果；中文阶段名称只是展示映射，不会产生新信号或订单。{_escape(paper_note)}</div></header>
+<header class="hero"><div class="eyebrow">每日收盘报告 · 只读</div>{demo_banner}{cloud_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有结构分析、交易决策、风险和策略跟踪持仓管理结果；中文阶段名称只是展示映射，不会产生新信号或订单。{_escape(paper_note)}</div></header>
 <section class="summary-primary" aria-label="今日重点摘要">
 {_metric('可入场', summary['entry_allowed_count'], 'positive')}
 {_metric('已形成交易方案', summary['strategy_proposal_count'])}
 {_metric('今日确认', summary['new_confirmed_count'], 'positive')}
-{_metric('接近确认', summary['armed_count'])}
-{_metric('当前持仓', summary['position_count'])}
+{_metric('等待确认', summary['armed_count'])}
+{_metric('策略跟踪持仓', summary['position_count'])}
 {_metric('数据异常', summary['data_blocked_count'], 'danger')}
 </section>
 <section class="summary-secondary" aria-label="次级摘要">
@@ -2514,7 +2597,7 @@ def render_dashboard_html(value: Any) -> str:
 {_render_today_paper_focus(paper, projection.get('as_of_date'))}
 <nav class="stage-nav" aria-label="阶段导航"><span class="stage-nav-label">阶段查看：</span>{stage_nav}</nav>
 <section class="filters" aria-label="股票筛选"><label class="search-field">搜索<input id="search-filter" type="search" placeholder="ticker 或公司名称" autocomplete="off"></label><label>市场<select id="market-filter"><option value="">全部</option><option value="CN">中国市场（CN）</option><option value="US">美国市场（US）</option></select></label><label>当前阶段<select id="stage-filter"><option value="">全部</option>{stage_options}</select></label><label>浪型策略<select id="setup-filter"><option value="">全部</option><option value="SETUP_01">2浪→3浪</option><option value="SETUP_02">3浪延续</option></select></label><label>行业／板块<select id="sector-filter"><option value="">全部</option>{sector_options}</select></label><span id="visible-count" class="stage-nav-label"></span></section>
-<div class="results-heading"><h2 id="results-title">今日重点</h2><span id="results-description">先处理可入场、方案、确认、接近确认、持仓与异常</span></div>
+<div class="results-heading"><h2 id="results-title">今日重点</h2><span id="results-description">先处理可入场、方案、确认、等待确认、策略跟踪持仓与异常</span></div>
 <section id="cards" class="cards" aria-live="polite">{cards}</section><div id="empty" class="empty" hidden>没有符合当前筛选条件的股票。</div>
 </section>
 <div class="footer">默认只展示今日重点；观察中与低优先级结果请通过顶部导航查看。点击“查看交易依据”查看原因、价格计划和失效条件；开发者原始数据默认收起。页面不替代用户最终交易决定。</div>
@@ -2541,13 +2624,13 @@ def render_dashboard_html(value: Any) -> str:
   }};
   let activeView = 'focus';
   const viewDescriptions = {{
-    focus: '先处理可入场、方案、确认、接近确认、持仓与异常',
-    ARMED: '只看接近确认的股票',
+    focus: '先处理可入场、方案、确认、等待确认、策略跟踪持仓与异常',
+    ARMED: '只看等待确认的股票',
     WATCH: '只看观察中的股票',
     confirmed: '只看今天新确认的事件',
     STRATEGY_PROPOSAL: '只看已经形成交易方案的股票',
     ENTRY_ALLOWED: '只看可以入场的股票',
-    POSITION_MANAGEMENT: '只看当前持仓',
+    POSITION_MANAGEMENT: '只看策略跟踪持仓',
     all: '包含全部结果，以及低优先级诊断状态',
   }};
   const normalise = value => String(value || '').trim().toLocaleLowerCase();
@@ -2598,7 +2681,7 @@ def render_dashboard_html(value: Any) -> str:
       if (matches) visible += 1;
     }});
     empty.hidden = visible !== 0;
-    const viewLabel = activeView === 'focus' ? '今日重点' : activeView === 'all' ? '全部/诊断' : activeView === 'confirmed' ? '今日确认' : ({{ARMED:'接近确认', WATCH:'观察中', STRATEGY_PROPOSAL:'交易方案', ENTRY_ALLOWED:'可入场', POSITION_MANAGEMENT:'持仓'}}[activeView] || activeView);
+    const viewLabel = activeView === 'focus' ? '今日重点' : activeView === 'all' ? '全部/诊断' : activeView === 'confirmed' ? '今日确认' : ({{ARMED:'等待确认', WATCH:'观察中', STRATEGY_PROPOSAL:'交易方案', ENTRY_ALLOWED:'可入场', POSITION_MANAGEMENT:'策略跟踪持仓'}}[activeView] || activeView);
     resultsTitle.textContent = viewLabel;
     resultsDescription.textContent = viewDescriptions[activeView] || '';
     count.textContent = `${{viewLabel}}：${{visible}} / ${{cards.length}}`;
