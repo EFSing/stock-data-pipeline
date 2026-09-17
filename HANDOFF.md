@@ -21,13 +21,15 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 - Focused 14 tests；full 767 tests，3 skipped，OK；artifact self-hash tests 通过。
 - frozen Development loader 已核验 40 symbols、86,305 bars 和固定 manifest/replay identities；完整重放的所有内容与已提交 artifact 一致，初次 hash 差异仅为 protocol CRLF/LF file bytes，已以 Git LF bytes 完成复核，canonical artifact SHA 完全匹配。
 
+- #90 只读 US manual smoke 已完成：exact XNYS 2026-09-16，report PARTIAL_DATA_QUALITY，workflow success/exit 0，220 DATA_OK、2 DATA_UNAVAILABLE；两个 final artifacts 及 transport digest 核验通过。actual primary Tencent、verifier Sina；两条 QFQ provider 不可用仍 blocked，没有以 T-1 替代 T，没有 state/Sheets/Paper/broker/raw writes。
+
 ## Blocker
 
 无研究实现 blocker；继续用户已授权的 #90 修改与研究。
 
 ## Next Action
 
-完成 #90 最终 CI、只读 US manual smoke 与合并；继续独立 retest 研究，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
+核对 #90 final-head CI 后 squash merge；继续独立 retest 研究，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
 
 ## Constraints / Pitfalls
 
