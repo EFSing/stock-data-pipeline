@@ -248,6 +248,7 @@
 
 ### Cloud Daily Report V1 / Mobile Dashboard V2（live acceptance 已通过，正式 cutover）
 
+- 运维 exit 与 report quality 分离：`PARTIAL_DATA_QUALITY` 只有 exact target-session usable data 存在、核心日报计算完成且 final JSON/HTML 已形成时 exit 0，状态仍保持 partial。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
   `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
   和 22:30 UTC 运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确

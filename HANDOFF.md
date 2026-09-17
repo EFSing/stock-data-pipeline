@@ -4,7 +4,7 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 
 ## Current Task
 
-当前 main 已包含 PR #91 squash merge；下一工作分支为 PR #90 原分支。
+当前分支：`hotfix/us-cloud-daily-report-freshness-v1`，独立 PR #90，已合并最新 main。
 
 ## Current State
 
@@ -13,6 +13,9 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 - `PROJECT_GOVERNANCE_STATE_CONFLICT` 的原因已客观核实并修正：确定性 code/artifact 总体分类是 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不能替代总体分类。
 
 ## Completed / Validation
+
+- #90 已落实：PARTIAL_DATA_QUALITY 在 exact target-session usable data、核心计算完成和两个 final artifact 存在时 exit 0；status、单源标记、actual provenance 与所有策略/data gates 不变。
+- #90 focused provider/report 79 tests；full 777 tests，3 skipped，OK；py_compile 与 git diff --check 通过。
 
 - PR #91 production code、研究算法、阈值和 artifact 未改。
 - Focused 14 tests；full 767 tests，3 skipped，OK；artifact self-hash tests 通过。
@@ -24,7 +27,7 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 
 ## Next Action
 
-完成 #90 运维语义、验证、只读 smoke 与合并；继续独立 retest 研究，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
+完成 #90 最终 CI、只读 US manual smoke 与合并；继续独立 retest 研究，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
 
 ## Constraints / Pitfalls
 

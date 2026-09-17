@@ -9,6 +9,7 @@ from unittest.mock import patch
 from core import Quote
 from scripts.run_cloud_daily_report import (
     main as cloud_report_main,
+    _status_from_result,
     resolve_cloud_trade_date,
     run_cloud_daily_report,
 )
@@ -507,7 +508,7 @@ class CloudDailyReportTests(unittest.TestCase):
             self.assertNotIn("<select", email_html.lower())
             self.assertEqual(payload["cloud_daily_report"]["notifications"]["bark"]["status"], "SENT")
 
-    def test_partial_data_quality_is_persisted_and_keeps_existing_cli_failure_semantics(self):
+    def test_partial_data_quality_is_persisted_and_unproven_completion_fails_closed(self):
         fixture_payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
         fake_ephemeral = EphemeralMarketDataSnapshot(
             market="US", as_of_date=US_T_DAY, fetched_at=US_AFTER_CLOSE,
@@ -547,6 +548,49 @@ class CloudDailyReportTests(unittest.TestCase):
                 "--output", "unused-output",
             ])
         self.assertEqual(exit_code, 1)
+
+    def test_partial_completion_uses_exact_usable_data_and_rejects_core_failure(self):
+        snapshot = EphemeralMarketDataSnapshot(
+            market="US", as_of_date=US_T_DAY, fetched_at=US_AFTER_CLOSE,
+            required_symbols=("TEST",), active_paper_symbols=(),
+            latest_rows=({"统一代码": "TEST", "市场": "US", "交易日期": US_T_DAY,
+                          "校验状态": "单源可用"},),
+            qfq_rows=({"统一代码": "TEST", "市场": "US", "交易日期": US_T_DAY},),
+            symbol_status={"TEST": {"errors": ["latest validation: 单源可用"]}},
+            provider_status={"TEST": {"latest_status": "单源可用", "actual_source": "Tencent"}},
+            errors=("single source",), input_fingerprint="test", retry_count=1, history_days=1000)
+        result = {"preflight": {"production readiness": "READY"},
+                  "reports": [{"报告": {"results": [{"market": "US",
+                     "as_of_date": US_T_DAY.isoformat(), "data_status": "DATA_BAD", "reasons": []}]}}]}
+        status, quality = _status_from_result(result, snapshot)
+        self.assertEqual(status, "PARTIAL_DATA_QUALITY")
+        self.assertTrue(quality["operationally_complete"])
+        row = result["reports"][0]["报告"]["results"][0]
+        row["reasons"] = ["UPSTREAM_EVALUATION_FAILED: controlled"]
+        self.assertFalse(_status_from_result(result, snapshot)[1]["operationally_complete"])
+        row["reasons"] = []
+        from dataclasses import replace
+        stale = replace(snapshot, qfq_rows=({"统一代码": "TEST", "市场": "US", "交易日期": "2020-01-01"},))
+        self.assertFalse(_status_from_result(result, stale)[1]["operationally_complete"])
+        self.assertFalse(_status_from_result({"reports": []}, snapshot)[1]["operationally_complete"])
+
+    def test_cli_partial_completion_requires_exact_session_and_final_artifacts(self):
+        for complete, gate, files, expected in (
+            (True, "EXACT_COMPLETED_SESSION", True, 0),
+            (False, "EXACT_COMPLETED_SESSION", True, 1),
+            (True, "INCOMPLETE_SESSION", True, 1),
+            (True, "EXACT_COMPLETED_SESSION", False, 1),
+        ):
+            with self.subTest(complete=complete, gate=gate, files=files), TemporaryDirectory() as directory:
+                if files:
+                    for name in ("daily-report.json", "daily-report.html"):
+                        Path(directory, name).write_text("final", encoding="utf-8")
+                payload = {"cloud_daily_report": {"status": "PARTIAL_DATA_QUALITY",
+                           "calendar_gate": gate, "data_quality": {"operationally_complete": complete}}}
+                with patch("scripts.run_cloud_daily_report.resolve_cloud_trade_date", return_value=US_T_DAY), \
+                     patch("scripts.run_cloud_daily_report.run_cloud_daily_report", return_value=payload):
+                    self.assertEqual(cloud_report_main(["--market", "US", "--output", directory]), expected)
+                self.assertEqual(payload["cloud_daily_report"]["status"], "PARTIAL_DATA_QUALITY")
 
     def test_mobile_dashboard_uses_human_wave_mapping_and_collapsed_raw_data(self):
         payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
