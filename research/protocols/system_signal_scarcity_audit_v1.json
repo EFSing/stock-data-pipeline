@@ -1,0 +1,150 @@
+{
+  "protocol_version": "SYSTEM_SIGNAL_SCARCITY_AUDIT_V1",
+  "status": "DEVELOPMENT_ONLY_FIXED_AUDIT",
+  "purpose": "Attribute the scarcity of current production ENTRY_ALLOWED and exact T+1 executable events without changing production semantics or tuning any rule.",
+  "research_questions": [
+    "Is the observed low frequency structurally justified by independent safety/economic constraints?",
+    "Do multiple gates repeat the same target/entry geometry?",
+    "Do upstream Wave/Setup/confirmation stages or downstream target/RR stages dominate signal loss?",
+    "Is the recent daily-report observation distinguishable from long-run Development evidence?"
+  ],
+  "population": {
+    "dataset_role": "PRIMARY_DEVELOPMENT_ATTRIBUTION_DATASET",
+    "dataset_version": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+    "dataset_manifest_sha256": "sha256:44f4dcb62eb42829ed643c7aca199334509d55c4e9cb9d059413fc0669d3216f",
+    "replay_input_aggregate_sha256": "sha256:cb4c68eb080ac02d6cf022476abf5b88d6bb0af480b8ce583baca8c6119381e2",
+    "symbol_count": 40,
+    "bar_count": 86305,
+    "markets": ["CN", "US"],
+    "candidate_universe_semantics": "The frozen holdout roster is the fixed Development audit input. The live Candidate selector is not re-run and no post-outcome universe replacement is permitted.",
+    "history_sufficient_minimum_bars": 60,
+    "time_half_definition": "Within each market, EARLY/LATE is split at the midpoint of the sorted union of observed frozen session dates; this is descriptive only."
+  },
+  "production_semantics": {
+    "setup_types": ["SETUP_01", "SETUP_02"],
+    "setup01_protocol_source": "trading/setup01.py + trading/setup01_replay.py",
+    "setup02_protocol_source": "trading/setup02.py + trading/setup02_replay.py",
+    "decision_source": "trading/setup01_decision.py + trading/setup02_decision.py",
+    "t_plus_1_source": "existing exact next market-session OPEN executors",
+    "decision_order": [
+      "causal structural validity",
+      "ATR availability",
+      "T-day entry zone",
+      "T-known target existence and provenance",
+      "T1 target upside minimum",
+      "T1 R/R minimum",
+      "ENTRY_ALLOWED",
+      "exact T+1 session OPEN",
+      "T+1 invalidation/confirmation/entry-zone checks",
+      "T+1 remaining T1 upside",
+      "T+1 R/R"
+    ],
+    "target_before_rr": true,
+    "minimum_target_upside_pct": 0.05,
+    "minimum_rr": 2.0,
+    "t_day_only_forms_plan": true,
+    "exact_next_session_open_only": true,
+    "actual_entry_iff_executed": true
+  },
+  "measurement_units": {
+    "symbol_session": "one valid frozen Quote row for one symbol and market session",
+    "candidate_lifecycle": "one distinct causal lifecycle_index emitted by the existing SETUP_01 or SETUP_02 structural replay",
+    "setup_event": "one candidate lifecycle start; it is not a new signal and does not imply confirmation",
+    "confirmed_event": "one first-entry CONFIRMED replay event consumed by the existing Decision stream",
+    "decision_event": "one confirmed event evaluated by the existing T-day Decision evaluator",
+    "exact_t_plus_1_executable_event": "one existing ENTRY_ALLOWED plan classified EXECUTED using only the exact next session OPEN"
+  },
+  "first_fail": {
+    "definition": "The first terminal rejection in the existing production evaluation precedence. It is not a sum of all rejection reasons.",
+    "lifecycle_reasons": [
+      "DATA_QUALITY",
+      "HISTORY_INSUFFICIENT",
+      "WEEKLY_STATE",
+      "DAILY_STATE",
+      "NO_VALID_WAVE",
+      "SETUP_NOT_ELIGIBLE",
+      "NOT_CONFIRMED",
+      "STRUCTURAL_INVALIDATION",
+      "CONTEXT_REPLACED_BEFORE_CONFIRMATION"
+    ],
+    "decision_reasons": [
+      "DATA_QUALITY",
+      "ABOVE_ENTRY_ZONE",
+      "NO_VALID_TARGET",
+      "TARGET_UPSIDE_BELOW_MINIMUM",
+      "RR_BELOW_MINIMUM",
+      "STALE_CONFIRMATION_GEOMETRY",
+      "STRUCTURAL_ISSUE"
+    ],
+    "t_plus_1_reasons": [
+      "T+1 NO EXACT OPEN",
+      "T+1 BELOW INVALIDATION",
+      "T+1 BELOW CONFIRMATION",
+      "T+1 GAP ABOVE ENTRY ZONE",
+      "T+1 TARGET UPSIDE",
+      "T+1 RR"
+    ]
+  },
+  "all_fail_overlap": {
+    "definition": "Research-only counterfactual predicates evaluated on the same T-day event, including downstream predicates that production precedence may not reach.",
+    "gate_ids": [
+      "ABOVE_ENTRY_ZONE",
+      "NO_VALID_TARGET",
+      "TARGET_UPSIDE_BELOW_MINIMUM",
+      "RR_BELOW_MINIMUM",
+      "FORMAL_T1_CONFIRMED_SWING_HIGH",
+      "TARGET_PROVENANCE_GEOMETRY"
+    ],
+    "unique_only_definition": "A gate is unique-only when it is the sole applicable fail predicate for that confirmed event.",
+    "overlap_definition": "raw applicable occurrences minus unique-only occurrences; pairwise/triple intersections use the same event denominator."
+  },
+  "single_gate_ablation": {
+    "method": "ONE_GATE_AT_A_TIME",
+    "rules": [
+      "All other production rules remain fixed.",
+      "The source event, source Decision, source target candidates, and source execution are never mutated.",
+      "Target/RR/Entry Zone ablations may create a research-only counterfactual plan and re-use the exact T+1 OPEN executor semantics.",
+      "The confirmed Swing High ablation removes only CONFIRMED_SWING_HIGH provenance before nearest-first T1 selection, retaining any independent Fib provenance at the same price.",
+      "Confirmation ablation is reference-only signal-loss accounting and never creates ENTRY_ALLOWED or an executable event."
+    ],
+    "gates": [
+      "TARGET_UPSIDE_BELOW_MINIMUM",
+      "RR_BELOW_MINIMUM",
+      "FORMAL_T1_CONFIRMED_SWING_HIGH",
+      "ENTRY_ZONE",
+      "CONFIRMATION_CLOSE_ABOVE_H1"
+    ],
+    "confirmation_reference": "research/development/pre_confirmation_early_entry_causal_research_v1.json",
+    "confirmation_constraint": "The four fixed pre-confirmation policies in PR #89 had eventual FAILED + never-CONFIRMED shares of approximately 59.9% to 76.4%; this is a safety boundary, not a production rule."
+  },
+  "architecture_classification": {
+    "safety_validity_hard_gate": true,
+    "economic_hard_gate": true,
+    "quality_ranking_candidate": "research classification only; no gate is automatically converted to a score",
+    "redundant_derived": "must be supported by this audit's overlap/ablation evidence; not assumed from names alone"
+  },
+  "recent_live_context": {
+    "allowed_inputs": "Only existing aggregate daily-report JSON artifacts if present under the explicit reports directory; no Sheets, holdings, secrets, or provider access.",
+    "live_sample_cannot_replace_development": true,
+    "no_sample_status": "INSUFFICIENT_RECENT_LIVE_SAMPLE"
+  },
+  "forbidden": [
+    "Final OOS",
+    "parameter search",
+    "threshold sweep",
+    "multi-gate combination search",
+    "changing 5% or 2R",
+    "changing Entry Zone, confirmation, Fib, Swing, Wave, or depth bands",
+    "production code change",
+    "production/state/Sheets writes",
+    "broker orders",
+    "real holdings or account secrets",
+    "raw market-bar or event-dump artifact persistence",
+    "return, P&L, MFE, MAE, win-rate, expectancy, Sharpe, or optimized performance metrics"
+  ],
+  "integrity": {
+    "protocol_sha256": "sha256:999588092e14c90f41c618124cdd1378f1064edcaf6a99aad384cccd7bb80124",
+    "hash_scope": "canonical JSON with integrity.protocol_sha256=null"
+  },
+  "required_status": "READY_FOR_DECISION"
+}
