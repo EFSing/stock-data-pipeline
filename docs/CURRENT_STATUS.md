@@ -37,7 +37,8 @@
   两者不可互换；未来日期 fail closed；未完成 session / 非正式收盘不得标记已验证。
 - 前复权（qfq）只允许 yfinance / BaoStock；生产 QFQ 刷新由
   `scripts/refresh_production_qfq.py` 在 scheduled latest 成功后执行，失败 fail
-  closed。
+  closed。Cloud exact-T qfq fetch 会在完整但 stale 的 yfinance payload 后继续尝试
+  现有 Yahoo Chart fallback；Yahoo Chart 也未到 T 时仍 fail closed，不接受 T-1 替代 T。
 - 数据质量核心（`core.py`）提供 Quote / ValidationResult、双源容差校验、freshness
   guard、session-date 推导、OHLCV sanity；只依赖标准库，供所有上层复用。
 
@@ -247,6 +248,7 @@
 
 ### Cloud Daily Report V1 / Mobile Dashboard V2（live acceptance 已通过，正式 cutover）
 
+- 运维 exit 与 report quality 分离：`PARTIAL_DATA_QUALITY` 只有 exact target-session usable data 存在、核心日报计算完成且 final JSON/HTML 已形成时 exit 0，状态仍保持 partial。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
   `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
   和 22:30 UTC 运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
@@ -258,8 +260,11 @@
 - `trading/ephemeral_market_data.py` 只抓取目标市场正式策略池、启用持仓和已有 Paper
   continuation 所需的 provider rows；latest/QFQ 复用既有 provider fallback、
   `latest_snapshot.py` 投影和 exact-T 校验，数据只在本次进程内存中存在，也不读取旧的
-  `最新行情`、`历史行情_前复权`；不写入缓存、artifact 原始数据或日志。Sheets 继续只承担
-  配置、策略池、风险组、持仓、决策状态和 Paper ledger 等既有事实源。
+  `最新行情`、`历史行情_前复权`；不写入缓存、artifact 原始数据或日志。latest verifier
+  会按第一路返回的实际 source 排除同源候选，确定性尝试下一独立 Tencent/Sina/yfinance
+  fallback，并在 provider metadata 中同时保留 configured source、actual source 与
+  fallback notes；同一实际 source 永不计作双源。Sheets 继续只承担配置、策略池、风险组、
+  持仓、决策状态和 Paper ledger 等既有事实源。
 - 每次市场/T 只保留 `daily-report.json` 与 `daily-report.html` 两个 final artifact，
   JSON 元数据包含市场/T、git SHA、session identity、data quality、Candidate seed/as-of、
   CandidateRecord 的轻量筛选审计、provider status、input fingerprint、协议版本和状态写入

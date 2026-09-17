@@ -181,8 +181,29 @@ def _status_from_result(
         status = "PARTIAL_DATA_QUALITY"
     else:
         status = "SUCCESS"
+    # A warning report may complete operationally without upgrading its quality.
+    rows = [row for entry in report_values for row in entry.get("报告", {}).get("results", [])]
+    exact_rows = [row for row in rows if row.get("market") == ephemeral.market
+                  and row.get("as_of_date") == ephemeral.as_of_date.isoformat()
+                  and row.get("data_status") == "DATA_OK"]
+    latest_symbols = {str(row.get("统一代码")) for row in ephemeral.latest_rows
+                      if str(row.get("交易日期")) == ephemeral.as_of_date.isoformat()
+                      and str(row.get("市场")) == ephemeral.market
+                      and row.get("校验状态") in {"已验证", "单源可用"}}
+    qfq_symbols = {str(row.get("统一代码")) for row in ephemeral.qfq_rows
+                   if str(row.get("交易日期")) == ephemeral.as_of_date.isoformat()
+                   and str(row.get("市场")) == ephemeral.market}
+    core_failed = any("EVALUATION_FAILED" in str(reason) or
+                      "QFQ_HISTORY_MUST_REACH_COMPLETED_SESSION_T" in str(reason)
+                      for row in rows for reason in row.get("reasons", ()))
+    core_failed = core_failed or any(
+        "EVALUATION_FAILED" in str((row.get("position_management") or {}).get("status", ""))
+        for row in rows)
+    operationally_complete = bool(report_values) and not core_failed and bool(
+        exact_rows or latest_symbols.intersection(qfq_symbols))
     quality = {
         "status": status,
+        "operationally_complete": operationally_complete,
         "counts": counts,
         "failed_symbols": sorted(symbol for symbol in failed_symbols if symbol),
         "ephemeral_errors": list(ephemeral.errors),
@@ -544,7 +565,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))
     status = str(payload.get("cloud_daily_report", {}).get("status") or "FAILED")
-    return 0 if status in {"SUCCESS", "SKIPPED_NON_SESSION"} else 1
+    if status in {"SUCCESS", "SKIPPED_NON_SESSION"}:
+        return 0
+    metadata = payload.get("cloud_daily_report", {})
+    partial_complete = (status == "PARTIAL_DATA_QUALITY"
+                        and metadata.get("calendar_gate") == "EXACT_COMPLETED_SESSION"
+                        and metadata.get("data_quality", {}).get("operationally_complete")
+                        and all((args.output / name).is_file() for name in ARTIFACT_ALLOWLIST))
+    return 0 if partial_complete else 1
 
 
 if __name__ == "__main__":

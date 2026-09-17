@@ -343,7 +343,20 @@ def fetch_sina(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
     )
 
 
-def fetch_yfinance(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
+def fetch_yfinance(
+    watch: dict,
+    adjust: str,
+    start: date,
+    end: date,
+    target_trade_date: date | None = None,
+) -> list[Quote]:
+    """Fetch yfinance history, retrying Yahoo Chart when the target is stale.
+
+    A complete yfinance payload can still end at T-1.  When the caller has an
+    exact target session, that payload is not accepted as a successful
+    provider result; the existing Yahoo Chart fallback gets the opportunity
+    to supply the same adjusted history through T.
+    """
     import yfinance as yf
 
     symbol = str(watch["yfinance代码"])
@@ -363,8 +376,18 @@ def fetch_yfinance(watch: dict, adjust: str, start: date, end: date) -> list[Quo
             if records and _row_ohlc_is_complete(records[-1]):
                 quotes = _records_to_quotes(frame, watch, "yfinance")
                 if quotes:
-                    return quotes
-                yfinance_error = RuntimeError("yfinance历史行情没有完整OHLC行")
+                    latest_date = quotes[-1].trade_date
+                    if (
+                        target_trade_date is None
+                        or latest_date >= target_trade_date
+                    ):
+                        return quotes
+                    yfinance_error = LookupError(
+                        f"返回数据日期{latest_date.isoformat()}落后于目标交易日"
+                        f"{target_trade_date.isoformat()}"
+                    )
+                else:
+                    yfinance_error = RuntimeError("yfinance历史行情没有完整OHLC行")
             else:
                 yfinance_error = RuntimeError("yfinance历史行情最新观察行OHLC不完整")
     except Exception as exc:
@@ -632,7 +655,21 @@ def fetch_with_retry(
         stale_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
-                quotes = PROVIDERS[candidate](watch, adjust, start, end)
+                provider = PROVIDERS[candidate]
+                if (
+                    candidate == "yfinance"
+                    and adjust == "qfq"
+                    and target_trade_date is not None
+                ):
+                    quotes = provider(
+                        watch,
+                        adjust,
+                        start,
+                        end,
+                        target_trade_date=target_trade_date,
+                    )
+                else:
+                    quotes = provider(watch, adjust, start, end)
                 if not quotes:
                     raise LookupError("返回空数据")
                 sorted_quotes = sorted(quotes, key=lambda item: item.trade_date)
@@ -663,6 +700,7 @@ def fetch_latest_with_retry(
     retry_count: int,
     retry_wait_seconds: float,
     target_trade_date: date | None = None,
+    excluded_sources: Iterable[str] = (),
 ) -> list[Quote]:
     """Fetch recent quote evidence without entering full-history fetch.
 
@@ -670,24 +708,48 @@ def fetch_latest_with_retry(
     behavior.  Cloud reports pass the exact completed session so a stale
     configured source can use the existing raw-snapshot fallback chain before
     two-source validation, matching ``fetch_with_retry`` semantics.
+    ``excluded_sources`` is used by the verifier path to keep configured
+    fallback chains from reusing an already selected actual source.
     """
     market = str(watch.get("市场"))
     candidates = _configured_source_candidates(source, market, "raw")
     unknown = [candidate for candidate in candidates if candidate not in LATEST_PROVIDERS]
     if unknown:
         raise ValueError(f"未知数据源：{unknown[0]}")
+    excluded = {
+        str(value).strip()
+        for value in excluded_sources
+        if str(value).strip()
+    }
+    candidates = [candidate for candidate in candidates if candidate not in excluded]
+    if not candidates:
+        excluded_text = "、".join(sorted(excluded)) or "无"
+        raise RuntimeError(f"没有可用的独立最新行情数据源：已排除{excluded_text}")
 
     errors: list[str] = []
     last_error: Exception | None = None
     attempts = max(1, retry_count)
     for candidate in candidates:
         stale_error: Exception | None = None
+        source_collision_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
                 quotes = LATEST_PROVIDERS[candidate](watch, end)
                 if not quotes:
                     raise LookupError("返回空数据")
                 sorted_quotes = sorted(quotes, key=lambda item: item.trade_date)
+                actual_sources = {
+                    str(getattr(quote, "source", "")).strip()
+                    for quote in sorted_quotes
+                    if str(getattr(quote, "source", "")).strip()
+                }
+                collision = sorted(actual_sources.intersection(excluded))
+                if collision:
+                    source_collision_error = LookupError(
+                        "返回数据实际来源与已使用来源冲突：" + "、".join(collision)
+                    )
+                    last_error = source_collision_error
+                    break
                 if target_trade_date is not None and sorted_quotes[-1].trade_date < target_trade_date:
                     stale_error = LookupError(
                         f"返回数据日期{sorted_quotes[-1].trade_date.isoformat()}落后于目标交易日"
@@ -702,6 +764,8 @@ def fetch_latest_with_retry(
                     time.sleep(max(0, retry_wait_seconds))
         if stale_error is not None:
             errors.append(f"{candidate}最新行情失效：{stale_error}")
+        elif source_collision_error is not None:
+            errors.append(f"{candidate}最新行情来源冲突：{source_collision_error}")
         else:
             errors.append(f"{candidate}最新行情连续{attempts}次抓取失败：{last_error}")
     raise RuntimeError("；".join(errors)) from last_error
