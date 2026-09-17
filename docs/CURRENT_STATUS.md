@@ -398,9 +398,11 @@
   固定 5% gate 的一门移除反事实新增 `ENTRY_ALLOWED=0`；RR 分解报告 stop distance、
   first-target distance、both 与 insufficient-evidence 四类。formal pool 与 live
   Dynamic Candidate 未进入冻结样本，比较状态为
-  `INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE`。Dashboard 审计发现 ARMED
-  causal snapshot 没有由 DailyDecisionResult 透传到 renderer；最小修复位置是
-  `daily_decision_chain` 的只读 context projection，不在本轮改 UI。最近 production
+  `INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE`。在当前 main（含 PR #93）上，
+  Dashboard 审计确认 ARMED causal snapshot 已由 `DailyDecisionResult.armed_opportunity`
+  透传并由 renderer 展示 current close、confirmation、距离、ATR14、预计 Entry Zone、
+  structural invalidation 与 setup type；renderer 不复制交易计算，因此该项没有额外
+  presentation-only blocker。最近 production
   daily-report 样本不足时明确标记为 `INSUFFICIENT_RECENT_LIVE_SAMPLE`。对应 protocol、
   research module 与 compact JSON/Markdown artifact 均为 Development-only，未接入生产。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production

@@ -2451,7 +2451,7 @@ def _final_classification(
 
 
 def _dashboard_contract_audit() -> dict[str, Any]:
-    """Record the existing ARMED data contract without changing the renderer."""
+    """Record the current ARMED result contract without changing production code."""
 
     return {
         "state_audited": SetupState.ARMED.value,
@@ -2466,59 +2466,72 @@ def _dashboard_contract_audit() -> dict[str, Any]:
         "causal_availability_in_structural_evaluator": {
             "confirmation_trigger_price": {
                 "available": True,
-                "source": "Setup01Evaluation.confirmation_level / Setup02Evaluation.confirmation_level",
-                "current_daily_result_exposed": False,
+                "source": "DailyDecisionResult.armed_opportunity.confirmation_level from the causal setup snapshot",
+                "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
             },
             "structural_invalidation": {
                 "available": True,
-                "source": "Setup01Evaluation.structural_invalidation / Setup02Evaluation.structural_invalidation",
-                "current_daily_result_exposed": False,
+                "source": "DailyDecisionResult.armed_opportunity.structural_invalidation from the causal setup snapshot",
+                "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
             },
             "setup_type": {
                 "available": True,
-                "source": "SETUP_01 / SETUP_02 replay namespace and DailyDecisionResult setup state fields",
+                "source": "DailyDecisionResult.armed_opportunity.setup_type",
                 "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
             },
             "current_close": {
                 "available": True,
-                "source": "causal Quote used by daily_decision_chain._evaluate_symbol",
-                "current_daily_result_exposed": False,
+                "source": "DailyDecisionResult.armed_opportunity.current_close from the T-day causal Quote",
+                "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
             },
             "trigger_distance": {
                 "available": True,
-                "source": "causal subtraction of current close and confirmation_level",
-                "current_daily_result_exposed": False,
+                "source": "DailyDecisionResult.armed_opportunity.distance_to_confirmation",
+                "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
             },
             "trigger_distance_pct": {
                 "available": True,
-                "source": "causal relative distance using current close and confirmation_level",
-                "current_daily_result_exposed": False,
+                "source": "DailyDecisionResult.armed_opportunity.distance_to_confirmation_pct",
+                "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
             },
             "expected_entry_zone": {
                 "available": True,
-                "source": "existing Decision contract: confirmation_level + existing 0.5 * ATR14; ATR must be calculated on the T-day prefix",
-                "current_armed_result_exposed": False,
+                "source": "DailyDecisionResult.armed_opportunity.expected_entry_zone_low/high from current causal ATR14 and the existing setup multiplier",
+                "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
+            },
+            "atr14_as_of_current_close": {
+                "available": True,
+                "source": "DailyDecisionResult.armed_opportunity.atr14 from the T-day causal history prefix",
+                "current_daily_result_exposed": True,
+                "dashboard_rendered": True,
             },
         },
         "dashboard_current_behavior": {
-            "armed_row": "shows waiting/monitoring state but does not present the causal trigger-distance or pre-confirmation entry-zone context",
+            "armed_row": "renders setup type, current close, confirmation price, distance and percentage to confirmation, current ATR14, expected Entry Zone, structural invalidation, and waiting guidance",
             "confirmed_plan": "renders existing Decision fields when a T-day Decision proposal exists",
             "renderer_recomputes_trade_math": False,
         },
-        "contract_gap": "The underlying structural evaluator has trigger and invalidation, but DailyDecisionResult does not carry the current ARMED snapshot/close/ATR projection. Therefore the missing ARMED values are a result-contract gap plus presentation gap, not evidence that the structural evaluator lacks causal inputs.",
+        "contract_gap": "No missing field was observed for the audited ARMED user-information contract on current main: the causal projection is carried by DailyDecisionResult.armed_opportunity and the Dashboard renders it without recomputing trade math.",
         "minimum_follow_up_fix": {
-            "scope": "presentation-only follow-up; not included in this audit PR",
-            "correct_location": "daily_decision_chain read-only result projection, reusing a shared causal pre-confirmation/Entry Zone projection helper from the existing setup Decision layer",
+            "scope": "NONE_REQUIRED_FOR_AUDITED_FIELDS; retain existing projection contract",
+            "correct_location": "existing daily_decision_chain._armed_opportunity_projection and daily_dashboard._render_armed_opportunity",
             "fields": [
                 "setup_type",
                 "current_close",
-                "confirmation_trigger_price",
-                "distance_to_trigger",
-                "distance_to_trigger_pct",
+                "confirmation_level",
+                "distance_to_confirmation",
+                "distance_to_confirmation_pct",
                 "expected_entry_zone_low",
                 "expected_entry_zone_high",
                 "structural_invalidation",
-                "atr14_as_of_current_close",
+                "atr14",
             ],
             "renderer_rule": "daily_dashboard should render these fields only; it must not duplicate ATR, Entry Zone, or invalidation calculations",
         },

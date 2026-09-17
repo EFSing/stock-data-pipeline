@@ -153,14 +153,21 @@ class SystemSignalScarcityAuditTests(unittest.TestCase):
         self.assertEqual(total["above_entry_zone_rate_of_confirmed_pct"], 100.0)
         self.assertGreater(total["overshoot_atr_normalized"]["median"], 0)
 
-    def test_dashboard_contract_marks_armed_result_gap_without_renderer_math(self) -> None:
+    def test_dashboard_contract_exposes_armed_fields_without_renderer_math(self) -> None:
         contract = audit._dashboard_contract_audit()
         fields = contract["causal_availability_in_structural_evaluator"]
         self.assertTrue(fields["confirmation_trigger_price"]["available"])
-        self.assertFalse(fields["confirmation_trigger_price"]["current_daily_result_exposed"])
+        self.assertTrue(fields["confirmation_trigger_price"]["current_daily_result_exposed"])
+        self.assertTrue(fields["confirmation_trigger_price"]["dashboard_rendered"])
         self.assertTrue(fields["structural_invalidation"]["available"])
-        self.assertFalse(fields["current_close"]["current_daily_result_exposed"])
+        self.assertTrue(fields["current_close"]["current_daily_result_exposed"])
+        self.assertTrue(fields["expected_entry_zone"]["current_daily_result_exposed"])
+        self.assertTrue(fields["atr14_as_of_current_close"]["current_daily_result_exposed"])
         self.assertFalse(contract["dashboard_current_behavior"]["renderer_recomputes_trade_math"])
+        self.assertEqual(
+            contract["minimum_follow_up_fix"]["scope"],
+            "NONE_REQUIRED_FOR_AUDITED_FIELDS; retain existing projection contract",
+        )
 
     def test_overlap_conservation_and_pair_triple_intersection(self) -> None:
         records = (

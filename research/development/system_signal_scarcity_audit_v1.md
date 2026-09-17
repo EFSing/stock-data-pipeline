@@ -228,6 +228,6 @@ Symbol concentration is retained in JSON under `frequency`; it is descriptive, n
 
 ### Dashboard ARMED contract
 
-- The underlying structural evaluator has trigger and invalidation, but DailyDecisionResult does not carry the current ARMED snapshot/close/ATR projection. Therefore the missing ARMED values are a result-contract gap plus presentation gap, not evidence that the structural evaluator lacks causal inputs.
-- Minimum follow-up location: `daily_decision_chain read-only result projection, reusing a shared causal pre-confirmation/Entry Zone projection helper from the existing setup Decision layer`.
-- Required fields: setup_type, current_close, confirmation_trigger_price, distance_to_trigger, distance_to_trigger_pct, expected_entry_zone_low, expected_entry_zone_high, structural_invalidation, atr14_as_of_current_close.
+- No missing field was observed for the audited ARMED user-information contract on current main: the causal projection is carried by DailyDecisionResult.armed_opportunity and the Dashboard renders it without recomputing trade math.
+- Minimum follow-up location: `existing daily_decision_chain._armed_opportunity_projection and daily_dashboard._render_armed_opportunity`.
+- Required fields: setup_type, current_close, confirmation_level, distance_to_confirmation, distance_to_confirmation_pct, expected_entry_zone_low, expected_entry_zone_high, structural_invalidation, atr14.
