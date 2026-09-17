@@ -4,14 +4,15 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Current Task
 
-`CLOUD_DAILY_REPORT_PRODUCT_SEMANTICS_V1` 已在独立分支
-`fix/cloud-report-product-semantics-v1` 上完成最小 presentation/read-only 修正，并通过 PR #94 squash merge 到 `main`；
-当前以 `main` 为恢复基线。范围仅为 Cloud Daily Report 的等待确认、确认日 NO_TRADE 首层摘要、
-策略跟踪持仓／模拟持仓标签，不改变交易策略或任何持久化语义。
+`DAILY_REPORT_DENSE_DECISION_CARD_V1` 正在独立分支
+`fix/daily-report-dense-decision-card-v1` 上，PR #96 OPEN、未合并；范围仅为 CN / US Cloud Daily Report
+完整 HTML 主报告的共享高密度 Decision / ARMED / WATCH 展示；不改变策略计算、Gate、
+Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading semantics。
 
 ## Current State
 
 - 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
+- 当前开发 branch：`fix/daily-report-dense-decision-card-v1`，从 live `main` 独立创建；PR #96 为本任务唯一 PR，未与其他 PR 混合。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
 - PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
 - PR #90 已落实用户明确的 partial-report operational exit 语义，经 full/focused tests、CI 与只读 US manual smoke 后 squash merge；main 交接已同步。
@@ -26,15 +27,20 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 - Dashboard/email 将 Entry Zone 标为“预计入场区（按当前 ATR，仅供观察）”；共享 guidance 明确当前不是买入信号、未来以确认日 Decision 为准、超过正式入场区不追价且不等待后续回踩补入，结构失效则放弃。
 - email 复用同一 projection，保持移动端有限重点项；renderer 不重算策略公式。已 CONFIRMED NO_TRADE 的原拒绝原因路径保持不变。
 - 本任务已将 ARMED 的所有用户入口改为“等待确认”；确认日已计算且最终 NO_TRADE 时，Dashboard/email 首层复用既有 gate、Entry Zone 状态、T1 空间与 T1 R/R 字段；策略持仓标为“策略跟踪持仓”，Paper ledger 标为“模拟持仓”。
+- 本任务已将 Dashboard 主卡片统一为 `DAILY_REPORT_DENSE_DECISION_CARD_V1`：CN/US 共用同一固定顺序的四行摘要与 Decision 计算依据；前置 Gate、`NO_VALID_TARGET`、数据缺失分别显示，不在 renderer 中补算 Target / ATR / Entry Zone / Stop / R/R。大段波浪、机会新鲜度和开发者审计信息压缩到 secondary / collapsed detail。
+- ARMED 首层只复用现有 `armed_opportunity`（Setup、收盘价、确认价、距离、ATR14、观察区、结构失效）并明确“不是买入信号”；WATCH 不生成伪造 Decision 字段。CN/US synthetic HTML 已完成桌面与 390px 手机宽度人工检查。
+- 本次最终 presentation correction 已将当前 effective T1 的 provenance 与独立 Wave3 structural target 的 Fib ratio 分栏展示为 `T1 来源` / `T1 来源信息` / `Wave3 结构目标` / `Wave3 Fib ratio`；缺少 payload 时省略，不跨 target 交叉展示。Decision 四行摘要下方重复的 `decision-summary-strip` 已移除，Decision basis 数字与 RR rejection 保持不变。
 - Decision/RR payload 未携带可直接消费的 minimum RR；因此 Dashboard/email 只格式化实际 R/R，并以既有 `gate_reason=RR_BELOW_MINIMUM` 展示“R/R不足”，不在 presentation 层复制正式阈值。
 - 本次能力仍是 presentation/read-only only；production trading semantics unchanged，Post-confirmation Retest hypothesis remains closed，不进入 persistent/retest lifecycle。
 - Post-confirmation Retest 正式结论已同步到 CURRENT_STATUS / DECISION_LOG：逻辑可行但恢复极少且全在 EARLY，不证明 broad/time-stable improvement，不改任何现有交易语义。
 
 ## Validation
 
-- 本任务 Dashboard / email / Cloud Daily Report focused：62 tests，OK。
-- 本任务 full `python -m unittest discover -s tests -v`：795 tests、3 skipped、OK。
-- 本任务 `python -m py_compile` 与 `git diff --check` 通过；US synthetic HTML/text smoke 已覆盖首屏标签、确认日 RR 拒绝摘要、静态邮件与通知。
+- 本任务 Dashboard / email / Cloud Daily Report focused：66 tests，OK。
+- 本次 presentation correction focused `tests.test_daily_dashboard`：28 tests，OK；确认 CN / US 共用 renderer contract、T1/Wave3 provenance 分离及重复 summary strip 不再输出。
+- 本任务 full `python -m unittest discover -s tests -v`：799 tests，OK。
+- 本任务 `python -m py_compile` 与 `git diff --check` 通过；CN/US synthetic HTML smoke 已覆盖 ABOVE_ENTRY_ZONE、RR_BELOW_MINIMUM、NO_VALID_TARGET、ARMED、WATCH、confirmed Swing High T1 + Wave3 Fib target provenance 分离、字段顺序与缺失语义，并重新生成验收文件。
+- PR #96 当前 HEAD 的 4 个 GitHub Actions check 均在 job 启动前失败；GitHub annotation 指向账号 billing/spending-limit 外部阻塞，没有执行任何 workflow step。该状态不表示代码测试失败，需账号/仓库 billing 恢复后再重跑 exact-head CI。
 - PR #94 合并前 4/4 GitHub checks 已通过且无冲突，随后已 squash merge；合并后的 main 状态与 CI 以 GitHub 实时状态为准。
 - PR #93 final HEAD 4/4 checks passed、无冲突并已 squash merge，merge 后 main push CI green。
 - #91 focused 14/full 767，artifact full parity 与 self-hash 通过；#90 focused 79/full 777 和三项 PR CI 通过。
@@ -42,13 +48,14 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Blocker
 
-无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在。
+无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在；PR #96 exact-head GitHub Actions
+受账号 billing/spending-limit 阻塞，等待外部恢复后重跑。该 blocker 不改变本地验证结论或生产语义。
 如无可安全复用的现有 Cloud Daily Report 输入，只使用 synthetic/现有 fixture 做只读 UI smoke，不访问 Sheets/state/Paper/broker/Final OOS。
 
 ## Next Action
 
-以 `main` 为当前恢复基线，继续观察真实 prospective Cloud Daily Reports / Paper 数据，不自动启动新的 strategy
-threshold research，也不扩展 persistent state、Protocol 或生产 lifecycle。
+已完成 PR #96 当前 HEAD 的 exact-head CI 核对及本次 UI presentation correction，停在
+`READY_FOR_DAILY_HTML_PRODUCT_ACCEPTANCE_FINAL`；GitHub CI 仍仅受外部 billing blocker 影响，恢复后再重跑，不自动 merge。
 
 ## Constraints
 

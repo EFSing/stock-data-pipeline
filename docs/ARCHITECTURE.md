@@ -238,11 +238,15 @@ scripts/run_cloud_daily_report.py
   `scripts/render_daily_dashboard.py` is the saved-JSON command-line entry point.
   The Cloud V2 presentation is mobile-first with human Chinese wave/status mappings, single
   column cards, 44px controls, no default wide tables, and collapsed developer/raw evidence;
-  a Cloud payload renders only its target-market status card; it remains presentation-only and
-  does not invent a plan, stop, target, or signal.
-- The human-readable detail view adds one `机会新鲜度` section with T1 space,
-  entry-zone extension, and exact T+1 decay facts; raw diagnostic fields remain
-  in the existing technical section.
+  `CONFIRMED` / Decision rows use one shared dense Decision card contract for CN and US:
+  four compact summary lines precede a fixed-order calculation-basis grid. Existing Gate
+  reasons map to explicit short-circuit, no-valid-target, or missing-data labels; the
+  renderer never reconstructs target, ATR, Entry Zone, Stop, or R/R math. A Cloud payload
+  renders only its target-market status card and remains presentation-only.
+- The human-readable secondary detail view retains `机会新鲜度` with T1 space,
+  entry-zone extension, and exact T+1 decay facts; ARMED exposes only the existing causal
+  opportunity projection, WATCH does not receive synthetic Decision fields, and raw
+  diagnostic fields remain in the collapsed technical section.
 
 ### trading/daily_report_email.py
 
