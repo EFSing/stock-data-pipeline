@@ -4,12 +4,12 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 
 ## Current Task
 
-当前分支：`hotfix/us-cloud-daily-report-freshness-v1`，独立 PR #90，已合并最新 main。
+当前 main 已包含 #91 和 #90 squash merge；下一步从最新 main 创建独立 Development-only retest research branch。
 
 ## Current State
 
 - 本次任务：先修正并验证 PR #91 的治理分类冲突，squash merge；随后在 PR #90 原分支落实 usable exact-session partial report 的 exit 0 运维语义，验证并 squash merge；再从最新 main 开展 `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1`。
-- PR #91 已 squash merge 且最终 CI 三项成功；PR #90 仍 OPEN；PR #82 完全独立，不 merge/rebase/mix。
+- PR #91 已 squash merge 且最终 CI 三项成功；PR #90 已 squash merge，final-head 三项 CI 成功及只读 smoke 通过；PR #82 完全独立，不 merge/rebase/mix。
 - `PROJECT_GOVERNANCE_STATE_CONFLICT` 的原因已客观核实并修正：确定性 code/artifact 总体分类是 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不能替代总体分类。
 
 ## Completed / Validation
@@ -25,11 +25,11 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 
 ## Blocker
 
-无研究实现 blocker；继续用户已授权的 #90 修改与研究。
+无研究实现 blocker；继续用户已授权的独立 retest 研究。
 
 ## Next Action
 
-核对 #90 final-head CI 后 squash merge；继续独立 retest 研究，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
+从最新 main 创建研究分支并完成固定 A/B retest 研究，最终停在 `READY_FOR_DECISION_POST_CONFIRMATION_RETEST_ARCHITECTURE`。
 
 ## Constraints / Pitfalls
 
