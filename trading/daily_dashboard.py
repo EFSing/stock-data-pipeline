@@ -1812,7 +1812,7 @@ def _render_armed_opportunity(row: Mapping[str, Any]) -> str:
                 ("距确认价", armed.get("distance_to_confirmation_display")),
                 ("距确认百分比", armed.get("distance_to_confirmation_pct_display")),
                 ("当前 ATR14", armed.get("atr14_display")),
-                ("确认后预期观察入场区", entry_zone),
+                ("预计入场区（按当前 ATR，仅供观察）", entry_zone),
                 ("结构失效价", armed.get("structural_invalidation_display")),
             ),
             extra_class="plan-grid",

@@ -485,7 +485,7 @@ def _armed_html(row: Mapping[str, Any]) -> str:
         f'<div>当前收盘价：{_escape(armed.get("current_close_display"))}</div>'
         f'<div>确认价：{_escape(armed.get("confirmation_level_display"))}</div>'
         f'<div>距确认：{_escape(armed.get("distance_to_confirmation_display"))}（{_escape(armed.get("distance_to_confirmation_pct_display"))}）</div>'
-        f'<div>确认后预期观察入场区：{low}～{high}</div>'
+        f'<div>预计入场区（按当前 ATR，仅供观察）：{low}～{high}</div>'
         f'<div>结构失效价：{_escape(armed.get("structural_invalidation_display"))}</div>'
         f'<div style="margin-top:6px;color:#687386;">{_escape(armed.get("guidance"))}</div></div>'
     )

@@ -1409,8 +1409,9 @@ def _armed_opportunity_projection(
         expected_entry_zone_low=confirmation,
         expected_entry_zone_high=confirmation + entry_zone_atr * atr14,
         guidance=(
-            "等待收盘确认；当前仅为观察，不是买入信号。确认后只观察现有入场区，"
-            "不要追价；结构失效则放弃。"
+            "等待收盘确认；当前仅为观察，不是买入信号。预计入场区按当前 ATR 估算，"
+            "未来正式确认时以确认日 Decision 为准；若确认时已超过正式入场区，则按现有规则"
+            "不追价，不等待后续回踩补入。结构失效则放弃。"
         ),
         missing_reasons=(),
     )

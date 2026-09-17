@@ -10,6 +10,7 @@ from trading.daily_decision_chain import (
     DailySymbolInput,
     _armed_opportunity_projection,
 )
+from trading.daily_report_email import render_daily_report_email_html
 from trading.models import SetupState
 from trading.setup01_decision import SETUP01_ENTRY_ZONE_ATR
 from trading.setup02_decision import SETUP02_ENTRY_ZONE_ATR
@@ -83,6 +84,8 @@ class ArmedOpportunityProjectionTests(unittest.TestCase):
             projection["confirmation_level"]
             + SETUP01_ENTRY_ZONE_ATR * projection["atr14"],
         )
+        self.assertIn("预计入场区按当前 ATR 估算", projection["guidance"])
+        self.assertIn("不追价，不等待后续回踩补入", projection["guidance"])
         self.assertFalse(projection["is_trade_signal"])
 
     def test_setup02_cn_projection_uses_same_as_of_prefix_and_formal_formula(self):
@@ -144,7 +147,11 @@ class ArmedOpportunityProjectionTests(unittest.TestCase):
                 "atr14": 7.0,
                 "expected_entry_zone_low": 888.0,
                 "expected_entry_zone_high": 999.0,
-                "guidance": "等待确认；不追价；结构失效则放弃。",
+                "guidance": (
+                    "等待收盘确认；当前仅为观察，不是买入信号。预计入场区按当前 ATR 估算，"
+                    "未来正式确认时以确认日 Decision 为准；若确认时已超过正式入场区，则按现有规则"
+                    "不追价，不等待后续回踩补入。结构失效则放弃。"
+                ),
                 "missing_reasons": [],
                 "is_trade_signal": False,
             },
@@ -168,8 +175,18 @@ class ArmedOpportunityProjectionTests(unittest.TestCase):
         projection = build_dashboard_projection(payload)
         self.assertEqual(projection["rows"][0]["symbol"], "ENTRY.FIRST")
         html = render_dashboard_html(payload)
+        email_html = render_daily_report_email_html(payload)
         self.assertIn("机会观察", html)
         self.assertIn("观察中，不是买入信号", html)
+        self.assertIn("预计入场区（按当前 ATR，仅供观察）", html)
+        self.assertIn("预计入场区（按当前 ATR，仅供观察）", email_html)
+        for rendered in (html, email_html):
+            self.assertIn("按当前 ATR 估算", rendered)
+            self.assertIn("未来正式确认时以确认日 Decision 为准", rendered)
+            self.assertIn("不追价，不等待后续回踩补入", rendered)
+            self.assertIn("结构失效则放弃", rendered)
+            self.assertNotIn("确认后预期观察入场区", rendered)
+            self.assertNotIn("确认后等待回踩", rendered)
         self.assertIn("888 – 999", html)
         self.assertNotIn("891.50", html)
 
