@@ -37,6 +37,6 @@ Git/GitHub 是动态工程事实源；恢复时实时查询 main、PR HEAD、CI 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
 总体主线：Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit。
-四类 Setup：SETUP_01、SETUP_02、SETUP_03、SETUP_04；SETUP_03 只是四类 Setup 之一。
+四类 Setup：SETUP_01、SETUP_02、SETUP_03、SETUP_04；SETUP_03 只是四类 Setup 之一的子策略。
 
 `CROSS_DEVICE_HANDOFF_READY`
