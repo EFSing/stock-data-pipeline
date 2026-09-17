@@ -38,6 +38,7 @@ Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading 
 - 本任务 Dashboard / email / Cloud Daily Report focused：66 tests，OK。
 - 本任务 full `python -m unittest discover -s tests -v`：799 tests，OK。
 - 本任务 `python -m py_compile` 与 `git diff --check` 通过；CN/US synthetic HTML smoke 已覆盖 ABOVE_ENTRY_ZONE、RR_BELOW_MINIMUM、NO_VALID_TARGET、ARMED、WATCH、字段顺序与缺失语义，并完成桌面/390px 手机宽度检查。
+- PR #96 当前 HEAD 的 4 个 GitHub Actions check 均在 job 启动前失败；GitHub annotation 指向账号 billing/spending-limit 外部阻塞，没有执行任何 workflow step。该状态不表示代码测试失败，需账号/仓库 billing 恢复后再重跑 exact-head CI。
 - PR #94 合并前 4/4 GitHub checks 已通过且无冲突，随后已 squash merge；合并后的 main 状态与 CI 以 GitHub 实时状态为准。
 - PR #93 final HEAD 4/4 checks passed、无冲突并已 squash merge，merge 后 main push CI green。
 - #91 focused 14/full 767，artifact full parity 与 self-hash 通过；#90 focused 79/full 777 和三项 PR CI 通过。
@@ -45,12 +46,14 @@ Candidate 生命周期、Paper/state/Sheets/broker 或任何 production trading 
 
 ## Blocker
 
-无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在。
+无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在；PR #96 exact-head GitHub Actions
+受账号 billing/spending-limit 阻塞，等待外部恢复后重跑。该 blocker 不改变本地验证结论或生产语义。
 如无可安全复用的现有 Cloud Daily Report 输入，只使用 synthetic/现有 fixture 做只读 UI smoke，不访问 Sheets/state/Paper/broker/Final OOS。
 
 ## Next Action
 
-完成 PR #96 当前 HEAD 的 exact-head CI 核对后，停在 `READY_FOR_DAILY_HTML_PRODUCT_ACCEPTANCE`，等待产品验收；不自动 merge。
+已完成 PR #96 当前 HEAD 的 exact-head CI 核对；由于仅有外部 billing blocker，停在
+`READY_FOR_DAILY_HTML_PRODUCT_ACCEPTANCE`，等待产品验收及 CI 外部恢复后重跑；不自动 merge。
 
 ## Constraints
 
