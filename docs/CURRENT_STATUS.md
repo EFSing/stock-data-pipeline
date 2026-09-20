@@ -35,6 +35,9 @@
 - 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
   策略股票刷新 exact latest date 的前复权历史；HK/JP/SE 不被猜测扩展为 QFQ 范围，
   `full` 仍只可由 workflow_dispatch 手动触发。
+- `PRODUCTION_ACCEPTANCE_PENDING`：上述 Sheet-backed schedule wiring 已恢复，但截至当前
+  closeout 尚无恢复后的 `main` Asia/US writer run；真实 Sheet 最新交易日、正式 CN/US QFQ
+  尾日与自动化监控 freshness 尚未验收，也不包含历史补抓。
 - 行情完全失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
   和显式禁止复用旧行情的备注，并使 scheduled job 非零退出；pending/single-source
   仍显式为非 `已验证`。下游 production reader 要求 exact T、`正式收盘=True`、
@@ -309,6 +312,9 @@
   是独立的 Sheet-backed scheduled writer，按 CN/HK/JP 与 US/SE 维护旧行情中台；Cloud
   Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` / `历史行情_前复权`，不与该 writer
   争用策略状态。Bark/SMTP 仍为可选通知，当前 `NOT_CONFIGURED`。
+- Cloud 的 live smoke/acceptance 不等于 Sheet-backed writer 的真实恢复验收；当前仅能确认
+  schedule 代码已恢复，尚无合并后真实 writer run，因此 Sheet latest、正式 CN/US QFQ 尾日
+  与监控 freshness 仍为 `PRODUCTION_ACCEPTANCE_PENDING`。
 - 下一阶段优先观察真实 prospective Cloud Daily Reports / Paper 数据的正常 production
   runs；这些 observational acceptance 不自动启动新的 strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。
