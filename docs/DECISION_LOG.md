@@ -4,7 +4,7 @@
 > 普通 bugfix、PR review correction、测试数量变化、request accounting、小型
 > provider 实现细节、临时 runtime 调试结论、merge/CI 过程不作为长期 Decision。
 > 动态工程事实（SHA、PR、CI、merge）以 Git / GitHub 实时状态为准；历史过程由
-> Git 保存，本文件不做 archive。最后实质更新：2026-09-06。
+> Git 保存，本文件不做 archive。最后实质更新：2026-09-20。
 
 ---
 
