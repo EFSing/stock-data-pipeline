@@ -4,15 +4,15 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Current Task
 
-`HOLDINGS_MARKET_DATA_PR97_MERGE_CLOSEOUT` 正在独立分支
-`codex/holdings-market-data-pr97-merge-closeout` 上完成。范围是核验 PR #97 合并后的
-main、CI、schedule 与治理文件，并记录首次真实 Sheet-backed writer 验收尚未发生的事实。
-不执行生产写入、历史补抓、Paper、broker 或策略状态操作。
+`HOLDINGS_MARKET_DATA_PR97_MERGE_CLOSEOUT` 已在 `main` 完成文档 closeout。PR #97 的
+合并、schedule/CI 核验已完成；当前只等待首次真实 Sheet-backed writer 运行，以完成只读
+生产验收。未执行生产写入、历史补抓、Paper、broker 或策略状态操作。
 
 ## Current State
 
 - 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
 - PR #97 已由 GitHub squash merge，实际 merge commit 为 `cdae0de44bb5e5c47cb090f0d145d6ba2cec238e`；合并后 main CI run `35515316806` 对该 SHA 结论为 `success`。
+- docs-only closeout PR #98 已无冲突 squash merge，main merge commit 为 `6022825d1c3ba2737ab97337997c8dc0b6b899ae`；合并后 main CI run `35516127719` 对该 SHA 结论为 `success`。
 - PR #97 恢复 `asia-close` 工作日 `30 9 * * 1-5` UTC（北京时间 17:30，CN/HK/JP）与 `us-close` 工作日 `30 22 * * 1-5` UTC（US/SE）；schedule 强制 `latest`，成功后分别刷新正式 CN/US exact-T QFQ，`full` 仍仅手动。
 - PR #96（Cloud dashboard card）与 PR #82（Actions Node 24）保持独立，本任务不混入、不 rebase、不合并它们。PR #96 仍 OPEN，因 #97 改变 main 基线当前为 conflicting；PR #82 仍 OPEN。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
@@ -45,7 +45,7 @@ latest/QFQ，保持独立 read-only 路径。合并前 HANDOFF 的 OPEN 状态�
 
 ## Production Acceptance
 
-- 状态：`PRODUCTION_ACCEPTANCE_PENDING`。合并后只读核对未发现任何 `main` 上新的
+- 状态：`PRODUCTION_ACCEPTANCE_PENDING`。PR #97 合并后只读核对未发现任何 `main` 上新的
   `asia-close` 或 `us-close` 运行；合并发生在周日，下一次 schedule 尚未到达。
 - 因尚无合并后的真实 writer 运行，本次不能确认真实 Sheet 的最新交易日、正式 CN/US QFQ
   尾日或自动化监控的数据新鲜度；本机也未配置 `GOOGLE_SHEET_ID` / Google service
@@ -78,7 +78,7 @@ Final OOS。
 
 ## Next Action
 
-等待首次合并后 `asia-close` / `us-close` scheduled run；完成后只读核验 Sheet 最新交易日、正式
+等待 PR #97 合并后的首次 `asia-close` / `us-close` scheduled run；完成后只读核验 Sheet 最新交易日、正式
 CN/US QFQ exact-T 尾日、latest gate 与自动化监控 freshness。不得手动触发生产写入、历史补抓，
 也不得把 Cloud 日报当作 Sheet 恢复替代，或自动启动新的 strategy threshold research、
 persistent state、Protocol、Paper/broker lifecycle。
