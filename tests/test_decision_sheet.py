@@ -648,6 +648,53 @@ class LatestOnlyPipelineTests(unittest.TestCase):
         self.assertEqual(summary["stale_sources_rejected"], 1)
         self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
 
+    def test_latest_provider_failure_marks_previous_row_unavailable(self):
+        watch = self.watch("FAILED")
+        existing = {
+            "统一代码": "FAILED",
+            "名称": "Failed symbol",
+            "市场": "US",
+            "交易日期": date(2026, 8, 28),
+            "抓取时间": datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc),
+            "正式收盘": True,
+            "校验状态": "已验证",
+            "收盘": 100.0,
+            "币种": "USD",
+        }
+        fetched_at = datetime(2026, 9, 1, 0, 30, tzinfo=timezone.utc)
+        with (
+            patch("sheets_client.SheetsClient") as client_class,
+            patch("providers.fetch_latest_with_retry", return_value=[]),
+            patch("main.beijing_now", return_value=fetched_at),
+        ):
+            client = client_class.return_value
+
+            def records(sheet_name):
+                if sheet_name == "自选清单":
+                    return [watch]
+                if sheet_name == "最新行情":
+                    return [existing]
+                return []
+
+            client.config.return_value = self.config()
+            client.records.side_effect = records
+            client.upsert_latest.return_value = 1
+
+            summary = run("us", mode="latest")
+
+        row = client.upsert_latest.call_args.args[0][0]
+        self.assertEqual(row["校验状态"], "数据不可用")
+        self.assertFalse(row["正式收盘"])
+        self.assertEqual(row["收盘"], 100.0)
+        self.assertEqual(row["交易日期"], date(2026, 8, 28))
+        self.assertIn("禁止下游监控当作当前新鲜数据", row["备注"])
+        self.assertEqual(summary["latest_failure_markers"], 1)
+        self.assertEqual(summary["freshest_rows_written"], 0)
+        self.assertEqual(summary["status"], "PARTIAL_DATA_QUALITY")
+
+        log_rows = client.append_rows.call_args_list[-1].args[2]
+        self.assertEqual(log_rows[0]["执行状态"], "失败")
+
     def test_latest_mode_never_reads_or_writes_history_or_decision(self):
         watch = self.watch()
         fetched_at = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)

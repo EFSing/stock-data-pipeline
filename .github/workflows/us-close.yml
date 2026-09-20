@@ -1,6 +1,9 @@
 name: 欧美市场收盘更新
 
 on:
+  schedule:
+    # 工作日收盘后运行；固定 UTC 时间覆盖夏令时/冬令时的收盘后窗口。
+    - cron: "30 22 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
@@ -11,6 +14,11 @@ on:
         options:
           - latest
           - full
+
+concurrency:
+  group: holdings-market-data-us
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest

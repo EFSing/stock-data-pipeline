@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from latest_snapshot import quote_row
+from latest_snapshot import latest_row_is_monitorable, quote_row
 from main import as_bool, beijing_now
 
 
@@ -206,6 +206,27 @@ def _summary(
     }
 
 
+def _require_verified_latest_row(
+    row: dict[str, Any],
+    *,
+    market: str,
+    symbol: str,
+    target_trade_date: date,
+) -> None:
+    """Reject a stale or unavailable latest row as a QFQ target."""
+
+    if not latest_row_is_monitorable(
+        row,
+        target_trade_date,
+        require_verified=True,
+    ):
+        status = str(row.get("校验状态") or "<missing>").strip()
+        raise ProductionQfqRefreshError(
+            "PRODUCTION_QFQ_LATEST_NOT_FRESH:"
+            f"{market}|{symbol}:date={target_trade_date.isoformat()},status={status}"
+        )
+
+
 def _fail(
     group: str,
     symbols_requested: int,
@@ -318,6 +339,12 @@ def refresh_production_qfq(
                     raise ProductionQfqRefreshError(
                         f"PRODUCTION_QFQ_LATEST_DATE_REQUIRED:{market}|{symbol}:{exc}"
                     ) from exc
+                _require_verified_latest_row(
+                    latest,
+                    market=market,
+                    symbol=symbol,
+                    target_trade_date=target_trade_date,
+                )
             source = str(watch.get("历史数据源") or "").strip()
             if not source:
                 raise ProductionQfqRefreshError(

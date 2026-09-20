@@ -81,7 +81,7 @@ scripts/run_candidate_strategy_shadow_bridge_v1_tushare_probe.py
         → independent Candidate summary + Strategy/DailyDecisionChain summary
         → stage timings and JSON report (no production state, Sheets, allocation, or orders)
 
-Legacy GitHub Actions scheduler (migration compatibility; old writer path)
+Sheet-backed GitHub Actions market-data scheduler (independent from Cloud report)
         ↓
 main.py  (CLI 入口: --group asia|us|all, --mode latest|full, --fixture)
         ↓
@@ -98,9 +98,24 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
         → latest_completed_market_session / ordinary freshness guard
         → validate_quotes / quote_sanity_issue / fresher_quote
         → project_latest_row / project_validation_row
+        → failed snapshot: project_latest_failure_row
+          (preserve last values for audit; stamp 数据不可用)
     SheetsClient.upsert_latest("最新行情")
     SheetsClient.append_rows("校验记录")
     SheetsClient.append_rows("运行日志")
+
+    # Scheduled writer safety boundary:
+    # hard provider/date failures exit non-zero and do not run QFQ; a pending
+    # or single-source row remains explicitly non-verified. Downstream Sheet
+    # readers require exact T, 正式收盘=True, 校验状态=已验证 and exact QFQ tail.
+
+    # scheduled latest companion only:
+    scripts/refresh_production_qfq.py --group asia|us
+        → formal 策略账户 + 策略股票池 (CN/US only)
+        → latest row must be exact, formally closed and 已验证
+        → fetch exact-T QFQ via yfinance/BaoStock only
+        → all requested identities succeed before replace_history_series()
+        → target identity/date is replaced idempotently; other markets/rows persist
 
     # --mode full only:
     select_history_series(...)                      [main]
@@ -285,15 +300,20 @@ ledger；最终每个 market/T 只上传 `daily-report.json` 与 `daily-report.h
 Bark/SMTP。SMTP 同时发送 `text/plain` fallback、独立的静态
 `render_daily_report_email_html()` 正文，并将同一份最终 `daily-report.html` 作为 UTF-8
 `text/html` 附件；完整 Dashboard 不嵌入邮件正文。
-旧 `asia-close` / `us-close` 的 `main.py --mode latest` scheduled writer
-在 live acceptance 前保留以支持迁移；验收后只保留其手工 dispatch，避免长期两套 schedule。
+`asia-close` / `us-close` 的 Sheet-backed `main.py --mode latest` scheduled writer
+与 Cloud path 并行存在但职责不同：它按 `CN/HK/JP` 与 `US/SE` 维护旧行情中台，
+Cloud path 不读写这些行情表；两条链路都不写同一策略状态。Asia cron 为
+`30 9 * * 1-5`（北京时间 17:30），US cron 为 `30 22 * * 1-5`，每条 workflow
+通过独立 concurrency 串行 schedule/dispatch，schedule 强制 latest，full 仍仅手动。
 
-`--mode latest` 是旧亚洲/欧美 workflow 的兼容路径：只读取自选清单，使用短窗口 latest
-quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、双源
-校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar guard
-时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市且不
-推断节假日。该模式不读取 `交易决策`，不抓取 qfq 或多年历史，不运行 SETUP_03，且
-`history_rows_written=0`。
+`--mode latest` 是 Sheet-backed 亚洲/欧美 scheduled writer：只读取自选清单，使用短窗口
+latest quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、
+双源校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar
+guard 时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市，
+因此不以 weekday 冒充 holiday session。完全无有效来源时会更新对应 latest row 的
+`数据不可用` 标记并以非零退出，避免监控静默复用旧行情。该模式不读取 `交易决策`，不抓取
+多年历史、不运行 SETUP_03，且主运行摘要 `history_rows_written=0`；之后的 QFQ companion
+只作用于已验证的正式 CN/US 策略股票。
 
 `--mode full` 保留需要历史数据的手动路径，继续执行未复权历史、qfq、SETUP_03 和 Decision。它不由 daily schedule 调用；workflow_dispatch 可显式选择该模式。
 
@@ -669,7 +689,14 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 | `运行日志` | 任务时间、状态、错误 | 追加 |
 | `参数设置` | 容差、历史长度、Setup/Decision 显式参数 | 读 |
 
-`latest` 模式只写 `最新行情`、`校验记录`、`运行日志`；`历史行情_*` 与 `交易决策` 只属于 `full` 模式。运行 stdout 和 GitHub Step Summary 输出 `symbols_requested`、freshness/validation 分布、拒绝的 stale/future sources、失败标的及 `history_rows_written`；数据不完整时为 `PARTIAL_DATA_QUALITY`。
+`main.py --mode latest` 只写 `最新行情`、`校验记录`、`运行日志`；`历史行情_*` 与 `交易决策` 只属于 `full` 模式。定时 workflow 随后调用独立的 `refresh_production_qfq.py`，只替换正式 CN/US 策略股票的 `历史行情_前复权`，不运行 SETUP_03/Decision。运行 stdout 和 GitHub Step Summary 输出 `symbols_requested`、freshness/validation 分布、拒绝的 stale/future sources、失败标的及 `history_rows_written`；数据不完整时为 `PARTIAL_DATA_QUALITY`，完全失败以非零退出。
+
+下游 Sheet 监控的最小新鲜度合同是：`最新行情` 必须是目标交易所 exact T、
+`正式收盘=True` 且 `校验状态=已验证`；`历史行情_前复权` 必须有同一身份且唯一的 exact-T
+末行。`数据不可用`、`待复核`、缺行、重复日期、T-1/T+1 或任一生产日历前置条件失败，
+均映射为 DATA_BAD / DATA_STALE / DATA_UNAVAILABLE 并阻断策略读取；保留的旧 OHLCV 只作审计，
+不得作为当前新鲜行情。`trading/production_prerequisites.py` 是该生产读取 gate 的 Single
+Source of Truth；Cloud path 注入内存 rows 后沿用同一 gate，但不读取旧行情表。
 
 持仓生命周期路径沿用 `自选清单.启用` 的现有语义，并可按单标的写入 `历史行情_未复权`、`历史行情_前复权` 与既有 `运行日志`。它不会新增 Sheet 列、registry 或第二套身份事实源；CLOSE 只停用当前持仓视图，不物理删除历史数据。
 
@@ -701,8 +728,9 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 
 ## GitHub Actions
 
-- `asia-close.yml`：`cron "30 10 * * 1-5"`（UTC）= 北京 18:30；schedule 强制运行 `python main.py --group asia --mode latest`，workflow_dispatch 可选 full
-- `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；schedule 强制运行 `python main.py --group us --mode latest`，workflow_dispatch 可选 full
+- `asia-close.yml`：`cron "30 9 * * 1-5"`（UTC）= 北京 17:30；覆盖 CN/HK/JP，schedule 强制运行 `python main.py --group asia --mode latest`，随后仅刷新正式 CN QFQ；workflow_dispatch 可选 full
+- `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；覆盖 US/SE，schedule 强制运行 `python main.py --group us --mode latest`，随后仅刷新正式 US QFQ；workflow_dispatch 可选 full
+- `cn-daily-report.yml` / `us-daily-report.yml`：Cloud Daily Report 独立 read-only workflow；只从 provider 将目标市场行情放入进程内存，不读取/写入 `最新行情` 或 `历史行情_前复权`，不替代上述 Sheet-backed writer
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
 - `wave-shadow.yml`：已移除；不通过 GitHub Actions 读取或输出真实持仓派生信息。`scripts/run_wave_shadow.py` 仅保留 private/local capability，本轮不调用
 - `setup01-generic-operational-shadow.yml`：PR/手动运行 synthetic-only generic operational shadow，不需要 Secrets，不读取账户 holdings

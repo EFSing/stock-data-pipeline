@@ -84,14 +84,17 @@ class GovernanceTests(unittest.TestCase):
             self.assertNotIn("ATR_NORMALIZED", source, relative_path)
             self.assertNotIn("platform_boundary_mode", source, relative_path)
 
-    def test_legacy_workflows_keep_manual_latest_and_full_modes(self):
-        for relative_path, group in (
-            (".github/workflows/asia-close.yml", "asia"),
-            (".github/workflows/us-close.yml", "us"),
+    def test_sheet_backed_workflows_restore_independent_schedules(self):
+        for relative_path, group, cron in (
+            (".github/workflows/asia-close.yml", "asia", 'cron: "30 9 * * 1-5"'),
+            (".github/workflows/us-close.yml", "us", 'cron: "30 22 * * 1-5"'),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("schedule:", source)
+            self.assertIn(cron, source)
+            self.assertIn(f"group: holdings-market-data-{group}", source)
+            self.assertIn("cancel-in-progress: false", source)
             self.assertIn("workflow_dispatch:", source)
-            self.assertNotIn("schedule:", source)
             self.assertIn("default: latest", source)
             self.assertIn("- latest", source)
             self.assertIn("- full", source)
@@ -99,6 +102,19 @@ class GovernanceTests(unittest.TestCase):
             self.assertIn("RUN_MODE=latest", source)
             self.assertIn(f'python main.py --group {group} --mode "$RUN_MODE"', source)
             self.assertIn("tee run-summary.txt", source)
+            self.assertNotIn("run_cloud_daily_report.py", source)
+
+    def test_cloud_report_remains_a_separate_read_only_schedule(self):
+        for relative_path, cron, market in (
+            (".github/workflows/cn-daily-report.yml", 'cron: "30 9 * * 1-5"', "CN"),
+            (".github/workflows/us-daily-report.yml", 'cron: "30 22 * * 1-5"', "US"),
+        ):
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("schedule:", source)
+            self.assertIn(cron, source)
+            self.assertIn(f"--market {market}", source)
+            self.assertIn("run_cloud_daily_report.py", source)
+            self.assertNotIn("main.py --group", source)
 
     def test_cloud_report_workflows_keep_exact_market_schedules(self):
         for relative_path, cron, market in (
