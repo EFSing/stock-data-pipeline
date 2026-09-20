@@ -4,8 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-17（Post-confirmation Retest hypothesis 已关闭；
-> ARMED Opportunity Projection V1 已进入 main，下一阶段观察真实 prospective Cloud/Paper 数据）。
+> 最后实质更新：2026-09-20（恢复 Sheet-backed holdings market-data schedules；
+> Cloud Daily Report 保持独立 read-only 内存边界）。
 
 ## 项目身份
 
@@ -27,10 +27,18 @@
 ### 行情与数据质量（已生产运行）
 
 - 定时行情流水线：`asia-close`（CN/HK/JP）与 `us-close`（US/SE）两个 GitHub
-  Actions workflow 按市场收盘时间调度，运行 `main.py --mode latest`。
+  Actions workflow 按市场收盘时间调度，运行 `main.py --mode latest`；Asia 为工作日
+  09:30 UTC（北京时间 17:30），US 为工作日 22:30 UTC。
 - `latest` 模式只抓取短窗口最新行情、执行 source-date evidence、双源校验与
   ordinary-calendar freshness guard，写入 `最新行情`、`校验记录`、`运行日志`；
   不抓取多年历史／qfq，不运行策略路径，`history_rows_written=0`。
+- 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
+  策略股票刷新 exact latest date 的前复权历史；HK/JP/SE 不被猜测扩展为 QFQ 范围，
+  `full` 仍只可由 workflow_dispatch 手动触发。
+- 行情完全失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
+  和显式禁止复用旧行情的备注，并使 scheduled job 非零退出；pending/single-source
+  仍显式为非 `已验证`。下游 production reader 要求 exact T、`正式收盘=True`、
+  `校验状态=已验证` 及 QFQ exact-T 尾行，缺一即 DATA_* fail closed。
 - 数据源回退链稳定：主源 yfinance（含无 cookie Yahoo Chart 回退）、BaoStock
   （CN）、Tencent / Sina 快照回退；AKShare 已从生产依赖移除，仅保留遗留别名路由。
 - 收盘语义固定：`交易日期` = 市场真实 session date，`抓取时间` = 北京时间，
@@ -296,12 +304,11 @@
   拒绝原因；确认日已计算但最终不交易时，首层摘要直接展示确认成功、入场区状态、可用的 T1 空间与
   T1 R/R 拒绝依据。策略跟踪持仓与模拟持仓分别标注，不将模拟账本计数写成当前真实持仓。该能力为
   presentation/read-only only，不改变 production trading semantics。
-- CN/US live smoke 已通过，且 production state、paper ledger、broker order 与 raw/QFQ
-  persistence 均为零；final artifact allowlist 已通过。旧 `asia-close` / `us-close`
-  scheduled writer 已移除，仅保留原有 `workflow_dispatch`、latest/full 手工维护能力、
-  Google Sheets credentials contract 与 legacy 手工逻辑；自动调度只由 CN/US Cloud
-  Daily Report 承担，避免两套定时路径并行。Bark/SMTP 仍为可选通知，当前
-  `NOT_CONFIGURED`。
+- CN/US live smoke 已通过，且 Cloud report 的 production state、paper ledger、broker order
+  与 raw/QFQ persistence 均为零；final artifact allowlist 已通过。`asia-close` / `us-close`
+  是独立的 Sheet-backed scheduled writer，按 CN/HK/JP 与 US/SE 维护旧行情中台；Cloud
+  Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` / `历史行情_前复权`，不与该 writer
+  争用策略状态。Bark/SMTP 仍为可选通知，当前 `NOT_CONFIGURED`。
 - 下一阶段优先观察真实 prospective Cloud Daily Reports / Paper 数据的正常 production
   runs；这些 observational acceptance 不自动启动新的 strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。

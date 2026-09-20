@@ -16,7 +16,12 @@ from core import (
     validate_quotes,
 )
 from main import as_ratio, beijing_now, select_history_series, wanted_markets_for_group
-from latest_snapshot import evaluate_latest_snapshot, project_latest_row
+from latest_snapshot import (
+    evaluate_latest_snapshot,
+    latest_row_is_monitorable,
+    project_latest_failure_row,
+    project_latest_row,
+)
 from providers import (
     PROVIDERS,
     _as_date,
@@ -136,6 +141,31 @@ class ValidationTests(unittest.TestCase):
 
         self.assertFalse(snapshot.publishable)
         self.assertIn("freshness guard", snapshot.blocking_reason)
+
+    def test_monitor_freshness_contract_rejects_unavailable_or_old_rows(self):
+        expected = date(2026, 8, 28)
+        row = {
+            "统一代码": "TEST",
+            "正式收盘": True,
+            "校验状态": "已验证",
+            "交易日期": expected,
+        }
+        self.assertTrue(latest_row_is_monitorable(row, expected, require_verified=True))
+        self.assertFalse(
+            latest_row_is_monitorable(
+                {**row, "交易日期": date(2026, 8, 27)},
+                expected,
+                require_verified=True,
+            )
+        )
+        unavailable = project_latest_failure_row(
+            row,
+            row,
+            datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc),
+            "provider unavailable",
+        )
+        self.assertFalse(latest_row_is_monitorable(unavailable, expected))
+        self.assertEqual(unavailable["交易日期"], expected)
 
     def test_pipeline_timestamp_uses_beijing_time(self):
         current = beijing_now()

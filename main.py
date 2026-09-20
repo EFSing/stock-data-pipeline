@@ -18,6 +18,7 @@ from core import (
 )
 from latest_snapshot import (
     evaluate_latest_snapshot,
+    project_latest_failure_row,
     project_latest_row,
     project_validation_row,
     quote_row,
@@ -286,6 +287,7 @@ def run(group: str, mode: str = "full") -> dict:
     pending_review_count = 0
     stale_sources_rejected = 0
     failed_symbols: list[str] = []
+    failed_watch_rows: list[tuple[dict, str]] = []
     for watch in watchlist:
         if not as_bool(watch.get("启用")) or str(watch.get("市场")) not in wanted_markets:
             continue
@@ -331,8 +333,10 @@ def run(group: str, mode: str = "full") -> dict:
         completed_date = snapshot.completed_trade_date
         stale_sources_rejected += snapshot.stale_sources_rejected
         if completed_date is None:
+            failure_reason = "无法根据有效来源确定最新已完成市场交易日，已拒绝发布"
             failed_symbols.append(str(watch.get("统一代码") or ""))
-            errors.append("无法根据有效来源确定最新已完成市场交易日，已拒绝发布")
+            failed_watch_rows.append((watch, failure_reason))
+            errors.append(failure_reason)
             log_rows.append({
                 "运行时间": fetched_at, "任务组": group, "市场": watch["市场"],
                 "统一代码": watch["统一代码"], "执行状态": "失败",
@@ -345,7 +349,10 @@ def run(group: str, mode: str = "full") -> dict:
         chosen = snapshot.chosen
         result = snapshot.validation
         if chosen is None:
+            failure_reason = "无法形成最新行情快照：主源和校验源均不可用"
             failed_symbols.append(str(watch.get("统一代码") or ""))
+            failed_watch_rows.append((watch, failure_reason))
+            errors.append(failure_reason)
             log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": "失败", "新增／更新行数": 0, "消息": "；".join(errors)})
             continue
 
@@ -448,6 +455,30 @@ def run(group: str, mode: str = "full") -> dict:
                     )
         log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": displayed_status, "新增／更新行数": len(raw_for_symbol) + len(adjusted_for_symbol), "消息": "；".join(item for item in (*notes, *errors) if item)})
 
+    latest_failure_markers = 0
+    if failed_watch_rows:
+        existing_latest_rows = list(client.records("最新行情"))
+        existing_by_symbol = {
+            str(row.get("统一代码") or "").strip(): dict(row)
+            for row in existing_latest_rows
+            if str(row.get("统一代码") or "").strip()
+        }
+        seen_failures: set[str] = set()
+        for watch, reason in failed_watch_rows:
+            symbol = str(watch.get("统一代码") or "").strip()
+            if not symbol or symbol in seen_failures:
+                continue
+            latest_rows.append(
+                project_latest_failure_row(
+                    watch,
+                    existing_by_symbol.get(symbol),
+                    fetched_at,
+                    reason,
+                )
+            )
+            seen_failures.add(symbol)
+        latest_failure_markers = len(seen_failures)
+
     changed = client.upsert_latest(latest_rows)
     if mode == "full":
         changed += client.upsert_history("历史行情_未复权", raw_rows)
@@ -459,7 +490,9 @@ def run(group: str, mode: str = "full") -> dict:
     summary = {
         "mode": mode,
         "symbols_requested": len(requested_symbols),
-        "freshest_rows_written": len(latest_rows),
+        "freshest_rows_written": len(latest_rows) - latest_failure_markers,
+        "latest_rows_written": len(latest_rows),
+        "latest_failure_markers": latest_failure_markers,
         "verified": verified_count,
         "single_source_current": single_source_current_count,
         "pending_review": pending_review_count,
@@ -480,4 +513,12 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["latest", "full"], default="full")
     parser.add_argument("--fixture", action="store_true")
     args = parser.parse_args()
-    fixture() if args.fixture else run(args.group, args.mode)
+    if args.fixture:
+        fixture()
+    else:
+        summary = run(args.group, args.mode)
+        # A hard provider/date failure must fail the scheduled job so the
+        # companion QFQ refresh cannot consume an older latest row.  Partial
+        # review states (for example a legitimate single-source market) keep
+        # the historical exit-0 behavior and remain visible in the summary.
+        raise SystemExit(1 if summary["failed_symbols"] else 0)

@@ -259,9 +259,20 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         self.assertIn(DATA_BAD, " ".join(summary.errors))
 
         client = _rows()
+        client.rows["最新行情"][0]["校验状态"] = "数据不可用"
+        client.rows["最新行情"][0]["正式收盘"] = "FALSE"
+        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
+        self.assertIn(DATA_BAD, " ".join(summary.errors))
+
+        client = _rows()
         client.rows["历史行情_前复权"] = [item for item in client.rows["历史行情_前复权"] if item["统一代码"] != "600000"]
         summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
         self.assertIn(DATA_UNAVAILABLE, " ".join(summary.errors))
+
+        client = _rows()
+        client.rows["历史行情_前复权"][0]["交易日期"] = "2026-09-02"
+        summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
+        self.assertIn(DATA_STALE, " ".join(summary.errors))
 
         client = _rows()
         client.rows["最新行情"][0]["币种"] = ""

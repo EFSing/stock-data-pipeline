@@ -46,7 +46,13 @@ def pool(symbol: str, market: str, account_id: str = "CN_MAIN", enabled: str = "
 
 
 def latest(symbol: str, market: str, trade_date: date = TARGET) -> dict:
-    return {"市场": market, "统一代码": symbol, "交易日期": trade_date}
+    return {
+        "市场": market,
+        "统一代码": symbol,
+        "交易日期": trade_date,
+        "正式收盘": True,
+        "校验状态": "已验证",
+    }
 
 
 def quote(
@@ -349,6 +355,30 @@ class ProductionQfqRefreshTests(unittest.TestCase):
         self.assertIn("PRODUCTION_QFQ_PROVIDER_STALE:CN|000725.SZ", error)
         self.assertEqual(client.writes, [])
 
+    def test_unavailable_latest_marker_blocks_qfq_without_write(self):
+        client = workbook(
+            latest_rows=[{
+                **latest("000725.SZ", "CN"),
+                "正式收盘": False,
+                "校验状态": "数据不可用",
+            }]
+        )
+        error = self.run_failure(client, successful_fetch([]))
+        self.assertIn("PRODUCTION_QFQ_LATEST_NOT_FRESH:CN|000725.SZ", error)
+        self.assertEqual(client.writes, [])
+
+    def test_pending_latest_marker_blocks_qfq_without_write(self):
+        client = workbook(
+            latest_rows=[{
+                **latest("000725.SZ", "CN"),
+                "正式收盘": False,
+                "校验状态": "待复核",
+            }]
+        )
+        error = self.run_failure(client, successful_fetch([]))
+        self.assertIn("PRODUCTION_QFQ_LATEST_NOT_FRESH:CN|000725.SZ", error)
+        self.assertEqual(client.writes, [])
+
     def test_success_uses_latest_trade_date_exactly(self):
         target = date(2026, 9, 2)
         client = workbook(latest_rows=[latest("000725.SZ", "CN", target)])
@@ -438,6 +468,30 @@ class ProductionQfqRefreshTests(unittest.TestCase):
         )
         self.assertEqual(len(client.writes), 1)
 
+    def test_repeated_refresh_is_idempotent_for_target_identity(self):
+        client = workbook()
+        calls = []
+        fetch = successful_fetch(calls)
+
+        first = refresh_production_qfq(
+            "asia", client=client, fetch_history=fetch, fetched_at=FETCHED_AT
+        )
+        second = refresh_production_qfq(
+            "asia", client=client, fetch_history=fetch, fetched_at=FETCHED_AT
+        )
+
+        self.assertEqual(first["status"], "SUCCESS")
+        self.assertEqual(second["status"], "SUCCESS")
+        target_rows = [
+            row for row in client.records("历史行情_前复权")
+            if (row["市场"], row["统一代码"]) == ("CN", "000725.SZ")
+        ]
+        self.assertEqual(len(target_rows), 2)
+        self.assertEqual(
+            len({row["交易日期"] for row in target_rows}),
+            len(target_rows),
+        )
+
     def test_only_qfq_history_is_written(self):
         client = workbook()
         refresh_production_qfq(
@@ -501,14 +555,15 @@ class ProductionQfqRefreshTests(unittest.TestCase):
             self.assertIn("RUN_MODE=latest", source)
             self.assertIn("- full", source)
 
-    def test_legacy_workflows_no_longer_have_scheduled_triggers(self):
-        for relative_path in (
-            ".github/workflows/asia-close.yml",
-            ".github/workflows/us-close.yml",
+    def test_legacy_workflows_restore_the_original_scheduled_triggers(self):
+        for relative_path, cron in (
+            (".github/workflows/asia-close.yml", 'cron: "30 9 * * 1-5"'),
+            (".github/workflows/us-close.yml", 'cron: "30 22 * * 1-5"'),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("schedule:", source)
+            self.assertIn(cron, source)
             self.assertIn("workflow_dispatch:", source)
-            self.assertNotIn("schedule:", source)
 
 
 if __name__ == "__main__":

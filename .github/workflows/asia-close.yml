@@ -1,6 +1,9 @@
 name: 亚洲市场收盘更新
 
 on:
+  schedule:
+    # 工作日北京时间17:30，给收盘后更新较慢的数据源预留同步时间。
+    - cron: "30 9 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
@@ -11,6 +14,11 @@ on:
         options:
           - latest
           - full
+
+concurrency:
+  group: holdings-market-data-asia
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest

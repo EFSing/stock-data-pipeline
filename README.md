@@ -20,7 +20,7 @@ AKShare已从生产依赖和数据源注册表中移除。为保证旧版Google 
 
 ## 执行模式
 
-定时亚洲/欧美 workflow 使用 `latest` 模式：只抓取短窗口最新行情、执行 source-date freshness/双源校验、更新 `最新行情`，并写入必要的 `校验记录` 与 `运行日志`。它不会抓取多年历史或 qfq，不运行 SETUP_03/Decision，不写历史行情表；运行摘要必须显示 `history_rows_written=0`。
+定时亚洲/欧美 workflow 使用 `latest` 模式：只抓取短窗口最新行情、执行 source-date freshness/双源校验、更新 `最新行情`，并写入必要的 `校验记录` 与 `运行日志`。随后由同一 workflow 的窄 QFQ companion 只刷新正式 CN/US 策略股票的 `历史行情_前复权`；它不会进入手动 `full` 的 SETUP_03/Decision 路径，也不会为 HK/JP/SE 猜测或扩展 QFQ 范围。定时路径不抓取多年未复权历史，不运行 SETUP_03/Decision；运行摘要必须显示 `history_rows_written=0`。
 
 需要历史行情、qfq 或策略展示时，手动使用 `full` 模式：
 
@@ -103,10 +103,10 @@ sender/actor、schema 与身份，再写 machine-readable/human-readable 回执�
 
 此后任务会在工作日自动运行：
 
-- A股／港股／日股：`10:30 UTC`，即北京时间`18:30`。
+- A股／港股／日股：`09:30 UTC`，即北京时间`17:30`。
 - 美股／瑞典股：`22:30 UTC`；兼容夏令时和冬令时，均晚于常规交易时段收盘。
 
-节假日仍可能触发任务，但数据交易日期不会前进；程序会保留最近已完成交易日，并记录运行日志。
+GitHub Actions 的工作日触发器不是交易所开市证明；各标的仍按自身时区、收盘时间、来源交易日期和 freshness gate 校验。周末/交易所休市或来源失败时不得用上一交易日冒充当前日：成功的旧行会被标为 `待复核`，完全失败则在 `最新行情` 保留审计值但标为 `数据不可用`，并令定时任务失败，阻止 QFQ companion 消费旧日期。
 
 ## 本地运行
 

@@ -680,3 +680,31 @@ Paper 数据，不自动启动新的 strategy threshold research。
 **Reason:** ARMED projection 的价值是让无 `ENTRY_ALLOWED` 的日报仍可读，同时避免把当前
 ATR estimate 误读为正式买入区，或把已关闭的 confirmed→wait-for-retest hypothesis 误读为
 生产 lifecycle。
+
+## 2026-09-20 — Sheet-backed holdings market-data schedule restoration
+
+**Decision:** Cloud Daily Report V1 不替代既有 Google Sheet 行情中台。恢复两个彼此独立的
+Sheet-backed scheduled writer：
+
+- `asia-close` 在工作日 `30 9 * * 1-5` UTC（北京时间 17:30）运行
+  `main.py --group asia --mode latest`，覆盖 CN/HK/JP；成功后只由 companion 刷新正式
+  CN 策略股票的 exact-T QFQ。
+- `us-close` 在工作日 `30 22 * * 1-5` UTC 运行
+  `main.py --group us --mode latest`，覆盖 US/SE；成功后只由 companion 刷新正式 US
+  策略股票的 exact-T QFQ。
+- `full` 仍仅允许 `workflow_dispatch` 手动选择；schedule 永不进入 SETUP_03/Decision。
+  每个 market workflow 使用不取消的独立 concurrency，避免 schedule/dispatch 并发写表。
+- Cloud CN/US workflows 继续使用 exchange-calendar exact completed session，在进程内取得
+  latest/QFQ rows，不读写 `最新行情`、`历史行情_前复权`、策略决策状态、Paper ledger 或
+  broker；两条链路不重复写同一策略状态。
+
+**Data safety contract:** latest provider/date 完全失败时，`最新行情` 保留旧 OHLCV 仅作审计，
+但写入当前失败时间、`校验状态=数据不可用` 和禁止复用旧行情的备注，scheduled job 非零退出，
+阻止 companion 消费旧日期。pending/single-source 仍不标记为 `已验证`；正式 QFQ 只接受
+exact-date、`正式收盘=True`、`校验状态=已验证` 的 latest row，并在任何目标标的失败时
+保持全量不写。下游 Sheet reader 必须使用 exact exchange-session T、latest gate 和 QFQ
+exact-T 尾行，缺失或过期统一 fail closed。
+
+**Reason:** 原 Cloud cutover 假设旧行情表只是持久化展示，但现有自动化监控仍把该 Sheet
+作为行情输入；移除旧 schedule 后会造成 Sheet 停更并使旧行存在被误读风险。恢复 writer
+可以补回既有输入职责，同时保持 Cloud 日报的只读内存边界、策略状态边界和交易语义不变。

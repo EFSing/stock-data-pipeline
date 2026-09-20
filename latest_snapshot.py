@@ -26,6 +26,9 @@ from core import (
 )
 
 
+LATEST_UNAVAILABLE_STATUS = "数据不可用"
+
+
 @dataclass(frozen=True)
 class LatestSnapshot:
     """The bounded result of evaluating two latest-source payloads."""
@@ -328,6 +331,86 @@ def project_latest_row(snapshot: LatestSnapshot, fetched_at: datetime) -> dict:
         "币种": quote.currency,
         "备注": "；".join((*snapshot.notes, *snapshot.errors)),
     }
+
+
+def project_latest_failure_row(
+    watch: dict,
+    existing: dict | None,
+    fetched_at: datetime,
+    reason: str,
+) -> dict:
+    """Mark a failed latest refresh without presenting the prior quote as fresh.
+
+    The legacy Sheet is also an input to external monitoring.  Removing a
+    symbol from the upsert on provider failure would leave its previous row
+    looking valid to consumers that only read ``最新行情``.  Preserve the
+    last observed values for audit/display, but stamp the current attempt as
+    unavailable and make the stale-input rule explicit.
+    """
+
+    row = dict(existing or {})
+    symbol = str(watch.get("统一代码") or row.get("统一代码") or "").strip()
+    market = str(watch.get("市场") or row.get("市场") or "").strip()
+    name = str(watch.get("名称") or row.get("名称") or symbol).strip()
+    currency = str(watch.get("币种") or row.get("币种") or "").strip()
+    primary_source = str(watch.get("主数据源") or row.get("主数据源") or "").strip()
+    verifier_source = str(watch.get("校验数据源") or row.get("校验数据源") or "").strip()
+    prior_date = row.get("交易日期")
+    prior_date_text = str(prior_date or "").strip() or "未知"
+    safe_reason = str(reason or "未提供失败原因").strip()
+    return {
+        **row,
+        "统一代码": symbol,
+        "名称": name,
+        "市场": market,
+        "抓取时间": fetched_at,
+        "正式收盘": False,
+        "校验状态": LATEST_UNAVAILABLE_STATUS,
+        "主数据源": primary_source,
+        "校验数据源": verifier_source,
+        "币种": currency,
+        "备注": (
+            f"本次行情更新失败：{safe_reason}；"
+            f"保留最后行情日期{prior_date_text}仅供审计，禁止下游监控当作当前新鲜数据"
+        ),
+    }
+
+
+def latest_row_is_monitorable(
+    row: dict,
+    expected_trade_date: date,
+    *,
+    require_verified: bool = False,
+) -> bool:
+    """Return whether a Sheet latest row is safe for a freshness-gated reader.
+
+    Consumers must supply the expected completed session from their own market
+    calendar.  A row stamped ``数据不可用`` or dated before that session is
+    never accepted, even if its OHLCV values are still present for audit.
+    """
+
+    if not isinstance(expected_trade_date, date):
+        return False
+    status = str(row.get("校验状态") or "").strip()
+    accepted_statuses = {"已验证"} if require_verified else {"已验证", "单源可用"}
+    if status not in accepted_statuses:
+        return False
+    if not _sheet_bool(row.get("正式收盘")):
+        return False
+    value = row.get("交易日期")
+    if isinstance(value, datetime):
+        value = value.date()
+    elif not isinstance(value, date):
+        text = str(value or "").strip()
+        try:
+            value = date.fromisoformat(text[:10])
+        except (TypeError, ValueError):
+            return False
+    return value == expected_trade_date
+
+
+def _sheet_bool(value: object) -> bool:
+    return str(value).strip().lower() in {"true", "1", "yes", "是"}
 
 
 def project_validation_row(snapshot: LatestSnapshot, fetched_at: datetime) -> dict:

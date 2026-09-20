@@ -4,19 +4,24 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 
 ## Current Task
 
-`CLOUD_DAILY_REPORT_PRODUCT_SEMANTICS_V1` 已在独立分支
-`fix/cloud-report-product-semantics-v1` 上完成最小 presentation/read-only 修正，并通过 PR #94 squash merge 到 `main`；
-当前以 `main` 为恢复基线。范围仅为 Cloud Daily Report 的等待确认、确认日 NO_TRADE 首层摘要、
-策略跟踪持仓／模拟持仓标签，不改变交易策略或任何持久化语义。
+`HOLDINGS_MARKET_DATA_SCHEDULE_RESTORE_V1` 正在独立分支
+`fix/restore-holdings-market-data-schedule-v1` 上实现。范围是恢复 Sheet-backed CN/HK/JP 与
+US/SE 行情 writer 的自动 schedule，保留 latest / formal CN-US QFQ 语义，并让行情/QFQ
+失败对下游监控显式 fail closed；Cloud Daily Report 仍保持独立 read-only 内存路径。
 
 ## Current State
 
 - 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
+- 本任务从远端 `main` 的真实当前状态独立起分支；PR #96（Cloud dashboard card）与 PR #82（Actions Node 24）保持独立，本任务不混入、不 rebase、不合并它们。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
 - PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
 - PR #90 已落实用户明确的 partial-report operational exit 语义，经 full/focused tests、CI 与只读 US manual smoke 后 squash merge；main 交接已同步。
-- PR #82 完全独立，保持 OPEN；本次没有 merge/rebase/mix。其 HEAD、CI 与冲突状态实时从 GitHub 查询。
 - 长期总体交易规则以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一正式事实源。
+
+本任务核实到：Cloud cutover 移除了 `asia-close` / `us-close` schedule，但旧 Sheet 仍是
+现有自动化监控的行情输入；因此这不是把 Cloud 报告接回旧 Sheet，而是恢复两条职责不同的
+独立路径。`PROJECT_GOVERNANCE_STATE_CONFLICT` 不成立：旧文档与当时代码一致，当前任务是
+基于已核实下游依赖形成的新长期决策，已记录到 `docs/DECISION_LOG.md`。
 
 ## Completed
 
@@ -29,26 +34,32 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 - Decision/RR payload 未携带可直接消费的 minimum RR；因此 Dashboard/email 只格式化实际 R/R，并以既有 `gate_reason=RR_BELOW_MINIMUM` 展示“R/R不足”，不在 presentation 层复制正式阈值。
 - 本次能力仍是 presentation/read-only only；production trading semantics unchanged，Post-confirmation Retest hypothesis remains closed，不进入 persistent/retest lifecycle。
 - Post-confirmation Retest 正式结论已同步到 CURRENT_STATUS / DECISION_LOG：逻辑可行但恢复极少且全在 EARLY，不证明 broad/time-stable improvement，不改任何现有交易语义。
+- `asia-close` 恢复工作日 `30 9 UTC`（北京时间 17:30），覆盖 CN/HK/JP；`us-close` 恢复
+  `30 22 UTC`，覆盖 US/SE；schedule 强制 `latest`，随后仅执行正式 CN/US QFQ companion，
+  `full` 仍只可手动选择。两个 workflow 各自使用不取消 concurrency。
+- latest 完全失败时 `最新行情` 保留旧值仅作审计并标为 `数据不可用`；正式 QFQ 只接受 exact
+  date、正式收盘、已验证的 latest row，生产读取仍要求 exact-T QFQ 尾行。
 
 ## Validation
 
-- 本任务 Dashboard / email / Cloud Daily Report focused：62 tests，OK。
-- 本任务 full `python -m unittest discover -s tests -v`：795 tests、3 skipped、OK。
-- 本任务 `python -m py_compile` 与 `git diff --check` 通过；US synthetic HTML/text smoke 已覆盖首屏标签、确认日 RR 拒绝摘要、静态邮件与通知。
-- PR #94 合并前 4/4 GitHub checks 已通过且无冲突，随后已 squash merge；合并后的 main 状态与 CI 以 GitHub 实时状态为准。
-- PR #93 final HEAD 4/4 checks passed、无冲突并已 squash merge，merge 后 main push CI green。
-- #91 focused 14/full 767，artifact full parity 与 self-hash 通过；#90 focused 79/full 777 和三项 PR CI 通过。
-- #90 一次只读 US smoke：exact XNYS 2026-09-16，PARTIAL_DATA_QUALITY 保留、workflow exit 0；220 DATA_OK、2 DATA_UNAVAILABLE，actual primary Tencent/verifier Sina；两条 unavailable QFQ 继续 blocked，未用 T-1 替代 T；final JSON/HTML 与 transport digest 核验通过，无 state/Sheets/Paper/raw writes 或 broker action。可复核 workflow 链接见 #90 PR 描述。
+- 本任务已通过行情校验、latest failure-marker、production prerequisite、QFQ refresh、治理
+  与调度 focused tests；覆盖 schedule、并发串行、日期/状态 gate、QFQ exact-T、全量失败不写
+  与重复刷新不重复目标日期。完整 unittest、py_compile 与 docs closeout 在 PR 前完成。
+- 远端 main/PR/CI/Actions 状态只以 GitHub 实时结果为准；本任务不执行真实 Sheets 访问、生产
+  补写、Paper、broker 或策略状态写入。
 
 ## Blocker
 
-无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在。
-如无可安全复用的现有 Cloud Daily Report 输入，只使用 synthetic/现有 fixture 做只读 UI smoke，不访问 Sheets/state/Paper/broker/Final OOS。
+无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在。待 PR exact-head CI 完成并
+由用户决定是否合并；合并后是否做历史缺口补齐仍需单独决策。本任务不访问真实 Sheet，不做
+生产补写，不读取真实 holdings，不运行 Paper/broker/Final OOS。
 
 ## Next Action
 
-以 `main` 为当前恢复基线，继续观察真实 prospective Cloud Daily Reports / Paper 数据，不自动启动新的 strategy
-threshold research，也不扩展 persistent state、Protocol 或生产 lifecycle。
+完成本分支 full unittest、py_compile、diff check，提交并创建 PR；等待 exact-head CI 和 review，
+停在用户决定节点，不擅自合并或补写历史。合并后的首次真实运行由用户/运维另行确认；不得
+把 Cloud 日报当作 Sheet 恢复替代，也不得自动启动新的 strategy threshold research 或扩展
+persistent state、Protocol、Paper/broker lifecycle。
 
 ## Constraints
 
@@ -58,6 +69,7 @@ threshold research，也不扩展 persistent state、Protocol 或生产 lifecycl
 - ARMED projection 只读、causal/as-of；展示排序不属于策略 ranking/promotion/gate。
 - renderer 不计算 confirmation + ATR multiplier 等交易公式；缺字段不猜测。
 - 无 Final OOS/parameter search/provider fetch/真实 holdings；不写 Sheets/state/Paper，不下 broker order。
+- 本任务修改的是 workflow / Sheet-backed data quality boundary，不改变 Wave、Setup、Decision、Risk、Position Management、T→T+1 或 broker 权限。
 - REAL_HOLDINGS_SHADOW 仍为 OPTIONAL_PRIVATE_OPERATIONAL_VALIDATION / NOT_RUN_USER_PRIVACY，不是研究 blocker。
 
 ## Pitfalls
@@ -66,6 +78,8 @@ threshold research，也不扩展 persistent state、Protocol 或生产 lifecycl
 - ARMED 排序使用 projection 已给出的 `distance_to_confirmation_pct` 绝对值；缺失值排在同阶段末尾，不影响其他阶段优先级。
 - 预计 Entry Zone 是按当前 ARMED as-of ATR14 与现有正式 multiplier 形成的 read-only estimate，仅供观察；未来正式确认以确认日 Decision 为准，不是当前 plan、买入信号或未来成交承诺。若确认时超过正式入场区则不追价、不等待后续回踩补入；结构失效则放弃。
 - fixture 中尚未带新 projection 的旧 ARMED row 必须显示数据不足，不得由 renderer 从旧字段补算。
+- Cloud `cn-daily-report` / `us-daily-report` 只取配置并在进程内存获取 target-market latest/QFQ；不得改成读取旧 `最新行情` / `历史行情_前复权`。
+- Sheet latest row 只有 exact T + `正式收盘=True` + `校验状态=已验证` 才可供生产策略 reader 使用；`数据不可用`、`待复核` 或 QFQ 尾日落后均必须 DATA_* fail closed。
 
 `HANDOFF_CURRENT_AND_CONSISTENT`
 
