@@ -12,6 +12,7 @@ US/SE 行情 writer 的自动 schedule，保留 latest / formal CN-US QFQ 语义
 ## Current State
 
 - 当前恢复基线：`main`；PR #94 已 squash merge。合并决策时的 live PR head / exact-head CI 由 GitHub 实时核验；transient PR head is not a governance invariant。基线 main 已包含 PR #93 的 ARMED projection。
+- PR #97 已创建并保持 OPEN；当前分支已推送，PR mergeability 为 clean，exact-head CI 已通过。等待用户决定是否合并。
 - 本任务从远端 `main` 的真实当前状态独立起分支；PR #96（Cloud dashboard card）与 PR #82（Actions Node 24）保持独立，本任务不混入、不 rebase、不合并它们。
 - PR #92 已按正式负研究结论 squash merge；Post-confirmation Retest hypothesis 已关闭，不进入 production design / fresh validation。
 - PR #91 分类冲突已核实、修正并验证后 squash merge；确定性 artifact 总体分类仍为 `MIXED_ARCHITECTURE_SIGNAL_STARVATION`。`ABOVE_ENTRY_ZONE=595/999` 是最大 post-confirmation first-fail，不是总体唯一原因。
@@ -44,20 +45,21 @@ US/SE 行情 writer 的自动 schedule，保留 latest / formal CN-US QFQ 语义
 
 - 本任务已通过行情校验、latest failure-marker、production prerequisite、QFQ refresh、治理
   与调度 focused tests；覆盖 schedule、并发串行、日期/状态 gate、QFQ exact-T、全量失败不写
-  与重复刷新不重复目标日期。完整 unittest、py_compile 与 docs closeout 在 PR 前完成。
+  与重复刷新不重复目标日期。完整 `python -m unittest discover -s tests -v` 为 801 passed、3 skipped；
+  `py_compile`、`git diff --check` 与 PR exact-head CI 均通过。
 - 远端 main/PR/CI/Actions 状态只以 GitHub 实时结果为准；本任务不执行真实 Sheets 访问、生产
   补写、Paper、broker 或策略状态写入。
 
 ## Blocker
 
-无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在。待 PR exact-head CI 完成并
-由用户决定是否合并；合并后是否做历史缺口补齐仍需单独决策。本任务不访问真实 Sheet，不做
+无实现安全 blocker，`PROJECT_GOVERNANCE_STATE_CONFLICT` 不存在。PR exact-head CI 已完成并
+通过；当前等待用户决定是否合并。合并后是否做历史缺口补齐仍需单独决策。本任务不访问真实 Sheet，不做
 生产补写，不读取真实 holdings，不运行 Paper/broker/Final OOS。
 
 ## Next Action
 
-完成本分支 full unittest、py_compile、diff check，提交并创建 PR；等待 exact-head CI 和 review，
-停在用户决定节点，不擅自合并或补写历史。合并后的首次真实运行由用户/运维另行确认；不得
+等待 PR #97 review/merge 决策，停在用户决定节点，不擅自合并或补写历史。合并后的首次真实运行由
+用户/运维另行确认；不得
 把 Cloud 日报当作 Sheet 恢复替代，也不得自动启动新的 strategy threshold research 或扩展
 persistent state、Protocol、Paper/broker lifecycle。
 
