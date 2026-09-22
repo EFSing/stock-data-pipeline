@@ -37,7 +37,7 @@ exact-T、正式收盘、来源 provenance、因果边界和全部交易系统�
 
 ## Next Action
 
-完成 docs 轻量检查后提交并推送独立 PR；创建 PR 后等待当前 exact-head CI 完成并处理必要的代码反馈，不自行合并。CI 通过后保持 `PRODUCTION_ACCEPTANCE_PENDING`，等待下一次正式 schedule 做只读生产核验。
+独立 PR 已创建且当前 exact-head CI 已通过；保持 PR open、等待审阅与用户/维护者决定，不自行合并。合并后保持 `PRODUCTION_ACCEPTANCE_PENDING`，等待下一次正式 schedule 做只读 Sheet/QFQ/日报与并发验收。
 
 ## Constraints
 
