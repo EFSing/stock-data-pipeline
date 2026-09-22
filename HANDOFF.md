@@ -25,7 +25,7 @@ exact-head CI 状态以 GitHub 实时结果为准，未合并。
 - 已读取并核对 `AGENTS.md`、`docs/CURRENT_STATUS.md`、`docs/DECISION_LOG.md`、相关 provider / Sheets / QFQ / Candidate / 日报代码与测试。
 - 已确认 Yahoo Chart 是 yfinance QFQ 的内部 keyless fallback；故障不是用 T-1 替代 T，而是 fallback 返回了非空但落后的尾部，旧逻辑在 stale 检查处提前结束了重试。
 - 已确认 QFQ writer 先读取历史快照、所有目标 provider 成功后才替换目标身份；非目标历史继续保留，失败时不写入。
-- 已完成候选运行时、日报 Dashboard/email、Cloud 状态与 Sheets client 的针对性回归；当前工作树全量 `python -m unittest discover -s tests -v` 为 815 passed、3 skipped。提交推送后仍需核对新 exact HEAD 的 CI，不能沿用旧 HEAD 的结果。
+- 已完成候选运行时、日报 Dashboard/email、Cloud 状态与 Sheets client 的针对性回归；当前工作树全量 `python -m unittest discover -s tests -v` 为 815 passed、3 skipped。当前 PR tip 的 exact-head CI（CI Test Gate、Daily Decision Chain、Paper trade lifecycle、Portfolio Risk generic operational shadow）已全部通过。
 
 ## Production Acceptance
 
@@ -39,7 +39,7 @@ exact-head CI 状态以 GitHub 实时结果为准，未合并。
 
 ## Next Action
 
-代码和治理文档完成后推送现有独立 PR，等待当前 tip 的 exact-head CI；CI 全绿后保持 PR open、等待审阅与用户/维护者决定，不自行合并。合并后保持 `PRODUCTION_ACCEPTANCE_PENDING`，等待下一次正式 schedule 做只读 Sheet/QFQ/候选覆盖/日报与并发验收。
+当前 PR #100 已满足代码与 exact-head CI 的 `PR_FULLY_READY` 条件；保持 PR open、等待审阅与用户/维护者决定，不自行合并。仍保持 `PRODUCTION_ACCEPTANCE_PENDING`，等待合并后的下一次正式 schedule 做只读 Sheet/QFQ/候选覆盖/日报与并发验收。
 
 ## Constraints
 
