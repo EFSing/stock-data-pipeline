@@ -680,6 +680,17 @@ def fetch_with_retry(
                         f"{target_trade_date.isoformat()}"
                     )
                     last_error = stale_error
+                    # A non-empty Yahoo Chart response can still be a transient
+                    # provider tail lag.  Keep the exact-T guard, but let the
+                    # existing bounded retry budget ask yfinance/Chart again
+                    # before failing closed.  Never return the stale series.
+                    if (
+                        candidate == "yfinance"
+                        and adjust == "qfq"
+                        and attempt < attempts
+                    ):
+                        time.sleep(max(0, retry_wait_seconds))
+                        continue
                     break
                 return list(quotes) if preserve_source_order else sorted_quotes
             except Exception as exc:  # 上游站点错误需要重试并写入日志。

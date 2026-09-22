@@ -232,6 +232,8 @@ def _cloud_metadata(
     seed_sources = {}
     candidate_as_of = {}
     candidate_seed_as_of = {}
+    candidate_diagnostics = {}
+    funnel_diagnostics = {}
     protocol_versions: dict[str, str] = {}
     if isinstance(candidate_markets, Mapping):
         candidate = candidate_markets.get(market)
@@ -241,6 +243,27 @@ def _cloud_metadata(
             seed_sources[market] = candidate.get("seed_source") or qfq_contract.get("seed")
             candidate_as_of[market] = candidate.get("as_of_date")
             candidate_seed_as_of[market] = candidate.get("seed_source_as_of")
+            candidate_diagnostics[market] = {
+                key: candidate.get(key)
+                for key in (
+                    "seed_count",
+                    "candidate_data_qualified_count",
+                    "candidate_included_count",
+                    "deep_history_requested_count",
+                    "deep_history_ready_count",
+                    "deep_analysis_count",
+                    "candidate_exclusion_reason_counts",
+                    "deep_history_errors",
+                    "errors",
+                    "status",
+                )
+                if key in candidate
+            }
+    funnel_values = result.get("funnel")
+    if isinstance(funnel_values, Mapping):
+        funnel = funnel_values.get(market)
+        if isinstance(funnel, Mapping):
+            funnel_diagnostics[market] = dict(funnel)
     for entry in result.get("reports", ()) if isinstance(result.get("reports"), list) else ():
         report = entry.get("报告") if isinstance(entry, Mapping) else {}
         values = report.get("protocol_versions") if isinstance(report, Mapping) else {}
@@ -267,6 +290,8 @@ def _cloud_metadata(
         "candidate_seed_source": seed_sources,
         "candidate_as_of": candidate_as_of,
         "candidate_seed_as_of": candidate_seed_as_of,
+        "candidate_diagnostics": candidate_diagnostics,
+        "funnel": funnel_diagnostics,
         "protocol_versions": protocol_versions,
         "input_fingerprint": ephemeral.get("input_fingerprint"),
         "ephemeral_market_data_protocol": ephemeral.get("protocol_version", EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION),

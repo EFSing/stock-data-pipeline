@@ -1349,6 +1349,275 @@ def _candidate_total(payload: Mapping[str, Any], entries: Sequence[Mapping[str, 
     return len(identities)
 
 
+def _integer_count(value: Any, default: int = 0) -> int:
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _diagnostic_by_market(
+    payload: Mapping[str, Any],
+    entries: Sequence[Mapping[str, Any]],
+    key: str,
+) -> dict[str, dict[str, Any]]:
+    """Read existing Candidate/Funnel summaries without recomputing strategy state."""
+
+    values: dict[str, dict[str, Any]] = {}
+    direct = _mapping(payload.get(key))
+    for market, value in direct.items():
+        normalized = _normalised_market(market)
+        if normalized:
+            values[normalized] = dict(_mapping(value))
+    for entry in entries:
+        market = _normalised_market(entry.get("market"))
+        value = _mapping(entry.get("candidate" if key == "candidate_markets" else "entry"))
+        if key != "candidate_markets":
+            value = _mapping(value.get("Funnel"))
+        if market and value and market not in values:
+            values[market] = dict(value)
+    cloud = _mapping(payload.get("cloud_daily_report"))
+    cloud_values = _mapping(cloud.get(key))
+    if key == "candidate_markets" and not cloud_values:
+        cloud_values = _mapping(cloud.get("candidate_diagnostics"))
+    for market, value in cloud_values.items():
+        normalized = _normalised_market(market)
+        if normalized and normalized not in values:
+            values[normalized] = dict(_mapping(value))
+    return values
+
+
+def _candidate_diagnostics(
+    payload: Mapping[str, Any],
+    entries: Sequence[Mapping[str, Any]],
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    candidate_by_market = _diagnostic_by_market(payload, entries, "candidate_markets")
+    funnel_by_market = _diagnostic_by_market(payload, entries, "funnel")
+    markets = sorted(
+        set(candidate_by_market)
+        | set(funnel_by_market)
+        | {row["market"] for row in rows if row.get("market") not in {"", "—"}}
+    )
+    numeric_keys = (
+        "seed_count",
+        "data_qualified_count",
+        "included_count",
+        "deep_requested_count",
+        "deep_ready_count",
+        "deep_analysis_count",
+        "daily_result_count",
+        "data_ok_count",
+        "data_blocked_count",
+        "watch_count",
+        "armed_count",
+        "new_confirmed_count",
+        "strategy_proposal_count",
+        "entry_allowed_count",
+        "portfolio_allowed_count",
+        "no_trade_count",
+    )
+    totals = {key: 0 for key in numeric_keys}
+    aggregate_reasons: dict[str, int] = {}
+    market_values: list[dict[str, Any]] = []
+    for market in markets:
+        candidate = candidate_by_market.get(market, {})
+        funnel = funnel_by_market.get(market, {})
+        market_rows = [row for row in rows if row.get("market") == market]
+        included = _integer_count(candidate.get("candidate_included_count"))
+        deep_analysis_value = candidate.get("deep_analysis_count")
+        if deep_analysis_value is None:
+            deep_analysis_value = funnel.get("deep_analysis")
+        deep_analysis = _integer_count(deep_analysis_value)
+        deep_requested = candidate.get("deep_history_requested_count")
+        if deep_requested is None:
+            deep_requested = deep_analysis
+        deep_ready = candidate.get("deep_history_ready_count")
+        if deep_ready is None:
+            deep_ready = candidate.get("deep_history_ready_symbols", ())
+            deep_ready = len(_sequence(deep_ready)) if not isinstance(deep_ready, (int, float)) else deep_ready
+        reasons_value = candidate.get("candidate_exclusion_reason_counts")
+        reason_counts = {
+            _text(reason): _integer_count(count)
+            for reason, count in _mapping(reasons_value).items()
+            if _text(reason) and _integer_count(count)
+        }
+        if not reason_counts:
+            for record in _sequence(candidate.get("candidate_records")):
+                reason = _text(_mapping(record).get("exclusion_reason")) or "INCLUDED"
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        filter_reasons = [
+            {"reason": reason, "count": count}
+            for reason, count in sorted(reason_counts.items(), key=lambda item: (-item[1], item[0]))
+            if reason != "INCLUDED"
+        ]
+        for item in filter_reasons:
+            aggregate_reasons[item["reason"]] = aggregate_reasons.get(item["reason"], 0) + item["count"]
+        row_counts = {
+            "daily_result_count": len(market_rows),
+            "data_ok_count": sum(_text(row.get("raw_result", {}).get("data_status")).upper() == "DATA_OK" for row in market_rows),
+            "data_blocked_count": sum(row.get("data_blocked", False) for row in market_rows),
+            "watch_count": sum(row.get("stage_key") == "WATCH" for row in market_rows),
+            "armed_count": sum(row.get("stage_key") == "ARMED" for row in market_rows),
+            "new_confirmed_count": sum(bool(row.get("event_is_new")) for row in market_rows),
+            "strategy_proposal_count": sum(row.get("stage_key") == "STRATEGY_PROPOSAL" for row in market_rows),
+            "entry_allowed_count": sum(row.get("stage_key") == "ENTRY_ALLOWED" for row in market_rows),
+            "portfolio_allowed_count": sum(_text(row.get("raw_result", {}).get("final_status")) == "PORTFOLIO_ALLOWED" for row in market_rows),
+            "no_trade_count": sum(row.get("stage_key") == "NO_TRADE" for row in market_rows),
+        }
+        values = {
+            "market": market,
+            "label": MARKET_LABELS.get(market, market),
+            "status": _text(candidate.get("status"), "NOT_RUN"),
+            "seed_count": _integer_count(candidate.get("seed_count")),
+            "data_qualified_count": _integer_count(candidate.get("candidate_data_qualified_count")),
+            "included_count": included,
+            "deep_requested_count": _integer_count(deep_requested),
+            "deep_ready_count": _integer_count(deep_ready),
+            "deep_analysis_count": deep_analysis,
+            "filter_reasons": filter_reasons,
+            "candidate_errors": [
+                _text(item) for item in _sequence(candidate.get("errors")) if _text(item)
+            ],
+            "funnel": dict(funnel),
+            **row_counts,
+        }
+        values["coverage_status"] = (
+            "DATA_ISSUE"
+            if values["status"] in {"FAILED", "PARTIAL_DATA_QUALITY"} or values["candidate_errors"]
+            else "COVERAGE_INSUFFICIENT"
+            if included and deep_analysis < included
+            else "COVERAGE_COMPLETE"
+        )
+        for key in numeric_keys:
+            totals[key] += values.get(key, 0)
+        market_values.append(values)
+    return {
+        "markets": market_values,
+        "totals": totals,
+        "filter_reasons": [
+            {"reason": reason, "count": count}
+            for reason, count in sorted(aggregate_reasons.items(), key=lambda item: (-item[1], item[0]))
+        ],
+    }
+
+
+def _diagnostic_data_issues(
+    payload: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]
+) -> list[dict[str, str]]:
+    """Collect abnormal symbols from existing quality/provider error fields."""
+
+    issues: dict[tuple[str, str, str], None] = {}
+
+    def add(market: Any, symbol: Any, reason: Any) -> None:
+        normalized_market = _normalised_market(market) or "—"
+        normalized_symbol = _text(symbol) or "系统"
+        normalized_reason = _text(reason) or "数据质量检查未通过"
+        issues[(normalized_market, normalized_symbol, normalized_reason)] = None
+
+    def add_error(value: Any, market: Any) -> None:
+        text = _text(value)
+        if not text:
+            return
+        left, separator, reason = text.partition(":")
+        if "|" in left:
+            error_market, symbol = left.split("|", 1)
+            add(error_market, symbol, reason.strip() if separator else text)
+        # Unscoped runtime/preflight text is intentionally kept in the status
+        # banner and artifact metadata, not copied verbatim into the user mail.
+        # Symbol-scoped provider errors remain visible above.
+
+    cloud = _mapping(payload.get("cloud_daily_report"))
+    market = _normalised_market(cloud.get("market"))
+    quality = _mapping(cloud.get("data_quality"))
+    for symbol in _sequence(quality.get("failed_symbols")):
+        add(market, symbol, "数据质量未通过")
+    for key in (
+        "errors",
+        "ephemeral_errors",
+        "preflight_errors",
+        "candidate_quality_errors",
+    ):
+        values = cloud.get(key) if key == "errors" else quality.get(key)
+        for value in _sequence(values):
+            add_error(value, market)
+    runtime_errors = quality.get("candidate_runtime_errors")
+    if isinstance(runtime_errors, Mapping):
+        for value in runtime_errors.values():
+            add_error(value, market)
+    for symbol, provider in _mapping(cloud.get("provider_status")).items():
+        provider = _mapping(provider)
+        for value in _sequence(provider.get("errors")):
+            add(market, symbol, value)
+        for key in ("latest_status", "qfq"):
+            value = _text(provider.get(key))
+            if value and (
+                value.upper().startswith(("FAILED", "ERROR", "DATA_"))
+                or any(marker in value for marker in ("失败", "失效", "待复核", "单源"))
+            ):
+                add(market, symbol, f"{key}：{value}")
+    for candidate in _mapping(payload.get("candidate_markets")).values():
+        candidate = _mapping(candidate)
+        candidate_market = _normalised_market(candidate.get("market")) or market
+        deep_errors = _mapping(candidate.get("deep_history_errors"))
+        for symbol, values in deep_errors.items():
+            for value in _sequence(values) or (values,):
+                add(candidate_market, symbol, value)
+    for row in rows:
+        if not row.get("data_blocked"):
+            continue
+        raw = _mapping(row.get("raw_result"))
+        reasons = list(_sequence(raw.get("blocking_prerequisites")))
+        reasons.extend(_sequence(raw.get("reasons")))
+        if not reasons:
+            reasons = [raw.get("data_status") or raw.get("final_status") or "数据质量未通过"]
+        for reason in reasons:
+            add(row.get("market"), row.get("symbol"), reason)
+    cloud_status = _text(cloud.get("status")).upper()
+    if cloud_status in {"FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY"} and not issues:
+        add(market, "系统", f"日报状态：{cloud_status}")
+    return [
+        {"market": market, "symbol": symbol, "reason": reason}
+        for market, symbol, reason in sorted(issues)
+    ]
+
+
+def _diagnostics(
+    payload: Mapping[str, Any],
+    entries: Sequence[Mapping[str, Any]],
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    candidate = _candidate_diagnostics(payload, entries, rows)
+    data_issues = _diagnostic_data_issues(payload, rows)
+    totals = candidate["totals"]
+    has_candidate_summary = bool(candidate["markets"])
+    signal_count = (
+        totals["new_confirmed_count"]
+        + totals["strategy_proposal_count"]
+        + totals["entry_allowed_count"]
+    )
+    if data_issues:
+        status = "DATA_ISSUE"
+    elif has_candidate_summary and any(
+        item["coverage_status"] == "COVERAGE_INSUFFICIENT"
+        for item in candidate["markets"]
+    ):
+        status = "COVERAGE_INSUFFICIENT"
+    elif signal_count == 0:
+        status = "NORMAL_NO_SIGNAL"
+    else:
+        status = "SIGNAL_AVAILABLE"
+    return {
+        "status": status,
+        "data_issues": data_issues,
+        "candidate": candidate,
+        "coverage": {
+            **totals,
+            "signal_count": signal_count,
+        },
+    }
+
+
 def _preflight_market_status(payload: Mapping[str, Any], market: str) -> bool:
     preflight = _mapping(payload.get("preflight"))
     for account in _sequence(preflight.get("accounts")):
@@ -1561,6 +1830,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "data_blocked_count": sum(row["stage_key"] == "DATA_BLOCKED" for row in rows),
     }
     freshness_funnel = _freshness_funnel(payload, entries)
+    diagnostics = _diagnostics(payload, entries, rows)
     sectors = sorted({row["sector"] for row in rows if row["sector"] != "—"}, key=str.casefold)
     paper = _paper_projection(payload, entries)
     rules = [
@@ -1574,6 +1844,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "generated_at": _display(generated_at),
         "summary": summary,
         "freshness_funnel": freshness_funnel,
+        "diagnostics": diagnostics,
         "markets": market_rows,
         "rows": rows,
         "sectors": sectors,
@@ -2071,6 +2342,62 @@ def _render_market_cards(markets: Sequence[Mapping[str, Any]]) -> str:
     )
 
 
+def _render_diagnostics(projection: Mapping[str, Any]) -> str:
+    diagnostics = _mapping(projection.get("diagnostics"))
+    status = _text(diagnostics.get("status"), "—")
+    status_labels = {
+        "DATA_ISSUE": "数据异常，停止生成新信号",
+        "COVERAGE_INSUFFICIENT": "候选覆盖不足，不能据此判断没有机会",
+        "NORMAL_NO_SIGNAL": "覆盖已完成，今天没有交易信号",
+        "SIGNAL_AVAILABLE": "已完成覆盖，存在已计算信号",
+    }
+    issues = tuple(_mapping(item) for item in _sequence(diagnostics.get("data_issues")))
+    issue_html = "".join(
+        f'<li><strong>{_escape(item.get("market"))} · {_escape(item.get("symbol"))}</strong>：{_escape(item.get("reason"))}</li>'
+        for item in issues
+    )
+    candidate = _mapping(diagnostics.get("candidate"))
+    coverage = _mapping(diagnostics.get("coverage"))
+    market_html = []
+    for item in _sequence(candidate.get("markets")):
+        item = _mapping(item)
+        reasons = "；".join(
+            f'{_escape(_mapping(reason).get("reason"))}：{_escape(_mapping(reason).get("count"))}'
+            for reason in _sequence(item.get("filter_reasons"))
+        )
+        reason_line = (
+            f'<div class="diagnostic-reasons">筛选原因：{reasons}</div>'
+            if reasons else ""
+        )
+        market_html.append(
+            '<div class="diagnostic-market">'
+            f'<strong>{_escape(item.get("label"))}</strong>'
+            f'<span>Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}</span>'
+            f'<span>实际日报结果 {_escape(item.get("daily_result_count"))}；DATA_OK {_escape(item.get("data_ok_count"))}；NO_TRADE {_escape(item.get("no_trade_count"))}；数据异常 {_escape(item.get("data_blocked_count"))}</span>'
+            f'{reason_line}'
+            '</div>'
+        )
+    if not market_html:
+        market_html.append(
+            f'<div class="diagnostic-market">实际日报结果 {_escape(coverage.get("daily_result_count"))}；DATA_OK {_escape(coverage.get("data_ok_count"))}；NO_TRADE {_escape(coverage.get("no_trade_count"))}</div>'
+        )
+    issue_block = (
+        '<div class="diagnostic-issues"><strong>异常标的及原因</strong><ul>'
+        + issue_html
+        + "</ul></div>"
+        if issues else ""
+    )
+    return (
+        f'<section class="diagnostic-panel {"diagnostic-danger" if issues else ""}" aria-label="日报诊断">'
+        f'<div class="diagnostic-heading"><h2>覆盖与日报诊断</h2><span>{_escape(status_labels.get(status, status))}</span></div>'
+        f'<div class="diagnostic-coverage">候选 Seed：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；included：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</div>'
+        + issue_block
+        + '<div class="diagnostic-markets">'
+        + "".join(market_html)
+        + "</div></section>"
+    )
+
+
 _PAPER_STATUS_LABELS = {
     "PENDING_T1": "等待 T+1 执行",
     "OPEN": "模拟持仓中",
@@ -2558,7 +2885,7 @@ def render_dashboard_html(value: Any) -> str:
 .metric {{ appearance:none; background:var(--card); border:1px solid var(--line); border-radius:11px; padding:10px 12px; min-height:66px; color:var(--ink); text-align:left; }} .metric-link {{ cursor:pointer; font:inherit; }} .metric-link:hover {{ border-color:#8ca9c2; box-shadow:0 3px 10px #18324b12; }}
 .metric-label,.field-label {{ color:var(--muted); font-size:12px; }} .metric-value {{ display:block; margin-top:3px; font-size:23px; line-height:1.1; font-weight:750; }} .summary-primary .metric:nth-child(1) .metric-value,.summary-primary .metric:nth-child(2) .metric-value {{ color:var(--teal); }} .summary-primary .metric:nth-child(6) .metric-value {{ color:var(--red); }}
 .summary-secondary .metric {{ min-height:48px; padding:8px 12px; display:flex; align-items:center; gap:10px; }} .summary-secondary .metric-value {{ margin:0; font-size:20px; }}
-.market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:8px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:8px 13px; display:flex; justify-content:space-between; align-items:center; }}
+.market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:8px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:8px 13px; display:flex; justify-content:space-between; align-items:center; }} .diagnostic-panel {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:11px 13px; margin:0 0 10px; }} .diagnostic-danger {{ border-color:#efb4b4; background:#fffafa; }} .diagnostic-heading {{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }} .diagnostic-heading h2 {{ margin:0; font-size:16px; }} .diagnostic-heading span {{ color:var(--muted); font-size:12px; }} .diagnostic-coverage {{ margin-top:5px; color:#53687b; font-size:13px; }} .diagnostic-issues {{ margin-top:8px; color:var(--red); font-size:13px; }} .diagnostic-issues ul {{ margin:4px 0 0; padding-left:20px; }} .diagnostic-markets {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin-top:9px; }} .diagnostic-market {{ display:flex; flex-direction:column; gap:2px; background:#f8fafc; border-radius:8px; padding:8px 10px; color:#53687b; font-size:12px; overflow-wrap:anywhere; }} .diagnostic-market strong {{ color:var(--ink); font-size:13px; }} .diagnostic-reasons {{ color:var(--amber); }}
 .market-name {{ font-weight:750; margin-right:8px; }} .market-label {{ color:var(--muted); font-size:12px; }} .data-status {{ border-radius:999px; padding:3px 9px; font-weight:700; font-size:12px; }} .status-DATA_OK {{ background:var(--teal-soft); color:var(--teal); }} .status-DATA_BLOCKED {{ background:var(--red-soft); color:var(--red); }} .status-NOT_RUN {{ background:#edf1f6; color:var(--muted); }}
 .stage-nav {{ position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:4px; margin:8px 0 9px; padding:7px 8px; align-items:center; background:#f5f7fbeF; border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 14px #18324b12; backdrop-filter:blur(8px); }} .stage-nav-label {{ color:var(--muted); font-weight:700; margin-right:2px; white-space:nowrap; }} .stage-link {{ min-height:44px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--blue); font:inherit; font-size:13px; font-weight:700; cursor:pointer; padding:6px 8px; white-space:nowrap; }} .stage-link:hover,.stage-link[aria-pressed="true"] {{ color:var(--teal); background:#e8f5f2; border-color:#b9ddd5; }} .nav-count {{ color:var(--muted); font-weight:650; }}
 .filters {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:#eaf0f6; border:1px solid var(--line); border-radius:11px; padding:9px 10px; margin-bottom:10px; }} .filters label {{ display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }} .search-field {{ flex:1 1 250px; }} select,input[type="search"] {{ min-height:44px; border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:6px 9px; font:inherit; min-width:100px; }} input[type="search"] {{ width:100%; min-width:200px; }}
@@ -2567,7 +2894,7 @@ def render_dashboard_html(value: Any) -> str:
 .row-bottom {{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:5px; }} .row-signals {{ display:flex; flex:1 1 420px; flex-wrap:wrap; align-items:center; gap:4px 11px; min-width:0; }} .row-signals > span {{ font-size:13px; }} .row-why {{ color:#53687b; font-weight:650; overflow-wrap:anywhere; }} .row-wave {{ color:var(--blue); font-weight:750; }} .row-setup {{ color:#53687b; font:12px Consolas,monospace; }} .row-next {{ color:var(--muted); overflow-wrap:anywhere; }} .row-price {{ color:var(--teal); font-weight:700; }} .row-actions {{ display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; }} .identity-row {{ display:flex; flex-wrap:wrap; gap:4px; margin:0; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:2px 6px; color:#486074; font-size:11px; background:#f7fafc; white-space:nowrap; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
 .details {{ flex:0 0 auto; margin:0; border:0; padding:0; }} .details[open] {{ flex-basis:100%; }} .details summary {{ min-height:44px; display:inline-flex; align-items:center; cursor:pointer; color:var(--blue); font-size:13px; font-weight:750; white-space:nowrap; list-style:none; padding:8px 0; }} .details summary::-webkit-details-marker {{ display:none; }} .details summary::before {{ content:"＋ "; }} .details[open] summary::before {{ content:"− "; }} .detail-body {{ border-top:1px solid var(--line); margin-top:8px; padding-top:10px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:11px; margin-top:11px; }} .panel h3 {{ margin:0 0 8px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }} .detail-grid section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .detail-grid h4,.details h4 {{ margin:0 0 4px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:9px; padding:11px; font:12px/1.5 Consolas,monospace; }}
 .workspace-nav {{ display:flex; flex-wrap:wrap; gap:5px; margin:10px 0 8px; padding:6px; background:#e8eef5; border:1px solid var(--line); border-radius:12px; }} .workspace-link {{ min-height:44px; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--blue); font:inherit; font-weight:750; padding:8px 12px; cursor:pointer; white-space:nowrap; }} .workspace-link:hover,.workspace-link[aria-pressed="true"] {{ color:#fff; background:var(--blue); border-color:var(--blue); }} .workspace-panel {{ margin-top:10px; }} .workspace-panel[hidden] {{ display:none; }} .workspace-heading {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin:13px 2px 8px; }} .workspace-heading h2 {{ margin:0; font-size:21px; }} .workspace-heading p {{ margin:0; color:var(--muted); font-size:13px; }} .workspace-subheading {{ margin:17px 2px 7px; font-size:16px; }} .paper-summary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }} .paper-summary .metric {{ min-height:61px; }} .paper-trades {{ display:flex; flex-direction:column; gap:9px; }} .paper-trade {{ background:#fff; border:1px solid var(--line); border-left:4px solid #8ca9c2; border-radius:12px; padding:12px 14px; }} .paper-status-OPEN {{ border-left-color:var(--teal); }} .paper-status-CLOSED {{ border-left-color:var(--blue); }} .paper-status-SKIPPED {{ border-left-color:var(--muted); }} .paper-status-PENDING_T1 {{ border-left-color:var(--amber); }} .paper-trade-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .paper-trade-meta {{ display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); font-size:12px; margin-top:3px; }} .paper-status {{ background:#edf1f6; color:#506276; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; white-space:nowrap; }} .paper-human-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:11px; }} .paper-human-grid > section {{ background:#f8fafc; border-radius:9px; padding:10px 12px; }} .paper-human-grid h4 {{ margin:0 0 5px; font-size:13px; color:var(--blue); }} .paper-human-grid p {{ margin:0; font-size:13px; overflow-wrap:anywhere; }} .paper-technical-details {{ margin-top:10px; border-top:1px solid var(--line); padding-top:8px; }} .paper-technical-details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; }} .paper-technical-fields {{ margin-top:8px; }} .paper-technical-details pre {{ margin-top:8px; }} .paper-stat-note {{ color:var(--muted); font-size:12px; margin:12px 2px 0; }} .paper-warning {{ background:var(--amber-soft); color:#7a4300; border:1px solid #f2ca8c; border-radius:9px; padding:8px 10px; margin:8px 0; font-size:13px; }} .coverage-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .coverage-card {{ display:flex; flex-direction:column; gap:2px; background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:13px; }} .coverage-card span {{ color:var(--muted); }} .coverage-CONTINUOUS {{ color:var(--teal) !important; font-weight:750; }} .coverage-GAP_DETECTED {{ color:var(--amber) !important; font-weight:750; }} .performance-summary-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); margin-bottom:13px; }} .performance-table {{ margin-top:12px; }} .performance-table h3 {{ margin:0 0 5px; font-size:15px; }} .performance-groups {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .performance-group {{ background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; }} .performance-group h4 {{ margin:0 0 7px; font-size:14px; color:var(--blue); }} .performance-group-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }} .rules-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .rule-card {{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; }} .rule-card h3 {{ margin:0 0 4px; font-size:14px; color:var(--blue); }} .rule-card p {{ margin:0; font-size:13px; }} .empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
-@media (max-width:1050px) {{ .summary-primary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:18px 20px; border-radius:15px; }} .summary-primary {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .summary-secondary {{ flex-direction:column; }} .market-grid {{ grid-template-columns:1fr; }} .row-top {{ align-items:flex-start; }} .stage {{ margin-top:1px; }} .row-signals {{ flex-basis:100%; }} .row-actions {{ width:100%; justify-content:space-between; margin-left:0; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:7px; }} .ticker {{ font-size:15px; }} }}
+@media (max-width:1050px) {{ .summary-primary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:18px 20px; border-radius:15px; }} .summary-primary {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .summary-secondary {{ flex-direction:column; }} .market-grid,.diagnostic-markets {{ grid-template-columns:1fr; }} .row-top {{ align-items:flex-start; }} .stage {{ margin-top:1px; }} .row-signals {{ flex-basis:100%; }} .row-actions {{ width:100%; justify-content:space-between; margin-left:0; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:7px; }} .ticker {{ font-size:15px; }} }}
 .today-paper-focus {{ margin-bottom:12px; }} .paper-focus-cards {{ display:flex; flex-direction:column; gap:7px; }} .paper-focus-card {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 10px; align-items:center; background:#fff; border:1px solid var(--line); border-left:4px solid var(--teal); border-radius:10px; padding:9px 12px; }} .paper-focus-card span {{ color:var(--muted); font-size:13px; }} .paper-focus-meta {{ display:block; font-size:12px !important; }} .paper-focus-values {{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 14px; }}
 @media (max-width:1050px) {{ .paper-summary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} .performance-summary-grid {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }}
 @media (max-width:620px) {{ .paper-summary,.performance-summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .paper-grid,.paper-human-grid,.rules-grid,.performance-groups {{ grid-template-columns:1fr; }} .coverage-grid {{ grid-template-columns:1fr; }} }}
@@ -2589,6 +2916,7 @@ def render_dashboard_html(value: Any) -> str:
 {_metric('Candidate 总数', summary['candidate_total'])}
 </section>
 <section class="market-grid" aria-label="市场数据状态">{_render_market_cards(projection['markets'])}</section>
+ {_render_diagnostics(projection)}
 <nav class="workspace-nav" aria-label="工作台导航">{workspace_nav}</nav>
 {_render_paper_workspace(paper)}
 {_render_performance_workspace(paper)}

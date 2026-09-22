@@ -50,6 +50,11 @@
   `scripts/refresh_production_qfq.py` 在 scheduled latest 成功后执行，失败 fail
   closed。Cloud exact-T qfq fetch 会在完整但 stale 的 yfinance payload 后继续尝试
   现有 Yahoo Chart fallback；Yahoo Chart 也未到 T 时仍 fail closed，不接受 T-1 替代 T。
+- US exact-T QFQ 在 yfinance / Yahoo Chart 返回非空但落后 T 时，会使用既有有限重试预算
+  重新请求后再 fail closed；该重试只作用于 `yfinance + qfq + target_trade_date`，不改变
+  CN/HK/US raw snapshot 的既有独立 fallback 顺序。`SheetsClient` 在单次进程内复用 worksheet
+  对象，并只对读取型 Sheets 429 做有限退避，不自动重试写入；QFQ 历史替换仍先保留非目标
+  行，且 provider 全部成功后才写入。
 - 数据质量核心（`core.py`）提供 Quote / ValidationResult、双源容差校验、freshness
   guard、session-date 推导、OHLCV sanity；只依赖标准库，供所有上层复用。
 
@@ -286,8 +291,10 @@
   持仓、决策状态和 Paper ledger 等既有事实源。
 - 每次市场/T 只保留 `daily-report.json` 与 `daily-report.html` 两个 final artifact，
   JSON 元数据包含市场/T、git SHA、session identity、data quality、Candidate seed/as-of、
-  CandidateRecord 的轻量筛选审计、provider status、input fingerprint、协议版本和状态写入
-  边界，不包含 raw/QFQ bars。
+  CandidateRecord 的轻量筛选审计、Candidate 漏斗汇总、provider status、input fingerprint、
+  协议版本和状态写入边界，不包含 raw/QFQ bars。首页和 email 使用同一 presentation
+  diagnostics projection：数据失效时列出异常标的及原因；无交易信号时列出 Seed、数据合格、
+  included、深度分析、实际日报结果、DATA_OK/NO_TRADE 和可获得的 Candidate 过滤原因。
   Bark 使用 `BARK_ENDPOINT`，SMTP 是可选标准库通知，并发送 text/plain fallback、
   独立的静态 email-safe HTML 正文，以及复用最终 `daily-report.html` 的 UTF-8 完整
   Dashboard HTML 附件（`A股交易日报_YYYY-MM-DD.html` / `美股交易日报_YYYY-MM-DD.html`）；
@@ -307,14 +314,14 @@
   拒绝原因；确认日已计算但最终不交易时，首层摘要直接展示确认成功、入场区状态、可用的 T1 空间与
   T1 R/R 拒绝依据。策略跟踪持仓与模拟持仓分别标注，不将模拟账本计数写成当前真实持仓。该能力为
   presentation/read-only only，不改变 production trading semantics。
-- CN/US live smoke 已通过，且 Cloud report 的 production state、paper ledger、broker order
-  与 raw/QFQ persistence 均为零；final artifact allowlist 已通过。`asia-close` / `us-close`
-  是独立的 Sheet-backed scheduled writer，按 CN/HK/JP 与 US/SE 维护旧行情中台；Cloud
-  Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` / `历史行情_前复权`，不与该 writer
-  争用策略状态。Bark/SMTP 仍为可选通知，当前 `NOT_CONFIGURED`。
-- Cloud 的 live smoke/acceptance 不等于 Sheet-backed writer 的真实恢复验收；当前仅能确认
-  schedule 代码已恢复，尚无合并后真实 writer run，因此 Sheet latest、正式 CN/US QFQ 尾日
-  与监控 freshness 仍为 `PRODUCTION_ACCEPTANCE_PENDING`。
+- Cloud report 的 production state、paper ledger、broker order 与 raw/QFQ persistence
+  仍为零，final artifact allowlist 不变。`asia-close` / `us-close` 是独立的 Sheet-backed
+  scheduled writer；Cloud Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` /
+  `历史行情_前复权`，也不改变 writer 的事实源边界。Bark/SMTP 仍为可选通知。
+- 代码与只读运行证据已暴露两类真实生产验收风险：provider 尾部可能暂时落后 exact T，
+  Sheets writer 可能因相邻日报/行情任务的读取竞争遇到 429。修复后仍必须等待自然 schedule
+  做真实 Sheet latest、正式 CN/US QFQ 尾日、日报状态和监控 freshness 的只读验收；代码测试
+  或 Cloud 日报成功不能替代该验收，状态保持 `PRODUCTION_ACCEPTANCE_PENDING`。
 - 下一阶段优先观察真实 prospective Cloud Daily Reports / Paper 数据的正常 production
   runs；这些 observational acceptance 不自动启动新的 strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。

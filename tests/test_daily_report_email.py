@@ -422,6 +422,34 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertNotIn("INTERNAL_DIAGNOSTIC_SHOULD_NOT_BE_MAILED", rendered)
         self.assertNotIn("event_identity", rendered)
 
+    def test_email_diagnostics_match_dashboard_coverage_and_symbol_reason(self):
+        payload = _cloud_payload("US", "PARTIAL_DATA_QUALITY")
+        payload["candidate_markets"]["US"].update({
+            "seed_count": 8,
+            "candidate_data_qualified_count": 5,
+            "deep_history_ready_count": 2,
+            "deep_analysis_count": 2,
+            "candidate_exclusion_reason_counts": {
+                "INCLUDED": 2,
+                "HISTORY_INSUFFICIENT": 3,
+            },
+        })
+        payload["funnel"] = {"US": {"deep_analysis": 2, "NO_TRADE": 2}}
+        payload["cloud_daily_report"].update({
+            "data_quality": {
+                "counts": {"DATA_OK": 2, "DATA_BAD": 1},
+                "failed_symbols": ["BABA"],
+            },
+            "errors": ["US|BABA: qfq yfinance returned date 2026-09-18 before T"],
+        })
+
+        rendered = render_daily_report_email_html(payload)
+        self.assertIn("覆盖与日报诊断", rendered)
+        self.assertIn("深度分析：2", rendered)
+        self.assertIn("BABA", rendered)
+        self.assertIn("qfq yfinance returned date 2026-09-18 before T", rendered)
+        self.assertIn("HISTORY_INSUFFICIENT", rendered)
+
     def test_smtp_message_keeps_plain_text_fallback_and_html_alternative(self):
         with patch("trading.notifications.smtplib.SMTP", _FakeSMTP):
             result = send_optional_email(

@@ -523,6 +523,28 @@ class ValidationTests(unittest.TestCase):
 
         chart.assert_called_once_with(watch, "qfq", date(2026, 9, 1), target)
 
+    def test_yfinance_qfq_stale_tail_uses_bounded_retry_for_exact_target(self):
+        watch = {
+            "统一代码": "BABA", "名称": "阿里巴巴", "市场": "US",
+            "yfinance代码": "BABA", "币种": "USD", "时区": "America/New_York",
+        }
+        target = date(2026, 9, 15)
+        calls = []
+
+        def provider(*args, **kwargs):
+            calls.append((args, kwargs))
+            day = date(2026, 9, 14) if len(calls) == 1 else target
+            return [quote("YahooChart", day=day)]
+
+        with patch.dict("providers.PROVIDERS", {"yfinance": provider}, clear=True):
+            result = fetch_with_retry(
+                "yfinance", watch, "qfq", date(2026, 9, 1), target,
+                2, 0, target_trade_date=target,
+            )
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual([item.trade_date for item in result], [target])
+
     def test_yfinance_latest_uses_bounded_window_when_period_tail_is_incomplete(self):
         calls = []
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 from datetime import datetime
 from typing import Iterable
 from zoneinfo import ZoneInfo
@@ -10,6 +11,8 @@ from zoneinfo import ZoneInfo
 
 BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
 SHEETS_EPOCH = datetime(1899, 12, 30)
+SHEETS_READ_RETRY_ATTEMPTS = 3
+SHEETS_READ_RETRY_BACKOFF_SECONDS = 1.0
 
 
 class SheetsClient:
@@ -33,17 +36,48 @@ class SheetsClient:
             ],
         )
         self.book = gspread.authorize(credentials).open_by_key(sheet_id)
+        self._worksheet_cache = {}
+
+    @staticmethod
+    def _is_quota_error(exc: Exception) -> bool:
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if status is None:
+            status = getattr(response, "code", None)
+        text = str(exc).lower()
+        return status == 429 or "quota exceeded" in text or "[429]" in text
+
+    def _read_with_retry(self, operation):
+        for attempt in range(1, SHEETS_READ_RETRY_ATTEMPTS + 1):
+            try:
+                return operation()
+            except Exception as exc:
+                if not self._is_quota_error(exc) or attempt >= SHEETS_READ_RETRY_ATTEMPTS:
+                    raise
+                time.sleep(SHEETS_READ_RETRY_BACKOFF_SECONDS * attempt)
+
+    def _worksheet(self, sheet_name: str):
+        cache = getattr(self, "_worksheet_cache", None)
+        if cache is None:
+            cache = {}
+            self._worksheet_cache = cache
+        if sheet_name not in cache:
+            cache[sheet_name] = self._read_with_retry(
+                lambda: self.book.worksheet(sheet_name)
+            )
+        return cache[sheet_name]
 
     def records(self, sheet_name: str) -> list[dict]:
-        return self.book.worksheet(sheet_name).get_all_records(default_blank="")
+        worksheet = self._worksheet(sheet_name)
+        return self._read_with_retry(
+            lambda: worksheet.get_all_records(default_blank="")
+        )
 
     def headers(self, sheet_name: str) -> list[str]:
         """Read one worksheet's header row without introducing another client."""
-        return [
-            str(value).strip()
-            for value in self.book.worksheet(sheet_name).row_values(1)
-            if str(value).strip()
-        ]
+        worksheet = self._worksheet(sheet_name)
+        values = self._read_with_retry(lambda: worksheet.row_values(1))
+        return [str(value).strip() for value in values if str(value).strip()]
 
     def ensure_worksheet(self, sheet_name: str, headers: list[str]) -> None:
         """Create a system-owned worksheet only when an explicit writer asks.
@@ -56,16 +90,22 @@ class SheetsClient:
         if not sheet_name or not headers:
             raise ValueError("worksheet name and headers are required")
         try:
-            worksheet = self.book.worksheet(sheet_name)
-        except Exception:
+            worksheet = self._worksheet(sheet_name)
+        except Exception as exc:
+            if self._is_quota_error(exc):
+                raise
             worksheet = self.book.add_worksheet(
                 title=sheet_name,
                 rows="1000",
                 cols=str(len(headers)),
             )
+            self._worksheet_cache[sheet_name] = worksheet
             worksheet.update([list(headers)], "A1", value_input_option="RAW")
             return
-        current = [str(value).strip() for value in worksheet.row_values(1)]
+        current = [
+            str(value).strip()
+            for value in self._read_with_retry(lambda: worksheet.row_values(1))
+        ]
         if not current:
             worksheet.update([list(headers)], "A1", value_input_option="RAW")
             return
@@ -91,7 +131,7 @@ class SheetsClient:
         return value
 
     def _replace(self, sheet_name: str, headers: list[str], records: Iterable[dict]) -> None:
-        worksheet = self.book.worksheet(sheet_name)
+        worksheet = self._worksheet(sheet_name)
         rows = [[self._clean(record.get(header)) for header in headers] for record in records]
         worksheet.batch_clear([f"A2:{gspread_col(len(headers))}"])
         if rows:
@@ -112,8 +152,8 @@ class SheetsClient:
 
     def upsert_watchlist(self, row: dict) -> int:
         """Update one ``自选清单`` identity without discarding unknown columns."""
-        worksheet = self.book.worksheet("自选清单")
-        values = worksheet.get_all_values()
+        worksheet = self._worksheet("自选清单")
+        values = self._read_with_retry(worksheet.get_all_values)
         if not values or not values[0]:
             raise RuntimeError("自选清单缺少表头")
         headers = [str(header).strip() for header in values[0]]
@@ -191,7 +231,7 @@ class SheetsClient:
         alternating rows; a same-parity existing row is copied for custom
         fonts/borders/number formats when one is available.
         """
-        metadata = self.book.fetch_sheet_metadata()
+        metadata = self._read_with_retry(self.book.fetch_sheet_metadata)
         sheet_title = getattr(worksheet, "title", None)
         if not sheet_title:
             properties = getattr(worksheet, "_properties", {})
@@ -339,7 +379,7 @@ class SheetsClient:
     def append_rows(self, sheet_name: str, headers: list[str], rows: Iterable[dict]) -> int:
         values = [[self._clean(row.get(header)) for header in headers] for row in rows]
         if values:
-            self.book.worksheet(sheet_name).append_rows(values, value_input_option="USER_ENTERED")
+            self._worksheet(sheet_name).append_rows(values, value_input_option="USER_ENTERED")
         return len(values)
 
 

@@ -89,6 +89,83 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["CCC"]["stage_label"], "可入场")
         self.assertEqual(rows["600003.SH"]["stage_label"], "策略跟踪持仓")
 
+    def test_diagnostics_show_candidate_funnel_filters_and_symbol_quality_reason(self):
+        payload = deepcopy(self.payload)
+        payload["candidate_markets"]["CN"].update({
+            "seed_count": 12,
+            "candidate_data_qualified_count": 7,
+            "deep_history_requested_count": 4,
+            "deep_history_ready_count": 4,
+            "deep_analysis_count": 4,
+            "candidate_exclusion_reason_counts": {
+                "INCLUDED": 3,
+                "HISTORY_INSUFFICIENT": 4,
+                "SECTOR_TOP_N_EXCEEDED": 5,
+            },
+        })
+        payload["funnel"] = {
+            "CN": {
+                "seed": 12,
+                "candidate_data_qualified": 7,
+                "candidate_included": 3,
+                "deep_analysis": 4,
+                "NO_TRADE": 4,
+                "DATA_BLOCKED": 0,
+            }
+        }
+        payload["cloud_daily_report"] = {
+            "market": "CN",
+            "status": "PARTIAL_DATA_QUALITY",
+            "data_quality": {
+                "counts": {"DATA_OK": 2, "DATA_BAD": 1},
+                "failed_symbols": ["600001.SH"],
+            },
+            "provider_status": {
+                "600001.SH": {"qfq": "FAILED:RuntimeError"},
+            },
+            "errors": ["CN|600001.SH: qfq yfinance 数据日期落后于 T"],
+        }
+
+        projection = build_dashboard_projection(payload)
+        diagnostics = projection["diagnostics"]
+        self.assertEqual(diagnostics["status"], "DATA_ISSUE")
+        self.assertEqual(diagnostics["coverage"]["deep_analysis_count"], 4)
+        self.assertEqual(
+            diagnostics["candidate"]["filter_reasons"],
+            [
+                {"reason": "SECTOR_TOP_N_EXCEEDED", "count": 5},
+                {"reason": "HISTORY_INSUFFICIENT", "count": 4},
+            ],
+        )
+        self.assertTrue(any(item["symbol"] == "600001.SH" for item in diagnostics["data_issues"]))
+        rendered = render_dashboard_html(payload)
+        self.assertIn("异常标的及原因", rendered)
+        self.assertIn("qfq yfinance 数据日期落后于 T", rendered)
+        self.assertIn("HISTORY_INSUFFICIENT", rendered)
+
+    def test_diagnostics_distinguish_normal_no_signal_from_missing_coverage(self):
+        payload = _new_confirmation_no_trade_payload("RR_BELOW_MINIMUM")
+        payload["results"][0]["event_was_new"] = False
+        payload["candidate_markets"] = {
+            "CN": {
+                "status": "SUCCESS",
+                "seed_count": 4,
+                "candidate_data_qualified_count": 3,
+                "candidate_included_count": 1,
+                "deep_history_ready_count": 1,
+                "deep_analysis_count": 1,
+                "candidate_exclusion_reason_counts": {
+                    "INCLUDED": 1,
+                    "CN_MINIMUM_NOTIONAL_OVER_20000": 2,
+                    "HISTORY_STALE": 1,
+                },
+            }
+        }
+        payload["funnel"] = {"CN": {"deep_analysis": 1, "NO_TRADE": 1}}
+        diagnostics = build_dashboard_projection(payload)["diagnostics"]
+        self.assertEqual(diagnostics["status"], "NORMAL_NO_SIGNAL")
+        self.assertEqual(diagnostics["coverage"]["signal_count"], 0)
+
     def test_default_focus_contains_only_actionable_or_exception_rows(self):
         projection = build_dashboard_projection(self.payload)
         focus_rows = [row for row in projection["rows"] if row["default_focus"]]
