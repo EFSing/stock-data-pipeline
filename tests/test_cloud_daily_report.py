@@ -17,6 +17,7 @@ from scripts.run_cloud_daily_report import (
 from trading.daily_dashboard import build_dashboard_projection, render_dashboard_html
 from trading.daily_report_email import render_daily_report_email_html
 from trading.ephemeral_market_data import (
+    EXACT_QFQ_MIN_RETRY_ATTEMPTS,
     EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION,
     EphemeralMarketDataSnapshot,
     load_ephemeral_market_data,
@@ -253,11 +254,13 @@ class CloudDailyReportTests(unittest.TestCase):
 
     def test_ephemeral_loader_uses_existing_provider_and_projection_contract(self):
         client = _cloud_client()
+        history_calls = []
 
         def latest(source, watch, end, retry_count, retry_wait, **kwargs):
             return [_quote("600000", "CN", T_DAY, source, "CNY")]
 
         def history(source, watch, adjustment, start, end, *args, **kwargs):
+            history_calls.append((source, watch["统一代码"], args, kwargs))
             return [_quote("600000", "CN", T_DAY, source, "CNY")]
 
         with patch("trading.ephemeral_market_data.fetch_latest_with_retry", side_effect=latest), \
@@ -269,6 +272,8 @@ class CloudDailyReportTests(unittest.TestCase):
         self.assertEqual(len(snapshot.latest_rows), 1)
         self.assertEqual(len(snapshot.qfq_rows), 1)
         self.assertEqual(snapshot.errors, ())
+        self.assertEqual(history_calls[0][3]["target_trade_date"], T_DAY)
+        self.assertEqual(history_calls[0][2][0], EXACT_QFQ_MIN_RETRY_ATTEMPTS)
         metadata = snapshot.to_dict()
         self.assertEqual(metadata["protocol_version"], EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION)
         self.assertNotIn("latest_rows", metadata)
@@ -588,6 +593,82 @@ class CloudDailyReportTests(unittest.TestCase):
         stale = replace(snapshot, qfq_rows=({"统一代码": "TEST", "市场": "US", "交易日期": "2020-01-01"},))
         self.assertFalse(_status_from_result(result, stale)[1]["operationally_complete"])
         self.assertFalse(_status_from_result({"reports": []}, snapshot)[1]["operationally_complete"])
+
+    def test_candidate_failure_cannot_be_reported_as_success_with_formal_rows(self):
+        snapshot = EphemeralMarketDataSnapshot(
+            market="US", as_of_date=US_T_DAY, fetched_at=US_AFTER_CLOSE,
+            required_symbols=("AAPL",), active_paper_symbols=(),
+            latest_rows=({"统一代码": "AAPL", "市场": "US", "交易日期": US_T_DAY.isoformat(), "校验状态": "已验证"},),
+            qfq_rows=({"统一代码": "AAPL", "市场": "US", "交易日期": US_T_DAY.isoformat()},),
+            symbol_status={}, provider_status={}, errors=(), input_fingerprint="test",
+            retry_count=1, history_days=1000,
+        )
+        result = {
+            "preflight": {"production readiness": "READY"},
+            "candidate_markets": {"US": {
+                "status": "FAILED",
+                "candidate_selection_outcome": "DISCOVERY_FAILED",
+                "errors": ["CANDIDATE_SHORT_HISTORY_INCOMPLETE"],
+            }},
+            "reports": [{"报告": {"results": [{
+                "market": "US", "as_of_date": US_T_DAY.isoformat(),
+                "data_status": "DATA_OK", "symbol": "AAPL",
+            }]}}],
+        }
+
+        status, quality = _status_from_result(result, snapshot)
+
+        self.assertEqual(status, "PARTIAL_DATA_QUALITY")
+        self.assertTrue(quality["candidate_runtime_failed"])
+        self.assertTrue(any("DISCOVERY_FAILED" in error for error in quality["candidate_quality_errors"]))
+
+    def test_legacy_success_zero_candidate_without_outcome_is_not_reported_as_success(self):
+        snapshot = EphemeralMarketDataSnapshot(
+            market="CN", as_of_date=T_DAY, fetched_at=US_AFTER_CLOSE,
+            required_symbols=("600000.SH",), active_paper_symbols=(),
+            latest_rows=({"统一代码": "600000.SH", "市场": "CN", "交易日期": T_DAY.isoformat(), "校验状态": "已验证"},),
+            qfq_rows=({"统一代码": "600000.SH", "市场": "CN", "交易日期": T_DAY.isoformat()},),
+            symbol_status={}, provider_status={}, errors=(), input_fingerprint="test",
+            retry_count=1, history_days=1000,
+        )
+        result = {
+            "preflight": {"production readiness": "READY"},
+            "candidate_markets": {"CN": {
+                "status": "SUCCESS",
+                "candidate_included_count": 0,
+            }},
+            "reports": [{"报告": {"results": [{
+                "market": "CN", "as_of_date": T_DAY.isoformat(),
+                "data_status": "DATA_OK", "symbol": "600000.SH",
+            }]}}],
+        }
+
+        status, quality = _status_from_result(result, snapshot)
+
+        self.assertEqual(status, "PARTIAL_DATA_QUALITY")
+        self.assertTrue(quality["candidate_runtime_failed"])
+        self.assertIn("CN Candidate outcome: NOT_REPORTED", quality["candidate_quality_errors"])
+
+    def test_not_run_candidate_without_reports_is_not_misclassified(self):
+        snapshot = EphemeralMarketDataSnapshot(
+            market="CN", as_of_date=T_DAY, fetched_at=US_AFTER_CLOSE,
+            required_symbols=(), active_paper_symbols=(), latest_rows=(), qfq_rows=(),
+            symbol_status={}, provider_status={}, errors=(), input_fingerprint="test",
+            retry_count=1, history_days=1000,
+        )
+        result = {
+            "preflight": {"production readiness": "READY"},
+            "candidate_markets": {"CN": {
+                "status": "NOT_RUN",
+                "candidate_selection_outcome": "NOT_RUN",
+            }},
+            "reports": [],
+        }
+
+        status, quality = _status_from_result(result, snapshot)
+
+        self.assertEqual(status, "SUCCESS")
+        self.assertFalse(quality["candidate_runtime_failed"])
 
     def test_cli_partial_completion_requires_exact_session_and_final_artifacts(self):
         for complete, gate, files, expected in (

@@ -577,7 +577,8 @@ def _production_markdown(
         f"- individual ENTRY_ALLOWED：{funnel['individual_ENTRY_ALLOWED']}；Portfolio allowed：{funnel['Portfolio_allowed']}；NO_TRADE：{funnel['NO_TRADE']}；DATA_BLOCKED：{funnel['DATA_BLOCKED']}",
         f"- 机会新鲜度：{funnel.get('opportunity_freshness', {})}",
         f"- 正式策略股票池：{len(universe_report.get('formal_strategy_pool', ())) }；已有策略持仓：{len(universe_report.get('active_strategy_positions', ())) }；动态 Candidate：{len(universe_report.get('dynamic_candidate_set', ())) }",
-        f"- Candidate runtime：{candidate_report.get('status', 'UNKNOWN')}；阶段耗时：{timing_text or '—'}",
+        f"- Candidate runtime：{candidate_report.get('status', 'UNKNOWN')}；结果：{candidate_report.get('candidate_selection_outcome', 'NOT_REPORTED')}；阶段耗时：{timing_text or '—'}",
+        f"- Candidate 策略分析：尝试 {candidate_report.get('deep_analysis_attempted_count', '—')}；完成 {candidate_report.get('strategy_analysis_count', candidate_report.get('deep_analysis_count', '—'))}；数据阻断 {candidate_report.get('analysis_blocked_count', '—')}；Stage B QFQ ready {candidate_report.get('deep_history_ready_count', '—')}",
         f"- Strategy evaluation elapsed：{strategy_elapsed_seconds}s",
         "- Candidate 不写入策略股票池；broker orders：NONE；默认运行：READ_ONLY",
     ]
@@ -900,10 +901,47 @@ def run_production_daily_decision(
         all_daily_results.extend(report.results)
         strategy_elapsed_seconds = round(time.perf_counter() - strategy_started, 3)
         candidate_report = candidate_result.to_dict()
-        candidate_report["deep_analysis_count"] = len(inputs)
+        candidate_symbols = {
+            canonical_key(market, symbol)
+            for symbol in candidate_result.included_symbols
+        }
+        candidate_result_rows = tuple(
+            result for result in report.results
+            if canonical_key(market, result.symbol) in candidate_symbols
+        )
+        candidate_analysis_rows = tuple(
+            result for result in candidate_result_rows
+            if str(getattr(result, "data_status", "")).upper() == "DATA_OK"
+        )
+        candidate_blocked_rows = tuple(
+            result for result in candidate_result_rows
+            if str(getattr(result, "data_status", "")).upper() != "DATA_OK"
+        )
+        dynamic_only_symbols = {
+            str(symbol).strip().upper()
+            for symbol in universe_report.get("dynamic_candidate_only", ())
+        }
+        dynamic_only_rows = tuple(
+            result for result in candidate_result_rows
+            if result.symbol.upper() in dynamic_only_symbols
+        )
+        dynamic_only_analysis_rows = tuple(
+            result for result in dynamic_only_rows
+            if str(getattr(result, "data_status", "")).upper() == "DATA_OK"
+        )
+        candidate_report["deep_analysis_count"] = len(candidate_analysis_rows)
         candidate_report["deep_analysis_symbols"] = [
-            item.symbol.upper() for item in inputs
+            result.symbol.upper() for result in candidate_analysis_rows
         ]
+        candidate_report["deep_analysis_attempted_count"] = len(candidate_result_rows)
+        candidate_report["deep_analysis_blocked_symbols"] = [
+            result.symbol.upper() for result in candidate_blocked_rows
+        ]
+        candidate_report["strategy_analysis_count"] = len(candidate_analysis_rows)
+        candidate_report["strategy_analysis_symbols"] = [
+            result.symbol.upper() for result in candidate_analysis_rows
+        ]
+        candidate_report["analysis_blocked_count"] = len(candidate_blocked_rows)
         candidate_report["reused_formal_or_position_count"] = sum(
             canonical_key(market, symbol)
             in {
@@ -912,7 +950,27 @@ def run_production_daily_decision(
             }
             for symbol in candidate_result.included_symbols
         )
-        funnel = _funnel(report.results, candidate_result, len(inputs))
+        funnel = _funnel(report.results, candidate_result, len(candidate_analysis_rows))
+        universe_report["analysis_scope_counts"] = {
+            "formal_strategy_pool": len(universe_report.get("formal_strategy_pool", ())),
+            "active_strategy_positions": len(
+                universe_report.get("active_strategy_positions", ())
+            ),
+            "dynamic_candidate": len(universe_report.get("dynamic_candidate_set", ())),
+            "dynamic_candidate_only": len(dynamic_only_symbols),
+            "candidate_included_result_count": len(candidate_result_rows),
+            "dynamic_candidate_strategy_analysis": len(candidate_analysis_rows),
+            "dynamic_candidate_only_strategy_analysis": len(dynamic_only_analysis_rows),
+            "dynamic_candidate_data_blocked": len(candidate_blocked_rows),
+            "dynamic_candidate_only_data_blocked": len(dynamic_only_rows) - len(dynamic_only_analysis_rows),
+            "daily_result_total": len(report.results),
+        }
+        universe_report["candidate_analysis_symbols"] = [
+            result.symbol.upper() for result in candidate_result_rows
+        ]
+        universe_report["candidate_strategy_analysis_symbols"] = [
+            result.symbol.upper() for result in candidate_analysis_rows
+        ]
         markdown = _production_markdown(
             report,
             candidate_report,

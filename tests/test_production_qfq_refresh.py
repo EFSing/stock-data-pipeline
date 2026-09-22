@@ -239,6 +239,7 @@ class ProductionQfqRefreshTests(unittest.TestCase):
         self.assertEqual(summary["status"], "SUCCESS")
         self.assertEqual({call["symbol"] for call in calls}, {"000725.SZ", "BABA"})
         self.assertTrue(all(call["adjust"] == "qfq" for call in calls))
+        self.assertTrue(all(call["retry_count"] >= 2 for call in calls))
 
     def test_active_paper_symbol_is_refreshed_after_candidate_dropout(self):
         client = workbook(

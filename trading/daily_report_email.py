@@ -542,6 +542,71 @@ def _alert_html(projection: Mapping[str, Any], issue_count: int) -> str:
     return ""
 
 
+def _diagnostics_html(projection: Mapping[str, Any]) -> str:
+    diagnostics = _mapping(projection.get("diagnostics"))
+    coverage = _mapping(diagnostics.get("coverage"))
+    status_labels = {
+        "DATA_ISSUE": "数据异常，停止生成新信号",
+        "COVERAGE_INSUFFICIENT": "候选覆盖不足，不能据此判断没有机会",
+        "NORMAL_NO_SIGNAL": "覆盖已完成，今天没有交易信号",
+        "SIGNAL_AVAILABLE": "已完成覆盖，存在已计算信号",
+    }
+    status = _text(diagnostics.get("status"))
+    issue_lines = "".join(
+        f'<li><strong>{_escape(_mapping(item).get("market"))} · {_escape(_mapping(item).get("symbol"))}</strong>：{_escape(_mapping(item).get("reason"))}</li>'
+        for item in _sequence(diagnostics.get("data_issues"))
+    )
+    market_lines = []
+    candidate = _mapping(diagnostics.get("candidate"))
+    outcome_labels = {
+        "CANDIDATES_INCLUDED": "已有候选进入后续分析",
+        "NO_CANDIDATES": "Stage A 数据完整，按既有规则筛选后确实没有候选",
+        "DISCOVERY_FAILED": "候选发现失败，覆盖不完整",
+        "NOT_REPORTED": "候选链路未报告，覆盖不完整",
+        "NOT_RUN": "候选链路未运行",
+    }
+    for value in _sequence(candidate.get("markets")):
+        item = _mapping(value)
+        reasons = "；".join(
+            f'{_escape(_mapping(reason).get("reason"))}：{_escape(_mapping(reason).get("count"))}'
+            for reason in _sequence(item.get("filter_reasons"))
+        )
+        market_lines.append(
+            '<div style="margin:7px 0;padding:8px 9px;background:#f8fafc;border-radius:6px;">'
+            f'<strong>{_escape(item.get("label"))}</strong><br>'
+            f'候选结论：{_escape(outcome_labels.get(_text(item.get("selection_outcome")), _text(item.get("selection_outcome"), "未报告")))}<br>'
+            f'Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}<br>'
+            f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}；动态候选 {_escape(item.get("dynamic_candidate_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_count"))}）；动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_analysis_count"))}）<br>'
+            f'策略分析尝试 {_escape(item.get("analysis_attempted_count"))}；完成 {_escape(item.get("strategy_analysis_count"))}；数据阻断 {_escape(item.get("analysis_blocked_count"))}<br>'
+            f'实际日报结果 {_escape(item.get("daily_result_count"))}；DATA_OK {_escape(item.get("data_ok_count"))}；NO_TRADE {_escape(item.get("no_trade_count"))}；数据异常 {_escape(item.get("data_blocked_count"))}'
+            + (f'<br><span style="color:#8a5510;">筛选原因：{reasons}</span>' if reasons else "")
+            + (
+                '<br><span style="color:#8d2020;">候选链路异常：'
+                + _escape("；".join(_text(error) for error in _sequence(item.get("candidate_errors")) if _text(error)))
+                + "</span>"
+                if _sequence(item.get("candidate_errors"))
+                else ""
+            )
+            + '</div>'
+        )
+    issue_block = (
+        '<div style="margin-top:8px;color:#8d2020;"><strong>异常标的及原因</strong><ul style="margin:4px 0 0 18px;padding:0;">'
+        + issue_lines
+        + "</ul></div>"
+        if issue_lines else ""
+    )
+    market_block = "".join(market_lines)
+    return (
+        '<tr><td style="padding:10px 0 2px 0;">'
+        '<div style="padding:11px;border:1px solid #d9dee8;border-radius:8px;background-color:#ffffff;">'
+        f'<strong>覆盖与日报诊断</strong>：{_escape(status_labels.get(status, status))}<br>'
+        f'<span style="color:#536176;">候选 Seed：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；included：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</span>'
+        + issue_block
+        + market_block
+        + '</div></td></tr>'
+    )
+
+
 def _run_link_html(projection: Mapping[str, Any]) -> str:
     url = _text(_mapping(projection.get("cloud_daily_report")).get("github_run_url"))
     if not (url.startswith("https://") or url.startswith("http://")):
@@ -577,7 +642,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     if not groups:
         groups.append(
             '<tr><td style="padding:16px 0;color:#536176;">'
-            "今天没有数据异常、策略跟踪持仓、交易方案、新确认或等待确认的重点标的。"
+            f"今天没有重点交易信号；完整 HTML 仍保留 {len(all_rows)} 只实际分析结果，诊断区展示候选覆盖和筛选原因。"
             "</td></tr>"
         )
 
@@ -585,7 +650,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     if len(all_rows) > EMAIL_MAX_HIGHLIGHTS and remaining:
         groups.append(
             '<tr><td style="padding:12px 0;color:#536176;font-size:13px;">'
-            f"其余 {remaining} 只观察标的未展开。"
+            f"邮件重点摘要未展开 {remaining} 只；完整逐只结果见 HTML 附件。"
             "</td></tr>"
         )
 
@@ -610,10 +675,12 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>等待确认数量</strong>：{summary["armed"]}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>交易方案数量</strong>：{summary["plans"]}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>策略跟踪持仓数量</strong>：{summary["positions"]}</div>'
-        f'<div style="padding:4px 0;"><strong>数据异常数量</strong>：{summary["data_issues"]}</div>'
-        "</td></tr>"
-        + _alert_html(projection, summary["data_issues"])
-        + "".join(groups)
+         f'<div style="padding:4px 0;"><strong>数据异常数量</strong>：{summary["data_issues"]}</div>'
+         f'<div style="padding:4px 0;border-top:1px solid #edf0f4;"><strong>完整 HTML 实际分析覆盖</strong>：{len(all_rows)} 只；邮件重点摘要：{len(displayed_rows)} 只</div>'
+         "</td></tr>"
+         + _alert_html(projection, summary["data_issues"])
+         + _diagnostics_html(projection)
+         + "".join(groups)
         + _run_link_html(projection)
         + '<tr><td style="padding:18px 0 0 0;color:#8a94a6;font-size:12px;text-align:center;">'
         "本邮件为静态阅读摘要；完整交互 Dashboard 仍保留在日报 HTML artifact。"

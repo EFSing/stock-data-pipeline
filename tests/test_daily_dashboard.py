@@ -67,6 +67,7 @@ class DailyDashboardTests(unittest.TestCase):
             projection["summary"],
             {
                 "candidate_total": 6,
+                "analysis_count": 6,
                 "watch_count": 1,
                 "armed_count": 1,
                 "new_confirmed_count": 1,
@@ -88,6 +89,164 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["BBB"]["stage_label"], "已形成交易方案")
         self.assertEqual(rows["CCC"]["stage_label"], "可入场")
         self.assertEqual(rows["600003.SH"]["stage_label"], "策略跟踪持仓")
+
+    def test_diagnostics_show_candidate_funnel_filters_and_symbol_quality_reason(self):
+        payload = deepcopy(self.payload)
+        payload["candidate_markets"]["CN"].update({
+            "seed_count": 12,
+            "candidate_data_qualified_count": 7,
+            "deep_history_requested_count": 4,
+            "deep_history_ready_count": 4,
+            "deep_analysis_count": 4,
+            "candidate_exclusion_reason_counts": {
+                "INCLUDED": 3,
+                "HISTORY_INSUFFICIENT": 4,
+                "SECTOR_TOP_N_EXCEEDED": 5,
+            },
+        })
+        payload["funnel"] = {
+            "CN": {
+                "seed": 12,
+                "candidate_data_qualified": 7,
+                "candidate_included": 3,
+                "deep_analysis": 4,
+                "NO_TRADE": 4,
+                "DATA_BLOCKED": 0,
+            }
+        }
+        payload["cloud_daily_report"] = {
+            "market": "CN",
+            "status": "PARTIAL_DATA_QUALITY",
+            "data_quality": {
+                "counts": {"DATA_OK": 2, "DATA_BAD": 1},
+                "failed_symbols": ["600001.SH"],
+            },
+            "provider_status": {
+                "600001.SH": {"qfq": "FAILED:RuntimeError"},
+            },
+            "errors": ["CN|600001.SH: qfq yfinance 数据日期落后于 T"],
+        }
+
+        projection = build_dashboard_projection(payload)
+        diagnostics = projection["diagnostics"]
+        self.assertEqual(diagnostics["status"], "DATA_ISSUE")
+        self.assertEqual(diagnostics["coverage"]["deep_analysis_count"], 4)
+        self.assertEqual(
+            diagnostics["candidate"]["filter_reasons"],
+            [
+                {"reason": "SECTOR_TOP_N_EXCEEDED", "count": 5},
+                {"reason": "HISTORY_INSUFFICIENT", "count": 4},
+            ],
+        )
+        self.assertTrue(any(item["symbol"] == "600001.SH" for item in diagnostics["data_issues"]))
+        rendered = render_dashboard_html(payload)
+        self.assertIn("异常标的及原因", rendered)
+        self.assertIn("qfq yfinance 数据日期落后于 T", rendered)
+        self.assertIn("HISTORY_INSUFFICIENT", rendered)
+
+    def test_diagnostics_distinguish_normal_no_signal_from_missing_coverage(self):
+        payload = _new_confirmation_no_trade_payload("RR_BELOW_MINIMUM")
+        payload["results"][0]["event_was_new"] = False
+        payload["candidate_markets"] = {
+            "CN": {
+                "status": "SUCCESS",
+                "seed_count": 4,
+                "candidate_data_qualified_count": 3,
+                "candidate_included_count": 1,
+                "deep_history_ready_count": 1,
+                "deep_analysis_count": 1,
+                "candidate_exclusion_reason_counts": {
+                    "INCLUDED": 1,
+                    "CN_MINIMUM_NOTIONAL_OVER_20000": 2,
+                    "HISTORY_STALE": 1,
+                },
+            }
+        }
+        payload["funnel"] = {"CN": {"deep_analysis": 1, "NO_TRADE": 1}}
+        diagnostics = build_dashboard_projection(payload)["diagnostics"]
+        self.assertEqual(diagnostics["status"], "NORMAL_NO_SIGNAL")
+        self.assertEqual(diagnostics["coverage"]["signal_count"], 0)
+
+    def test_html_defaults_to_complete_static_stock_results(self):
+        rendered = render_dashboard_html(self.payload)
+
+        self.assertIn("全部已分析结果", rendered)
+        self.assertIn("let activeView = 'all';", rendered)
+        self.assertNotIn('<article class="stock-row" hidden', rendered)
+        for symbol in ("600001.SH", "600002.SH", "AAA", "BBB", "CCC", "600003.SH"):
+            self.assertIn(f'<span class="ticker">{symbol}</span>', rendered)
+        self.assertIn("已满足条件 / 现有依据", rendered)
+        self.assertIn("未满足条件 / 不交易原因", rendered)
+
+    def test_diagnostics_keep_normal_zero_partial_and_all_unavailable_distinct(self):
+        normal = _new_confirmation_no_trade_payload("RR_BELOW_MINIMUM")
+        normal["results"][0]["event_was_new"] = False
+        normal["candidate_markets"] = {
+            "CN": {
+                "status": "NO_CANDIDATES",
+                "candidate_selection_outcome": "NO_CANDIDATES",
+                "seed_count": 20,
+                "candidate_data_qualified_count": 20,
+                "candidate_included_count": 0,
+                "candidate_exclusion_reason_counts": {
+                    "CN_MINIMUM_NOTIONAL_OVER_20000": 20,
+                },
+                "stage_timings": {
+                    "candidate_short_history": {"status": "SUCCESS"},
+                    "deep_history": {"status": "NOT_REQUIRED"},
+                },
+            }
+        }
+        normal_html = render_dashboard_html(normal)
+        self.assertIn("Stage A 数据完整，按既有规则筛选后确实没有候选", normal_html)
+        self.assertIn("覆盖已完成，今天没有交易信号", normal_html)
+        self.assertIn("CONFIRM_REJECT", normal_html)
+
+        partial = deepcopy(self.payload)
+        partial["candidate_markets"]["CN"].update({
+            "status": "PARTIAL_DATA_QUALITY",
+            "candidate_selection_outcome": "CANDIDATES_INCLUDED",
+            "errors": ["CANDIDATE_SHORT_HISTORY_INCOMPLETE:usable=0,seed=20"],
+            "stage_timings": {
+                "candidate_short_history": {"status": "PARTIAL_DATA_QUALITY"},
+                "deep_history": {"status": "NOT_REQUIRED"},
+            },
+        })
+        partial_html = render_dashboard_html(partial)
+        self.assertIn("候选链路异常", partial_html)
+        self.assertIn("数据异常，停止生成新信号", partial_html)
+        self.assertIn("CANDIDATE_SHORT_HISTORY_INCOMPLETE", partial_html)
+
+        unavailable = _new_confirmation_no_trade_payload("DATA_QUALITY_STALE")
+        unavailable["results"][0].update({
+            "symbol": "NO_DATA",
+            "data_status": "DATA_UNAVAILABLE",
+            "event_was_new": False,
+            "final_status": "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED",
+            "reasons": ["QFQ_HISTORY_MUST_REACH_COMPLETED_SESSION_T"],
+        })
+        unavailable["candidate_markets"] = {
+            "CN": {
+                "status": "FAILED",
+                "candidate_selection_outcome": "DISCOVERY_FAILED",
+                "seed_count": 20,
+                "candidate_data_qualified_count": 0,
+                "candidate_included_count": 0,
+                "errors": ["CANDIDATE_SHORT_HISTORY_yfinance: returned empty batch"],
+                "stage_timings": {
+                    "candidate_short_history": {"status": "FAILED"},
+                },
+            }
+        }
+        unavailable["cloud_daily_report"] = {
+            "market": "CN",
+            "status": "FAILED",
+            "data_quality": {"failed_symbols": ["NO_DATA"]},
+        }
+        unavailable_html = render_dashboard_html(unavailable)
+        self.assertIn("候选发现失败，覆盖不完整", unavailable_html)
+        self.assertIn("异常标的及原因", unavailable_html)
+        self.assertIn("NO_DATA", unavailable_html)
 
     def test_default_focus_contains_only_actionable_or_exception_rows(self):
         projection = build_dashboard_projection(self.payload)
@@ -670,7 +829,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("data-stage=\"ARMED\"", html)
         self.assertIn("data-setup=\"SETUP_01\"", html)
         self.assertIn("data-sector=\"专用设备\"", html)
-        watch_start = html.index('<article class="stock-row" hidden data-market="CN" data-stage="WATCH"')
+        watch_start = html.index('<article class="stock-row" data-market="CN" data-stage="WATCH"')
         watch_end = html.index("</article>", watch_start)
         watch_card = html[watch_start:watch_end]
         armed_start = html.index('<article class="stock-row" data-market="CN" data-stage="ARMED"')
@@ -686,7 +845,7 @@ class DailyDashboardTests(unittest.TestCase):
     def test_compact_rows_only_render_formal_plan_fields_for_decision_stages(self):
         html = render_dashboard_html(self.payload)
 
-        watch_start = html.index('<article class="stock-row" hidden data-market="CN" data-stage="WATCH"')
+        watch_start = html.index('<article class="stock-row" data-market="CN" data-stage="WATCH"')
         watch_end = html.index("</article>", watch_start)
         proposal_start = html.index('<article class="stock-row" data-market="US" data-stage="STRATEGY_PROPOSAL"')
         proposal_end = html.index("</article>", proposal_start)

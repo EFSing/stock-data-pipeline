@@ -52,6 +52,11 @@ from trading.models import validate_quote_series
 
 STRATEGY_HISTORY_BARS = 1000
 YFINANCE_BATCH_CHUNK = 80
+# A yfinance batch may transiently return an empty frame without raising.  A
+# single retry of only the unresolved chunk keeps the existing bounded batch
+# contract and avoids treating a provider-tail/rate-limit response as a valid
+# zero-candidate market.
+YFINANCE_BATCH_RETRY_ATTEMPTS = 2
 # yfinance accepts an explicit integer thread bound.  Keep the bound small and
 # stable so Stage A gains transport parallelism without opening an unbounded
 # client-side fan-out or changing the batch/normalization contract.
@@ -60,6 +65,10 @@ YFINANCE_BATCH_THREADS = 8
 # explicit pool overlaps network wait while keeping the request fan-out
 # bounded and the result/error order deterministic.
 YFINANCE_DEEP_HISTORY_WORKERS = 4
+# An exact-T QFQ tail can be temporarily behind in both the yfinance session
+# and Yahoo Chart response.  Keep the existing provider path, but give the
+# candidate Stage B one bounded second attempt; never accept the stale tail.
+EXACT_QFQ_MIN_RETRY_ATTEMPTS = 2
 US_HISTORICAL_QFQ_ASOF_UNVERIFIED = "US_HISTORICAL_QFQ_ASOF_UNVERIFIED"
 US_COMPLETED_SESSION_REQUIRED = "US_COMPLETED_SESSION_REQUIRED"
 PRODUCTION_CANDIDATE_ACCOUNT_ROUTING_REQUIRED = (
@@ -255,6 +264,15 @@ class CandidateMarketRuntimeResult:
             "paper_active_count": len(self.paper_active_symbols),
             "paper_active_symbols": list(self.paper_active_symbols),
             "candidate_exclusion_reason_counts": dict(sorted(reason_counts.items())),
+            "candidate_selection_outcome": (
+                "NO_CANDIDATES"
+                if self.status == "NO_CANDIDATES"
+                else "CANDIDATES_INCLUDED"
+                if self.included_records
+                else "DISCOVERY_FAILED"
+                if self.status in {"FAILED", "PARTIAL_DATA_QUALITY"}
+                else "NOT_RUN"
+            ),
             "deep_history_requested_count": len(self.deep_requested_symbols),
             "deep_history_requested_symbols": list(self.deep_requested_symbols),
             "deep_history_ready_count": len(deep_ready),
@@ -631,33 +649,59 @@ def _default_short_history_loader(
     requests = 0
     for offset in range(0, len(seeds), YFINANCE_BATCH_CHUNK):
         chunk = seeds[offset : offset + YFINANCE_BATCH_CHUNK]
-        tickers = [_yfinance_ticker(seed) for seed in chunk]
-        try:
-            frame = yf.download(
-                tickers=tickers,
-                start=start_date.isoformat(),
-                end=(end_date + timedelta(days=1)).isoformat(),
-                interval="1d",
-                auto_adjust=False,
-                actions=False,
-                repair=False,
-                group_by="ticker",
-                threads=YFINANCE_BATCH_THREADS,
-                progress=False,
-            )
-            for seed, ticker in zip(chunk, tickers):
-                quotes = _batch_quotes(
-                    frame,
-                    seed,
-                    ticker=ticker,
-                    start_date=start_date,
-                    end_date=end_date,
+        pending = list(chunk)
+        batch_errors: list[str] = []
+        chunk_rows = 0
+        for attempt in range(1, YFINANCE_BATCH_RETRY_ATTEMPTS + 1):
+            if not pending:
+                break
+            tickers = [_yfinance_ticker(seed) for seed in pending]
+            try:
+                frame = yf.download(
+                    tickers=tickers,
+                    start=start_date.isoformat(),
+                    end=(end_date + timedelta(days=1)).isoformat(),
+                    interval="1d",
+                    auto_adjust=False,
+                    actions=False,
+                    repair=False,
+                    group_by="ticker",
+                    threads=YFINANCE_BATCH_THREADS,
+                    progress=False,
                 )
-                histories[str(seed.symbol).strip().upper()] = quotes
-                rows += len(quotes)
-        except Exception as exc:
-            errors.append(f"BATCH_{type(exc).__name__}")
-        requests += 1
+                requests += 1
+                unresolved: list[Any] = []
+                for seed, ticker in zip(pending, tickers):
+                    quotes = _batch_quotes(
+                        frame,
+                        seed,
+                        ticker=ticker,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                    symbol = str(seed.symbol).strip().upper()
+                    histories[symbol] = quotes
+                    if quotes:
+                        chunk_rows += len(quotes)
+                    else:
+                        unresolved.append(seed)
+                pending = unresolved
+            except Exception as exc:
+                requests += 1
+                batch_errors.append(f"BATCH_{type(exc).__name__}")
+                # The next bounded attempt asks yfinance for the same chunk;
+                # a successful retry clears a transient batch exception.
+                continue
+        rows += chunk_rows
+        if pending and not chunk_rows:
+            # Empty/shape-invalid responses for the whole chunk are provider
+            # failures, not valid per-symbol HISTORY_INSUFFICIENT exclusions.
+            errors.append(
+                "BATCH_EMPTY_HISTORY:"
+                f"unresolved={len(pending)},chunk={len(chunk)}"
+            )
+        elif pending and batch_errors:
+            errors.extend(batch_errors)
     return HistoryLoadResult(histories, requests, rows, tuple(errors))
 
 
@@ -677,7 +721,7 @@ def _default_deep_qfq_history_loader(
                 "qfq",
                 start_date,
                 end_date,
-                retry_count=1,
+                retry_count=EXACT_QFQ_MIN_RETRY_ATTEMPTS,
                 retry_wait_seconds=0.0,
                 target_trade_date=end_date,
             )
@@ -884,18 +928,36 @@ class ProductionCandidateRuntime:
         )
         short_started = time.perf_counter()
         try:
-            short_sessions = self.session_window_loader(
-                normalized_market, as_of_date, MIN_HISTORY_BARS
-            )
-            short_result = _normalise_history_result(
-                self.short_history_loader(seeds, short_sessions[0], as_of_date)
-            )
+            if not seeds:
+                short_result = HistoryLoadResult({})
+                short_sessions = ()
+            else:
+                short_sessions = self.session_window_loader(
+                    normalized_market, as_of_date, MIN_HISTORY_BARS
+                )
+                short_result = _normalise_history_result(
+                    self.short_history_loader(seeds, short_sessions[0], as_of_date)
+                )
             errors.extend(short_result.errors)
             short_histories = short_result.histories
+            short_rows = short_result.rows or sum(
+                len(values) for values in short_histories.values()
+            )
             short_usable = sum(
                 len(short_histories.get(symbol, ())) >= MIN_HISTORY_BARS
                 for symbol in symbols
             )
+            short_incomplete = bool(seeds) and short_usable == 0
+            if short_incomplete and not short_result.errors:
+                # A provider may return an empty or too-shallow batch without
+                # raising.  Treat a market with no Stage-A-usable history as
+                # incomplete discovery rather than a valid zero-candidate
+                # market.  CandidateRecord still carries each symbol's
+                # existing HISTORY_* reason for the audit.
+                errors.append(
+                    "CANDIDATE_SHORT_HISTORY_INCOMPLETE:"
+                    f"usable={short_usable},seed={len(seeds)}"
+                )
             _record_stage(
                 timings,
                 "candidate_short_history",
@@ -907,11 +969,18 @@ class ProductionCandidateRuntime:
                 ),
                 usable_count=short_usable,
                 failed_count=len(seeds) - short_usable,
-                status="SUCCESS" if not short_result.errors else "PARTIAL_DATA_QUALITY",
+                status=(
+                    "NOT_RUN"
+                    if not seeds
+                    else "SUCCESS"
+                    if not short_result.errors and not short_incomplete
+                    else "PARTIAL_DATA_QUALITY"
+                ),
                 source="yfinance",
                 history_bars=MIN_HISTORY_BARS,
                 batch_chunk_size=YFINANCE_BATCH_CHUNK,
                 batch_threads=YFINANCE_BATCH_THREADS,
+                missing_or_short_count=max(len(seeds) - short_usable, 0),
             )
         except Exception as exc:
             error = f"CANDIDATE_SHORT_HISTORY_{type(exc).__name__}:{exc}"
@@ -945,7 +1014,14 @@ class ProductionCandidateRuntime:
                 rows=sum(len(values) for values in short_histories.values()),
                 usable_count=len(universe.included),
                 failed_count=len(seeds) - len(universe.included),
-                status="SUCCESS",
+                status=(
+                    "PARTIAL_DATA_QUALITY"
+                    if timings["candidate_short_history"]["status"]
+                    not in {"SUCCESS", "NOT_RUN"}
+                    else "NO_CANDIDATES"
+                    if not universe.included and seeds
+                    else "SUCCESS"
+                ),
                 included=len(universe.included),
                 top_n_per_sector=TOP_N_PER_SECTOR,
             )
@@ -1114,7 +1190,28 @@ class ProductionCandidateRuntime:
             == DATA_OK
             for symbol in (record.symbol for record in universe.included)
         )
-        if not errors:
+        short_status = timings["candidate_short_history"]["status"]
+        selector_status = timings["candidate_selector"]["status"]
+        if not seeds or timings["seed_metadata"]["status"] == "FAILED":
+            status = "FAILED"
+        elif short_status not in {"SUCCESS", "NOT_RUN"}:
+            status = "PARTIAL_DATA_QUALITY" if universe.included else "FAILED"
+        elif selector_status == "NO_CANDIDATES":
+            # All Stage-A inputs were available and the existing selector
+            # rules genuinely produced no candidate.  Keep this distinct from
+            # a provider/discovery failure in the report diagnostics.
+            status = "NO_CANDIDATES"
+        elif deep_errors or timings["deep_history"]["status"] in {
+            "FAILED",
+            "PARTIAL_DATA_QUALITY",
+            "BLOCKED",
+        }:
+            # A selected candidate whose exact-T deep QFQ load failed must not
+            # make the market look complete merely because Stage A included
+            # it.  Keep the candidate record and project its DATA_* row, but
+            # mark coverage as incomplete for the report gate.
+            status = "PARTIAL_DATA_QUALITY" if universe.included else "FAILED"
+        elif not errors:
             status = "SUCCESS"
         elif universe.included:
             status = "PARTIAL_DATA_QUALITY"
@@ -1162,6 +1259,7 @@ class ProductionCandidateRuntime:
 __all__ = [
     "CandidateMarketRuntimeResult",
     "CandidateRuntimeError",
+    "EXACT_QFQ_MIN_RETRY_ATTEMPTS",
     "HistoryLoadResult",
     "PRODUCTION_CANDIDATE_ACCOUNT_ROUTING_REQUIRED",
     "ProductionCandidateRuntime",
@@ -1169,6 +1267,7 @@ __all__ = [
     "US_COMPLETED_SESSION_REQUIRED",
     "US_HISTORICAL_QFQ_ASOF_UNVERIFIED",
     "YFINANCE_BATCH_CHUNK",
+    "YFINANCE_BATCH_RETRY_ATTEMPTS",
     "YFINANCE_BATCH_THREADS",
     "YFINANCE_DEEP_HISTORY_WORKERS",
     "canonical_key",

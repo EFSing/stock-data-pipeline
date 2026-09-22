@@ -138,6 +138,28 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("数据异常数量</strong>：0", rendered)
         self.assertIn("示例云计算", rendered)
         self.assertNotIn("示例制造", rendered)
+        self.assertIn("完整 HTML 实际分析覆盖", rendered)
+        self.assertIn("邮件重点摘要", rendered)
+
+    def test_email_diagnostics_marks_candidate_discovery_failure_and_keeps_coverage(self):
+        payload = _cloud_payload("CN", "FAILED")
+        payload["candidate_markets"]["CN"].update({
+            "status": "FAILED",
+            "candidate_selection_outcome": "DISCOVERY_FAILED",
+            "seed_count": 20,
+            "candidate_data_qualified_count": 0,
+            "candidate_included_count": 0,
+            "errors": ["CANDIDATE_SHORT_HISTORY_INCOMPLETE:usable=0,seed=20"],
+            "stage_timings": {
+                "candidate_short_history": {"status": "FAILED"},
+            },
+        })
+
+        rendered = render_daily_report_email_html(payload)
+
+        self.assertIn("候选发现失败，覆盖不完整", rendered)
+        self.assertIn("候选链路异常", rendered)
+        self.assertIn("完整 HTML 实际分析覆盖", rendered)
 
     def test_no_decision_plan_never_fabricates_price_fields(self):
         payload = _cloud_payload("CN")
@@ -404,7 +426,7 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("测试标的00", rendered)
         self.assertIn("测试标的19", rendered)
         self.assertNotIn("测试标的20", rendered)
-        self.assertIn("其余 5 只观察标的未展开", rendered)
+        self.assertIn("邮件重点摘要未展开 5 只；完整逐只结果见 HTML 附件", rendered)
 
     def test_report_level_failure_is_visible_without_raw_diagnostics(self):
         payload = _cloud_payload("CN", "FAILED")
@@ -421,6 +443,34 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("数据异常数量</strong>：1", rendered)
         self.assertNotIn("INTERNAL_DIAGNOSTIC_SHOULD_NOT_BE_MAILED", rendered)
         self.assertNotIn("event_identity", rendered)
+
+    def test_email_diagnostics_match_dashboard_coverage_and_symbol_reason(self):
+        payload = _cloud_payload("US", "PARTIAL_DATA_QUALITY")
+        payload["candidate_markets"]["US"].update({
+            "seed_count": 8,
+            "candidate_data_qualified_count": 5,
+            "deep_history_ready_count": 2,
+            "deep_analysis_count": 2,
+            "candidate_exclusion_reason_counts": {
+                "INCLUDED": 2,
+                "HISTORY_INSUFFICIENT": 3,
+            },
+        })
+        payload["funnel"] = {"US": {"deep_analysis": 2, "NO_TRADE": 2}}
+        payload["cloud_daily_report"].update({
+            "data_quality": {
+                "counts": {"DATA_OK": 2, "DATA_BAD": 1},
+                "failed_symbols": ["BABA"],
+            },
+            "errors": ["US|BABA: qfq yfinance returned date 2026-09-18 before T"],
+        })
+
+        rendered = render_daily_report_email_html(payload)
+        self.assertIn("覆盖与日报诊断", rendered)
+        self.assertIn("深度分析：2", rendered)
+        self.assertIn("BABA", rendered)
+        self.assertIn("qfq yfinance returned date 2026-09-18 before T", rendered)
+        self.assertIn("HISTORY_INSUFFICIENT", rendered)
 
     def test_smtp_message_keeps_plain_text_fallback_and_html_alternative(self):
         with patch("trading.notifications.smtplib.SMTP", _FakeSMTP):
