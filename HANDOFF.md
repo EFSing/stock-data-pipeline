@@ -8,6 +8,8 @@ Git/GitHub 是 branch、HEAD、PR、CI、mergeability 的实时事实源；不�
 exact-T、正式收盘、来源 provenance、因果边界和全部交易系统语义不变。当前在独立
 `codex/fix-daily-qfq-diagnostics-v1` 分支工作；PR / exact-head CI 状态以 GitHub 实时结果为准，未合并。
 
+总体策略不是单一 Platform Breakout，唯一正式主线为 `Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target → Risk / Position Management → Exit`。第一版四类 Setup 为 `SETUP_01`、`SETUP_02`、`SETUP_03`、`SETUP_04`；`SETUP_03` 只是四类 Setup 之一的子策略。
+
 ## Current State
 
 - `main` 已核对为当前远端真实基线；PR #96（Cloud dashboard card）与 PR #82（Actions Node 24）保持独立，不混入、不 rebase、不合并。
@@ -28,6 +30,10 @@ exact-T、正式收盘、来源 provenance、因果边界和全部交易系统�
 - 代码测试通过不等于真实生产验收。当前未访问或写入真实 Google Sheet，未做历史补抓、生产状态写入、Paper、真实 holdings、真实交易或 Final OOS。
 - 尚未证明修复后的真实 US QFQ 已到 exact T、CN writer 已绕过 429 并完成正式 QFQ，亦未证明相邻任务在下一次 schedule 的延迟/并发下可稳定完成。需在合并后的自然 schedule 运行后只读核验 latest、正式收盘、验证状态、QFQ 尾日、日报状态和通知。
 - Cloud Daily Report 仍是独立 read-only 内存路径，不读取或回写旧 `最新行情` / `历史行情_前复权`；不得把 Cloud 成功当作 Sheet writer 恢复验收。
+
+## Blocker
+
+当前唯一未完成节点为 `PRODUCTION_ACCEPTANCE_PENDING`：等待合并后的自然 schedule 做只读 Sheet/QFQ/日报验收；本任务无实现安全 blocker，不自行合并。
 
 ## Next Action
 
