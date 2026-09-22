@@ -45,6 +45,10 @@ LEGACY_PROVIDER_ALIASES = frozenset({"AKShare"})
 DEFAULT_HISTORY_DAYS = 1000
 DEFAULT_RETRY_COUNT = 1
 DEFAULT_RETRY_WAIT_SECONDS = 0.0
+# The exact-T QFQ path must tolerate one transient provider-tail lag while
+# remaining fail-closed.  This only raises the minimum QFQ attempt count; the
+# configured retry wait and upper bound remain owned by the existing config.
+EXACT_QFQ_MIN_RETRY_ATTEMPTS = 2
 DEFAULT_CLOSE_TOLERANCE = 0.0005
 DEFAULT_VOLUME_TOLERANCE = 0.02
 MAX_RETRY_COUNT = 5
@@ -480,7 +484,7 @@ def load_ephemeral_market_data(
                         "qfq",
                         start_date,
                         as_of_date,
-                        retry_count,
+                        max(retry_count, EXACT_QFQ_MIN_RETRY_ATTEMPTS),
                         retry_wait,
                         target_trade_date=as_of_date,
                     )
@@ -527,6 +531,7 @@ def load_ephemeral_market_data(
 
 
 __all__ = [
+    "EXACT_QFQ_MIN_RETRY_ATTEMPTS",
     "EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION",
     "EphemeralMarketDataSnapshot",
     "load_ephemeral_market_data",

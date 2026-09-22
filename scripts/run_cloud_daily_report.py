@@ -154,12 +154,60 @@ def _status_from_result(
     candidate_markets = result.get("candidate_markets")
     if isinstance(candidate_markets, Mapping):
         candidate = candidate_markets.get(ephemeral.market)
-        if isinstance(candidate, Mapping):
+        if not isinstance(candidate, Mapping):
+            candidate_quality_errors.append(
+                f"{ephemeral.market} Candidate status: NOT_REPORTED"
+            )
+        else:
             candidate_status = str(candidate.get("status") or "").upper()
-            if candidate_status not in {"", "SUCCESS", "NOT_RUN"}:
+            if candidate_status not in {"", "SUCCESS", "NO_CANDIDATES", "NOT_RUN"}:
                 candidate_quality_errors.append(
                     f"{ephemeral.market} Candidate status: {candidate_status}"
                 )
+            elif candidate_status == "NOT_RUN" and report_values:
+                candidate_quality_errors.append(
+                    f"{ephemeral.market} Candidate status: NOT_RUN"
+                )
+            selection_outcome = str(
+                candidate.get("candidate_selection_outcome") or ""
+            ).upper()
+            if not selection_outcome:
+                included_count = candidate.get("candidate_included_count")
+                try:
+                    included_count = int(included_count or 0)
+                except (TypeError, ValueError):
+                    included_count = 0
+                if candidate_status == "NOT_RUN" and not report_values:
+                    selection_outcome = "NOT_RUN"
+                elif candidate_status == "NO_CANDIDATES":
+                    selection_outcome = "NO_CANDIDATES"
+                elif included_count:
+                    # Backward-compatible interpretation for an older
+                    # artifact that predated the explicit outcome field.
+                    selection_outcome = "CANDIDATES_INCLUDED"
+                else:
+                    selection_outcome = "NOT_REPORTED"
+            if selection_outcome == "NOT_REPORTED":
+                candidate_quality_errors.append(
+                    f"{ephemeral.market} Candidate outcome: NOT_REPORTED"
+                )
+            if selection_outcome == "NOT_RUN" and report_values:
+                candidate_quality_errors.append(
+                    f"{ephemeral.market} Candidate outcome: NOT_RUN"
+                )
+            if selection_outcome == "DISCOVERY_FAILED":
+                candidate_quality_errors.append(
+                    f"{ephemeral.market} Candidate outcome: DISCOVERY_FAILED"
+                )
+            timings = candidate.get("stage_timings")
+            if isinstance(timings, Mapping):
+                for stage_name in ("candidate_short_history", "candidate_selector", "deep_history"):
+                    stage = timings.get(stage_name)
+                    stage_status = str(stage.get("status") or "").upper() if isinstance(stage, Mapping) else ""
+                    if stage_status in {"FAILED", "PARTIAL_DATA_QUALITY", "BLOCKED"}:
+                        candidate_quality_errors.append(
+                            f"{ephemeral.market} Candidate {stage_name}: {stage_status}"
+                        )
             candidate_quality_errors.extend(
                 f"{ephemeral.market} Candidate: {value}"
                 for value in (candidate.get("errors") or ())
@@ -173,6 +221,10 @@ def _status_from_result(
                     for value in (values if isinstance(values, (list, tuple)) else (values,))
                     if value
                 )
+    elif result.get("reports"):
+        candidate_quality_errors.append(
+            f"{ephemeral.market} Candidate status: NOT_REPORTED"
+        )
     candidate_failed = bool(candidate_errors) or bool(candidate_quality_errors)
     has_data_issue = bool(ephemeral.errors) or bool(failed_symbols) or not preflight_ready or candidate_failed
     if not report_values and not preflight_ready:
@@ -252,13 +304,31 @@ def _cloud_metadata(
                     "deep_history_requested_count",
                     "deep_history_ready_count",
                     "deep_analysis_count",
+                    "deep_analysis_attempted_count",
+                    "strategy_analysis_count",
+                    "deep_analysis_blocked_symbols",
+                    "candidate_selection_outcome",
                     "candidate_exclusion_reason_counts",
                     "deep_history_errors",
+                    "stage_timings",
                     "errors",
                     "status",
                 )
                 if key in candidate
             }
+            for entry in result.get("reports", ()) if isinstance(result.get("reports"), list) else ():
+                if not isinstance(entry, Mapping) or str(entry.get("市场") or "").upper() != market:
+                    continue
+                universe = entry.get("universe")
+                if not isinstance(universe, Mapping):
+                    continue
+                scope = universe.get("analysis_scope_counts")
+                if isinstance(scope, Mapping):
+                    candidate_diagnostics[market]["analysis_scope_counts"] = dict(scope)
+                for key in ("candidate_analysis_symbols", "candidate_strategy_analysis_symbols"):
+                    if key in universe:
+                        candidate_diagnostics[market][key] = list(universe.get(key) or ())
+                break
     funnel_values = result.get("funnel")
     if isinstance(funnel_values, Mapping):
         funnel = funnel_values.get(market)

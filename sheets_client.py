@@ -37,6 +37,7 @@ class SheetsClient:
         )
         self.book = gspread.authorize(credentials).open_by_key(sheet_id)
         self._worksheet_cache = {}
+        self._records_cache = {}
 
     @staticmethod
     def _is_quota_error(exc: Exception) -> bool:
@@ -45,7 +46,7 @@ class SheetsClient:
         if status is None:
             status = getattr(response, "code", None)
         text = str(exc).lower()
-        return status == 429 or "quota exceeded" in text or "[429]" in text
+        return status == 429 or "quota exceeded" in text or "429" in text
 
     def _read_with_retry(self, operation):
         for attempt in range(1, SHEETS_READ_RETRY_ATTEMPTS + 1):
@@ -68,10 +69,25 @@ class SheetsClient:
         return cache[sheet_name]
 
     def records(self, sheet_name: str) -> list[dict]:
+        cache = getattr(self, "_records_cache", None)
+        if cache is None:
+            cache = {}
+            self._records_cache = cache
+        if sheet_name in cache:
+            return [dict(row) for row in cache[sheet_name]]
         worksheet = self._worksheet(sheet_name)
-        return self._read_with_retry(
+        rows = self._read_with_retry(
             lambda: worksheet.get_all_records(default_blank="")
         )
+        cache[sheet_name] = tuple(dict(row) for row in rows)
+        return [dict(row) for row in cache[sheet_name]]
+
+    def _invalidate_records(self, *sheet_names: str) -> None:
+        cache = getattr(self, "_records_cache", None)
+        if cache is None:
+            return
+        for sheet_name in sheet_names:
+            cache.pop(sheet_name, None)
 
     def headers(self, sheet_name: str) -> list[str]:
         """Read one worksheet's header row without introducing another client."""
@@ -101,6 +117,7 @@ class SheetsClient:
             )
             self._worksheet_cache[sheet_name] = worksheet
             worksheet.update([list(headers)], "A1", value_input_option="RAW")
+            self._invalidate_records(sheet_name)
             return
         current = [
             str(value).strip()
@@ -108,6 +125,7 @@ class SheetsClient:
         ]
         if not current:
             worksheet.update([list(headers)], "A1", value_input_option="RAW")
+            self._invalidate_records(sheet_name)
             return
         if current != list(headers):
             raise RuntimeError(f"{sheet_name} worksheet header contract mismatch")
@@ -136,6 +154,7 @@ class SheetsClient:
         worksheet.batch_clear([f"A2:{gspread_col(len(headers))}"])
         if rows:
             worksheet.update(rows, "A2", value_input_option="USER_ENTERED")
+        self._invalidate_records(sheet_name)
 
     def _upsert(self, sheet_name: str, headers: list[str], incoming: Iterable[dict], key_fields: tuple[str, ...]) -> int:
         existing = self.records(sheet_name)
@@ -214,6 +233,7 @@ class SheetsClient:
                 f"A{row_number}",
                 value_input_option="RAW",
             )
+        self._invalidate_records("自选清单")
         return 1
 
     def _prepare_watchlist_table_for_new_row(
@@ -380,6 +400,7 @@ class SheetsClient:
         values = [[self._clean(row.get(header)) for header in headers] for row in rows]
         if values:
             self._worksheet(sheet_name).append_rows(values, value_input_option="USER_ENTERED")
+            self._invalidate_records(sheet_name)
         return len(values)
 
 

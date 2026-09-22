@@ -25,6 +25,7 @@ from main import as_bool, beijing_now
 
 
 ROOT_CAUSE_MARKER = "PRODUCTION_QFQ_NOT_REFRESHED_BY_SCHEDULED_LATEST_MODE"
+EXACT_QFQ_MIN_RETRY_ATTEMPTS = 2
 
 PRODUCTION_MARKETS = {
     "asia": frozenset({"CN"}),
@@ -395,7 +396,7 @@ def refresh_production_qfq(
                 "qfq",
                 start,
                 target_trade_date,
-                retry_count,
+                max(retry_count, EXACT_QFQ_MIN_RETRY_ATTEMPTS),
                 retry_wait,
                 target_trade_date=target_trade_date,
             )

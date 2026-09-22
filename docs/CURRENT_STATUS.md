@@ -4,8 +4,9 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-20（恢复 Sheet-backed holdings market-data schedules；
-> Cloud Daily Report 保持独立 read-only 内存边界）。
+> 最后实质更新：2026-09-22（补齐 CN/US Candidate→Daily→Dashboard 覆盖诊断、
+> exact-T QFQ 尾部重试与 Sheets 读取限额保护；Cloud Daily Report 保持独立
+> read-only 内存边界）。
 
 ## 项目身份
 
@@ -53,8 +54,9 @@
 - US exact-T QFQ 在 yfinance / Yahoo Chart 返回非空但落后 T 时，会使用既有有限重试预算
   重新请求后再 fail closed；该重试只作用于 `yfinance + qfq + target_trade_date`，不改变
   CN/HK/US raw snapshot 的既有独立 fallback 顺序。`SheetsClient` 在单次进程内复用 worksheet
-  对象，并只对读取型 Sheets 429 做有限退避，不自动重试写入；QFQ 历史替换仍先保留非目标
-  行，且 provider 全部成功后才写入。
+  对象和 records 快照，并只对读取型 Sheets 429 做有限退避，不自动重试写入；日报、Candidate
+  Stage B 与正式 QFQ writer 的 exact-T QFQ 至少保留一次额外有限尝试，仍不接受 T-1。QFQ
+  历史替换仍先保留非目标行，且 provider 全部成功后才写入。
 - 数据质量核心（`core.py`）提供 Quote / ValidationResult、双源容差校验、freshness
   guard、session-date 推导、OHLCV sanity；只依赖标准库，供所有上层复用。
 
@@ -85,7 +87,10 @@
   `scripts/run_production_daily_decision.py --run` 在真实 `SheetsClient` 上按 CN/US
   独立运行两阶段输入：Stage A 用固定 yfinance batch 获取至少 60 bars 并调用现有
   selector，Stage B 只对 included Candidate（已存在正式池/持仓输入的标的复用已有
-  QFQ）加载深历史并交给同一套 Strategy/Daily 分析。
+  QFQ）加载深历史并交给同一套 Strategy/Daily 分析。Stage A 对空或无可用历史批次做
+  有界重试；仍无可用 Stage-A 行时标记 discovery coverage incomplete，不把它伪装成
+  规则筛选后的 `NO_CANDIDATES`。结果显式暴露 Seed、数据合格、included、Stage B
+  requested/ready、策略分析尝试/完成/阻断及筛选原因。
 - 动态集合只存在于当日内存和 JSON/Markdown 报告中，按 market-aware identity 与
   正式 `策略股票池`、`策略持仓` 去重；报告保留
   `FORMAL_STRATEGY_POOL` / `ACTIVE_STRATEGY_POSITION` / `DYNAMIC_CANDIDATE`
@@ -241,12 +246,12 @@
   Decision、event、plan、Paper/state write、ranking 或交易 gate，production trading semantics
   unchanged。
  - `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
-   它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
-   enum/protocol/交易语义。首页默认是“今日重点”，只展示 ENTRY_ALLOWED、
-   STRATEGY_PROPOSAL、今日新 CONFIRMED、ARMED、POSITION_MANAGEMENT 与
-   DATA_BLOCKED；WATCH、NO_TRADE、FAILED 仍保留在数据中，分别通过阶段导航或
-   “全部/诊断”按需查看。股票默认以 compact row 展示，完整 Wave / Setup / Decision /
-   Risk / Position Management / 原始诊断在“查看详情”展开；页面支持 sticky 阶段导航、
+  它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
+  enum/protocol/交易语义。首页默认展示本次 payload 中全部实际完成分析的股票，重点
+  阶段仍优先排序，WATCH、NO_TRADE、FAILED/DATA_BLOCKED 不再依赖 hidden 属性；静态
+  HTML 在没有 JavaScript 时也保留逐标的可读结果。股票默认以 compact row 展示，完整
+  当日状态、当前浪型、Setup、已满足/未满足条件、Decision/Risk/Position Management /
+  原始诊断在“查看详情”展开；页面支持 sticky 阶段导航、
    ticker/公司名称前端搜索与既有 CN/US、Setup、行业筛选。`scripts/render_daily_dashboard.py`
    可将已保存 JSON 写为 `reports/daily_dashboard/latest.html` 及日期版本；runner 通过
    显式 `--dashboard-output DIR` 选择性生成相同输出。
@@ -294,7 +299,9 @@
   CandidateRecord 的轻量筛选审计、Candidate 漏斗汇总、provider status、input fingerprint、
   协议版本和状态写入边界，不包含 raw/QFQ bars。首页和 email 使用同一 presentation
   diagnostics projection：数据失效时列出异常标的及原因；无交易信号时列出 Seed、数据合格、
-  included、深度分析、实际日报结果、DATA_OK/NO_TRADE 和可获得的 Candidate 过滤原因。
+  included、深度分析、正式策略池/动态 Candidate/实际日报结果、DATA_OK/NO_TRADE、
+  Stage A/B 状态和可获得的 Candidate 过滤原因。Candidate 发现失败、有效零候选、
+  候选已生成但深度阻断、以及结果未报告保持不同诊断结论。
   Bark 使用 `BARK_ENDPOINT`，SMTP 是可选标准库通知，并发送 text/plain fallback、
   独立的静态 email-safe HTML 正文，以及复用最终 `daily-report.html` 的 UTF-8 完整
   Dashboard HTML 附件（`A股交易日报_YYYY-MM-DD.html` / `美股交易日报_YYYY-MM-DD.html`）；
@@ -304,8 +311,10 @@
   中明确为 `FAILED`。standalone `daily-report.html` 仍是完整 Browser Dashboard artifact
   的唯一渲染产物，邮件正文不嵌入完整 Dashboard。
 - Dashboard 仍是 presentation-only，但默认移动优先（390/430 宽度、单列卡片、无默认
-  宽表、可点击区域至少 44px），首页优先展示数据异常、策略跟踪持仓、交易方案、新确认和等待
-  确认；用户区使用中文交易含义，Wave/Setup/Decision 原始字段只在折叠的开发者区。
+  宽表、可点击区域至少 44px），首页完整保留所有实际分析结果，同时将数据异常、策略跟踪
+  持仓、交易方案、新确认和等待确认排在前面；用户区使用中文交易含义，Wave/Setup/Decision
+  原始字段只在折叠的开发者区。邮件正文仍可只展示重点摘要，但明确完整 HTML 覆盖数和候选
+  异常，HTML 附件保留完整结果。
 - Dashboard / email 复用上述 ARMED projection 展示“机会观察”，明确标记“观察中，
   不是买入信号”；交易方案保持优先，ARMED 仅按距确认百分比绝对值作展示排序，
   renderer 不计算 ATR/Entry Zone 等策略公式；Entry Zone 标为“预计入场区（按当前 ATR，仅供

@@ -12,8 +12,10 @@ class _Worksheet:
     def __init__(self, records=None, failures=0):
         self.records = list(records or [])
         self.failures = failures
+        self.read_calls = 0
 
     def get_all_records(self, **kwargs):
+        self.read_calls += 1
         if self.failures:
             self.failures -= 1
             raise _QuotaError("[429] Quota exceeded")
@@ -46,6 +48,7 @@ class SheetsClientReadTests(unittest.TestCase):
             self.assertEqual(client.records("最新行情"), [{"统一代码": "BABA"}])
 
         self.assertEqual(client.book.worksheet_calls, 1)
+        self.assertEqual(worksheet.read_calls, 3)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1.0, 2.0])
 
 

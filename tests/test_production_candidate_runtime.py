@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -31,8 +32,10 @@ from trading.daily_decision_chain import (
 from trading.models import Setup01Evaluation, SetupState, Trend
 from trading.setup01_replay import Setup01ReplayDay, Setup01ReplayEvent, Setup01ReplayReport
 from trading.production_candidate_runtime import (
+    EXACT_QFQ_MIN_RETRY_ATTEMPTS,
     HistoryLoadResult,
     ProductionCandidateRuntime,
+    YFINANCE_BATCH_RETRY_ATTEMPTS,
     YFINANCE_BATCH_THREADS,
     YFINANCE_DEEP_HISTORY_WORKERS,
     _default_deep_qfq_history_loader,
@@ -547,6 +550,119 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
             [(start, 20.5, 200.0), (T_DAY, 21.5, 210.0)],
         )
 
+    def test_short_history_loader_retries_empty_batch_without_changing_source(self):
+        start = T_DAY - timedelta(days=1)
+        seeds = (_seed("US", "AAA"),)
+        frame = pd.DataFrame(
+            {
+                ("AAA", "Open"): [10.0, 11.0],
+                ("AAA", "High"): [11.0, 12.0],
+                ("AAA", "Low"): [9.0, 10.0],
+                ("AAA", "Close"): [10.5, 11.5],
+                ("AAA", "Volume"): [100.0, 110.0],
+            },
+            index=pd.to_datetime([start, T_DAY]),
+        )
+        frame.columns = pd.MultiIndex.from_tuples(
+            frame.columns, names=["Ticker", "Price"]
+        )
+        calls = []
+
+        def download(**kwargs):
+            calls.append(kwargs)
+            return pd.DataFrame() if len(calls) == 1 else frame
+
+        with patch.dict("sys.modules", {"yfinance": SimpleNamespace(download=download)}):
+            result = _default_short_history_loader(seeds, start, T_DAY)
+
+        self.assertEqual(len(calls), YFINANCE_BATCH_RETRY_ATTEMPTS)
+        self.assertEqual(result.api_requests, YFINANCE_BATCH_RETRY_ATTEMPTS)
+        self.assertEqual(result.errors, ())
+        self.assertEqual(result.rows, 2)
+        self.assertEqual(tuple(result.histories), ("AAA",))
+
+    def test_empty_stage_a_batch_is_discovery_failure_not_valid_zero_candidate(self):
+        seed = _seed("CN", "600001.SH")
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"CN": lambda as_of: (T_DAY, (seed,))},
+            short_history_loader=lambda values, start, end: HistoryLoadResult({}),
+            deep_history_loader=lambda values, start, end: self.fail(
+                "Stage B must not run after Stage A discovery failure"
+            ),
+            session_window_loader=lambda market, end, bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+
+        result = runtime.run(
+            market="CN",
+            as_of_date=T_DAY,
+            completed_session_identity=_identity("CN"),
+        )
+        payload = result.to_dict()
+
+        self.assertEqual(result.status, "FAILED")
+        self.assertEqual(payload["candidate_included_count"], 0)
+        self.assertEqual(payload["candidate_selection_outcome"], "DISCOVERY_FAILED")
+        self.assertEqual(
+            payload["stage_timings"]["candidate_short_history"]["status"],
+            "PARTIAL_DATA_QUALITY",
+        )
+        self.assertTrue(any("CANDIDATE_SHORT_HISTORY_INCOMPLETE" in error for error in payload["errors"]))
+        self.assertEqual(
+            payload["candidate_exclusion_reason_counts"],
+            {"HISTORY_INSUFFICIENT": 1},
+        )
+
+    def test_complete_stage_a_with_rule_exclusions_is_explicit_no_candidates(self):
+        seed = _seed("US", "EXPENSIVE", price=1500.0)
+        history = tuple(
+            replace(
+                quote,
+                open=quote.open * 15,
+                high=quote.high * 15,
+                low=quote.low * 15,
+                close=quote.close * 15,
+                preclose=quote.preclose * 15 if quote.preclose is not None else None,
+                amount=quote.amount * 15 if quote.amount is not None else None,
+            )
+            for quote in _history(seed.symbol, "US", "USD")
+        )
+
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"US": lambda as_of: (T_DAY, (seed,))},
+            short_history_loader=lambda values, start, end: HistoryLoadResult(
+                {seed.symbol: history}
+            ),
+            deep_history_loader=lambda values, start, end: self.fail(
+                "Stage B must not run with a valid zero-candidate result"
+            ),
+            session_window_loader=lambda market, end, bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+
+        result = runtime.run(
+            market="US",
+            as_of_date=T_DAY,
+            completed_session_identity=_identity("US"),
+        )
+        payload = result.to_dict()
+
+        self.assertEqual(result.status, "NO_CANDIDATES")
+        self.assertEqual(payload["candidate_selection_outcome"], "NO_CANDIDATES")
+        self.assertEqual(payload["errors"], [])
+        self.assertEqual(
+            payload["candidate_exclusion_reason_counts"],
+            {"US_ONE_SHARE_NOTIONAL_OVER_1000": 1},
+        )
+        self.assertEqual(
+            payload["stage_timings"]["candidate_short_history"]["status"],
+            "SUCCESS",
+        )
+        self.assertEqual(
+            payload["stage_timings"]["candidate_selector"]["status"],
+            "NO_CANDIDATES",
+        )
+
     def test_deep_loader_bounded_pool_preserves_provider_contract_and_order(self):
         seeds = (
             _seed("US", "AAA"),
@@ -592,7 +708,7 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
             all(
                 call["source"] == "yfinance"
                 and call["adjust"] == "qfq"
-                and call["retry_count"] == 1
+                and call["retry_count"] == EXACT_QFQ_MIN_RETRY_ATTEMPTS
                 and call["retry_wait_seconds"] == 0.0
                 and call["target_trade_date"] == T_DAY
                 for call in calls
@@ -762,6 +878,7 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         )
         projected = result.daily_inputs(_identity("US"))
 
+        self.assertEqual(result.status, "PARTIAL_DATA_QUALITY")
         self.assertEqual(result.included_symbols, ("MSFT",))
         self.assertEqual(projected[0].data_quality_status, DATA_UNAVAILABLE)
         self.assertEqual(projected[0].qfq_history, ())
@@ -826,6 +943,22 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         self.assertEqual(
             by_account["CN-1"]["Candidate"]["deep_history_requested_symbols"],
             ["600001.SH"],
+        )
+        self.assertEqual(
+            by_account["CN-1"]["Candidate"]["deep_analysis_count"],
+            2,
+        )
+        self.assertEqual(
+            by_account["CN-1"]["universe"]["analysis_scope_counts"]["formal_strategy_pool"],
+            1,
+        )
+        self.assertEqual(
+            by_account["CN-1"]["universe"]["analysis_scope_counts"]["dynamic_candidate_only"],
+            1,
+        )
+        self.assertEqual(
+            by_account["CN-1"]["universe"]["analysis_scope_counts"]["dynamic_candidate_only_strategy_analysis"],
+            1,
         )
         self.assertTrue(by_account["CN-1"]["Candidate"]["read_only"])
         self.assertEqual(client.writes, [])

@@ -1394,6 +1394,12 @@ def _candidate_diagnostics(
 ) -> dict[str, Any]:
     candidate_by_market = _diagnostic_by_market(payload, entries, "candidate_markets")
     funnel_by_market = _diagnostic_by_market(payload, entries, "funnel")
+    scope_by_market: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        market = _normalised_market(entry.get("market"))
+        scope = _mapping(_mapping(entry.get("universe")).get("analysis_scope_counts"))
+        if market and scope and market not in scope_by_market:
+            scope_by_market[market] = dict(scope)
     markets = sorted(
         set(candidate_by_market)
         | set(funnel_by_market)
@@ -1406,6 +1412,16 @@ def _candidate_diagnostics(
         "deep_requested_count",
         "deep_ready_count",
         "deep_analysis_count",
+        "analysis_attempted_count",
+        "strategy_analysis_count",
+        "analysis_blocked_count",
+        "formal_strategy_pool_count",
+        "dynamic_candidate_count",
+        "dynamic_candidate_only_count",
+        "dynamic_candidate_analysis_count",
+        "dynamic_candidate_only_analysis_count",
+        "dynamic_candidate_blocked_count",
+        "dynamic_candidate_only_blocked_count",
         "daily_result_count",
         "data_ok_count",
         "data_blocked_count",
@@ -1423,12 +1439,24 @@ def _candidate_diagnostics(
     for market in markets:
         candidate = candidate_by_market.get(market, {})
         funnel = funnel_by_market.get(market, {})
+        scope = scope_by_market.get(market, {})
         market_rows = [row for row in rows if row.get("market") == market]
         included = _integer_count(candidate.get("candidate_included_count"))
-        deep_analysis_value = candidate.get("deep_analysis_count")
+        deep_analysis_value = candidate.get("strategy_analysis_count")
+        if deep_analysis_value is None:
+            deep_analysis_value = candidate.get("deep_analysis_count")
         if deep_analysis_value is None:
             deep_analysis_value = funnel.get("deep_analysis")
         deep_analysis = _integer_count(deep_analysis_value)
+        attempted_value = candidate.get("deep_analysis_attempted_count")
+        if attempted_value is None:
+            attempted_value = scope.get("candidate_included_result_count")
+        if attempted_value is None:
+            attempted_value = deep_analysis
+        analysis_blocked = _integer_count(
+            candidate.get("analysis_blocked_count"),
+            max(_integer_count(attempted_value) - deep_analysis, 0),
+        )
         deep_requested = candidate.get("deep_history_requested_count")
         if deep_requested is None:
             deep_requested = deep_analysis
@@ -1465,16 +1493,66 @@ def _candidate_diagnostics(
             "portfolio_allowed_count": sum(_text(row.get("raw_result", {}).get("final_status")) == "PORTFOLIO_ALLOWED" for row in market_rows),
             "no_trade_count": sum(row.get("stage_key") == "NO_TRADE" for row in market_rows),
         }
+        candidate_status = _text(candidate.get("status"))
+        selection_outcome = _text(candidate.get("candidate_selection_outcome"))
+        if not selection_outcome:
+            if candidate_status == "NO_CANDIDATES":
+                selection_outcome = "NO_CANDIDATES"
+            elif included:
+                selection_outcome = "CANDIDATES_INCLUDED"
+            elif candidate_status in {"FAILED", "PARTIAL_DATA_QUALITY"}:
+                selection_outcome = "DISCOVERY_FAILED"
+            elif candidate:
+                selection_outcome = "NOT_REPORTED"
+            else:
+                selection_outcome = "NOT_REPORTED" if market_rows else "NOT_RUN"
         values = {
             "market": market,
             "label": MARKET_LABELS.get(market, market),
-            "status": _text(candidate.get("status"), "NOT_RUN"),
+            "status": _text(
+                candidate_status,
+                "NOT_REPORTED" if market_rows and not candidate else "NOT_RUN",
+            ),
+            "selection_outcome": selection_outcome,
+            "stage_a_status": _text(
+                _mapping(_mapping(candidate.get("stage_timings")).get("candidate_short_history")).get("status"),
+                "NOT_REPORTED" if market_rows and not candidate else "NOT_RUN",
+            ),
+            "stage_b_status": _text(
+                _mapping(_mapping(candidate.get("stage_timings")).get("deep_history")).get("status"),
+                "NOT_REPORTED" if market_rows and not candidate else "NOT_RUN",
+            ),
             "seed_count": _integer_count(candidate.get("seed_count")),
             "data_qualified_count": _integer_count(candidate.get("candidate_data_qualified_count")),
             "included_count": included,
             "deep_requested_count": _integer_count(deep_requested),
             "deep_ready_count": _integer_count(deep_ready),
             "deep_analysis_count": deep_analysis,
+            "analysis_attempted_count": _integer_count(attempted_value),
+            "strategy_analysis_count": deep_analysis,
+            "analysis_blocked_count": analysis_blocked,
+            "formal_strategy_pool_count": _integer_count(
+                scope.get("formal_strategy_pool", scope.get("formal_strategy_pool_count"))
+            ),
+            "dynamic_candidate_count": _integer_count(
+                scope.get("dynamic_candidate", scope.get("dynamic_candidate_count")),
+                included,
+            ),
+            "dynamic_candidate_only_count": _integer_count(
+                scope.get("dynamic_candidate_only", scope.get("dynamic_candidate_only_count"))
+            ),
+            "dynamic_candidate_analysis_count": _integer_count(
+                scope.get("dynamic_candidate_strategy_analysis", scope.get("dynamic_candidate_analysis_count"))
+            ),
+            "dynamic_candidate_only_analysis_count": _integer_count(
+                scope.get("dynamic_candidate_only_strategy_analysis", scope.get("dynamic_candidate_only_analysis_count"))
+            ),
+            "dynamic_candidate_blocked_count": _integer_count(
+                scope.get("dynamic_candidate_data_blocked", scope.get("dynamic_candidate_blocked_count"))
+            ),
+            "dynamic_candidate_only_blocked_count": _integer_count(
+                scope.get("dynamic_candidate_only_data_blocked", scope.get("dynamic_candidate_only_blocked_count"))
+            ),
             "filter_reasons": filter_reasons,
             "candidate_errors": [
                 _text(item) for item in _sequence(candidate.get("errors")) if _text(item)
@@ -1484,9 +1562,17 @@ def _candidate_diagnostics(
         }
         values["coverage_status"] = (
             "DATA_ISSUE"
-            if values["status"] in {"FAILED", "PARTIAL_DATA_QUALITY"} or values["candidate_errors"]
+            if values["status"] in {"FAILED", "PARTIAL_DATA_QUALITY", "NOT_REPORTED"}
+            or values["selection_outcome"] in {"DISCOVERY_FAILED", "NOT_REPORTED"}
+            or values["candidate_errors"]
+            or values["stage_a_status"] in {"FAILED", "PARTIAL_DATA_QUALITY", "NOT_REPORTED"}
             else "COVERAGE_INSUFFICIENT"
-            if included and deep_analysis < included
+            if included and (
+                deep_analysis < included
+                or _integer_count(attempted_value) < included
+            )
+            else "NO_CANDIDATES"
+            if values["selection_outcome"] == "NO_CANDIDATES"
             else "COVERAGE_COMPLETE"
         )
         for key in numeric_keys:
@@ -1543,8 +1629,14 @@ def _diagnostic_data_issues(
             add_error(value, market)
     runtime_errors = quality.get("candidate_runtime_errors")
     if isinstance(runtime_errors, Mapping):
-        for value in runtime_errors.values():
-            add_error(value, market)
+        for candidate_market, value in runtime_errors.items():
+            text = _text(value)
+            if text:
+                add(candidate_market, "候选链路", text)
+    for value in _sequence(quality.get("candidate_quality_errors")):
+        text = _text(value)
+        if text:
+            add(market, "候选链路", text)
     for symbol, provider in _mapping(cloud.get("provider_status")).items():
         provider = _mapping(provider)
         for value in _sequence(provider.get("errors")):
@@ -1559,10 +1651,17 @@ def _diagnostic_data_issues(
     for candidate in _mapping(payload.get("candidate_markets")).values():
         candidate = _mapping(candidate)
         candidate_market = _normalised_market(candidate.get("market")) or market
+        for value in _sequence(candidate.get("errors")):
+            if _text(value):
+                add(candidate_market, "候选链路", value)
         deep_errors = _mapping(candidate.get("deep_history_errors"))
         for symbol, values in deep_errors.items():
             for value in _sequence(values) or (values,):
                 add(candidate_market, symbol, value)
+    if rows and not _mapping(payload.get("candidate_markets")) and not any(
+        _mapping(entry.get("candidate")) for entry in _report_entries(payload)
+    ):
+        add(market, "候选链路", "候选阶段未报告，完整分析覆盖无法确认")
     for row in rows:
         if not row.get("data_blocked"):
             continue
@@ -1643,7 +1742,7 @@ def _market_status(
     candidate = _mapping(candidate_markets.get(market))
     candidate_status = _text(candidate.get("status"))
     blocked = any(row["data_blocked"] for row in rows if row["market"] == market)
-    blocked = blocked or candidate_status == "FAILED" or _preflight_market_status(payload, market)
+    blocked = blocked or candidate_status in {"FAILED", "PARTIAL_DATA_QUALITY"} or _preflight_market_status(payload, market)
     if blocked:
         return {"status_key": "DATA_BLOCKED", "status_label": "数据异常"}
     if not rows and (candidate_status in {"", "NOT_RUN"}):
@@ -1821,6 +1920,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
 
     summary = {
         "candidate_total": _candidate_total(payload, entries, rows),
+        "analysis_count": len(rows),
         "watch_count": sum(row["stage_key"] == "WATCH" for row in rows),
         "armed_count": sum(row["stage_key"] == "ARMED" for row in rows),
         "new_confirmed_count": sum(row["event_is_new"] for row in rows),
@@ -2189,6 +2289,87 @@ def dashboard_search_matches(row: Mapping[str, Any], query: Any) -> bool:
     return needle in haystack
 
 
+def _condition_values(values: Sequence[Any]) -> str:
+    rendered: list[str] = []
+    for value in values:
+        if isinstance(value, (Mapping, list, tuple)):
+            text = _json_text(value)
+        else:
+            text = _translate_reason(value)
+        if text and text not in rendered:
+            rendered.append(text)
+    return "；".join(rendered)
+
+
+def _satisfied_condition_text(row: Mapping[str, Any]) -> str:
+    result = _mapping(row.get("raw_result"))
+    decision = _mapping(row.get("decision"))
+    direct_values: list[Any] = []
+    for source in (result, decision):
+        for key in (
+            "satisfied_conditions",
+            "met_conditions",
+            "passed_conditions",
+            "conditions_met",
+        ):
+            value = source.get(key)
+            if isinstance(value, (list, tuple)):
+                direct_values.extend(value)
+            elif value not in (None, ""):
+                direct_values.append(value)
+    text = _condition_values(direct_values)
+    if text:
+        return text
+    if str(result.get("data_status") or "").upper() != "DATA_OK":
+        return f"数据状态：{_display(result.get('data_status'))}；未完成正式策略计算。"
+    facts = []
+    wave = _display(row.get("current_wave_label"))
+    if wave != "—":
+        facts.append(f"当前浪型：{wave}")
+    for label, key in (("SETUP_01", "setup01_state"), ("SETUP_02", "setup02_state")):
+        state = _text(row.get(key))
+        if state and state.upper() not in {"NONE", "—"}:
+            facts.append(f"{label}：{state}")
+    if row.get("event_is_new"):
+        facts.append("T 日产生新的确认事件")
+    why = _text(row.get("why"))
+    if why and why not in facts:
+        facts.append(f"分析依据：{why}")
+    return "；".join(facts) or "本次结果未提供可单列的已满足条件。"
+
+
+def _unsatisfied_condition_text(row: Mapping[str, Any]) -> str:
+    result = _mapping(row.get("raw_result"))
+    decision = _mapping(row.get("decision"))
+    values: list[Any] = []
+    for source in (result, decision):
+        for key in (
+            "unsatisfied_conditions",
+            "missing_conditions",
+            "unmet_conditions",
+            "blocking_prerequisites",
+        ):
+            value = source.get(key)
+            if isinstance(value, (list, tuple)):
+                values.extend(value)
+            elif value not in (None, ""):
+                values.append(value)
+    missing = _text(row.get("missing_condition"))
+    if missing and missing not in {"—", "尚未形成"}:
+        values.append(missing)
+    for value in _sequence(result.get("reasons")):
+        values.append(value)
+    gate_reason = decision.get("gate_reason")
+    if gate_reason:
+        values.append(gate_reason)
+    text = _condition_values(values)
+    if text:
+        return text
+    if _text(row.get("stage_key")) in {"NO_TRADE", "FAILED", "DATA_BLOCKED"}:
+        return "本次结果未提供可单列的不交易原因。"
+    return "当前没有额外未满足条件记录。"
+
+
 def _render_details(row: Mapping[str, Any]) -> str:
     position = _position_fields(row)
     result = _mapping(row.get("raw_result"))
@@ -2241,7 +2422,11 @@ def _render_details(row: Mapping[str, Any]) -> str:
     return (
         '<details class="details"><summary>查看交易依据（查看详情）</summary><div class="detail-body">'
         '<section class="plain-summary">'
-        f'<section><h3>当前波浪</h3><p>{_escape(row.get("current_wave_label"))}</p><p>{_escape(row.get("today_conclusion"))}</p></section>'
+        f'<section><h3>当日状态</h3><p>{_escape(row.get("status_label"))}</p><p>{_escape(row.get("today_conclusion"))}</p></section>'
+        f'<section><h3>当前浪型</h3><p>{_escape(row.get("current_wave_label"))}</p></section>'
+        f'<section><h3>所属策略</h3><p>{_escape(row.get("setup"))}</p></section>'
+        f'<section><h3>已满足条件 / 现有依据</h3><p>{_escape(_satisfied_condition_text(row))}</p></section>'
+        f'<section><h3>未满足条件 / 不交易原因</h3><p>{_escape(_unsatisfied_condition_text(row))}</p></section>'
         f'<section><h3>为什么</h3><p>{_escape(row.get("why"))}</p></section>'
         f'<section><h3>还差什么 / 现在要做什么</h3><p>{_escape(row.get("missing_condition"))}</p></section>'
         f'<section><h3>失效条件</h3><p>{_escape(row.get("invalidation"))}</p></section>'
@@ -2303,7 +2488,7 @@ def _render_row(row: Mapping[str, Any]) -> str:
         f'<span class="row-price">{_escape(compact_plan)}</span>'
     )
     return (
-        f'<article class="stock-row"{"" if row["default_focus"] else " hidden"} '
+        '<article class="stock-row" '
         f'data-market="{_escape(row["market"])}" '
         f'data-stage="{_escape(row["stage_key"])}" data-setup="{_escape(row["setup"])}" '
         f'data-sector="{_escape(row["sector"] if row["sector"] != "—" else "")}" '
@@ -2369,13 +2554,38 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
             f'<div class="diagnostic-reasons">筛选原因：{reasons}</div>'
             if reasons else ""
         )
+        outcome_labels = {
+            "CANDIDATES_INCLUDED": "已有候选进入后续分析",
+            "NO_CANDIDATES": "Stage A 数据完整，按既有规则筛选后确实没有候选",
+            "DISCOVERY_FAILED": "候选发现失败，覆盖不完整",
+            "NOT_REPORTED": "候选链路未报告，覆盖不完整",
+            "NOT_RUN": "候选链路未运行",
+        }
+        outcome = _text(item.get("selection_outcome"), "NOT_REPORTED")
+        candidate_errors = "；".join(
+            _text(error) for error in _sequence(item.get("candidate_errors")) if _text(error)
+        )
+        scope_line = (
+            f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}；'
+            f'动态候选 {_escape(item.get("dynamic_candidate_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_count"))}）；'
+            f'动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_analysis_count"))}）'
+        )
+        analysis_line = (
+            f'策略分析尝试 {_escape(item.get("analysis_attempted_count"))}；'
+            f'完成 {_escape(item.get("strategy_analysis_count"))}；'
+            f'因数据阻断 {_escape(item.get("analysis_blocked_count"))}'
+        )
         market_html.append(
             '<div class="diagnostic-market">'
             f'<strong>{_escape(item.get("label"))}</strong>'
+            f'<span>候选结论：{_escape(outcome_labels.get(outcome, outcome))}</span>'
             f'<span>Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}</span>'
+            f'<span>{scope_line}</span>'
+            f'<span>{analysis_line}；Stage A {_escape(item.get("stage_a_status"))}；Stage B {_escape(item.get("stage_b_status"))}</span>'
             f'<span>实际日报结果 {_escape(item.get("daily_result_count"))}；DATA_OK {_escape(item.get("data_ok_count"))}；NO_TRADE {_escape(item.get("no_trade_count"))}；数据异常 {_escape(item.get("data_blocked_count"))}</span>'
             f'{reason_line}'
-            '</div>'
+            + (f'<div class="diagnostic-reasons">候选链路异常：{_escape(candidate_errors)}</div>' if candidate_errors else "")
+            + '</div>'
         )
     if not market_html:
         market_html.append(
@@ -2914,6 +3124,7 @@ def render_dashboard_html(value: Any) -> str:
 <section class="summary-secondary" aria-label="次级摘要">
 {_metric_link('观察中', summary['watch_count'], 'WATCH')}
 {_metric('Candidate 总数', summary['candidate_total'])}
+{_metric('实际分析股票', summary['analysis_count'])}
 </section>
 <section class="market-grid" aria-label="市场数据状态">{_render_market_cards(projection['markets'])}</section>
  {_render_diagnostics(projection)}
@@ -2925,10 +3136,10 @@ def render_dashboard_html(value: Any) -> str:
 {_render_today_paper_focus(paper, projection.get('as_of_date'))}
 <nav class="stage-nav" aria-label="阶段导航"><span class="stage-nav-label">阶段查看：</span>{stage_nav}</nav>
 <section class="filters" aria-label="股票筛选"><label class="search-field">搜索<input id="search-filter" type="search" placeholder="ticker 或公司名称" autocomplete="off"></label><label>市场<select id="market-filter"><option value="">全部</option><option value="CN">中国市场（CN）</option><option value="US">美国市场（US）</option></select></label><label>当前阶段<select id="stage-filter"><option value="">全部</option>{stage_options}</select></label><label>浪型策略<select id="setup-filter"><option value="">全部</option><option value="SETUP_01">2浪→3浪</option><option value="SETUP_02">3浪延续</option></select></label><label>行业／板块<select id="sector-filter"><option value="">全部</option>{sector_options}</select></label><span id="visible-count" class="stage-nav-label"></span></section>
-<div class="results-heading"><h2 id="results-title">今日重点</h2><span id="results-description">先处理可入场、方案、确认、等待确认、策略跟踪持仓与异常</span></div>
+<div class="results-heading"><h2 id="results-title">全部已分析结果</h2><span id="results-description">默认展示本次所有实际完成分析的股票；今日重点可优先查看</span></div>
 <section id="cards" class="cards" aria-live="polite">{cards}</section><div id="empty" class="empty" hidden>没有符合当前筛选条件的股票。</div>
 </section>
-<div class="footer">默认只展示今日重点；观察中与低优先级结果请通过顶部导航查看。点击“查看交易依据”查看原因、价格计划和失效条件；开发者原始数据默认收起。页面不替代用户最终交易决定。</div>
+<div class="footer">默认展示全部实际分析结果；今日重点、状态、市场、策略和行业筛选只改变查看顺序或范围，不会删除日报结果。点击“查看交易依据”查看当日状态、条件、原因、价格计划和失效条件；开发者原始数据默认收起。页面不替代用户最终交易决定。</div>
 </main>
 <script>
 (() => {{
@@ -2950,7 +3161,7 @@ def render_dashboard_html(value: Any) -> str:
     performance: document.getElementById('performance-workspace'),
     rules: document.getElementById('rules-workspace'),
   }};
-  let activeView = 'focus';
+  let activeView = 'all';
   const viewDescriptions = {{
     focus: '先处理可入场、方案、确认、等待确认、策略跟踪持仓与异常',
     ARMED: '只看等待确认的股票',
@@ -2983,13 +3194,13 @@ def render_dashboard_html(value: Any) -> str:
     Object.entries(workspacePanels).forEach(([key, panel]) => {{
       if (panel) panel.hidden = key !== workspace;
     }});
-    if (workspace === 'today') setActiveView('focus');
+    if (workspace === 'today') setActiveView('all');
     if (workspace === 'diagnostics') setActiveView('all');
   }};
   const requestedView = new URLSearchParams(window.location.search).get('view') || window.location.hash.slice(1);
   const initialView = requestedView && navButtons.some(button => button.dataset.view === requestedView)
     ? requestedView
-    : 'focus';
+    : 'all';
   const requestedWorkspace = new URLSearchParams(window.location.search).get('workspace');
   const initialWorkspace = requestedWorkspace && (requestedWorkspace === 'paper' || requestedWorkspace === 'performance' || requestedWorkspace === 'rules' || requestedWorkspace === 'diagnostics')
     ? requestedWorkspace
