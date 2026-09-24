@@ -771,3 +771,25 @@ Entry Zone（`entry_zone_low = H1`）会把绝大多数早入场 OPEN 直接判�
 `SKIP_GAP_BELOW_CONFIRMATION`，且不存在确认前执行止损、目标门槛或退出规则。若不先由
 用户确定这些语义，任何净收益结论都取决于研究者自行选择的事后规则，会破坏预注册与
 `Target-before-RR`、T→T+1、look-ahead 安全边界。
+
+## 2026-09-24 — 早入场受约束 PKG_B 第二阶段经济验证：INSUFFICIENT_EVIDENCE
+
+**Decision:** `SETUP01_EARLY_ENTRY_STAGE2_ECONOMIC_VALIDATION_V1` 在冻结独立样本上的
+第二阶段只读经济验证结论为 **`INSUFFICIENT_EVIDENCE`**，不构成任何生产、Paper、
+Sheets、状态或 broker 授权。受约束 `PKG_B_ATR_EXECUTION_STOP` 实验组（C）的实现净 R
+均值在中美两个市场均为负（CN −0.231 / US −0.115，基准 10bp；压力 25bp 下 pooled
+−0.216）；同确认时点、无准入门槛的结构对照（B）为 −0.525，C−B 的股票聚类 bootstrap
+95% 区间为正（[0.299, 0.416]），但完整现行 Decision（A）在 790 次首次确认中仅成交 3 笔，
+低于预注册 floor，故 C−A 不可评估（原始点估计 −0.295，区间跨 0）。按预注册规则，floor
+失败输出 `INSUFFICIENT_EVIDENCE` 而非 `NOT_SUPPORTED`。
+
+**Boundary:** 本结论不得被改写为差额、样本、退出假设、等待上限或成本情景的事后重调；
+协议、成本情景（10bp/25bp）、20-session 等待上限与 T1 止盈退出假设都已冻结并有哈希。
+删失不对称（C 96% 实现、B 82%）与期末估值敏感性（会反转 C−B 排序）必须与任何引用
+同时出现；组合回撤标记 `NOT_ESTIMABLE`，不得由事件级收益拼造组合净值曲线；CN 手数、
+停牌与涨跌停以及 US 点差均为模型级假设，不等于 broker 真实成交。下一轮独立执行验证
+必须由用户重新明确授权。
+
+**Reason:** 经济结论依赖三项当前无法由既有证据闭合的条件：现行 Decision 的成交样本
+过少、检查的删失口径差异巨大、以及 T1 止盈退出属于研究假设而冻结 Position Management
+视目标为诊断信息。在这三项未解决前宣称经济优势或劣势都会超出证据边界。
