@@ -1,0 +1,288 @@
+{
+  "schema_version": "setup03-replay-input-v1",
+  "aggregate_hash": "sha256:2500398be662fa2bd894aa4e3d538e9f3c6a04f0a291ece8ff85dfb5164aa4e7",
+  "total_symbol_count": 40,
+  "total_bar_count": 88075,
+  "symbols": [
+    {
+      "symbol": "000899.SZ",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:df15d4680e5f178ad85f942135be8e3091e4b16875d5eedbe8d2d87f56eb7279"
+    },
+    {
+      "symbol": "000975.SZ",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:2ab424a9591d06152e5af306e14d5253bd31f8e115121a2c0309de4440e6ed7f"
+    },
+    {
+      "symbol": "001280.SZ",
+      "bar_count": 178,
+      "start_date": "2025-12-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:2853802a743a66a2e17caaf8c15662fd7d1a506c491e4ca5d77ff01419f9fe44"
+    },
+    {
+      "symbol": "002032.SZ",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:c54dd5f8a56f65e277e4ce3a07cdb5d27047612a704129ff5fced1792206b3c5"
+    },
+    {
+      "symbol": "002372.SZ",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:f4148389f6bf101aaf10a2c5d79e2b0b518281becf98d9801b63b33fe32cc740"
+    },
+    {
+      "symbol": "002600.SZ",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:e024eafe3de8ae18ec24588210e52e9a715724c7f54958e46886a0a49a8e16a5"
+    },
+    {
+      "symbol": "002683.SZ",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:0bc258ba3afa1b41eb469c3946b98a0a900f333191e10eff27bfbe6b47ad3aa2"
+    },
+    {
+      "symbol": "002938.SZ",
+      "bar_count": 1924,
+      "start_date": "2018-09-18",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:1619bdb148b32ba4d8381c10ba240071e5d247ad1c1d609d9028793cbf43a6ae"
+    },
+    {
+      "symbol": "600395.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:ceb288c5e1b2457e419678fcbd2a4fd9a706415ce907dd78bc346a34d6bd3fe9"
+    },
+    {
+      "symbol": "600535.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:4a4373d86c2eab3a2f07a60d99f4d2f79506588ecd8beaf83a51fc6735d42814"
+    },
+    {
+      "symbol": "600744.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:d255970483f70d3530b6387fdab01a2951b801dbe234af9f933177b096e0109a"
+    },
+    {
+      "symbol": "600901.SH",
+      "bar_count": 2062,
+      "start_date": "2018-03-01",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:6a8f2fd2bb9e7112afc7afe3e3a6cb1b799d37973b7086f794373a94046928c9"
+    },
+    {
+      "symbol": "601003.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:2288164b34753cc20a7f994e8cff7e4d8172036b0b6626da7902a099f06522cb"
+    },
+    {
+      "symbol": "601198.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:d14d30c42c293d332f34633176e3e288cbaccf47a3f01ea39fc1bc7be7fdb4c1"
+    },
+    {
+      "symbol": "601872.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:9681715fd54aa38bd6f85cb46dbfbc76fff3f3ce85ee0231cbae356e1fe202ce"
+    },
+    {
+      "symbol": "601928.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:711eaab471f905f6ec1c3f8f924e9c5a6ff732c7e9e3631e13b3d057f55c2d7d"
+    },
+    {
+      "symbol": "601939.SH",
+      "bar_count": 2343,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:14fe30cd96b85d2af040832d4af11196d9222b129fa6b7804f59285f72f33839"
+    },
+    {
+      "symbol": "603093.SH",
+      "bar_count": 1694,
+      "start_date": "2019-08-30",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:fc377160f4fafb9e1a44ee3590fe9289b3e17581e7f6264734e0f68157336919"
+    },
+    {
+      "symbol": "603650.SH",
+      "bar_count": 1983,
+      "start_date": "2018-06-27",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:5e828a04d5598ad7b0b74c0fe3236d8709c486acc13eb024439d2d72143d1c37"
+    },
+    {
+      "symbol": "603662.SH",
+      "bar_count": 1712,
+      "start_date": "2019-08-06",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:08785cb2405e906068bf72dbc63658639bbf4531f3137ea9acebef89ecf820bf"
+    },
+    {
+      "symbol": "AIZ",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:32d7fe89568481f79538a94f0cdfd270e5eea7bc3f265d448adbc0af3625557a"
+    },
+    {
+      "symbol": "ATEN",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:9893a734e870c6c60b52a72710162f5b786d625b9f1bf15a1d29baeb1edd4d78"
+    },
+    {
+      "symbol": "CEG",
+      "bar_count": 1155,
+      "start_date": "2022-01-19",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:6c33e6e42fb13110b5b433d71467198cc03f67d4dca984bbbf11a677f6de8763"
+    },
+    {
+      "symbol": "FICO",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:000144f4bd4d8b9d8ce3b1aba79f8c5dfbb14f02f5c195624b5b9790d0512232"
+    },
+    {
+      "symbol": "HUM",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:397ccf1ec91e49a4b25912894e97c0597e286435575057ca787474f23b1ef0c8"
+    },
+    {
+      "symbol": "KHC",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:47d32079b4febe279209e4f2dba158d86f2cf8f5078f7a89602360e967e17f47"
+    },
+    {
+      "symbol": "KLAC",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:df08964c20460657af8dd1246022d56c7ba78545047434a3861853cbbdf4ded9"
+    },
+    {
+      "symbol": "MCHP",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:78ced2425e5811583076a15ba7edfc12b42599d180574ae8945da60a0d384fac"
+    },
+    {
+      "symbol": "NXPI",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:970a59288c9f7714e0a51e09dabe7f35ae8a293f118b35f20d425aa08bc7779f"
+    },
+    {
+      "symbol": "O",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:f37053f1c849c086fe0ab87fc5c414327ac023e19968361696713d6404c963c2"
+    },
+    {
+      "symbol": "PAYX",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:a6ae1ce3e48ba761f5fbfa8ea3a718e887f84b539bfbb3abe08f27ee02a1d5e2"
+    },
+    {
+      "symbol": "PNC",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:5c7f812afdfb297e885a2f457dd21215c489f820f1f8c7033a74aef8ec96222d"
+    },
+    {
+      "symbol": "REGN",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:9e8b3675f33070b602fb23e5411d48aac6ab67a49aafaeff3f20989cfce20939"
+    },
+    {
+      "symbol": "SWKS",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:5fd8714b91aa2800451f3f8dc91b9489fca2323b5b3c2dcad2cb0aa870cc2bf3"
+    },
+    {
+      "symbol": "TER",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:8cabf20656d57424bbfb9070cd355222d64df3bbf5ee6894368b657059cab977"
+    },
+    {
+      "symbol": "TMUS",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:19aae53578e56cbcb316ea0400a6652eb5ff01031c6998598980424be61b74ec"
+    },
+    {
+      "symbol": "U",
+      "bar_count": 1491,
+      "start_date": "2020-09-18",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:027e96058dad67ef428fa668012492946d499f8ac3734359e3d2fac8bdd69a3d"
+    },
+    {
+      "symbol": "V",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:c93106054f2f8e2532559f8d59ac6cf68a9a439cac6feb9440b09346c8ac563d"
+    },
+    {
+      "symbol": "WULF",
+      "bar_count": 2425,
+      "start_date": "2017-01-03",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:184f4a858d54d934099f7b1b1f10d165d65b9bba0f3095ff4cde1eccfb53efa6"
+    },
+    {
+      "symbol": "ZM",
+      "bar_count": 1849,
+      "start_date": "2019-04-18",
+      "end_date": "2026-08-26",
+      "input_hash": "sha256:c6a9db50c498fc02a363c0d3a6f78e59e99b83728b381de913e2728a6759c6c0"
+    }
+  ]
+}
