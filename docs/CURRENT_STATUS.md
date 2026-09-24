@@ -489,6 +489,25 @@
   合同。D2 roster、provider、成本来源和 snapshot/hash 尚未冻结，因此仍不可执行；未
   建立 roster、抓取 D2 bars、生成信号或运行经济回放，
   未改变生产 SETUP/Risk/Paper/Sheet/broker 或 Final OOS。
+- `SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1` 已作为独立协议修订冻结，明确以 D1 前瞻
+  时间隔离替代受 point-in-time 数据源阻塞的 D2；D2 审计与 architecture freeze 保留，
+  双路径 signal/opportunity/stop/target/exit/gate 选择均未重选。已实现 research-only
+  causal Path A/B observer、next-session OHLC 模型、CN T+1、同日歧义、右删失、五组件
+  hash-bound session snapshot、content-addressed immutable reference store、跨日幂等、
+  missing/hash/protocol 检测、clean-directory recovery 与独立中文报告/CLI。除 filesystem
+  fixture store 外，已实现只访问配置 folder ID 的 Google Drive backend（`drive.file` scope）、
+  最小 writer capability 检查、write/read-back probe、create-if-absent、全图验证和 Drive→空
+  目录恢复，并新增 CN/US 独立 schedule；人工指定日期固定为 diagnostic backfill。专用 folder
+  已创建且 folder ID GitHub Actions Secret 已配置，但尚未共享给既有 service account；真实
+  write/read-back/recovery 与首次自然 session 未完成，
+  且 workflow 仍在未合并的堆叠 PR 中。因此 CN/US 继续为 `D1_READY_NOT_ACTIVE`、activation/
+  window pending、正式事件数 0。未访问历史经济样本、Final OOS、真实持仓，未启用 Paper、
+  production Sheet/state 或 broker 写入。
+- 普通股票绝对收益偏好已作为独立研究/产品诊断登记：`SIGNAL_VALID`、`RISK_VALID`、
+  `TARGET_GEOMETRY`、`ECONOMIC_ATTRACTIVENESS`、`RESEARCH_ADMISSION` 分开报告；日常中文研究
+  报告记录最近合法 T1 gross headroom、后续结构目标不确定性、止损距离/1R/RR/成本，并仅在
+  合法最终结果存在时报告 net return/net R/持有期/资金占用。当前未设新的绝对收益硬阈值，
+  未改变 primary economic evaluation、T1 全退或正式研究准入。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。

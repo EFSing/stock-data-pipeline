@@ -1,0 +1,133 @@
+{
+  "schema_version": "setup01-post-breakout-d1-prospective-v1",
+  "protocol_version": "SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1",
+  "registered_date": "2026-09-24",
+  "status": "D1_READY_NOT_ACTIVE",
+  "scope": "RESEARCH_ONLY_PROSPECTIVE_TIME_ISOLATED",
+  "supersedes_data_design_only": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL",
+  "preserved_architecture_freeze": "SETUP01_POST_BREAKOUT_DUAL_PATH_ARCHITECTURE_FREEZE_V1",
+  "data_design_change": {
+    "from": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL",
+    "to": "D1_PROSPECTIVE_TIME_ISOLATED",
+    "reason": "existing free data stack has no compliant point-in-time historical source",
+    "d2_audit_retained": "research/protocols/setup01_d2_data_feasibility_audit_v1.json",
+    "d2_and_d1_are_same_protocol": false,
+    "paid_data_purchase_authorized": false,
+    "historical_survivor_roster_authorized": false,
+    "historical_economic_replay_authorized": false
+  },
+  "selected_package": {
+    "signal": "PRICE_ACTION_ONLY",
+    "opportunity": "ONE_PER_PATH_UNTIL_FILL",
+    "observation_window_sessions": 20,
+    "execution_stop": "SIGNAL_SUPPORT_ATR_STOP",
+    "primary_exit": "X1_MECHANICAL_T1_EXIT",
+    "secondary_exit_sensitivity": "X2_FORMAL_PM_COMPATIBLE_EXIT",
+    "primary_gate": "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES",
+    "nested_gate_attribution": "G0_INCUMBENT_HARD_GATES"
+  },
+  "window_contract": {
+    "display_timezone": "Asia/Shanghai",
+    "session_date_identity": "exchange-local session date",
+    "duration": "P12M",
+    "start": "first full exchange session whose open is strictly after activation_timestamp",
+    "end": "half-open local-date interval ending at start_session_date plus 12 calendar months",
+    "last_eligible_session": "last exchange session with local session date before the end boundary",
+    "post_result_extension": false,
+    "insufficient_sample_outcome": "INSUFFICIENT_EVIDENCE",
+    "markets": {
+      "CN": {
+        "timezone": "Asia/Shanghai",
+        "activation_timestamp": null,
+        "start_session_date": null,
+        "end_boundary_local_date": null,
+        "final_cutoff_bjt": null,
+        "status": "PENDING_DURABLE_STORAGE_AND_ACTIVATION"
+      },
+      "US": {
+        "timezone": "America/New_York",
+        "activation_timestamp": null,
+        "start_session_date": null,
+        "end_boundary_local_date": null,
+        "final_cutoff_bjt": null,
+        "status": "PENDING_DURABLE_STORAGE_AND_ACTIVATION"
+      }
+    }
+  },
+  "activation_gates": [
+    "protocol, cost scenarios and universe generation frozen",
+    "collector, persistence, integrity and recovery tests pass",
+    "same-day verifiable market data and universe snapshot available",
+    "collector enabled before the market's formal observation point",
+    "approved durable storage passes write, read-back and independent recovery verification"
+  ],
+  "cost_scenarios": {
+    "classification": "RESEARCH_ASSUMPTIONS_NOT_ACCOUNT_RATES_NOT_BROKER_FILLS",
+    "BASELINE": {"spread_slippage_bp_per_side": 10.0},
+    "STRESS": {"spread_slippage_bp_per_side": 25.0},
+    "CN": {
+      "commission_bp_per_side": 2.5,
+      "minimum_commission_per_order_cny": 5.0,
+      "sell_stamp_duty_bp_from_2023_08_28": 5.0,
+      "transfer_fee": "NOT_MODELED_MUST_BE_DISCLOSED",
+      "lot_board_st_price_limit": "POINT_IN_TIME_DAILY_SNAPSHOT_REQUIRED"
+    },
+    "US": {
+      "commission_per_side_usd": 0.0,
+      "sec_and_finra_fees": "DATE_EFFECTIVE_PUBLIC_RULE_OR_EXPLICIT_ASSUMPTION_REQUIRED_AT_EVENT",
+      "quantity": "WHOLE_SHARES",
+      "halt_spread_queue": "NOT_PROVABLE_FROM_DAILY_OHLC"
+    }
+  },
+  "daily_snapshot_contract": {
+    "immutable_identity": "D1|market|session_date|SESSION_SNAPSHOT",
+    "required_components": [
+      "universe_snapshot",
+      "raw_source_snapshot",
+      "normalized_prefix_snapshot",
+      "decision_snapshot",
+      "research_observation_report"
+    ],
+    "required_provenance": [
+      "source identity and source date",
+      "acquired_at",
+      "canonical symbol and market",
+      "adjustment convention",
+      "protocol version",
+      "component SHA-256",
+      "whole-event SHA-256"
+    ],
+    "late_data": "record LATE_SOURCE or DATA_MISSING; diagnostic recovery never becomes a prospective signal",
+    "universe_exit": "open research lifecycles remain in the follow-up set",
+    "formal_entry_allowed_separate": true,
+    "production_state_write": false,
+    "paper_write": false,
+    "broker_write": false
+  },
+  "storage_contract": {
+    "model": "content-addressed immutable objects plus one immutable commit per market/session",
+    "idempotency_key": "market + session_date + event_id",
+    "mismatch": "FAIL_CLOSED_HASH_MISMATCH",
+    "detect": ["missing session", "duplicate session", "hash mismatch", "incomplete component", "protocol mismatch"],
+    "public_private_isolation": "PUBLIC_MARKET_RESEARCH_ONLY_NO_HOLDINGS",
+    "approved_durable_backend": null,
+    "github_actions_artifact_is_durable_backend": false,
+    "activation_blocker": "APPROVED_DURABLE_STORAGE_WRITE_AND_RECOVERY_PATH_REQUIRED"
+  },
+  "execution_boundaries": {
+    "daily_ohlc_is_real_fill_evidence": false,
+    "CN": ["T_PLUS_ONE_SELL", "POINT_IN_TIME_BOARD_ST_LOT_LIMIT_REQUIRED", "SUSPENSION_AND_QUEUE_UNKNOWN"],
+    "US": ["HALT_UNKNOWN", "SPREAD_AND_SLIPPAGE_ARE_SCENARIOS"],
+    "same_day_stop_target": "STOP_FIRST",
+    "buy_stop_then_stop_order_unknown": "PATH_AMBIGUITY_RECORDED"
+  },
+  "prohibitions": [
+    "access Final OOS",
+    "run economic validation on exposed historical samples",
+    "modify production Wave Setup Entry Target Stop 5pct 2R Risk or Position Management",
+    "write production Sheet state or Paper ledger",
+    "connect broker",
+    "read real holdings",
+    "count pre-activation or reconstructed data as D1 prospective evidence"
+  ]
+}

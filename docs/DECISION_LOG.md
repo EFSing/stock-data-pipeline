@@ -771,3 +771,71 @@ Entry Zone（`entry_zone_low = H1`）会把绝大多数早入场 OPEN 直接判�
 `SKIP_GAP_BELOW_CONFIRMATION`，且不存在确认前执行止损、目标门槛或退出规则。若不先由
 用户确定这些语义，任何净收益结论都取决于研究者自行选择的事后规则，会破坏预注册与
 `Target-before-RR`、T→T+1、look-ahead 安全边界。
+
+## 2026-09-24 — SETUP_01 双路径独立数据由 D2 改为 D1 前瞻时间隔离
+
+**Decision:** 暂停 `D2_NEW_SYMBOL_DISJOINT_HISTORICAL`，改用独立版本
+`SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1` 的 `D1_PROSPECTIVE_TIME_ISOLATED`。D2 的
+point-in-time 可行性审计结论继续作为不可改写历史证据：现有免费栈不能同时证明 US
+历史 membership/退市 identity 与 CN 逐日 board/ST/lot/涨跌停/security lifecycle，
+因此不得用当前成分股回填历史、不得建立幸存者 roster，也不购买付费数据。D1 与 D2
+不是同一个未变化的数据协议；原 D2 audit、draft 与 architecture freeze 都保留。
+
+D1 在 CN/US 各自满足 activation gates 后独立启动：协议/成本/名单规则冻结，collector/
+不可变持久化/完整性/恢复通过测试，当日 universe 与行情可核验，并且 collector 在该市场
+正式观察点前启用。窗口从 activation 后首个完整 exchange session 起，固定 12 个日历月
+的半开区间，不因结果、信号数或数据质量延长；不足输出 `INSUFFICIENT_EVIDENCE`。启用前
+历史 K 线、旧日报与事后补抓不计入 D1；补抓只允许 diagnostic，并保留 `DATA_MISSING` /
+`LATE_SOURCE` 与 `prospective_eligible=false`。
+
+**Preserved mechanism:** 双路径 architecture 选择完全不变：`PRICE_ACTION_ONLY`、
+`ONE_PER_PATH_UNTIL_FILL`、20 sessions、`SIGNAL_SUPPORT_ATR_STOP`、X1 primary / X2
+sensitivity、G1 primary / G0 nested attribution，以及 B 日 Path A、B 后真实 Path B、
+`price > entry_trigger` nearest-first targets、entry ceiling 不预过滤 T1、actual entry >= T1
+直接跳过。5%/2R 仍是正式生产硬规则；在 D1 research overlay 中只按已冻结角色记录。
+正式 Wave/Setup/Entry/Target/Stop/Risk/Position Management/Paper/Sheet/broker 不变。
+
+**Persistence gate:** GitHub Actions 30-day artifact 不满足 12 个月 durable storage。现有
+Google Sheet 属生产职责且本授权禁止新增生产 Sheet/state 写入；在独立 research Drive
+folder 或有 versioning/retention 的 object bucket 获用户授权并完成 write/read-back/
+independent-recovery 验证前，CN/US 均为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。不得把
+local/CI fixture store 或短期 artifact 冒充正式 D1 存储。
+
+**Reason:** 前瞻时间隔离可在不伪造历史 membership 与微观结构元数据的前提下，从每个
+session 当时可见的信息形成审计链；代价是必须等待固定窗口且可能证据不足。它解决的是
+独立数据设计，不利用 #110 的已暴露 `INSUFFICIENT_EVIDENCE` 结果重新选择信号、止损、
+目标、退出或 gate。
+
+## 2026-09-24 — D1 durable backend 选择独立 Google Drive research folder
+
+**Decision:** D1 长期研究记录使用独立 Google Drive research folder，并只向既有 service
+account 授予该 folder 的最小 writer 权限；运行时只通过 `D1_RESEARCH_DRIVE_FOLDER_ID` 与
+既有 `GOOGLE_SERVICE_ACCOUNT_JSON` 注入。不得扩大 service account 到整个 My Drive，不得
+读取真实持仓、其他 Drive 文件或生产 Sheet state，也不得自动购买付费服务。GitHub Actions
+短期 artifact 只作非权威 observation receipt，不替代 durable object。
+
+正式激活必须依次证明 folder capability、immutable create-if-absent、write 后 read-back hash、
+全图 verify、Drive→空目录跨设备恢复、CN/US 独立 schedule，以及各市场首次自然完整 session。
+人工指定日期固定为 diagnostic backfill，不能成为 prospective evidence。在以上条件与 PR 正常
+合并均完成前，状态保持 `D1_READY_NOT_ACTIVE`。
+
+**Reason:** 文件夹级共享能在既有 Google 配额和凭证通道内提供 12 个月研究对象的跨设备
+可恢复性，同时保持研究写入与生产 Sheet、私人持仓及整个 Drive 权限隔离。
+
+## 2026-09-24 — 普通股票绝对收益空间作为独立经济吸引力诊断
+
+**Decision:** 用户的产品与研究偏好是：普通股票交易即使无印花税，若预期或最终只能获得
+0.x%、1.x%、2.x%，也不符合其交易目标。该偏好不修改当前 D1 冻结门槛，不恢复或新增正式
+绝对收益 hard gate，不改变 primary economic evaluation、T1 全退规则或研究准入。新的报告
+合同把 `SIGNAL_VALID`、`RISK_VALID`、`TARGET_GEOMETRY`、`ECONOMIC_ATTRACTIVENESS`、
+`RESEARCH_ADMISSION` 明确分离，并只读记录全部收益区间与资金占用。
+
+日常中文研究报告先呈现最近合法 T1 的 gross headroom；较远 Fibonacci/T2/T3 只能作为截至
+当时结构可说明、带不确定性的候选，不得绕过 T1 或冒充可实现盈利。报告另列计划止损距离、
+1R、R/R 与预估成本；只有冻结协议下存在合法最终结果时，才呈现 net return%、net R、持有期
+和资金占用。gross 不得称为 net，未来阈值或退出政策变更必须另立前瞻协议决策，禁止看结果后
+挑阈值。
+
+**Reason:** 信号成立、风险有效、目标几何、经济意义和研究准入是不同问题。G1 把既有 5%/2R
+作为诊断不代表用户接受低绝对收益交易；完整保留分布可为未来独立协议提供证据而不污染当前
+D1、Final OOS 或 #110 的 `INSUFFICIENT_EVIDENCE` 结论。
