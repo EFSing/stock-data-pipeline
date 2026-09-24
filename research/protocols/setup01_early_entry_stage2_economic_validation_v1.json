@@ -1,0 +1,291 @@
+{
+  "schema_version": "setup01-early-entry-stage2-economic-validation-v1",
+  "protocol_version": "SETUP01_EARLY_ENTRY_STAGE2_ECONOMIC_VALIDATION_V1",
+  "registered_date": "2026-09-24",
+  "status": "REGISTERED_BEFORE_STAGE2_OUTCOME_ACCESS",
+  "scope": "INDEPENDENT_SAMPLE_READ_ONLY_ECONOMIC_VALIDATION_NOT_PRODUCTION_AUTHORIZATION",
+  "authorization": {
+    "basis": "user explicitly approved the constrained PKG_B_ATR_EXECUTION_STOP research variant on 2026-09-24",
+    "selected_package": "PKG_B_ATR_EXECUTION_STOP",
+    "selected_package_source": "research/development/setup01_early_entry_second_stage_decision_v1.json",
+    "package_selection_was_user_decision_not_result_driven": true,
+    "package_definitions_unchanged": true,
+    "constraints_imposed_by_the_authorization": [
+      "signal uses only the first legal ARMED day and data known as of T",
+      "the initial execution stop is fixed at entry and is never backfilled from confirmation-day parameters",
+      "no confirmation-day Entry Zone and no confirmation-day T1 is applied at the earlier entry",
+      "the existing 5% and 2R gates are not modified and are not used as pre-confirmation admission gates for the experimental group",
+      "no new chase, trend, target-space or ATR-cap filter and no parameter search",
+      "pre-confirmation maximum waiting window fixed at 20 sessions (entry session counts as session 1)",
+      "baseline and stress spread/slippage assumptions fixed at 10bp and 25bp per side",
+      "portfolio drawdown is not estimable and must not be fabricated"
+    ]
+  },
+  "prior_evidence": {
+    "independent_first_stage_protocol": {
+      "path": "research/protocols/setup01_early_entry_independent_validation_v1.json",
+      "sha256": "sha256:ac4d6da233cf78082550fcfdf33d552cd8fa74c9abca6e36e4523de4508f1334"
+    },
+    "independent_first_stage_result": {
+      "path": "research/development/setup01_early_entry_independent_validation_v1.json",
+      "sha256": "sha256:acd9e966f0f9b7284d272f978778147140f1b2c7adcd80606befc3de9119d670",
+      "status": "FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION"
+    },
+    "second_stage_decision_record": {
+      "path": "research/development/setup01_early_entry_second_stage_decision_v1.json",
+      "sha256": "sha256:fad5f0b2f9cc762b90a08a62d69bf3fe27e1832578bab70c32fcd654b90651fc",
+      "status": "READY_FOR_DECISION"
+    },
+    "immutability": "the first-stage result and the A/B/C package definitions are evidence records and are not rewritten by this protocol",
+    "sample_exposure_disclosure": "this sample is symbol-level and lifecycle-level independent of Development, but its calendar window overlaps the Development window and it was already used for the first-stage candidate decision; it is NOT a fresh untouched out-of-sample set and no Final OOS is accessed"
+  },
+  "sample": {
+    "sample_kind": "INDEPENDENT_VALIDATION_SAMPLE_REUSED_FOR_STAGE2",
+    "dataset_version": "SETUP01-EARLY-ENTRY-INDEPENDENT-VALIDATION-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-09-24-v1",
+    "dataset_manifest_path": "research/early_entry_validation_sample/dataset_manifest.json",
+    "dataset_manifest_sha256": "sha256:71a4faa2d681abbbae3151904d93f8c20dbf9c1b4d455a13ebe67aa8af3082b0",
+    "frozen_replay_input_path": "artifacts/setup01_early_entry_independent_validation_v1/independent_validation_replay_input.jsonl.gz",
+    "frozen_replay_input_sha256": "sha256:8caf05e24222f57eaa3224f874238db0a2d394d4f6a3f761b684221ca9897080",
+    "replay_aggregate_hash": "sha256:2500398be662fa2bd894aa4e3d538e9f3c6a04f0a291ece8ff85dfb5164aa4e7",
+    "universe_manifest_sha256": "sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b",
+    "universe_symbol_list_sha256": "sha256:a00cdd73e6976546df43ea92a6e5e48f64124af974ff20c7812ee6c350399e58",
+    "counts": {"CN": 20, "US": 20, "total": 40},
+    "date_window": {"start": "2017-01-01", "end": "2026-08-26", "inclusive": true},
+    "no_replacement_rule": "no symbol, provider, adjustment payload or window may be replaced, extended or re-acquired for this study",
+    "cn_raw_payload": {
+      "path_pattern": "artifacts/setup01_early_entry_independent_validation_v1/raw_baostock/CN/<canonical_symbol>.csv",
+      "fields_used": ["date", "open", "high", "low", "close", "volume", "preclose"],
+      "availability": "LOCAL_FROZEN_ARTIFACT_NOT_TRACKED_IN_GIT",
+      "fallback_if_absent": "limit-price flags are reported as LIMIT_DATA_UNAVAILABLE and the trade stays in the primary result with the flag recorded"
+    }
+  },
+  "denominator": {
+    "common_denominator": "the unchanged first-stage cohort of 2291 causal Wave2 anchor contexts (CN 1081 / US 1210), including FAILED, never-CONFIRMED, screened-out, non-triggered, non-executable, structurally invalidated and right-censored rows",
+    "no_survivorship": "no filtering on later confirmation, price path, MFE/MAE, return, target reach or any outcome label",
+    "reported_per_identity": "signalled, admitted, model-executable, realized exit, censored and missing counts are reported per market and per identity"
+  },
+  "identities": {
+    "A_FULL_INCUMBENT": {
+      "role": "full current SETUP_01 Decision, executed as the production T-day plan plus exact T+1 OPEN execution",
+      "event": "first CONFIRMED event per lifecycle (production is_new_confirmed_event_as_of)",
+      "plan": "production evaluate_setup01_decision: entry zone [H1, H1 + 0.5*ATR14(T)], execution stop = confirmed Wave2 low - 0.5*ATR14(T), T1/T2/T3 from T-known confirmed swing highs above the planned entry plus frozen Wave-1 Fib extension ratios",
+      "admission_gates": "existing 5% gross target-upside gate, existing 2R gate, entry-zone and gap rules; unchanged",
+      "entry": "exact next market session OPEN, only when the production executor classifies EXECUTED",
+      "management": "common research management policy with the frozen T-day targets, execution stop and 1R"
+    },
+    "B_FIRST_CONFIRMED_STRUCTURAL": {
+      "role": "first-CONFIRMED structural timing comparator; NOT a formal tradable plan",
+      "event": "first CONFIRMED event per lifecycle, identical to A",
+      "admission_gates": "none; the structural timing comparator ignores the entry zone, the 5% gate and the 2R gate",
+      "entry": "exact next market session OPEN whenever that OPEN exists and is finite and positive, and the T-day execution stop and structural low exist",
+      "not_evaluable": "when the T-day Decision has no ATR or no structural geometry the row is reported as NOT_EVALUABLE_NO_ATR and kept in the denominator",
+      "management": "common research management policy with the same T-day targets, execution stop and 1R as A",
+      "reporting_rule": "B results must never be presented as the incumbent strategy or as an approved entry rule"
+    },
+    "C_ARMED_CONSTRAINED_PKG_B": {
+      "role": "constrained PKG_B_ATR_EXECUTION_STOP experimental group",
+      "signal": "first legal ARMED day of the lifecycle (causal primary/alternate WAVE_2_TO_3 context with all three Swing anchors confirmed, close >= wave2_low + 0.5*(wave1_peak - wave2_low) and close <= wave1_peak), using only data known as of T",
+      "initial_execution_stop": "S = confirmed Wave 2 low - 0.5 * ATR14(T), computed from the signal-day prefix only",
+      "initial_1R": "entry - S, frozen at entry for the life of the position; never recomputed from confirmation-day parameters",
+      "entry": "exact next market session OPEN after the signal day",
+      "admission_requirements": [
+        "the exact next session bar exists for the symbol and carries a finite positive OPEN",
+        "OPEN > confirmed Wave 2 low",
+        "OPEN > S",
+        "the producing Wave2 lifecycle has not terminated before that entry bar"
+      ],
+      "skip_reasons": [
+        "SKIP_NO_NEXT_SESSION_BAR",
+        "SKIP_INVALID_OPEN",
+        "SKIP_OPEN_AT_OR_BELOW_WAVE2_LOW",
+        "SKIP_OPEN_AT_OR_BELOW_EXECUTION_STOP",
+        "SKIP_LIFECYCLE_TERMINATED_BEFORE_ENTRY"
+      ],
+      "no_confirmation_day_geometry_at_entry": "the confirmation-day Entry Zone, confirmation-day T1/T2/T3 and confirmation-day execution stop are never applied to the earlier entry",
+      "diagnostic_only": "the position of the OPEN relative to H1 is recorded as a diagnostic and never used as an admission filter"
+    }
+  },
+  "pre_confirmation_exit_policy": {
+    "applies_to": "C only, from the entry bar until the session after the first legal CONFIRMED close",
+    "execution_stop": "fixed S; gap at OPEN at or below S exits at that OPEN, otherwise a session LOW at or below S exits at S",
+    "structural_and_lifecycle_exit": "a close-based Wave2 structural invalidation or any causal termination of the producing Setup lifecycle (structural invalidation, wave-scenario invalidation, weekly downtrend, ABC primary context, context no longer eligible or screened out) forces an exit at the next valid session OPEN",
+    "timeout": "maximum waiting window of 20 sessions with the entry session counted as session 1; if the lifecycle has not confirmed by the close of session 20 the position is closed at the next valid session OPEN",
+    "no_future_targets": "no confirmation-day target is used before the first CONFIRMED close and an intraday touch of H1 never creates a synthetic take-profit trade",
+    "censoring": "if the frozen series ends before the scheduled exit the row is right-censored and is excluded from realized trade economics; a separate mark-to-market valuation sensitivity may be reported but must not be mixed into realized results"
+  },
+  "confirmation_handoff": {
+    "trigger": "first legal CONFIRMED close of the producing lifecycle",
+    "targets": "the formal confirmation-day target set computed by production evaluate_setup01_decision for that confirmation event (T-known confirmed swing highs above the planned entry plus frozen Wave-1 Fib extension ratios)",
+    "start": "management uses that target set from the next session onward, never on the confirmation bar itself",
+    "unchanged_geometry": "entry price, initial execution stop and initial 1R stay exactly as frozen at entry",
+    "gates": "the confirmation-day 5% and 2R gates are new-entry admission conditions only and never cancel or eject an already open research position",
+    "invalid_target_fallback": "if the confirmation-day target set is empty the position continues under stop, structural and lifecycle rules only and is flagged NO_VALID_TARGET_AT_CONFIRMATION",
+    "unavailable_decision_fallback": "if no production Decision can be matched to the confirmation event the row is flagged CONFIRMATION_DECISION_UNAVAILABLE and continues without a target exit"
+  },
+  "common_management_policy": {
+    "applies_to": ["A", "B", "C"],
+    "fixed_geometry": "entry price, initial execution stop S0 and initial 1R are frozen at entry; the active stop never moves down and is never widened",
+    "per_session_check_order": [
+      "if OPEN <= active stop: exit at OPEN (EXIT_GAP_BELOW_STOP)",
+      "else if LOW <= active stop: exit at active stop (EXIT_STOP_TRIGGERED)",
+      "else if a target set is active and HIGH >= T1: exit at T1 (EXIT_TARGET_T1_REACHED, research-only assumption)",
+      "else if close <= confirmed Wave 2 low: structural exit pending, execute at the next session OPEN (EXIT_STRUCTURAL_INVALIDATION)",
+      "else continue holding"
+    ],
+    "same_bar_ordering": "the execution stop always takes precedence over a simultaneous target touch, and a gap through the stop is processed before any other condition on that session",
+    "target_exit_assumption": {
+      "status": "RESEARCH_ONLY_ASSUMPTION",
+      "difference_from_frozen_position_management": "docs/POSITION_MANAGEMENT_EXIT_V1.md treats targets as diagnostic state and never auto-sells",
+      "justification": "the authorization pre-registers a stop-versus-target ordering for the confirmation-phase target set, so a full exit at the nearest formal target (T1) is registered before any outcome is read",
+      "conservatism": "T1 is the nearest target and a gap above T1 is recorded at T1, never at the better OPEN"
+    },
+    "declared_differences_from_frozen_position_management": [
+      "targets are exit triggers here and diagnostic-only in the frozen protocol",
+      "no MFE profit-protection floor and no confirmed-higher-low stop raises are applied: both frozen rules reference confirmation-day geometry and ATR that a pre-confirmation entry cannot use without backfilling, and applying them only after confirmation would make the exit engine state-dependent between identities",
+      "no Wave5 context or high-risk advisory flags are computed; they never change an exit decision in the frozen protocol",
+      "none of these differences changes any production module, and the same policy is applied to A, B and C so that differences between identities come from admission and timing, not from exit bookkeeping"
+    ],
+    "shared_alternative_policy": {
+      "policy_id": "NO_TARGET_EXIT_VARIANT",
+      "definition": "identical to the primary policy with the target exit removed, so positions exit only at the stop, on structural invalidation, on pre-confirmation lifecycle failure or timeout, or are censored",
+      "reporting_rule": "reported for all three identities as a pre-registered sensitivity; it is never used to select a favourable reading"
+    }
+  },
+  "cost_model": {
+    "scenarios": {
+      "BASELINE": {"spread_slippage_bp_per_side": 10.0},
+      "STRESS": {"spread_slippage_bp_per_side": 25.0}
+    },
+    "scenario_source": "explicit research assumption supplied with the 2026-09-24 authorization; not observed historical quotes and never adjusted after results",
+    "CN": {
+      "currency": "CNY",
+      "commission_bp_per_side": 2.5,
+      "minimum_commission_per_order": 5.0,
+      "sell_stamp_duty_bp": {"before_2023-08-28": 10.0, "from_2023-08-28": 5.0},
+      "sell_stamp_duty_status": "PUBLIC_HISTORICAL_RULE_RECORDED_WITH_EFFECTIVE_DATE",
+      "transfer_fee_bp_per_side": 0.0,
+      "transfer_fee_status": "UNKNOWN_NOT_MODELED",
+      "transfer_fee_bound": "documented omission bounded by about 0.01% of notional per side if applicable",
+      "commission_and_minimum_fee_status": "ASSUMED_NOT_VERIFIED_ACCOUNT_RATE",
+      "lot_size": 100,
+      "price_limit_pct": 0.10,
+      "price_limit_status": "ASSUMED_FROM_BOARD_CODE_RANGE_MAIN_BOARD_ONLY",
+      "st_regime_modeled": false,
+      "limit_detection": "an OPEN within 0.005 of round(preclose * (1 +/- price_limit_pct), 2) is flagged MODEL_ONLY_LIMIT_AT_OPEN and kept in the primary result",
+      "suspension_rule": "a missing next-session bar is a skip; a zero or non-finite volume prevents model execution"
+    },
+    "US": {
+      "currency": "USD",
+      "commission_per_side": 0.0,
+      "commission_status": "ASSUMED_NOT_VERIFIED_ACCOUNT_RATE",
+      "sec_section_31_fee_bp_sell": 0.3,
+      "sec_fee_status": "ASSUMED_HISTORICAL_APPROXIMATION_NOT_PER_DATE_VERIFIED",
+      "finra_taf_per_share_sell": 0.000166,
+      "finra_taf_cap": 8.30,
+      "finra_taf_status": "ASSUMED",
+      "lot_size": 1,
+      "price_limit_pct": null,
+      "spread_source": "no quote or spread data exists in the frozen payload; the spread component is the registered scenario bp and is reported as a modelling assumption"
+    },
+    "cost_application": "buy cost = OPEN * (slippage + commission) + minimum fee per order; sell cost = EXIT * (slippage + commission + sell taxes and fees) + minimum fee per order + per-share sell fee; gross and net results are reported separately",
+    "costs_are_model_assumptions_not_broker_fills": true
+  },
+  "position_sizing": {
+    "risk_budget_per_trade": 0.005,
+    "standardised_research_budget": {"CN": 1000000.0, "US": 100000.0},
+    "budget_status": "STANDARDISED_RESEARCH_BUDGET_NOT_A_USER_ACCOUNT_NAV",
+    "quantity": "floor(risk_capital / |entry - initial stop| / lot_size) * lot_size, computed once at entry and never re-sized",
+    "not_executable_rule": "a quantity below one lot is reported as NOT_EXECUTABLE_AT_RESEARCH_BUDGET and excluded from realized economics",
+    "portfolio_semantics": "the existing account risk and portfolio capacity semantics are unchanged and are not applied here; only single-trade feasibility is computed",
+    "capital_occupation": "notional = quantity * entry, position-days = number of sessions the position is open, capital-time = notional * position-days, reported as exposure only"
+  },
+  "metrics": {
+    "primary": "mean net R per realized trade, per identity, per market, under the BASELINE cost scenario",
+    "per_trade": ["gross R", "net R", "gross return", "net return", "holding sessions", "notional", "position-days", "exit reason"],
+    "per_identity_per_market": [
+      "signal, admission, model-executable, realized, censored and missing counts with reason breakdowns",
+      "mean, median, p10, p25, p75, p90 of net R and net return",
+      "share of losing trades, share of trades at or below -1R, worst trade and tail loss",
+      "gross versus net comparison and the BASELINE versus STRESS difference",
+      "notional, position-days and capital-time distributions",
+      "composition by eventual status (LATER_CONFIRMED, FAILED, NEVER_CONFIRMED) and by resolution",
+      "time-half and depth-band strata, symbol concentration and count-leading-symbol removal"
+    ],
+    "opportunity_cost": "only exposure is reported; no alternative-trade model is registered, so missed-return figures are never fabricated",
+    "portfolio": "portfolio drawdown is NOT_ESTIMABLE because no account-level concurrency, budget or holdings path is modelled; event-level sums are reported as sums of event-level net R and are never presented as a portfolio equity curve"
+  },
+  "uncertainty": {
+    "clustering": "symbol-clustered bootstrap: symbols are resampled with replacement within each market and every event of a sampled symbol is kept together",
+    "resamples": 2000,
+    "seed": 20260924,
+    "statistics": ["mean net R per realized trade", "difference of mean net R versus C", "mean net return"],
+    "reported_interval": "2.5th to 97.5th percentile of the resampled statistic",
+    "strata": "time half by market-session ordinal, depth band, market, and the drop-count-leading-symbol and drop-censored variants",
+    "paired_subset": "lifecycles where both an incumbent trade and an experimental trade were realized are reported descriptively as a paired subset"
+  },
+  "decision_rules": {
+    "applied_per_market_and_pooled": true,
+    "floors": {
+      "min_realized_trades_C_per_market": 40,
+      "min_realized_trades_B_per_market": 25,
+      "min_realized_trades_A_per_market": 5,
+      "min_symbols_with_realized_C_per_market": 8,
+      "censored_share_of_C_entries_max": 0.10,
+      "floor_derivation": "conservative fractions of the first-stage executable counts (CN 461, US 525); failing a floor yields INSUFFICIENT_EVIDENCE, never NOT_SUPPORTED"
+    },
+    "outcomes": {
+      "supported": "SUPPORTED_FOR_INDEPENDENT_EXECUTION_VALIDATION",
+      "not_supported": "NOT_SUPPORTED",
+      "insufficient": "INSUFFICIENT_EVIDENCE"
+    },
+    "supported_requires_all": [
+      "floors satisfied in CN and US",
+      "mean net R per realized trade of C is strictly greater than A and strictly greater than B in both markets",
+      "the pooled symbol-clustered bootstrap 95% interval for (C - B) and for (C - A) excludes zero with a strictly positive lower bound",
+      "the pooled point estimates of (C - B) and (C - A) stay strictly positive under the STRESS cost scenario and after dropping the count-leading symbol of each market"
+    ],
+    "not_supported_rule": "if the pooled point estimate of (C - B) or of (C - A) is at or below zero the classification is NOT_SUPPORTED",
+    "insufficient_evidence_rule": "floors, censoring bounds, missing confirmation Decisions, cost or fill assumptions that flip the sign of a pooled point estimate, or an interval that contains zero while the point estimates stay positive yield INSUFFICIENT_EVIDENCE",
+    "no_post_hoc_rule_change": "a failed or insufficient classification is reported as-is and cannot be re-run with new thresholds, new symbols, a longer window, another exit policy or additional strata",
+    "claim_boundary": "even a supported classification authorizes only an application for a the next independent execution validation stage; it authorizes no production rule, Paper ledger, state write, Sheet write or broker path"
+  },
+  "stopping_rules": [
+    "sample, protocol or replay hash mismatch -> stop with INSUFFICIENT_EVIDENCE and keep the diagnostics",
+    "any identity unable to reproduce its first-stage counts on the common denominator -> stop with INSUFFICIENT_EVIDENCE",
+    "leakage, non-causal signal data, same-bar fill or later-bar substitution detected -> stop, report the violation and publish no economic classification",
+    "no sample replacement, no window extension, no parameter or exit search after the first result"
+  ],
+  "out_of_scope": [
+    "production rule change of any kind",
+    "Paper ledgers, production state, Sheets writes or broker orders",
+    "real holdings or account NAV",
+    "Final OOS or any formal validation set",
+    "portfolio construction, concurrency, drawdown or equity curves",
+    "reopening the closed confirmed-after-retest research"
+  ],
+  "forbidden": [
+    "modifying Wave, Setup, Entry, Target, Stop, 5%, 2R, Risk, T->T+1 or Position Management semantics in production code",
+    "using confirmation-day geometry to filter the early entry",
+    "searching exit, timeout, cost or filter parameters after reading results",
+    "claiming broker or real fills from model fills",
+    "PR #82 changes",
+    "mixing the US production data-quality repair with this research"
+  ],
+  "outputs": {
+    "json": "research/development/setup01_early_entry_stage2_economic_validation_v1.json",
+    "markdown": "research/development/setup01_early_entry_stage2_economic_validation_v1.md",
+    "event_detail": "compact aggregate, per-identity and per-market distributions plus reason counts; no raw bars, no private holdings"
+  },
+  "governance": {
+    "research_only": true,
+    "production_strategy_unchanged": true,
+    "final_oos_accessed": false,
+    "real_holdings_accessed": false,
+    "parameter_search": false,
+    "threshold_sweep": false,
+    "state_writes": 0,
+    "sheets_writes": 0,
+    "broker_orders": 0,
+    "protocol_frozen_before_economic_result": true
+  }
+}
