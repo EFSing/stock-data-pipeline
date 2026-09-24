@@ -23,7 +23,7 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - 已关闭的 `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1` 继续关闭。新双路径不是
   “进入旧 Entry Zone 后再套旧 5%/2R”的重命名版本，而是新的 research overlay 契约。
 - 新分支 `research/setup01-post-breakout-dual-path-protocol-v1` 从 `origin/main` 独立建立，
-  未混入 #82/#96/#110。
+  PR #111 保持 OPEN，未混入 #82/#96/#110，不自动合并。
 - 架构文档：`docs/research/SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_PROTOCOL_DRAFT.md`。
 - 机器草案：`research/protocols/setup01_post_breakout_dual_path_entry_v1_draft.json`，状态
   `DRAFT_NOT_EXECUTABLE_READY_FOR_DECISION`。
