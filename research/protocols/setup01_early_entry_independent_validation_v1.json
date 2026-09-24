@@ -1,0 +1,222 @@
+{
+  "schema_version": "setup01-early-entry-independent-validation-v1",
+  "protocol_version": "SETUP01_EARLY_ENTRY_INDEPENDENT_VALIDATION_V1",
+  "registered_date": "2026-09-24",
+  "status": "REGISTERED_BEFORE_NEW_SAMPLE_SIGNAL_ACCESS",
+  "scope": "INDEPENDENT_SAMPLE_FIRST_STAGE_ONLY_NOT_PRODUCTION_AUTHORIZATION",
+  "research_question": "On an independent CN/US sample, does the already pre-defined SETUP_01 ARMED milestone, used as an earlier-entry trigger, reproduce a price-space improvement relative to the incumbent first-CONFIRMED entry, while keeping failure, non-confirmation and adverse-excursion cost within pre-registered bounds?",
+  "prior_evidence": {
+    "development_protocol": "PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1",
+    "development_artifact": "research/development/pre_confirmation_early_entry_causal_research_v1.json",
+    "development_geometry_artifact": "research/development/frozen_development_geometry_attribution_v1.json",
+    "joint_diagnosis": "docs/research/CN_US_JOINT_OPPORTUNITY_DIAGNOSIS_2026-09-24.md",
+    "development_armed_milestone_reference": {
+      "dataset": "SETUP_03-DEVELOPMENT-HOLDOUT-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-08-29-v1",
+      "CN": {
+        "anchor_contexts": 1008,
+        "executable_signals": 438,
+        "later_confirmed": 124,
+        "later_confirmed_share_of_executable": 0.2831,
+        "structural_invalidation_first": 99,
+        "structural_invalidation_share_of_executable": 0.226
+      },
+      "US": {
+        "anchor_contexts": 1246,
+        "executable_signals": 566,
+        "later_confirmed": 202,
+        "later_confirmed_share_of_executable": 0.3569,
+        "structural_invalidation_first": 134,
+        "structural_invalidation_share_of_executable": 0.2367
+      },
+      "paired_later_confirmed_executable": 326,
+      "paired_median_headroom_gain_R": 0.26425318111244955
+    },
+    "selection_basis": "The single experimental group is fixed from the exposed Development evidence before the new sample is read: it is the only registered earlier-entry candidate that is already a pre-defined production milestone (SETUP01_RECOVERY_RATIO = 0.5). No milestone search, no new filter combination, and no threshold sweep is performed on the new sample.",
+    "development_result_boundary": "PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1 stayed at READY_FOR_DECISION and did not support execution/cost research; the confirmed-after-retest study remains closed and is not reopened by this protocol."
+  },
+  "single_experimental_group": {
+    "policy_id": "ARMED_HALF_RECOVERY",
+    "role": "earlier_entry_experimental_group",
+    "milestone": "first causal primary/alternate WAVE_2_TO_3 context observation, with all three Swing anchors already confirmed, before confirmation or invalidation, where close >= LOW2 + 0.5 * (H1 - LOW2) and close <= H1",
+    "production_equivalence": "the same predicate as the existing SETUP_01 ARMED state (trading/setup01.py: close >= Wave 2 low + SETUP01_RECOVERY_RATIO * (Wave 1 peak - Wave 2 low), close <= Wave 1 peak, SETUP01_RECOVERY_RATIO = 0.5), evaluated as an entry trigger rather than a state label",
+    "signal_count_per_lifecycle": "one first signal per Wave2 anchor context",
+    "entry": "exact next frozen market-session OPEN",
+    "no_extra_filter": true,
+    "explicitly_not_used": [
+      "FIRST_BULLISH_RECOVERY",
+      "H1_INTRADAY_RECLAIM",
+      "ARMED_HALF_RECOVERY_DAILY_UPTREND"
+    ]
+  },
+  "comparator": {
+    "policy_id": "INCUMBENT_CONFIRMED_CLOSE",
+    "role": "incumbent_comparator",
+    "milestone": "first causal day with state == CONFIRMED, which requires close > H1",
+    "entry": "exact next frozen market-session OPEN",
+    "selection": "one signal per lifecycle; no Decision/RR/target gate is added to this structural timing comparator"
+  },
+  "sample": {
+    "sample_kind": "INDEPENDENT_VALIDATION_SAMPLE",
+    "universe_manifest_path": "research/atr_boundary_universe_manifest.json",
+    "universe_version": "SETUP_03-ATR-BOUNDARY-CLEAN-HOLDOUT-CN-US-2026-08-29-v1",
+    "universe_manifest_sha256": "sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b",
+    "universe_symbol_list_sha256": "sha256:a00cdd73e6976546df43ea92a6e5e48f64124af974ff20c7812ee6c350399e58",
+    "counts": {"CN": 20, "US": 20, "total": 40},
+    "date_window": {"start": "2017-01-01", "end": "2026-08-26", "inclusive": true},
+    "provider_contract": {
+      "CN": {
+        "provider_id": "BAOSTOCK_DEVELOPMENT_QFQ",
+        "query_method": "baostock.query_history_k_data_plus",
+        "adjustflag": "2",
+        "adjustment_mode": "BAOSTOCK_QFQ_ADJUSTFLAG_2",
+        "frequency": "d",
+        "local_trading_date_timezone": "Asia/Shanghai"
+      },
+      "US": {
+        "provider_id": "YFINANCE_DEVELOPMENT_HISTORICAL",
+        "query_method": "yfinance.Ticker.history",
+        "auto_adjust": true,
+        "actions": false,
+        "repair": false,
+        "interval": "1d",
+        "local_trading_date_timezone": "America/New_York"
+      }
+    },
+    "dataset_paths": {
+      "dataset_manifest": "research/early_entry_validation_sample/dataset_manifest.json",
+      "replay_manifest": "research/early_entry_validation_sample/replay_manifest.json",
+      "frozen_replay_input": "artifacts/setup01_early_entry_independent_validation_v1/independent_validation_replay_input.jsonl.gz",
+      "raw_and_normalized_payload_dir": "artifacts/setup01_early_entry_independent_validation_v1/"
+    },
+    "dataset_version": "SETUP01-EARLY-ENTRY-INDEPENDENT-VALIDATION-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-09-24-v1",
+    "independence": {
+      "symbol_level": "the frozen roster manifest proves empty intersections with the A1 formal 120, the earlier development universe v1 and the second development holdout (the sample used by PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1); no symbol and therefore no lifecycle identity is shared with the exposed Development data",
+      "lifecycle_level": "anchor-contract identities are (symbol, LOW0 pivot, H1 pivot, LOW2 pivot); because the symbol sets are disjoint, no anchor context, confirmation, failure or censored lifecycle can be re-used across samples",
+      "time_level": "the calendar window deliberately matches the frozen Development window so that the comparison differs only by entity; therefore this sample is NOT time-independent and market-regime overlap is a disclosed limitation rather than a claimed control. Pre-registered time halves are reported descriptively",
+      "parameter_level": "all signal definitions, bands and thresholds come from the already registered PRE_CONFIRMATION_EARLY_ENTRY_CAUSAL_RESEARCH_V1 milestone and from this frozen protocol; no parameter was fitted on the new sample",
+      "prior_exposure_disclosure": "the same 40 symbols were previously used for a different hypothesis (SETUP_03 ATR-normalized platform boundary structural qualification, which stopped at STOP_SETUP_03_STRUCTURAL_DEVELOPMENT). That work involved no SETUP_01 Wave2 earlier-entry signal, outcome, target or Decision, and the roster was frozen from metadata snapshots only before any OHLCV was read."
+    },
+    "payload_identity_rule": "the price payload is re-acquired under the frozen provider contract and frozen as a new dataset identity with its own hashes; per-symbol hash comparison against the 2026-08-29 clean-holdout dataset manifest is recorded as informational consistency evidence only and a mismatch is never substituted or hidden",
+    "qc_rules": {
+      "missing_dates": "NOT_INFERRED_NO_FILL",
+      "interpolation": false,
+      "provider_switching": false,
+      "symbol_replacement": false,
+      "ohlc_mutation": false,
+      "acceptance": "all 40 roster symbols must return VALID_ACCEPTED with a non-empty exact-window history; otherwise the dataset is BLOCKER_FAIL_CLOSED and first-stage validation cannot run",
+      "market_floor": "CN 20/20 and US 20/20 accepted symbols"
+    }
+  },
+  "denominator": {
+    "cohort_rule": "every strict as-of causal primary/alternate WAVE_2_TO_3 anchor context whose LOW0, H1 and LOW2 Swing identities are confirmed as of the observation, rebuilt from the frozen sample with the unchanged Wave/Swing engine; the cohort is rebuilt from contexts and never from the later CONFIRMED subset",
+    "required_composition": [
+      "later CONFIRMED",
+      "FAILED or structurally invalidated",
+      "never CONFIRMED",
+      "screened out by the current system",
+      "timeout/unresolved at data end",
+      "invalid Wave2 geometry contexts retained as screened rows"
+    ],
+    "common_denominator": "both the experimental group and the incumbent are reported against the same full anchor-context cohort per market; suppressed, failed, unconfirmed and right-censored lifecycles stay in the denominator and are never dropped",
+    "no_survivorship": "no filtering on later confirmation, later failure, price path, MFE/MAE, return, target reach or any outcome label"
+  },
+  "causal_contract": {
+    "signal_information": "only Quote data and existing causal replay/Wave/Swing state with data <= signal date",
+    "event_identity": "same anchor-context identity and same first-signal semantics as the registered Development protocol; exactly one first signal per lifecycle per policy",
+    "executable_entry": "the exact next date in the frozen market-session union must carry a unique finite OPEN for the symbol; otherwise the signal is not executable and is reported as censored for entry metrics",
+    "same_bar_fill": "forbidden",
+    "later_bar_substitution": "forbidden; a missing next session is never replaced by a later bar and never by T+2",
+    "missing_data": "absent dates stay absent; no interpolation, no synthetic bar, no provider switch, no fill",
+    "outcome_use": "confirmation, failure, adverse excursion, hurdle and headroom results are post-definition evaluation only and never feed back into signal selection or into the sample"
+  },
+  "metrics": {
+    "price_space_primary": "paired normalized headroom gain over Wave1 R = H1 - LOW0, defined as (incumbent exact next-session OPEN - early exact next-session OPEN) / R on lifecycles where both entries are executable; equivalent for the H1, Fib1.272 and Fib1.618 reference levels because the targets are fixed per lifecycle",
+    "paired_population": "lifecycles with both an executable early entry and an executable incumbent entry; paired count, median and p10/p25/p75/p90 are reported per market",
+    "sign_test": "exact two-sided binomial sign test on the paired gain signs (ties excluded), evaluated per market",
+    "failure_cost": "structural invalidation before confirmation count and share of executable early signals; failed, never-CONFIRMED and screened-out composition; censored and ambiguous counts",
+    "adverse_excursion": "minimum observed low from the executable early entry through confirmation, close-based structural invalidation, screened-out replacement boundary or dataset end, normalized by R; reported with the paired increment against the incumbent",
+    "coverage_and_missing": "signaled, not-signaled, executable, not-executable and right-censored counts on the common denominator, plus dataset QC coverage",
+    "descriptive_only": "no P&L, no return, no win rate, no expectancy, no Sharpe, no execution cost and no broker outcome is computed in this stage"
+  },
+  "strata": {
+    "decision_level": ["CN", "US"],
+    "descriptive_levels": ["Setup (this hypothesis is SETUP_01 only)", "time half by frozen market-session ordinal", "Wave2 depth band NORMAL_OR_SHALLOW/DEEP/VERY_DEEP", "resolution status", "count-leading symbol removal"],
+    "no_result_selection": true
+  },
+  "decision_rules": {
+    "applied_per_market": ["CN", "US"],
+    "overall_requires_all_markets_to_pass": true,
+    "floors": {
+      "min_anchor_contexts_per_market": 100,
+      "min_executable_early_signals_per_market": 40,
+      "min_paired_later_confirmed_executable_per_market": 25,
+      "floor_derivation": "conservative fractions (about 10% of anchor contexts and about 8-15% of the exposed Development signal/paired counts) used only to stop sparse-sample over-reading; failing a floor yields INSUFFICIENT_EVIDENCE, never NOT_SUPPORTED"
+    },
+    "gates": {
+      "space_improvement": {
+        "paired_gain_metric": "incumbent_entry_minus_early_entry_over_R",
+        "median_min": 0.1,
+        "median_min_derivation": "about 38% of the exposed Development paired median gain of 0.2643 R; a smaller independent-sample gain is treated as too small to carry an earlier-entry design",
+        "exact_sign_test": {"sides": 2, "alpha": 0.05}
+      },
+      "invalidation_control": {
+        "structural_invalidation_share_of_executable_signals_max": 0.35,
+        "derivation": "exposed Development shares are CN 0.2260 and US 0.2367; the bound adds an independent-sample tolerance of roughly 11-12 percentage points"
+      },
+      "confirmation_control": {
+        "later_confirmed_share_of_executable_signals_min": 0.2,
+        "derivation": "exposed Development shares are CN 0.2831 and US 0.3569; the floor is roughly 8-15 percentage points below them and marks a materially weaker confirmation yield"
+      }
+    },
+    "evaluation": "each market is classified independently; all three gates must hold in both CN and US for the first stage to be supported, which is a stricter conjunction than two independent tests because no diversification across markets is allowed",
+    "outcomes": {
+      "insufficient_evidence": "INSUFFICIENT_EVIDENCE",
+      "supported": "FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION",
+      "not_supported": "FIRST_STAGE_NOT_SUPPORTED"
+    },
+    "post_hoc_rule_change": "forbidden; a failed or insufficient classification is reported as-is and cannot be re-run with new thresholds, new symbols, a longer window or additional strata"
+  },
+  "stopping_rules": [
+    "dataset QC not ready, universe binding changed, or any roster symbol not VALID_ACCEPTED -> stop with INSUFFICIENT_EVIDENCE and keep the diagnostics",
+    "cohort or paired population below the pre-registered floors -> stop with INSUFFICIENT_EVIDENCE",
+    "leakage, duplicated lifecycle identity across samples, or a non-causal signal detected -> stop, report the violation, and do not publish a supported classification",
+    "no sample replacement, no window extension, no parameter search, no additional milestone after the first result"
+  ],
+  "out_of_scope": [
+    "execution cost, spread, slippage, commission or net return",
+    "win rate, expectancy, Sharpe, portfolio drawdown or allocation",
+    "new Stop, Target, Entry Zone, 5%, 2R, position sizing or admission rules",
+    "Paper ledger, production state, Sheets writes or broker orders",
+    "Final OOS or any formal validation set",
+    "reopening the closed confirmed-after-retest research"
+  ],
+  "forbidden": [
+    "production rule change",
+    "modifying confirmation, target semantics, 5% gate, 2R, Stop, Wave, Swing or Fib",
+    "Final OOS",
+    "parameter optimization or threshold sweep",
+    "milestone search or new filter combinations",
+    "sample replacement or window extension after the first result",
+    "broker, state write or Sheets mutation",
+    "PR #82 changes",
+    "mixing production data-quality repair with this research"
+  ],
+  "outputs": {
+    "json": "research/development/setup01_early_entry_independent_validation_v1.json",
+    "markdown": "research/development/setup01_early_entry_independent_validation_v1.md",
+    "event_detail": "compact aggregate plus paired evidence only; no raw bars, no private holdings"
+  },
+  "governance": {
+    "research_only": true,
+    "production_strategy_unchanged": true,
+    "final_oos_accessed": false,
+    "real_holdings_accessed": false,
+    "parameter_search": false,
+    "threshold_sweep": false,
+    "state_writes": 0,
+    "sheets_writes": 0,
+    "broker_orders": 0,
+    "pr82_mixed_in": false,
+    "protocol_frozen_before_signal_access": true
+  }
+}
