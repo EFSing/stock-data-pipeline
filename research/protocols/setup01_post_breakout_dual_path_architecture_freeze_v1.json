@@ -1,0 +1,45 @@
+{
+  "schema_version": "setup01-post-breakout-dual-path-architecture-freeze-v1",
+  "freeze_id": "SETUP01_POST_BREAKOUT_DUAL_PATH_ARCHITECTURE_FREEZE_V1",
+  "freeze_date": "2026-09-24",
+  "status": "ARCHITECTURE_FROZEN_DATA_NOT_AUTHORIZED",
+  "scope": "RESEARCH_ARCHITECTURE_ONLY",
+  "protocol_path": "research/protocols/setup01_post_breakout_dual_path_entry_v1_draft.json",
+  "protocol_sha256": "5f285a60d62115254732728d07a6429233f4c83a8da7360702830da8cc4cc177",
+  "selected_package": {
+    "signal": "PRICE_ACTION_ONLY",
+    "opportunity": "ONE_PER_PATH_UNTIL_FILL",
+    "observation_window_sessions": 20,
+    "execution_stop": "SIGNAL_SUPPORT_ATR_STOP",
+    "primary_exit": "X1_MECHANICAL_T1_EXIT",
+    "secondary_exit_sensitivity": "X2_FORMAL_PM_COMPATIBLE_EXIT",
+    "primary_gate": "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES",
+    "nested_gate_attribution": "G0_INCUMBENT_HARD_GATES",
+    "independent_data": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL"
+  },
+  "pre_outcome_corrections": {
+    "breakout_day_b_may_be_path_a_signal": true,
+    "breakout_day_plan_earliest_execution": "exact B+1 session",
+    "breakout_day_path_a_consumes_shared_path_a_opportunity": true,
+    "path_b_requires_actual_post_breakout_retest": true,
+    "target_candidate_threshold": "price > entry_trigger",
+    "entry_ceiling_target_prefilter_forbidden": true,
+    "actual_entry_at_or_above_frozen_t1": "SKIP_NO_REMAINING_TARGET",
+    "automatic_t2_substitution": false
+  },
+  "research_chronology_at_freeze": {
+    "d2_roster_created": false,
+    "d2_market_data_acquired_or_accessed": false,
+    "d2_signals_generated_or_accessed": false,
+    "d2_returns_generated_or_accessed": false,
+    "final_oos_established_or_accessed": false
+  },
+  "authorization": {
+    "d2_data_acquisition": false,
+    "signal_generation": false,
+    "economic_replay": false,
+    "production_change": false,
+    "paid_data_purchase": false
+  },
+  "next_gate": "D2 point-in-time data feasibility, cost source, snapshots and hashes must be resolved in a later pre-signal freeze"
+}

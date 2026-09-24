@@ -1,6 +1,6 @@
 # SETUP_01 H1 突破后双路径入场研究协议草案
 
-Status: `READY_FOR_DECISION`
+Status: `ARCHITECTURE_FROZEN_AWAITING_D2_DATA_AND_COST_FREEZE`
 
 Protocol draft: `SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_RESEARCH_V1_DRAFT`
 
@@ -50,8 +50,9 @@ Position Management 与 Final OOS 边界保持不变。
 ```text
 WAVE2_CONTEXT
   -> H1_BREAKOUT_CONFIRMED (existing first close > H1, date B)
-  -> POST_BREAKOUT_OBSERVATION (starts B+1)
-       -> CONTINUATION_SIGNAL
+       -> CONTINUATION_SIGNAL (B close may qualify)
+  -> POST_BREAKOUT_OBSERVATION (B close onward)
+       -> CONTINUATION_SIGNAL (if path A opportunity remains)
        -> RETEST_PENDING -> RETEST_SIGNAL
   -> ENTRY_PLAN
   -> exact next-session BUY_STOP_EXECUTION
@@ -63,21 +64,26 @@ WAVE2_CONTEXT
 
 - `overlay_lifecycle_id = existing_confirmed_event_identity + protocol_version`。
 - LOW0、H1、Wave2 Low 取自 B 日已有 confirmed anchor tuple，并在 overlay 内冻结。
-- 每日先用 `data <= t-1` 构造当日有效支撑区域，再用 t 日完整 OHLCV 判断是否触及及
-  是否形成信号 K。信号只能在 t 日收盘后成立。
+- B 日路径 A 直接使用 B 日收盘已知的突破 K 形态；B 日不构造路径 B 回踩事实。从 B+1
+  起，每日先用 `data <= t-1` 构造当日有效支撑区域，再用 t 日完整 OHLCV 判断是否触及及
+  是否形成信号 K。任何信号都只能在对应 K 线收盘后成立。
 - 同一 overlay 最多一笔已执行持仓；执行后两条路径同时终止。
 - 后来是否回踩不得反向改变更早的 continuation 信号或成交。
 
 ### 3.2 路径路由与同日优先级
 
-1. B 日只创建观察，不允许同日作为新框架信号 K。
-2. 从 B+1 起，若截至当日尚未触及当日冻结的 `active_retest_zone`，可以评估路径 A。
-3. 某日价格区间首次触及 `active_retest_zone` 后，生命周期进入 `RETEST_PENDING`；从该日
+1. B 日收盘若同时满足首次 `close > H1` 与路径 A 的突破延续形态，B 本身就是合法信号
+   K；收盘后生成计划，最早 B+1 执行。B 日信号消耗本生命周期唯一的路径 A 机会。
+2. B 日不能产生路径 B：路径 B 必须从 B+1 起，基于开盘前冻结区域与当日实际 touch/
+   reclaim 事实判定，不能用 B 日突破信息虚构“突破后回踩”。
+3. 从 B+1 起，若路径 A 机会尚未使用，且截至当日尚未触及当日冻结的
+   `active_retest_zone`，可以评估路径 A。
+4. 某日价格区间首次触及 `active_retest_zone` 后，生命周期进入 `RETEST_PENDING`；从该日
    起不再产生新的 continuation signal。
-4. 同一 K 同时满足 continuation 价格条件和 retest touch/reclaim 时，按路径 B 归属，
+5. B+1 及之后，同一 K 同时满足 continuation 价格条件和 retest touch/reclaim 时，按路径 B 归属，
    因为“实际触及支撑”是可观测事实，不允许事后择优标签。
-5. continuation 计划已生成但未成交后是否仍允许一次 retest 机会，是待用户决定的
-   `OPPORTUNITY_POLICY`；任何选项都不允许已成交后再入场或加仓。
+6. 已选择 `ONE_PER_PATH_UNTIL_FILL`：路径 A（无论 B 日或后续日）最多一份计划；A 未成交
+   后可有一份路径 B 计划；总窗口不重置。任何选项都不允许已成交后再入场或加仓。
 
 ### 3.3 失败、替换与超时
 
@@ -90,8 +96,8 @@ WAVE2_CONTEXT
 - 达到预注册 observation window；
 - 数据结束：`RIGHT_CENSORED_OBSERVATION`，不得当作无信号失败或成功。
 
-建议预注册窗口为 20 个 completed sessions（约一个交易月），但它属于
-`OPPORTUNITY_POLICY` 决策，不从已暴露收益中选择。
+预注册窗口为从 B 日计数的 20 个 completed sessions（B=1，约一个交易月），A/B 未成交
+计划都不重置窗口；该选择先于 D2 信号或收益访问。
 
 ## 4. Fibonacci 与有效回踩区域
 
@@ -128,7 +134,7 @@ WAVE2_CONTEXT
 
 `PRICE_ACTION_ONLY` 定义：
 
-- 此前及本日均未触及 active retest zone；
+- 若 T=B：不适用 active-zone touch 条件；若 T>B：此前及本日均未触及 active retest zone；
 - `close > H1`；
 - `close > previous_high`；
 - `close > open`；
@@ -156,9 +162,9 @@ WAVE2_CONTEXT
 
 `PRICE_PLUS_RVOL` 不是并联形态，而是给上述同一价格定义追加
 `volume_T / median(volume[T-20:T-1]) >= 1.20`。volume 缺失或非正时 fail closed。
-必须在运行任何新经济回放前，从 `PRICE_ACTION_ONLY` 与 `PRICE_PLUS_RVOL` 中选一个；
-不得在同一暴露样本上比较后选择胜者。默认建议 `PRICE_ACTION_ONLY`，RVOL20 仅作诊断，
-因为现有跨市场 volume 质量与口径没有 Entry 层 SSOT。
+用户已选择 `PRICE_ACTION_ONLY`；RVOL20 仅作 diagnostic，不参与准入。不得在同一暴露
+样本上比较后改选 `PRICE_PLUS_RVOL`。选择依据是现有跨市场 volume 质量与口径没有
+Entry 层 SSOT，不是已暴露收益结果。
 
 ## 6. 从信号到实际成交
 
@@ -204,6 +210,7 @@ valid_session = exact next completed market session only
 
 前者检验“信号 K / 被测试支撑失效就退出”，风险更紧但更易受噪声/跳空影响；后者给
 价格更大空间但 1R、资金占用和尾部 gap 风险更高。两者不可在看到收益后逐笔择优。
+用户已选择 `SIGNAL_SUPPORT_ATR_STOP`。
 
 ### 6.3 止损距离与最小手数
 
@@ -229,15 +236,17 @@ valid_session = exact next completed market session only
 
 先生成目标，再计算任何 R/R。候选仅包括：
 
-1. 截至 T 已确认、价格高于 `entry_ceiling` 的 Swing highs（包括合法的 post-breakout
+1. 截至 T 已确认、价格严格高于 `entry_trigger` 的 Swing highs（包括合法的 post-breakout
    confirmed swing high）；
 2. 既有 Wave1 range 从 Wave2 Low 投射的 1.272/1.618/2.0/2.618 extensions，且价格
-   高于 `entry_ceiling`。
+   严格高于 `entry_trigger`。
 
 按价格升序、同价合并 provenance，前三个为 T1/T2/T3。H1 在突破后是支撑/路径路由
 水平，不是上方 target。running high 不是 confirmed Swing，不能用其事后 Fib extension
-制造目标。执行日若实际入场已不低于冻结 T1，直接 `SKIP_NO_REMAINING_TARGET`，不得改用
-T2 绕过最近目标。
+制造目标。`entry_ceiling` 只约束允许成交区间，绝不参与候选目标预过滤；位于 trigger 与
+ceiling 之间的最近合法目标仍须冻结为 T1，并交给预注册 gate/实际成交检查。执行日若实际
+入场已不低于冻结 T1，直接 `SKIP_NO_REMAINING_TARGET`，不得改用 T2 绕过最近目标，也不得
+为了通过 R/R 替换、延伸或删除 T1。
 
 ### 7.2 研究退出候选包
 
@@ -253,6 +262,9 @@ T2 绕过最近目标。
 两者不得在结果出现后选择；若协议同时报告另一包，只能作为预注册 sensitivity，不能
 替换 primary classification。数据末端未完成的一律右删失，单独报告 final-close valuation，
 不得混入 realized primary metric。
+
+用户已选择 `X1_MECHANICAL_T1_EXIT` 为 primary；`X2_FORMAL_PM_COMPATIBLE_EXIT` 仅作
+预注册 sensitivity，不参与 primary classification 选择。
 
 ## 8. 5% / 2R 机制审查
 
@@ -286,6 +298,9 @@ E  research_trade_admitted
 本次不得删除正式 5%/2R。独立验证前必须选一个 primary gate role；另一个若保留，只能
 作预注册嵌套归因，路径 A/B 仍分别报告，禁止比较多套阈值后挑赢家。
 
+用户已选择 `G1_SIGNAL_FIRST_DIAGNOSTIC_GATES` 为 primary；`G0_INCUMBENT_HARD_GATES`
+只作固定嵌套归因，不得替换 G1 的 primary classification。
+
 ## 9. 样本暴露审计与独立验证边界
 
 ### 9.1 已暴露、不得重新命名为独立样本
@@ -315,6 +330,9 @@ Final OOS 未建立、未访问，本协议也不授权建立或访问。
 如选择 D2 但不能取得 point-in-time constituent、board/ST、corporate action、交易日和
 费用数据，应升级为“付费 point-in-time 数据需求”，而不是降低完整性。任何购买供应商的
 选择与预算需用户另行批准。
+
+用户已选择 `D2_NEW_SYMBOL_DISJOINT_HISTORICAL`。在 roster、point-in-time metadata、
+provider 与成本来源冻结前，不得抓取或读取新样本信号。
 
 数据与快照要求：
 
@@ -361,24 +379,28 @@ symbols、censored share <=10%、单一 symbol share <=25%。低于任何 floor 
 是 `BOTH_SUPPORTED`、`CONTINUATION_ONLY_SUPPORTED`、`RETEST_ONLY_SUPPORTED`、
 `NEITHER_SUPPORTED` 或 `INSUFFICIENT_EVIDENCE`；合并统计不能掩盖任一路径失败。
 
-## 11. READY_FOR_DECISION：需要用户选择的五项
+## 11. 已选择的研究架构与剩余 blocker
 
-1. `SIGNAL_PACKAGE`
-   - A: `PRICE_ACTION_ONLY`（建议；量能仅 diagnostic）
-   - B: `PRICE_PLUS_RVOL`（相同价格条件 + RVOL20>=1.20）
-2. `OPPORTUNITY_POLICY`
-   - A: `ONE_SHOT_EARLIEST_SIGNAL`：最早合法信号产生一次计划，未成交也结束观察；最干净。
-   - B: `ONE_PER_PATH_UNTIL_FILL`：A 未成交后仍可在实际回踩时给 B 一次机会；最多两个计划、
-     仍最多一笔成交，20-session 总窗口不重置。
-3. `EXECUTION_STOP_PACKAGE`
-   - A: `SIGNAL_SUPPORT_ATR_STOP`：路径语义最完整、风险较紧、噪声敏感。
-   - B: `WAVE2_STRUCTURAL_ATR_STOP`：结构容忍更大、资金占用和尾部风险更高。
-4. `PRIMARY_EXIT_PACKAGE`
-   - A: `X1_MECHANICAL_T1_EXIT`：完整可实现经济结果，但与正式 target-only-diagnostic 不同。
-   - B: `X2_FORMAL_PM_COMPATIBLE_EXIT`：更接近正式管理，但 censoring 风险更高。
-5. `GATE_ROLE_AND_DATA`
-   - A: `G0_INCUMBENT_HARD_GATES` + D1/D2；保持 5%/2R 硬门槛。
-   - B: `G1_SIGNAL_FIRST_DIAGNOSTIC_GATES` + D1/D2；5%/2R 仅诊断，任何未来生产化需新长期决策。
+用户于 2026-09-24 明确接受建议并选择 D2；该选择先于任何新样本信号或收益访问：
 
-在这五项被明确选择、成本/市场数据来源可用、JSON 状态从 `DRAFT_NOT_EXECUTABLE` 升级前，
-不得运行新经济回测。选择必须先提交并冻结，再读取新样本信号或收益。
+- `SIGNAL_PACKAGE = PRICE_ACTION_ONLY`；
+- `OPPORTUNITY_POLICY = ONE_PER_PATH_UNTIL_FILL`，最多两份计划、最多一笔成交，20-session
+  总窗口不重置；
+- `EXECUTION_STOP_PACKAGE = SIGNAL_SUPPORT_ATR_STOP`；
+- `PRIMARY_EXIT_PACKAGE = X1_MECHANICAL_T1_EXIT`；
+- `SECONDARY_EXIT_SENSITIVITY = X2_FORMAL_PM_COMPATIBLE_EXIT`；
+- `PRIMARY_GATE_ROLE = G1_SIGNAL_FIRST_DIAGNOSTIC_GATES`；
+- `NESTED_GATE_ATTRIBUTION = G0_INCUMBENT_HARD_GATES`；
+- `INDEPENDENT_DATA = D2_NEW_SYMBOL_DISJOINT_HISTORICAL`。
+
+同日、仍在 D2 roster/行情/信号/收益均未创建或访问时，用户补充冻结两项因果修正：
+
+- H1 突破日 B 可成为路径 A 信号 K，计划最早 B+1 执行；B 与后续 A 共用一次路径机会，
+  路径 B 仍只能等待 B 后真实回踩；
+- 目标候选以 `price > entry_trigger` 保留并 nearest-first 冻结，`entry_ceiling` 不预过滤
+  T1；若 actual entry 达到/超过冻结 T1 则跳过，绝不自动改用 T2。
+
+架构选择现已冻结，不得由后续结果改选。协议仍不可执行，剩余 blocker 只有 D2 roster 与
+point-in-time metadata/provider 方案、成本来源/情景、raw/normalized snapshot contract 的
+实际身份和 hash。它们必须在抓取或读取新样本信号前形成独立 pre-outcome commit；任何
+付费数据购买需用户另行批准。

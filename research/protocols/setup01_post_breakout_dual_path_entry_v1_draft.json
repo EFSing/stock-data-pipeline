@@ -2,7 +2,7 @@
   "schema_version": "setup01-post-breakout-dual-path-entry-v1-draft",
   "protocol_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_RESEARCH_V1_DRAFT",
   "registered_date": "2026-09-24",
-  "status": "DRAFT_NOT_EXECUTABLE_READY_FOR_DECISION",
+  "status": "ARCHITECTURE_FROZEN_AWAITING_D2_DATA_AND_COST_FREEZE",
   "scope": "RESEARCH_ARCHITECTURE_AND_PREREGISTRATION_ONLY",
   "production_authorization": false,
   "economic_replay_authorized": false,
@@ -22,7 +22,10 @@
     "predicate": "first close > confirmed Wave1 peak H1",
     "event_identity_source": "trading.setup01_replay.Setup01ReplayEvent.event_identity",
     "overlay_identity": "confirmed_event_identity + protocol_version",
-    "breakout_day_may_be_signal_day": false
+    "breakout_day_may_be_signal_day": true,
+    "breakout_day_path": "BREAKOUT_CONTINUATION only",
+    "breakout_day_plan_timing": "after breakout-day close; earliest execution exact B+1 session",
+    "breakout_day_retest_allowed": false
   },
   "state_machine": {
     "states": [
@@ -39,9 +42,11 @@
       "TERMINATED"
     ],
     "routing": {
+      "breakout_day_continuation_signal_allowed": true,
+      "breakout_day_retest_signal_allowed": false,
       "continuation_allowed_only_before_any_active_zone_touch": true,
       "first_active_zone_touch_permanently_routes_future_signals_to_retest": true,
-      "same_bar_path_priority": "BREAKOUT_RETEST",
+      "same_bar_path_priority": "BREAKOUT_RETEST on sessions after breakout day",
       "future_retest_may_not_relabel_prior_continuation": true
     },
     "termination": [
@@ -79,7 +84,7 @@
   "signal_packages": {
     "PRICE_ACTION_ONLY": {
       "continuation": [
-        "no prior or current active-zone touch",
+        "on breakout day B the active-zone-touch predicate is not applicable; after B there is no prior or current active-zone touch",
         "close > H1",
         "close > previous_high",
         "close > open",
@@ -102,7 +107,8 @@
       "missing_or_nonpositive_volume": "FAIL_CLOSED"
     },
     "parallel_or_selection_forbidden": true,
-    "selected": null
+    "selected": "PRICE_ACTION_ONLY",
+    "selection_basis": "user accepted the pre-outcome recommendation on 2026-09-24; RVOL remains diagnostic because no cross-market Entry-layer volume SSOT exists"
   },
   "entry_plan": {
     "created_after_signal_close": true,
@@ -132,21 +138,24 @@
     "WAVE2_STRUCTURAL_ATR_STOP": {
       "both_paths": "confirmed Wave2 low - 0.5 * ATR14(signal_day)"
     },
-    "selected": null,
+    "selected": "SIGNAL_SUPPORT_ATR_STOP",
     "per_trade_post_result_selection_forbidden": true
   },
   "targets": {
     "freeze_time": "signal close before RR",
     "sources": [
-      "confirmed Swing highs with confirmed_index <= signal index and price > entry_ceiling",
-      "Wave2 low + (H1-LOW0) * existing 1.272/1.618/2.0/2.618 ratios above entry_ceiling"
+      "confirmed Swing highs with confirmed_index <= signal index and price > entry_trigger",
+      "Wave2 low + (H1-LOW0) * existing 1.272/1.618/2.0/2.618 ratios strictly above entry_trigger"
     ],
     "ordering": "ascending price, deduplicated with merged provenance",
     "published": ["T1", "T2", "T3"],
+    "entry_ceiling_may_filter_candidates": false,
+    "target_between_trigger_and_ceiling": "retain in nearest-first ordering and evaluate under the frozen gate and actual-entry rules",
     "h1_role": "support and routing level, never an above-entry target",
     "running_high_target_source_allowed": false,
     "execution_open_at_or_above_t1": "SKIP_NO_REMAINING_TARGET",
-    "t2_substitution_to_bypass_t1": false
+    "t2_substitution_to_bypass_t1": false,
+    "target_replacement_or_extension_to_pass_rr": false
   },
   "gate_role_candidates": {
     "G0_INCUMBENT_HARD_GATES": {
@@ -161,7 +170,8 @@
       "diagnostics": ["target_upside_pct", "RR", "5pct_pass", "2R_pass", "cost_per_R"],
       "future_production_use_requires_new_long_term_decision": true
     },
-    "selected_primary": null,
+    "selected_primary": "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES",
+    "nested_attribution_only": "G0_INCUMBENT_HARD_GATES",
     "post_result_winner_selection_forbidden": true
   },
   "exit_packages": {
@@ -178,7 +188,8 @@
       "reuse": "confirmed-higher-low stop, MFE floor, structural next-open exit",
       "session_60": "right-censoring checkpoint, not forced exit"
     },
-    "selected_primary": null,
+    "selected_primary": "X1_MECHANICAL_T1_EXIT",
+    "selected_secondary_sensitivity": "X2_FORMAL_PM_COMPATIBLE_EXIT",
     "secondary_if_any_must_be_preregistered_sensitivity": true
   },
   "market_constraints": {
@@ -229,7 +240,7 @@
       "regime_overlap_disclosed": true,
       "requires_point_in_time_metadata_or_paid_data": true
     },
-    "selected": null,
+    "selected": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL",
     "final_oos": "NOT_ESTABLISHED_NOT_ACCESSED"
   },
   "snapshot_and_integrity": {
@@ -287,17 +298,48 @@
     "path_outcomes": ["SUPPORTED", "NOT_SUPPORTED", "INSUFFICIENT_EVIDENCE"],
     "framework_outcomes": ["BOTH_SUPPORTED", "CONTINUATION_ONLY_SUPPORTED", "RETEST_ONLY_SUPPORTED", "NEITHER_SUPPORTED", "INSUFFICIENT_EVIDENCE"]
   },
-  "unresolved_decisions": {
-    "SIGNAL_PACKAGE": ["PRICE_ACTION_ONLY", "PRICE_PLUS_RVOL"],
-    "OPPORTUNITY_POLICY": ["ONE_SHOT_EARLIEST_SIGNAL", "ONE_PER_PATH_UNTIL_FILL"],
-    "OBSERVATION_WINDOW_SESSIONS": [20],
-    "EXECUTION_STOP_PACKAGE": ["SIGNAL_SUPPORT_ATR_STOP", "WAVE2_STRUCTURAL_ATR_STOP"],
-    "PRIMARY_EXIT_PACKAGE": ["X1_MECHANICAL_T1_EXIT", "X2_FORMAL_PM_COMPATIBLE_EXIT"],
-    "PRIMARY_GATE_ROLE": ["G0_INCUMBENT_HARD_GATES", "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES"],
-    "INDEPENDENT_DATA": ["D1_PROSPECTIVE_TIME_ISOLATED", "D2_NEW_SYMBOL_DISJOINT_HISTORICAL"],
-    "COST_SOURCE": ["VERIFIED_ACCOUNT_AND_OFFICIAL_DATE_EFFECTIVE_FEES", "PREREGISTERED_ASSUMPTION_SCENARIOS"]
+  "selection_record": {
+    "selected_date": "2026-09-24",
+    "selected_by": "USER_EXPLICIT_DECISION",
+    "outcome_access_before_selection": false,
+    "SIGNAL_PACKAGE": "PRICE_ACTION_ONLY",
+    "OPPORTUNITY_POLICY": "ONE_PER_PATH_UNTIL_FILL",
+    "OBSERVATION_WINDOW_SESSIONS": 20,
+    "EXECUTION_STOP_PACKAGE": "SIGNAL_SUPPORT_ATR_STOP",
+    "PRIMARY_EXIT_PACKAGE": "X1_MECHANICAL_T1_EXIT",
+    "SECONDARY_EXIT_SENSITIVITY": "X2_FORMAL_PM_COMPATIBLE_EXIT",
+    "PRIMARY_GATE_ROLE": "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES",
+    "NESTED_GATE_ATTRIBUTION": "G0_INCUMBENT_HARD_GATES",
+    "INDEPENDENT_DATA": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL"
   },
-  "activation_gate": "all unresolved decisions selected, independent data/cost sources available, protocol hash frozen in a separate pre-outcome commit",
+  "pre_outcome_architecture_corrections": {
+    "recorded_date": "2026-09-24",
+    "d2_roster_created_before_correction": false,
+    "d2_market_data_accessed_before_correction": false,
+    "d2_signals_accessed_before_correction": false,
+    "d2_returns_accessed_before_correction": false,
+    "breakout_day_b_may_be_path_a_signal": true,
+    "path_b_requires_actual_post_breakout_retest": true,
+    "target_candidate_threshold": "price > entry_trigger",
+    "entry_ceiling_target_prefilter_forbidden": true
+  },
+  "opportunity_policy": {
+    "selected": "ONE_PER_PATH_UNTIL_FILL",
+    "maximum_plans_per_lifecycle": 2,
+    "maximum_executed_positions_per_lifecycle": 1,
+    "continuation_unfilled_then_retest_allowed": true,
+    "observation_window_sessions": 20,
+    "observation_window_counting": "breakout day B is session 1",
+    "breakout_day_path_a_plan_consumes_path_a_opportunity": true,
+    "window_resets_after_unfilled_plan": false
+  },
+  "unresolved_decisions": {
+    "D2_ROSTER_AND_POINT_IN_TIME_METADATA_SOURCE": "REQUIRED_BEFORE_DATA_ACCESS",
+    "D2_OHLCV_PROVIDER_AND_CORPORATE_ACTION_CONTRACT": "REQUIRED_BEFORE_DATA_ACCESS",
+    "COST_SOURCE": ["VERIFIED_ACCOUNT_AND_OFFICIAL_DATE_EFFECTIVE_FEES", "PREREGISTERED_ASSUMPTION_SCENARIOS"],
+    "SNAPSHOT_IDENTITIES_AND_HASHES": "REQUIRED_BEFORE_SIGNAL_ACCESS"
+  },
+  "activation_gate": "D2 roster/provider/point-in-time metadata and cost sources frozen, snapshot identities and protocol hash committed in a separate pre-outcome commit",
   "prohibitions": [
     "run economic backtest from this draft",
     "select signals/stops/exits/gates after outcome access",

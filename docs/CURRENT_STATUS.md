@@ -6,7 +6,7 @@
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
 > IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界；
-> SETUP_01 H1 突破后双路径研究架构进入 `READY_FOR_DECISION`）。
+> SETUP_01 H1 突破后双路径研究架构已选择，等待 D2 数据与成本冻结）。
 
 ## 项目身份
 
@@ -475,8 +475,17 @@
   因果路由 `BREAKOUT_CONTINUATION` 与 `BREAKOUT_RETEST`，明确 running-leg Fib 与 confirmed
   Swing 的信息边界、两类信号 K、next-session buy-stop、路径止损、target/exit、CN/US
   执行差异、5%/2R 两种研究角色、已暴露样本与新独立验证漏斗。状态为
-  `DRAFT_NOT_EXECUTABLE_READY_FOR_DECISION`；未选择 signal/opportunity/stop/exit/gate/data
-  package，未运行新经济回放，未改变生产 SETUP/Risk/Paper/Sheet/broker 或 Final OOS。
+  `ARCHITECTURE_FROZEN_AWAITING_D2_DATA_AND_COST_FREEZE`。用户已在新样本结果访问前选择
+  `PRICE_ACTION_ONLY`、`ONE_PER_PATH_UNTIL_FILL`（20-session 总窗口不重置）、
+  `SIGNAL_SUPPORT_ATR_STOP`、primary `X1_MECHANICAL_T1_EXIT`、primary
+  `G1_SIGNAL_FIRST_DIAGNOSTIC_GATES` 与 `D2_NEW_SYMBOL_DISJOINT_HISTORICAL`；X2 与 G0
+  分别只作预注册 sensitivity / nested attribution。冻结前确认 B 日可直接成为路径 A
+  信号 K（最早 B+1 执行，且消耗同一 A 路径机会），路径 B 仍须等待 B 后真实回踩；目标
+  按 `price > entry_trigger` nearest-first 冻结，`entry_ceiling` 不得预过滤较近 T1。上述
+  修正在 D2 roster、行情、信号和收益均未创建或访问时记录，并由独立 architecture
+  freeze record 绑定协议 hash。D2 roster、point-in-time metadata、
+  provider、成本来源和 snapshot/hash 尚未冻结，因此仍不可执行；未运行新经济回放，
+  未改变生产 SETUP/Risk/Paper/Sheet/broker 或 Final OOS。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
