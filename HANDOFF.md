@@ -24,11 +24,11 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 ## Blocker / Decision
 
 - US 修复仍需合并后的自然 schedule 只读生产验收；当前重新可得的 Yahoo 数据不能替代当时或未来验收。
-- CN PR #102 已完成 CN 描述性审计。CN/US 联合后续研究处于 `READY_FOR_DECISION`：须选择统一假设、独立样本、冻结协议与市场执行成本边界。不得重启已关闭的回踩研究。
+- CN PR #102 和联合诊断 PR #103 均保持开放。两套独立只读协议草案分别覆盖 prospective exact-T 事件漏斗及已冻结 Development 的 T1/Entry Zone/执行止损几何；新的独立样本、较早入场验证和执行成本研究仍须用户后续批准。不得重启已关闭的回踩研究。
 
 ## Next Action
 
-保持 US PR #101 与 CN PR #102 独立。用户决定 CN/US 联合后续研究方向；US 修复合并后的自然 US/CN schedule 只读核对 exact-T、writer、Candidate Stage A/B、HTML/JSON/email 一致性。无需等待未来定时任务才交付代码和研究决策草案。
+保持 PR #101/#102/#103 独立且未合并。合并前核验各自 exact-head CI；#101 合并后下一次自然 US/CN schedule 只读验收 latest 4/4 与正式 QFQ BABA/RKLB 2/2、Candidate Stage A/B、日报完整性及 HTML/JSON/email 一致性。无需等待未来定时任务才交付。
 
 ## Constraints
 
