@@ -537,6 +537,7 @@ def run_validation(
             },
             "by_market": paired_market,
             "paired_headroom_vs_incumbent": paired_headroom,
+            "rows": paired_all["rows"],
         },
         "robustness": {
             policy_id: {
