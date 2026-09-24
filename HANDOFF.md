@@ -14,7 +14,7 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 - US 9/23 日报 BABA/RKLB QFQ T-1、Candidate seed 1023 但仅 1 可用；US writer latest 4 只均待复核且正式 QFQ 0 更新。CN 9/23 日报 516 只 DATA_OK，Asia writer 正式 QFQ 3/3。
 - US 修复已在 main：Stage A 请求 70 个 completed sessions，保留 60-bar 和 exact-T 门槛；增加 stale/partial batch 有界重试、极低覆盖告警、IWB share-class 代码标准化。定时 Cloud workflow 在形成诊断 HTML/JSON/通知后对 `PARTIAL_DATA_QUALITY` 返回非零。US writer / Cloud 日报调度分别为北京时间 08:30 / 09:00。归因和不确定性见 `docs/US_DATA_QUALITY_2026-09-23.md`。
 - CN 与 US 都存在可执行机会稀缺，US 数据质量修复不等于策略有效性恢复。CN 近期两日正式方案和 `ENTRY_ALLOWED` 均为零；冻结 Development 中 CN 376 次首次确认/0 准入，US 623/8，US exact T+1 机械执行 4 次。已关闭 confirmed→wait-for-retest 研究；更早入场 Development 研究已完成但无生产授权。
-- PR #107（`SETUP01_EARLY_ENTRY_INDEPENDENT_VALIDATION_V1`，research-only）已 squash merge（main `08c5a27`，main CI `test` 通过）：预注册的唯一实验组是既有正式 SETUP_01 ARMED 里程碑（`SETUP01_RECOVERY_RATIO=0.5`）作为入场触发，对照组为首次 `close > H1` CONFIRMED 入场；样本为已冻结 clean-holdout roster（20 CN + 20 US，2017-01-01..2026-08-26），与 Development 40 只及 A1 formal 120 symbol-level 交集为空。共同分母 2,291 个 Wave2 anchor contexts；CN/US paired median headroom 改善 +0.275R / +0.238R，结构失效率 20.4% / 23.4%、确认率 33.2% / 33.5%，均在预注册界内 → `FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION`。该结论只支持申请第二阶段执行成本／净收益验证，不含成本、净收益、胜率、期望或仓位，不构成生产授权。
+- PR #107（`SETUP01_EARLY_ENTRY_INDEPENDENT_VALIDATION_V1`，research-only）已独立 squash merge 进入 main，随后 main CI `test` 通过：预注册的唯一实验组是既有正式 SETUP_01 ARMED 里程碑（`SETUP01_RECOVERY_RATIO=0.5`）作为入场触发，对照组为首次 `close > H1` CONFIRMED 入场；样本为已冻结 clean-holdout roster（20 CN + 20 US，2017-01-01..2026-08-26），与 Development 40 只及 A1 formal 120 symbol-level 交集为空。共同分母 2,291 个 Wave2 anchor contexts；CN/US paired median headroom 改善 +0.275R / +0.238R，结构失效率 20.4% / 23.4%、确认率 33.2% / 33.5%，均在预注册界内 → `FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION`。该结论只支持申请第二阶段执行成本／净收益验证，不含成本、净收益、胜率、期望或仓位，不构成生产授权。
 - 第二阶段执行可行性决策节点（`SETUP01_EARLY_ENTRY_SECOND_STAGE_DECISION_V1`，research-only，独立 PR 保持 OPEN）状态 `READY_FOR_DECISION`：在同一冻结 cohort 上重建 987 个 ARMED 信号（986 个可执行 exact next-session OPEN），确认实验组的入场准入、确认前执行止损／风险基准、确认前目标与 5%/2R 口径、确认前终止与长期未确认处理、确认后 PM/Exit 衔接、成本与可交易性输入均未被冻结规则唯一确定。登记三个互斥候选 package（A 仅结构止损／B 结构低点 − 0.5×ATR14 执行止损／C 现行确认纪律前移至信号日），均未选择、未授权；未注册或冻结任何第二阶段协议，未计算成本、净收益、胜率或期望。
 
 ## Completed
@@ -25,6 +25,7 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 - 已审计 PR #107：改动仅落在 `research/` 与 `tests/`，协议先于样本信号提交，exact-head CI 全绿且 mergeable clean；本地用同一冻结 payload（`sha256:8caf05e2…`）重跑第一阶段得到 byte-identical JSON/Markdown（协议与 manifest 哈希一致）后才独立 squash merge，随后核对 main CI。
 - 第二阶段决策节点证据：A/B/C 准入 984 / 986 / 0（986 个可执行信号）；C 的 0 准入中 831 个先被 5% 目标上行门槛阻断；每笔 1R 距离中位数 A 5.7% / B 7.1%（占 entry），0.5% 风险下名义金额中位数 A 8.8% / B 7.0%（占 allocation_budget）；93.2% 的早入场 OPEN 低于确认价 H1（现行 Entry Zone 会判 `SKIP_GAP_BELOW_CONFIRMATION`）。
 - 未访问 Final OOS、真实持仓、生产 Sheet 写入、Paper 或 broker；未做执行成本、净收益、胜率或仓位研究。
+- 本地工作树当前检出第二阶段研究分支（已提交并推送，无未提交改动）；`main` 未被直接修改，第一阶段与第二阶段都通过独立 PR 进入或等待合并。
 
 ## Blocker / Decision
 
