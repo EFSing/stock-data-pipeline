@@ -432,6 +432,11 @@
   `daily_decision_chain` 的只读 context projection，不在本轮改 UI。最近 production
   daily-report 样本不足时明确标记为 `INSUFFICIENT_RECENT_LIVE_SAMPLE`。对应 protocol、
   research module 与 compact JSON/Markdown artifact 均为 Development-only，未接入生产。
+- CN/US 后续只读诊断：main 已有 prospective exact-T 漏斗和 frozen Development
+  T1/Entry Zone/执行止损几何两份协议草案；各自实现位于独立 PR #104/#105，尚未接入
+  main。前者只拟在自然日报 final JSON/HTML 增加紧凑事件证据；后者只拟在既有冻结
+  Development 999 个首次确认事件上重建 T-known 价格几何。两者均不改变正式策略、
+  生产状态或上述已完成审计结论，当前不能把历史聚合日志转成逐股机会率。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
