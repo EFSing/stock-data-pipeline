@@ -5,7 +5,8 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
-> IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界）。
+> IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界；
+> 新增独立样本上的 SETUP_01 较早入场第一阶段只读验证结论）。
 
 ## 项目身份
 
@@ -432,11 +433,25 @@
   `daily_decision_chain` 的只读 context projection，不在本轮改 UI。最近 production
   daily-report 样本不足时明确标记为 `INSUFFICIENT_RECENT_LIVE_SAMPLE`。对应 protocol、
   research module 与 compact JSON/Markdown artifact 均为 Development-only，未接入生产。
-- CN/US 后续只读诊断：main 已有 prospective exact-T 漏斗和 frozen Development
-  T1/Entry Zone/执行止损几何两份协议草案；各自实现位于独立 PR #104/#105，尚未接入
-  main。前者只拟在自然日报 final JSON/HTML 增加紧凑事件证据；后者只拟在既有冻结
-  Development 999 个首次确认事件上重建 T-known 价格几何。两者均不改变正式策略、
-  生产状态或上述已完成审计结论，当前不能把历史聚合日志转成逐股机会率。
+- CN/US 只读诊断实现已在 main：prospective exact-T 漏斗只在自然日报 final JSON/HTML
+  追加 `PROSPECTIVE_EXACT_T_FUNNEL_V1` 紧凑事件证据，不新增 artifact、存储路径或
+  production 写入；`FROZEN_DEVELOPMENT_T1_ZONE_STOP_GEOMETRY_V1` 在既有冻结 Development
+  的 999 个首次确认事件上重建 T-known T1/Entry Zone/执行止损几何（Development-only，
+  不读 T+1）。两者都不改变正式策略、生产状态或既有审计结论；历史聚合日志仍不能转
+  换成逐股机会率。
+- `SETUP01_EARLY_ENTRY_INDEPENDENT_VALIDATION_V1`（独立样本第一阶段，research-only，
+  artifact 与实现位于 PR #107，本次授权不自动合并）：唯一实验组是既有正式 SETUP_01
+  ARMED 里程碑（`SETUP01_RECOVERY_RATIO=0.5`）作为入场触发，对照组为首次
+  `close > H1` CONFIRMED 入场；样本为已冻结 clean-holdout roster（20 CN + 20 US，
+  2017-01-01..2026-08-26），其 manifest 证明与 A1 formal 120、development universe v1
+  及 Development holdout 的 symbol-level 交集为空。共同分母 2,291 个 Wave2 anchor
+  contexts（CN 1,081 / US 1,210，含 942 FAILED、559 never-CONFIRMED、551 screened-out、
+  8 timeout）；328 个 paired later-CONFIRMED 上 median headroom 改善 +0.265R，CN/US
+  结构失效率 20.4% / 23.4%、确认率 33.2% / 33.5%，均满足预注册 floors 与 gates。
+  结论 `FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION`：只支持申请第二阶段执行
+  成本／净收益研究，不授权任何 production rule、Entry、Stop、Target、5%、2R、仓位或
+  allocation 变更。较早入场结构上必然取得更低入场价（非 edge 证明），且约 2/3 触发
+  最终未确认；成本、净收益、胜率、期望与 Final OOS 均不在本阶段范围内。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
