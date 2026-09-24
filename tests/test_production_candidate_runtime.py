@@ -668,6 +668,7 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         self.assertEqual(requested, [date(2026, 1, 1)])
         self.assertEqual(reasons["S00"], "HISTORY_INSUFFICIENT")
         self.assertEqual(reasons["S01"], "HISTORY_STALE")
+        self.assertEqual(result.data_qualified_count, 18)
         self.assertEqual(result.status, "SUCCESS")
 
     def test_extremely_low_stage_a_coverage_is_partial_even_with_one_candidate(self):

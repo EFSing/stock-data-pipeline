@@ -18,17 +18,17 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 ## Completed
 
 - 已核对 main、HEAD、open PR、近期 CN/US runs、Yahoo 日期边界与现有研究协议。
-- US 修复本地针对性及全量测试已执行；PR exact-head CI 正在处理。
+- US 修复针对性测试与 exact-head CI 已通过；CN 描述性审计已提交独立 PR #102。
 - 未访问 Final OOS、真实持仓、生产 Sheet 写入、Paper 或 broker。
 
 ## Blocker / Decision
 
-- US 修复仍需 exact-head CI 与后续自然 schedule 只读生产验收；当前重新可得的 Yahoo 数据不能替代当时或未来验收。
-- CN 描述性审计可独立完成；若要选择新策略假设、冻结新协议或动用新数据，在 `READY_FOR_DECISION` 停止。不得重启已关闭的回踩研究。
+- US 修复仍需合并后的自然 schedule 只读生产验收；当前重新可得的 Yahoo 数据不能替代当时或未来验收。
+- CN PR #102 已完成描述性审计，下一步新研究处于 `READY_FOR_DECISION`：须选择假设、冻结协议及允许的数据边界。不得重启已关闭的回踩研究。
 
 ## Next Action
 
-修复 US PR #101 CI 后保持未合并；完成独立 CN 研究报告及决策事项。后续自然 US/CN schedule 只读核对 exact-T、writer、Candidate Stage A/B、HTML/JSON/email 一致性。
+保持 US PR #101 与 CN PR #102 独立且未合并。用户决定 CN 后续研究方向；US 修复合并后的自然 US/CN schedule 只读核对 exact-T、writer、Candidate Stage A/B、HTML/JSON/email 一致性。
 
 ## Constraints
 

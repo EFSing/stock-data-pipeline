@@ -35,9 +35,11 @@
 - 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
   策略股票刷新 exact latest date 的前复权历史；HK/JP/SE 不被猜测扩展为 QFQ 范围，
   `full` 仍只可由 workflow_dispatch 手动触发。
-- `PRODUCTION_ACCEPTANCE_PENDING`：上述 Sheet-backed schedule wiring 已恢复，但截至当前
-  closeout 尚无恢复后的 `main` Asia/US writer run；真实 Sheet 最新交易日、正式 CN/US QFQ
-  尾日与自动化监控 freshness 尚未验收，也不包含历史补抓。
+- `PRODUCTION_ACCEPTANCE_PENDING`：Sheet-backed schedule 已有自然运行。9/23 CN writer
+  正式 QFQ 更新 3/3，CN 日报 516 只 `DATA_OK`；同日 US writer 4 只 latest 均待复核、
+  正式 QFQ 更新 0，US 日报 BABA/RKLB 仅有 T-1 QFQ，动态 Candidate 覆盖 1/1023。
+  US 修复仍须在合并后的自然运行只读验收 exact-T、正式 QFQ 与 Candidate 覆盖；
+  这些结果不代表历史补抓或 US 生产验收完成。
 - 行情完全失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
   和显式禁止复用旧行情的备注，并使 scheduled job 非零退出；pending/single-source
   仍显式为非 `已验证`。下游 production reader 要求 exact T、`正式收盘=True`、
@@ -328,10 +330,11 @@
   仍为零，final artifact allowlist 不变。`asia-close` / `us-close` 是独立的 Sheet-backed
   scheduled writer；Cloud Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` /
   `历史行情_前复权`，也不改变 writer 的事实源边界。Bark/SMTP 仍为可选通知。
-- 代码与只读运行证据已暴露两类真实生产验收风险：provider 尾部可能暂时落后 exact T，
-  Sheets writer 可能因相邻日报/行情任务的读取竞争遇到 429。修复后仍必须等待自然 schedule
-  做真实 Sheet latest、正式 CN/US QFQ 尾日、日报状态和监控 freshness 的只读验收；代码测试
-  或 Cloud 日报成功不能替代该验收，状态保持 `PRODUCTION_ACCEPTANCE_PENDING`。
+- 自然运行与只读诊断已证实 US provider 尾部可暂时落后 exact T，且相邻任务读取 Sheets
+  曾遇到 429。CN 9/23 writer 已完成正式 QFQ 3/3，但 US 同日 latest 待复核、正式 QFQ
+  更新 0；Candidate 大规模历史不足和绿色日报掩盖部分质量亦已形成独立修复 PR。
+  合并后仍需自然 schedule 只读验收 US exact-T、Candidate 覆盖、writer、日报状态与通知；
+  代码测试或 Cloud 日报送达不能替代该验收，状态保持 `PRODUCTION_ACCEPTANCE_PENDING`。
 - 下一阶段优先观察真实 prospective Cloud Daily Reports / Paper 数据的正常 production
   runs；这些 observational acceptance 不自动启动新的 strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。

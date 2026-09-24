@@ -142,7 +142,7 @@ class CandidateMarketRuntimeResult:
     def data_qualified_count(self) -> int:
         return sum(
             record.history_bar_count >= MIN_HISTORY_BARS
-            and record.latest_history_date is not None
+            and record.latest_history_date == self.as_of_date
             for record in self.universe.records
         )
 
