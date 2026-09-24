@@ -142,8 +142,12 @@ class ResultArtifactTests(unittest.TestCase):
 
     def test_artifact_binds_the_frozen_protocol_and_sample_manifests(self):
         sources = self.document["source_artifacts"]
-        self.assertEqual(sources["protocol"]["sha256"], _sha256(PROTOCOL_PATH))
-        self.assertEqual(sources["dataset_manifest"]["sha256"], _sha256(DATASET_MANIFEST_PATH))
+        # Tracked JSON provenance files are hashed over Git-normalized LF bytes so
+        # the recorded identity is identical on Windows and Linux checkouts.
+        self.assertEqual(sources["protocol"]["sha256"], _sha256(PROTOCOL_PATH, normalize_lf=True))
+        self.assertEqual(
+            sources["dataset_manifest"]["sha256"], _sha256(DATASET_MANIFEST_PATH, normalize_lf=True)
+        )
         self.assertEqual(sources["dataset_version"], DATASET_VERSION)
         self.assertEqual(sources["universe_symbol_list_sha256"], _protocol()["sample"]["universe_symbol_list_sha256"])
 

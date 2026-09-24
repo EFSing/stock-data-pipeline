@@ -79,9 +79,16 @@ def _sha256_file(path: Path, *, normalize_lf: bool = False) -> str:
 
 
 def _source_artifact(path: Path) -> dict[str, str]:
+    """Hash a tracked artifact over Git-normalized LF bytes.
+
+    Tracked JSON provenance files are checked out with the local line ending, so
+    hashing raw bytes would make the recorded identity platform-dependent.  The
+    frozen replay input is binary and is hashed exactly as written.
+    """
+    normalize_lf = path.suffix != ".gz"
     return {
         "path": path.relative_to(PROJECT_ROOT).as_posix(),
-        "sha256": f"sha256:{_sha256_file(path)}",
+        "sha256": f"sha256:{_sha256_file(path, normalize_lf=normalize_lf)}",
     }
 
 

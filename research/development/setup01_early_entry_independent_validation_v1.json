@@ -8264,7 +8264,7 @@
   "source_artifacts": {
     "dataset_manifest": {
       "path": "research/early_entry_validation_sample/dataset_manifest.json",
-      "sha256": "sha256:bbe274b128ee563fa31cac0590cca4fe369fd13f8dd0d03fc1222f261dd24289"
+      "sha256": "sha256:71a4faa2d681abbbae3151904d93f8c20dbf9c1b4d455a13ebe67aa8af3082b0"
     },
     "dataset_version": "SETUP01-EARLY-ENTRY-INDEPENDENT-VALIDATION-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-09-24-v1",
     "frozen_replay_input": {
