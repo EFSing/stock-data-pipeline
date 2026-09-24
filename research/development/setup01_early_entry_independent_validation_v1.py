@@ -605,7 +605,7 @@ def _decision_reason(
             f"(cohort {detail['anchor_contexts']}, executable early signals {detail['executable_early_signals']}, "
             f"paired later-CONFIRMED {detail['paired_later_confirmed_executable']}, "
             f"median paired gain {_render(detail['paired_median_gain_R'])} R, "
-            f"sign-test p {_render(detail['paired_sign_test_p_value'], 4)}, "
+            f"sign-test p {_render_p_value(detail['paired_sign_test_p_value'])}, "
             f"invalidation share {_render(detail['structural_invalidation_share_of_executable_signals'])}, "
             f"confirmed share {_render(detail['later_confirmed_share_of_executable_signals'])}; "
             f"failed floors {decision['failed_floors'] or 'none'}; "
@@ -628,6 +628,13 @@ def _render(value: Any, digits: int = 3) -> str:
         return str(value)
 
 
+def _render_p_value(value: Any) -> str:
+    number = _finite(value)
+    if number is None:
+        return "n/a"
+    return f"{number:.2e}" if number < 1e-4 else f"{number:.4f}"
+
+
 def render_markdown(document: Mapping[str, Any]) -> str:
     coverage = document["sample_coverage"]
     cohort = document["cohort_construction"]
@@ -642,6 +649,15 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         f"- Sample: `{document['source_artifacts']['dataset_version']}`",
         f"- Symbols / bars: `{coverage['symbols']}` / `{coverage['bars']}`",
         f"- Experimental group / comparator: `{document['fixed_comparison']['experimental_group']}` / `{document['fixed_comparison']['comparator']}`",
+        f"- Setup scope: {document['fixed_comparison']['setup_scope']}",
+        "",
+        "## Sample provenance and independence",
+        "",
+        f"- Universe manifest: `{document['source_artifacts']['universe_manifest_sha256']}` / symbol list `{document['source_artifacts']['universe_symbol_list_sha256']}`",
+        f"- Replay aggregate: `{document['source_artifacts']['replay_aggregate_hash']}`",
+        f"- Payload re-acquisition check vs the 2026-08-29 clean-holdout acquisition: `{(document['source_artifacts']['payload_recovery_check'] or {}).get('status')}` ({(document['source_artifacts']['payload_recovery_check'] or {}).get('matched_symbol_count')}/{(document['source_artifacts']['payload_recovery_check'] or {}).get('compared_symbol_count')} identical adjusted series, identical session coverage and bar counts for all 40 symbols)",
+        "- The frozen roster proves empty intersections with the A1 formal 120, the earlier development universe v1 and the Development holdout used by the pre-confirmation research, so no symbol and no lifecycle identity is shared with the exposed Development data.",
+        "- The calendar window matches the frozen Development window: independence is by symbol and lifecycle only, and market-regime overlap remains a disclosed limitation.",
         "",
         "## Cohort and coverage",
         "",
@@ -677,6 +693,8 @@ def render_markdown(document: Mapping[str, Any]) -> str:
             "",
             "Positive gain means the earlier entry obtained a lower exact next-session OPEN than the incumbent on the same lifecycle, normalized by Wave1 `R`.",
             "",
+            "An earlier trigger is structurally expected to pay a lower price, so this table is not by itself evidence of edge; the discriminating evidence is the failure, non-confirmation and censoring side below.",
+            "",
             "| market | paired | paired later CONFIRMED | positive share | median gain/R | sign-test p |",
             "|---|---:|---:|---:|---:|---:|",
         ]
@@ -686,7 +704,7 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         lines.append(
             f"| {market} | {detail['paired_count']} | {detail['paired_later_confirmed_executable']} | "
             f"{_render(detail['paired_positive_gain_share'])} | {_render(detail['paired_median_gain_R'])} | "
-            f"{_render(detail['paired_sign_test_p_value'], 4)} |"
+            f"{_render_p_value(detail['paired_sign_test_p_value'])} |"
         )
     lines.extend(
         [
@@ -702,6 +720,54 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         lines.append(
             f"| {market} | {_render(adverse['adverse_magnitude_R']['median'])} | "
             f"{_render(adverse['adverse_magnitude_R']['p90'])} | {adverse['censored_path_count']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Descriptive strata (experimental group)",
+            "",
+            "All stratum rows stay on the same anchor-context denominator; strata are descriptive and carry no separate decision gate.",
+            "",
+            "| stratum | anchor contexts | early signaled | executable | later CONFIRMED | FAILED | never CONFIRMED |",
+            "|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    strata = document["robustness"][EXPERIMENTAL_POLICY]
+    for half, summary in strata["time_split_by_candidate_ready_date"]["halves"].items():
+        lines.append(
+            f"| time:{half} | {summary['total_candidate_count']} | {summary['signaled_candidate_count']} | "
+            f"{summary['actual_executable_next_session_entry_count']} | {summary['eventually_confirmed_count']} | "
+            f"{summary['failed_count']} | {summary['never_confirmed_count']} |"
+        )
+    for band, summary in strata["depth_bands"].items():
+        lines.append(
+            f"| depth:{band} | {summary['total_candidate_count']} | {summary['signaled_candidate_count']} | "
+            f"{summary['actual_executable_next_session_entry_count']} | {summary['eventually_confirmed_count']} | "
+            f"{summary['failed_count']} | {summary['never_confirmed_count']} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"Count-leading symbol by early signal count: `{strata['symbol_concentration']['count_leading_symbol']}` "
+            f"({strata['symbol_concentration']['count_leading_symbol_signal_count']} signals); the JSON retains the same strata for the incumbent comparator.",
+            "",
+            "## Hurdle reach and adverse cost (both groups)",
+            "",
+            "| policy | H1+0.272R reached | H1+0.618R reached | censored paths | adverse magnitude median/R | adverse magnitude P90/R |",
+            "|---|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for policy_id in REGISTERED_GROUP_IDS:
+        summary = document["policies"][policy_id]
+        hurdles = summary["common_fixed_structural_hurdles"]
+        adverse = summary["adverse_excursion_until_resolution"]
+        lines.append(
+            f"| {policy_id} | {hurdles['HURDLE_0272']['success_count']} "
+            f"({_render(hurdles['HURDLE_0272']['success_rate'])}) | "
+            f"{hurdles['HURDLE_0618']['success_count']} "
+            f"({_render(hurdles['HURDLE_0618']['success_rate'])}) | "
+            f"{adverse['censored_path_count']} | {_render(adverse['adverse_magnitude_R']['median'])} | "
+            f"{_render(adverse['adverse_magnitude_R']['p90'])} |"
         )
     lines.extend(["", "## Pre-registered decision", ""])
     decision = document["decision"]

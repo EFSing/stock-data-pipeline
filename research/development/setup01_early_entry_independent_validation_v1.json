@@ -137,7 +137,7 @@
       }
     },
     "production_authorization": false,
-    "reason": "Both markets met the pre-registered space, invalidation and confirmation gates; this supports applying for a separate execution-cost/net-return stage and authorizes no production policy. CN: FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION (cohort 1081, executable early signals 461, paired later-CONFIRMED 153, median paired gain 0.275 R, sign-test p 0.0000, invalidation share 0.204, confirmed share 0.332; failed floors none; failed gates none); US: FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION (cohort 1210, executable early signals 525, paired later-CONFIRMED 175, median paired gain 0.238 R, sign-test p 0.0000, invalidation share 0.234, confirmed share 0.335; failed floors none; failed gates none).",
+    "reason": "Both markets met the pre-registered space, invalidation and confirmation gates; this supports applying for a separate execution-cost/net-return stage and authorizes no production policy. CN: FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION (cohort 1081, executable early signals 461, paired later-CONFIRMED 153, median paired gain 0.275 R, sign-test p 2.05e-40, invalidation share 0.204, confirmed share 0.332; failed floors none; failed gates none); US: FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION (cohort 1210, executable early signals 525, paired later-CONFIRMED 175, median paired gain 0.238 R, sign-test p 3.85e-41, invalidation share 0.234, confirmed share 0.335; failed floors none; failed gates none).",
     "supports_second_stage_application": true
   },
   "diagnostics": {
