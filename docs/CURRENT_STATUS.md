@@ -6,7 +6,7 @@
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
 > IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界；
-> 新增独立样本上的 SETUP_01 较早入场第一阶段只读验证结论）。
+> SETUP_01 H1 突破后双路径研究架构进入 `READY_FOR_DECISION`）。
 
 ## 项目身份
 
@@ -453,7 +453,7 @@
   allocation 变更。较早入场结构上必然取得更低入场价（非 edge 证明），且约 2/3 触发
   最终未确认；成本、净收益、胜率、期望与 Final OOS 均不在本阶段范围内。
 - `SETUP01_EARLY_ENTRY_SECOND_STAGE_DECISION_V1`（第二阶段执行可行性决策节点，
-  research-only，位于保持 OPEN 的独立 PR）：在同一冻结 cohort 上重建 2,291 个 anchor
+  research-only，已随 PR #109 squash merge 进入 main）：在同一冻结 cohort 上重建 2,291 个 anchor
   contexts 与 987 个 ARMED 信号（986 个有可执行 exact next-session OPEN），审计实验组
   的可交易定义是否已由冻结规则唯一确定。结论：入场准入、确认前执行止损／风险基准、
   确认前目标与 5%/2R 口径、确认前终止与长期未确认处理、确认后 PM/Exit 衔接、成本与
@@ -465,6 +465,18 @@
   trigger band、5% 与 2R）。几何事实：A 准入 984/986、B 986/986、C 0/986（831/986 先被
   5% 目标上行门槛阻断）；每笔 1R 距离中位数 A 5.7% / B 7.1%（占 entry），0.5% 风险下
   名义金额中位数 A 8.8% / B 7.0%（占 allocation_budget）。未选择任何 package。
+- `SETUP01_EARLY_ENTRY_STAGE2_ECONOMIC_VALIDATION_V1` 位于保持 OPEN 的独立 PR #110，
+  未合并：用户选择的受约束 `PKG_B_ATR_EXECUTION_STOP` 在同一已暴露样本上得到
+  `INSUFFICIENT_EVIDENCE`；实验组净 R 在 CN/US 均为负，完整现行 Decision 成交过少，
+  且删失敏感性会改变比较排序。该结果不授权生产变更，也不允许改参重跑；PR 状态和 CI
+  以 GitHub 实时事实为准。
+- `SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_RESEARCH_V1_DRAFT`（research-only）已形成
+  可预注册但不可执行的架构草案：以既有首次 `close > H1` event 为 overlay 出生点，
+  因果路由 `BREAKOUT_CONTINUATION` 与 `BREAKOUT_RETEST`，明确 running-leg Fib 与 confirmed
+  Swing 的信息边界、两类信号 K、next-session buy-stop、路径止损、target/exit、CN/US
+  执行差异、5%/2R 两种研究角色、已暴露样本与新独立验证漏斗。状态为
+  `DRAFT_NOT_EXECUTABLE_READY_FOR_DECISION`；未选择 signal/opportunity/stop/exit/gate/data
+  package，未运行新经济回放，未改变生产 SETUP/Risk/Paper/Sheet/broker 或 Final OOS。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
