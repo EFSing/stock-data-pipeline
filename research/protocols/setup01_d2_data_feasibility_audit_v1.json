@@ -1,0 +1,68 @@
+{
+  "schema_version": "setup01-d2-data-feasibility-audit-v1",
+  "audit_id": "SETUP01_D2_DATA_FEASIBILITY_AUDIT_V1",
+  "audit_date": "2026-09-24",
+  "status": "READY_FOR_DECISION_D2_POINT_IN_TIME_DATA_SOURCE",
+  "selected_data_design": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL",
+  "overall_result": "BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE",
+  "pre_audit_access": {
+    "d2_roster_created": false,
+    "d2_bars_acquired_or_accessed": false,
+    "d2_signals_generated_or_accessed": false,
+    "d2_returns_generated_or_accessed": false,
+    "final_oos_established_or_accessed": false
+  },
+  "required_contracts": [
+    "point_in_time_universe_membership",
+    "delisting_and_security_identity_lifecycle",
+    "corporate_actions_and_adjustment_provenance",
+    "exact_sessions_and_suspensions",
+    "CN_daily_board_ST_price_limit_lot_rules",
+    "reproducible_licensed_raw_and_normalized_snapshots"
+  ],
+  "sources": {
+    "CN_BAOSTOCK_EXISTING_ADAPTER": {
+      "result": "NOT_READY",
+      "reusable": ["dated HS300 membership query", "dated CSI500 membership query", "basic IPO/outDate/status fields"],
+      "missing": ["as-of basic and industry metadata", "daily isST and tradestatus ingestion", "daily board/lot/price-limit contract", "complete delisting and symbol-identity contract"]
+    },
+    "CN_HITHINK_EXISTING_SMOKE": {
+      "result": "NOT_READY",
+      "reusable": ["current constituent endpoints", "OHLCV endpoint", "corporate-action event endpoint"],
+      "missing": ["historical membership series", "proven adjustment-factor formula and effective-date semantics", "validated full-window calendar"]
+    },
+    "US_ISHARES_IWB_EXISTING_ADAPTER": {
+      "result": "BLOCKED",
+      "reusable": ["current official issuer holdings snapshot"],
+      "missing": ["2017-2026 membership archive", "delisted and merged security master", "historical identity mapping"]
+    },
+    "US_YFINANCE_EXISTING_HISTORY": {
+      "result": "BLOCKED",
+      "reusable": ["OHLCV for a supplied known ticker"],
+      "missing": ["point-in-time universe", "complete delisting coverage", "corporate-action event provenance cross-bound to adjusted bars"]
+    },
+    "EXPOSED_RESEARCH_MANIFESTS": {
+      "result": "INELIGIBLE",
+      "reason": "previously exposed and/or current-constituent proxy assets cannot become fresh D2 data"
+    }
+  },
+  "prohibited_fallbacks": [
+    "current constituents backfilled with historical prices",
+    "survivor-only known-ticker roster",
+    "rename exposed samples as independent",
+    "infer missing CN board/ST/limit metadata with one market-wide constant",
+    "automatic paid-data purchase",
+    "D2 signal or return access before a later data freeze"
+  ],
+  "decision_options": {
+    "D2_LICENSED_OR_USER_SUPPLIED_PIT_SOURCE": "user designates or supplies an authorized source; perform contract validation and freeze before signals",
+    "REOPEN_DATA_DESIGN": "record a new decision replacing D2 with the already-defined D1 prospective time-isolated design"
+  },
+  "authorization": {
+    "create_d2_roster": false,
+    "acquire_d2_market_data": false,
+    "generate_signals": false,
+    "run_economic_replay": false,
+    "purchase_paid_data": false
+  }
+}

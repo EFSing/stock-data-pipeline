@@ -4,9 +4,10 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-SETUP_01 新一代 H1 突破后双路径入场研究已完成架构审计与可预注册草案，当前状态
-`READY_FOR_DECISION`。本任务只到 research architecture/protocol 决策节点；没有运行新
-经济回测，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
+SETUP_01 新一代 H1 突破后双路径入场研究已完成架构冻结；D2 数据可行性审计结论为
+`READY_FOR_DECISION_D2_POINT_IN_TIME_DATA_SOURCE`。没有建立 D2 roster、抓取 D2 bars、
+生成信号或读取收益，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或
+broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -25,42 +26,42 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - 新分支 `research/setup01-post-breakout-dual-path-protocol-v1` 从 `origin/main` 独立建立，
   PR #111 保持 OPEN，未混入 #82/#96/#110，不自动合并。
 - 架构文档：`docs/research/SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_PROTOCOL_DRAFT.md`。
-- 机器草案：`research/protocols/setup01_post_breakout_dual_path_entry_v1_draft.json`，状态
-  `DRAFT_NOT_EXECUTABLE_READY_FOR_DECISION`。
+- 机器草案：`research/protocols/setup01_post_breakout_dual_path_entry_v1_draft.json`；独立
+  architecture freeze record 已绑定其 hash，研究仍不可执行。
+- D2 审计：`docs/research/SETUP01_D2_DATA_FEASIBILITY_AUDIT.md` 与
+  `research/protocols/setup01_d2_data_feasibility_audit_v1.json`。现有免费栈结论为
+  `BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE`。
 
 ## Completed
 
 - 完成 Wave/Swing/Fibonacci/SETUP_01/Decision/Risk/Position Management/Exit、冻结数据、
   #104 exact-T、关闭回踩研究及 #110 research-only exit/cost 边界审计。
-- 登记统一状态机：existing H1 first-breakout event → post-breakout observation →
-  continuation 或 retest signal K → next-session buy-stop → research PM/Exit。
+- 冻结统一状态机：H1 突破日 B 可直接成为 continuation signal K，最早 B+1 执行；B 与
+  后续 continuation 共用一次路径 A 机会。路径 B 只接受 B 后真实 touch/reclaim。
 - 冻结因果边界：当日回踩区只用 `data <= t-1`；running high 不是 confirmed Swing；未来
   Swing 不得回填；信号 K 只在收盘后成立。
-- 登记两类机械信号、唯一 active support zone、T+1 gap/trigger 处理、结构失效与 execution
-  stop 分离、T1/T2/T3 provenance、CN T+1 卖出限制、US same-day conservative ordering。
-- 将 5%/2R 拆为 hard-gate 与 diagnostic-gate 两种互斥研究角色，未更改正式常量。
+- 冻结 `PRICE_ACTION_ONLY`、`ONE_PER_PATH_UNTIL_FILL`（20 sessions）、
+  `SIGNAL_SUPPORT_ATR_STOP`、X1 primary / X2 sensitivity、G1 primary / G0 nested attribution。
+- 目标候选固定为截至 T 已知且 `price > entry_trigger`，nearest-first 冻结 T1/T2/T3；
+  `entry_ceiling` 不预过滤近 T1，actual entry >= T1 时直接 skip，不得替换为 T2。
 - 明确所有已暴露 Development / holdout / early-entry / SETUP_03 资产不可重新命名为新独立
   样本，并登记 prospective time-isolated 与新 symbol-disjoint historical 两个数据选项。
 
 ## Blocker / Decision
 
-用户需在读取任何新样本信号或收益前选择并冻结：
+D2 已选择，但现有免费数据栈不满足冻结标准：US 的 latest IWB holdings + known-ticker
+yfinance history 缺历史 membership 与退市 master；CN 虽有日期化指数查询，仍缺可冻结的
+逐日 board/ST/涨跌停/lot、完整 security lifecycle 与已证明公司行动合同。不得用当前
+成分股回填历史，不得自动采购付费数据。
 
-1. `PRICE_ACTION_ONLY` 或 `PRICE_PLUS_RVOL`；
-2. 最早信号 one-shot，或 A 未成交后允许 B 一次机会（总窗口不重置）；
-3. signal/support ATR stop 或 Wave2 structural ATR stop；
-4. research-only mechanical T1 exit 或 formal-PM-compatible exit；
-5. 5%/2R 保持硬门槛或仅作诊断；
-6. prospective 12-month time-isolated 或新 symbol-disjoint historical 数据，以及 verified
-   fee/market metadata 或预注册成本情景。
-
-未选择前协议不得从 `DRAFT_NOT_EXECUTABLE` 升级，不得运行经济回放。任何未来正式
-Risk/Decision 修改都需要独立长期治理决策。
+下一步需要用户在两类方向中决定：提供/指定有权使用的 point-in-time 数据源继续 D2，
+或留下新决策记录并重新开启数据设计、改走既有 D1 prospective time-isolated。成本来源
+仍需在任何数据启动前冻结。正式 Risk/Decision 修改仍需独立长期治理决策。
 
 ## Next Action
 
-- 等待用户选择上述少量互斥 package；随后在独立 pre-outcome commit 中填入选择、数据与
-  成本来源，计算并记录 protocol hash，再申请是否执行独立验证。
+- 等待 point-in-time 数据方向决定；若继续 D2，下一步仅做供应商/用户数据 capability
+  sample、许可与字段合同冻结，不直接生成信号或收益。若改 D1，先更新冻结决策记录。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 
@@ -69,6 +70,7 @@ Risk/Decision 修改都需要独立长期治理决策。
 - 不改 Wave/Swing/Fibonacci 核心实现，不访问 Final OOS，不读取真实持仓。
 - 不把 H1 后 running high 标成 confirmed Swing；不在看到收益后逐笔选择 stop、target 或 exit。
 - Target-before-RR；不得用 T2/T3 绕过 T1，不得为过 2R 延伸 T1 或缩小 stop。
+- 不得用 `entry_ceiling` 预过滤 `entry_trigger` 上方的合法近 T1。
 - 路径 A/B、CN/US 分别报告；不得合并掩盖失败或凑证据下限。
 - Candidate-only、Paper、production state、Sheet、broker 边界不变。
 

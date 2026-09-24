@@ -6,7 +6,7 @@
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
 > IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界；
-> SETUP_01 H1 突破后双路径研究架构已选择，等待 D2 数据与成本冻结）。
+> SETUP_01 H1 突破后双路径研究架构已冻结；D2 因缺合规 point-in-time 数据源阻塞）。
 
 ## 项目身份
 
@@ -483,8 +483,11 @@
   信号 K（最早 B+1 执行，且消耗同一 A 路径机会），路径 B 仍须等待 B 后真实回踩；目标
   按 `price > entry_trigger` nearest-first 冻结，`entry_ceiling` 不得预过滤较近 T1。上述
   修正在 D2 roster、行情、信号和收益均未创建或访问时记录，并由独立 architecture
-  freeze record 绑定协议 hash。D2 roster、point-in-time metadata、
-  provider、成本来源和 snapshot/hash 尚未冻结，因此仍不可执行；未运行新经济回放，
+  freeze record 绑定协议 hash。D2 数据可行性审计结论为
+  `BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE`：US 缺历史 membership/
+  退市 master，CN 仍缺逐日 board/ST/涨跌停/lot、完整 identity lifecycle 与已证明公司行动
+  合同。D2 roster、provider、成本来源和 snapshot/hash 尚未冻结，因此仍不可执行；未
+  建立 roster、抓取 D2 bars、生成信号或运行经济回放，
   未改变生产 SETUP/Risk/Paper/Sheet/broker 或 Final OOS。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
