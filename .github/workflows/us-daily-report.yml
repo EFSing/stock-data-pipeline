@@ -2,7 +2,8 @@ name: US Daily Report
 
 on:
   schedule:
-    - cron: "30 22 * * 1-5"
+    # 美股交易日后的北京时间 09:00（次日 UTC 01:00，周二至周六）。
+    - cron: "0 1 * * 2-6"
   workflow_dispatch:
     inputs:
       trade_date:

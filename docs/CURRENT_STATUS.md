@@ -28,7 +28,7 @@
 
 - 定时行情流水线：`asia-close`（CN/HK/JP）与 `us-close`（US/SE）两个 GitHub
   Actions workflow 按市场收盘时间调度，运行 `main.py --mode latest`；Asia 为工作日
-  09:30 UTC（北京时间 17:30），US 为工作日 22:30 UTC。
+  09:30 UTC（北京时间 17:30），US 为周二至周六 00:30 UTC（北京时间 08:30）。
 - `latest` 模式只抓取短窗口最新行情、执行 source-date evidence、双源校验与
   ordinary-calendar freshness guard，写入 `最新行情`、`校验记录`、`运行日志`；
   不抓取多年历史／qfq，不运行策略路径，`history_rows_written=0`。
@@ -283,7 +283,7 @@
 - 运维交付与分析质量分离：默认只读 CLI 在 exact target-session usable data、核心计算及 final JSON/HTML 完成时，`PARTIAL_DATA_QUALITY` 仍可 exit 0；定时 CN/US workflow 使用 `--require-complete`，使该质量状态在产物与通知形成后 exit 2，Actions 不再以绿色表示分析完整。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
   `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
-  和 22:30 UTC 运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
+  和周二至周六 01:00 UTC（北京时间 09:00）运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
   completed-session gate。周末或交易所休市返回 `SKIPPED_NON_SESSION`，不使用上一
   交易日替代；未收盘、provider 失败、latest/QFQ 不完整或校验失败均 fail closed，
   仍生成异常报告并通知。自动调度的 T 由 timezone-aware 当前时刻转换到目标交易所

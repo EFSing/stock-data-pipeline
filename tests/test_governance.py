@@ -87,7 +87,7 @@ class GovernanceTests(unittest.TestCase):
     def test_sheet_backed_workflows_restore_independent_schedules(self):
         for relative_path, group, cron in (
             (".github/workflows/asia-close.yml", "asia", 'cron: "30 9 * * 1-5"'),
-            (".github/workflows/us-close.yml", "us", 'cron: "30 22 * * 1-5"'),
+            (".github/workflows/us-close.yml", "us", 'cron: "30 0 * * 2-6"'),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("schedule:", source)
@@ -107,7 +107,7 @@ class GovernanceTests(unittest.TestCase):
     def test_cloud_report_remains_a_separate_read_only_schedule(self):
         for relative_path, cron, market in (
             (".github/workflows/cn-daily-report.yml", 'cron: "30 9 * * 1-5"', "CN"),
-            (".github/workflows/us-daily-report.yml", 'cron: "30 22 * * 1-5"', "US"),
+            (".github/workflows/us-daily-report.yml", 'cron: "0 1 * * 2-6"', "US"),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("schedule:", source)
@@ -119,7 +119,7 @@ class GovernanceTests(unittest.TestCase):
     def test_cloud_report_workflows_keep_exact_market_schedules(self):
         for relative_path, cron, market in (
             (".github/workflows/cn-daily-report.yml", 'cron: "30 9 * * 1-5"', "CN"),
-            (".github/workflows/us-daily-report.yml", 'cron: "30 22 * * 1-5"', "US"),
+            (".github/workflows/us-daily-report.yml", 'cron: "0 1 * * 2-6"', "US"),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("schedule:", source)
