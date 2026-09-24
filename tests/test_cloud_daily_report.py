@@ -143,6 +143,17 @@ class CloudDailyReportTests(unittest.TestCase):
         self.assertIn("前瞻只读观察", render_dashboard_html({"prospective_observation": observation,
                                               "cloud_daily_report": {"market": "US"}}))
 
+        duplicate = deepcopy(result)
+        duplicate["reports"].append(deepcopy(duplicate["reports"][0]))
+        duplicate["reports"][0]["账户ID"] = "A"
+        duplicate["reports"][1]["账户ID"] = "B"
+        self.assertEqual(build_prospective_observation(duplicate, "US", t)["first_event_count"], 1)
+        duplicate["reports"][1]["报告"]["results"][0]["data_status"] = "DATA_BLOCKED"
+        conflicted = build_prospective_observation(duplicate, "US", t)
+        self.assertEqual(conflicted["account_variant_symbols"], 1)
+        self.assertEqual(conflicted["first_event_count"], 0)
+        self.assertIn("CONFLICTING_ACCOUNT_OBSERVATIONS", conflicted["observations"][0]["missing_reasons"])
+
     def test_notification_uses_explicit_confirmation_and_position_semantics(self):
         payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
         payload["cloud_daily_report"] = {"market": "US", "status": "SUCCESS"}

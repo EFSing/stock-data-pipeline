@@ -414,9 +414,10 @@ def build_prospective_observation(result: Mapping[str, Any], market: str, trade_
     target_t = trade_date.isoformat()
     candidate = (result.get("candidate_markets") or {}).get(market) or {}
     records: dict[str, dict[str, Any]] = {}
+    variants: set[str] = set()
     formal: set[str] = set()
     dynamic: set[str] = set()
-    for entry in result.get("reports") or []:
+    for entry in sorted(result.get("reports") or [], key=lambda item: str(item.get("账户ID") or "")):
         if not isinstance(entry, Mapping) or entry.get("市场") != market:
             continue
         universe = entry.get("universe") or {}
@@ -426,9 +427,13 @@ def build_prospective_observation(result: Mapping[str, Any], market: str, trade_
             symbol = str(row.get("symbol") or "").upper()
             if symbol:
                 prior = records.get(symbol)
-                if prior is not None and prior != row:
-                    raise ValueError(f"conflicting daily observation: {market}|{target_t}|{symbol}")
-                records[symbol] = row
+                if prior is None:
+                    records[symbol] = row
+                elif any(prior.get(key) != row.get(key) for key in (
+                    "as_of_date", "data_status", "weekly_state", "daily_state",
+                    "setup01_state", "setup02_state", "new_confirmed_event_identities"
+                )):
+                    variants.add(symbol)
     candidate_records = {
         str(row.get("symbol") or "").upper(): row
         for row in candidate.get("candidate_records") or []
@@ -439,6 +444,8 @@ def build_prospective_observation(result: Mapping[str, Any], market: str, trade_
     observations = []
     for symbol in sorted(formal | dynamic):
         row = records.get(symbol) or {}
+        if symbol in variants:
+            row = {"as_of_date": target_t, "data_status": "ACCOUNT_VARIANT_UNKNOWN"}
         is_formal, is_dynamic = symbol in formal, symbol in dynamic
         bucket = "OVERLAP" if is_formal and is_dynamic else "FORMAL_ONLY" if is_formal else "DYNAMIC_ONLY"
         candidate_row = candidate_records.get(symbol) or {}
@@ -456,6 +463,8 @@ def build_prospective_observation(result: Mapping[str, Any], market: str, trade_
             missing = []
             if not row:
                 missing.append("MISSING_DAILY_RESULT")
+            if symbol in variants:
+                missing.append("CONFLICTING_ACCOUNT_OBSERVATIONS")
             elif row.get("as_of_date") != target_t:
                 missing.append("ROW_NOT_EXACT_T")
             if event_identity and decision is None:
@@ -506,9 +515,11 @@ def build_prospective_observation(result: Mapping[str, Any], market: str, trade_
         "overlap_symbols": len(formal & dynamic),
         "union_symbols": len(formal | dynamic),
         "observation_count": len(observations),
-        "data_ok_symbols": sum(records.get(symbol, {}).get("data_status") == "DATA_OK" for symbol in formal | dynamic),
-        "data_blocked_symbols": sum(bool(records.get(symbol, {}).get("data_status")) and
+        "data_ok_symbols": sum(symbol not in variants and records.get(symbol, {}).get("data_status") == "DATA_OK"
+                               for symbol in formal | dynamic),
+        "data_blocked_symbols": sum(symbol not in variants and bool(records.get(symbol, {}).get("data_status")) and
                                     records[symbol]["data_status"] != "DATA_OK" for symbol in formal | dynamic),
+        "account_variant_symbols": len(variants),
         "missing_daily_result_symbols": sum(symbol not in records for symbol in formal | dynamic),
         "first_event_count": sum(item["first_confirmed"] for item in observations),
         "decision_count": sum(item["first_confirmed"] and item["decision_action"] is not None for item in observations),
