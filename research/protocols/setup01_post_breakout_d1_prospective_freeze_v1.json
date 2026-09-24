@@ -1,0 +1,17 @@
+{
+  "schema_version": "setup01-post-breakout-d1-prospective-freeze-v1",
+  "freeze_id": "SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_FREEZE_V1",
+  "freeze_date": "2026-09-24",
+  "status": "D1_READY_NOT_ACTIVE",
+  "protocol_path": "research/protocols/setup01_post_breakout_d1_prospective_v1.json",
+  "protocol_sha256": "ee55ec82959be510a8d9a2d84a99143de3638e550f88527536dad9fd5546d0e0",
+  "architecture_freeze_path": "research/protocols/setup01_post_breakout_dual_path_architecture_freeze_v1.json",
+  "architecture_freeze_preserved": true,
+  "d2_audit_path": "research/protocols/setup01_d2_data_feasibility_audit_v1.json",
+  "d2_history_preserved": true,
+  "formal_collection_started": false,
+  "formal_events_collected": 0,
+  "final_oos_accessed": false,
+  "historical_economic_replay_run": false,
+  "activation_blocker": "APPROVED_DURABLE_STORAGE_WRITE_AND_RECOVERY_PATH_REQUIRED"
+}

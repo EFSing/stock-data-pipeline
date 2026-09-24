@@ -771,3 +771,37 @@ Entry Zone（`entry_zone_low = H1`）会把绝大多数早入场 OPEN 直接判�
 `SKIP_GAP_BELOW_CONFIRMATION`，且不存在确认前执行止损、目标门槛或退出规则。若不先由
 用户确定这些语义，任何净收益结论都取决于研究者自行选择的事后规则，会破坏预注册与
 `Target-before-RR`、T→T+1、look-ahead 安全边界。
+
+## 2026-09-24 — SETUP_01 双路径独立数据由 D2 改为 D1 前瞻时间隔离
+
+**Decision:** 暂停 `D2_NEW_SYMBOL_DISJOINT_HISTORICAL`，改用独立版本
+`SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1` 的 `D1_PROSPECTIVE_TIME_ISOLATED`。D2 的
+point-in-time 可行性审计结论继续作为不可改写历史证据：现有免费栈不能同时证明 US
+历史 membership/退市 identity 与 CN 逐日 board/ST/lot/涨跌停/security lifecycle，
+因此不得用当前成分股回填历史、不得建立幸存者 roster，也不购买付费数据。D1 与 D2
+不是同一个未变化的数据协议；原 D2 audit、draft 与 architecture freeze 都保留。
+
+D1 在 CN/US 各自满足 activation gates 后独立启动：协议/成本/名单规则冻结，collector/
+不可变持久化/完整性/恢复通过测试，当日 universe 与行情可核验，并且 collector 在该市场
+正式观察点前启用。窗口从 activation 后首个完整 exchange session 起，固定 12 个日历月
+的半开区间，不因结果、信号数或数据质量延长；不足输出 `INSUFFICIENT_EVIDENCE`。启用前
+历史 K 线、旧日报与事后补抓不计入 D1；补抓只允许 diagnostic，并保留 `DATA_MISSING` /
+`LATE_SOURCE` 与 `prospective_eligible=false`。
+
+**Preserved mechanism:** 双路径 architecture 选择完全不变：`PRICE_ACTION_ONLY`、
+`ONE_PER_PATH_UNTIL_FILL`、20 sessions、`SIGNAL_SUPPORT_ATR_STOP`、X1 primary / X2
+sensitivity、G1 primary / G0 nested attribution，以及 B 日 Path A、B 后真实 Path B、
+`price > entry_trigger` nearest-first targets、entry ceiling 不预过滤 T1、actual entry >= T1
+直接跳过。5%/2R 仍是正式生产硬规则；在 D1 research overlay 中只按已冻结角色记录。
+正式 Wave/Setup/Entry/Target/Stop/Risk/Position Management/Paper/Sheet/broker 不变。
+
+**Persistence gate:** GitHub Actions 30-day artifact 不满足 12 个月 durable storage。现有
+Google Sheet 属生产职责且本授权禁止新增生产 Sheet/state 写入；在独立 research Drive
+folder 或有 versioning/retention 的 object bucket 获用户授权并完成 write/read-back/
+independent-recovery 验证前，CN/US 均为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。不得把
+local/CI fixture store 或短期 artifact 冒充正式 D1 存储。
+
+**Reason:** 前瞻时间隔离可在不伪造历史 membership 与微观结构元数据的前提下，从每个
+session 当时可见的信息形成审计链；代价是必须等待固定窗口且可能证据不足。它解决的是
+独立数据设计，不利用 #110 的已暴露 `INSUFFICIENT_EVIDENCE` 结果重新选择信号、止损、
+目标、退出或 gate。
