@@ -721,3 +721,33 @@ nonzero Actions conclusion，即使 exact-T 数据可用、核心计算成功、
 **Reason:** 2026-09-23 US 日报存在大量 Candidate 覆盖缺失与正式池 QFQ stale，
 但 Actions 绿色掩盖了分析不完整。将交付和分析质量分开，可保留诊断产物，同时让
 定时运行的 CI 结论真实表达数据质量。
+
+## 2026-09-24 — Independent-sample earlier-entry first stage 只支持申请第二阶段
+
+**Decision:** `SETUP01_EARLY_ENTRY_INDEPENDENT_VALIDATION_V1` 在独立样本上只支持
+“申请第二阶段执行成本／净收益验证”，不授权任何 production 变更：不修改 Wave、Setup、
+Entry Zone、T1/Target、Stop、5%、2R、T→T+1、仓位、allocation 或 Decision 语义，
+也不授权 Paper、state 写入、Sheets 写入或 broker 路径。正式首入场仍是 T 日
+`CONFIRMED` 后最早 T+1 session `OPEN`；本结论不改变正式策略身份。
+
+固定实验组是既有正式 SETUP_01 ARMED 里程碑（`SETUP01_RECOVERY_RATIO = 0.5`）本身被
+当作入场触发，没有新过滤器、没有 milestone 搜索、没有阈值 sweep。独立样本为已冻结
+clean-holdout roster（20 CN + 20 US，2017-01-01..2026-08-26），其 manifest 证明与
+A1 formal 120、development universe v1 及 Development holdout 的 symbol-level 交集为
+空；预注册协议先于任何新样本信号提交。第一阶段结果：共同分母 2,291 个 Wave2 anchor
+contexts，328 个 paired later-CONFIRMED lifecycles 上 median headroom 改善 +0.265R，
+CN / US 结构失效率 20.4% / 23.4%、确认率 33.2% / 33.5%，两侧均满足预注册 floors 与
+gates。
+
+**Boundary:** 较早入场结构上必然取得更低入场价，因此 headroom 改善本身不是 edge 证明；
+决定性证据是失败、未确认与不利波动代价，且约 2/3 触发最终未确认。不得据此把早入场
+用于生产、Paper 或候选晋级。不得在本独立样本或已暴露 Development 样本上重新搜索
+milestone、组合新过滤器、延长窗口或按结果重设阈值；样本替换与事后标准重设均禁止。
+已关闭的 `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1` 保持关闭。第二阶段必须由
+用户明确授权，并单独预注册成本、T+1 gap、滑点与净收益口径。
+
+**Reason:** 先前 Development 证据显示早入场改善 matched headroom 但同时引入大量
+FAILED / never-CONFIRMED 情景，第一层问题未清。独立样本（symbol / lifecycle 独立，
+日历窗口相同）复制了同一量级的失败与确认构成，说明该 trade-off 不是单一 Development
+样本的偶然现象，也让“可以在不改生产的前提下申请成本与净收益研究”成为一个有依据、
+但权限上仍待用户批准的下一步。
