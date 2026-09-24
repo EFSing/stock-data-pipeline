@@ -57,4 +57,3 @@ jobs:
           path: ${{ runner.temp }}/d1-output/CN
           if-no-files-found: warn
           retention-days: 30
-
