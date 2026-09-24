@@ -69,6 +69,10 @@ CLI：
 python scripts/run_setup01_d1_collector.py collect --input INPUT.json --store STORE --report-output research.md
 python scripts/run_setup01_d1_collector.py verify --store STORE
 python scripts/run_setup01_d1_collector.py recover --store STORE --target EMPTY_DIRECTORY
+python scripts/run_setup01_d1_collector.py drive-access-check --write-readback-probe
+python scripts/run_setup01_d1_collector.py drive-collect-daily-report --daily-report daily-report.json --report-output research.md
+python scripts/run_setup01_d1_collector.py drive-verify
+python scripts/run_setup01_d1_collector.py drive-recover --target EMPTY_DIRECTORY
 ```
 
 本地文件 store 只用于实现、fixture 与恢复合同验证，不等于获批的 12 个月 durable backend。
@@ -95,9 +99,12 @@ stop/target 顺序不明要单列 ambiguity，不能标记为真实成交。
 ## 持久化审计与唯一 blocker
 
 现有仓库只有 30 天 GitHub Actions artifact；它不满足 12 个月、跨设备恢复和不可变对象
-要求。现有 Google service account/Drive API 面向生产 Sheet，当前授权明确禁止新增生产
-Sheet/state 写入，仓库也没有获批的独立研究 folder/object identity。因此未配置 workflow、
-未写外部数据，正式事件数为 0。
+要求。独立 Google Drive research folder 已创建，folder-scoped durable adapter 与 CN/US
+独立 workflow 已实现；adapter 只接收 `D1_RESEARCH_DRIVE_FOLDER_ID`，使用既有 service
+account 的 `drive.file` scope，并验证 writer capability，不列举或读取 folder 外文件。当前该
+folder ID GitHub Actions Secret 已配置，但 folder 尚未共享给 service account，真实
+write/read-back/recovery 与首次自然 session 尚未完成，workflow 仍在未合并 PR。因此尚未
+写外部 D1 object，正式事件数为 0。
 
 可选方案：
 
@@ -109,4 +116,16 @@ Sheet/state 写入，仓库也没有获批的独立研究 folder/object identity
    写入凭证。会新增云资源、权限与按存储/请求/出口流量计费；需用户指定 provider、region、
    retention 与预算后再实现。
 
-在用户选择并授权 durable backend 前，CN/US 均保持 `D1_READY_NOT_ACTIVE`。
+在 service account 文件夹级 writer 权限、folder ID secret、真实 write/read-back/clean
+recovery、workflow 合并和首次自然完整 session 全部通过前，CN/US 均保持
+`D1_READY_NOT_ACTIVE`。
+
+## 普通股票绝对收益空间诊断
+
+用户明确拒绝把只能获得 0.x%、1.x%、2.x% 的普通股票机会视为有意义目标，但尚未批准新的
+绝对收益硬阈值或退出政策。D1 不改变冻结门槛，仅新增互相独立的只读诊断维度：
+`SIGNAL_VALID`、`RISK_VALID`、`TARGET_GEOMETRY`、`ECONOMIC_ATTRACTIVENESS`、
+`RESEARCH_ADMISSION`。报告必须先列最近合法 T1 的 gross headroom，再列当时结构可说明的
+更远目标及不确定性；不得用 T2/T3 或 Fibonacci 投射绕过 T1。止损距离、1R、R/R 与成本假设
+单列，gross 不得称为 net。只有退出与成本证据完整、结果在冻结协议下合法时，才报告 final
+net return%、net R、持有期与资金占用。收益区间先完整保留为诊断，不按结果选阈值。

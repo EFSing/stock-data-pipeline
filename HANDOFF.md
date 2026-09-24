@@ -5,9 +5,12 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 ## Current Task
 
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
-`D1_PROSPECTIVE_TIME_ISOLATED`。独立 D1 协议、collector/reference store、完整性/恢复、
-causal 双路径 observer 与中文只读报告已实现；因尚无获批的 12 个月 durable research
-backend，CN/US 均为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也
+`D1_PROSPECTIVE_TIME_ISOLATED`。独立 D1 协议、collector/reference store、Drive durable
+backend、完整性/恢复、causal 双路径 observer、CN/US 独立 workflow 与中文只读报告已实现；
+专用 Drive folder 已由用户账号创建，`D1_RESEARCH_DRIVE_FOLDER_ID` GitHub Actions Secret
+已配置，但既有 service account 尚未共享该 folder，真实 write/read-back/recovery 与首次
+自然 session 均未完成。因此 CN/US
+仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也
 没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
@@ -36,6 +39,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   record；旧 D2 audit/draft/freeze 均保留，D1 与 D2 不被表述为同一协议。
 - 新分支 `research/setup01-d1-prospective-time-isolated-v1` 基于 PR #111 head，已创建
   独立堆叠 PR #112（base 为 #111 分支）；#110/#111/#112 均保持 OPEN，不自动合并。
+- D1 专用 folder `EFSing stock-data-pipeline — D1 Research` 已创建；folder identity 只用于
+  `D1_RESEARCH_DRIVE_FOLDER_ID`，不得扩大到整个 My Drive。当前仍未向 service account
+  授权，未做真实写入。
 
 ## Completed
 
@@ -55,21 +61,28 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   缺日/hash/protocol/component 检测、clean recovery、private holdings/account key fail-closed、
   Path A/B 生命周期、next-session 模型、CN T+1、同日歧义与独立中文研究报告/CLI；全部仅以
   frozen synthetic fixture 验证，未形成正式 D1 事件。
+- 新增 folder-scoped Google Drive backend：只按配置 folder ID 访问，使用 `drive.file` scope，
+  支持最小 writer capability 检查、write/read-back probe、immutable create-if-absent、冲突
+  fail-closed、全图 verify 与 clean-directory 跨设备恢复；CN/US workflow 独立调度，人工指定
+  日期一律标为 diagnostic backfill，不得成为前瞻证据。
+- 用户普通股票收益偏好已登记为独立只读诊断：报告分别呈现最近合法 T1 gross headroom、
+  后续结构目标及不确定性、止损距离/1R/RR/成本，以及仅在合法最终结果存在时呈现 net
+  return/net R/持有期/资金占用；不新增绝对收益硬阈值，不改变 D1/5%/2R/T1 全退或准入。
 
 ## Blocker / Decision
 
-`READY_FOR_DECISION_D1_DURABLE_STORAGE`：现有 Actions artifact 只有 30 天 retention，
-不能承载固定 12 个月 D1；现有 Google Sheet 属生产职责，本次授权禁止新增 production
-Sheet/state 写入。需要用户选择并授权：(1) 独立 Google Drive research folder，向既有
-service account 只授予该 folder 并配置 `D1_RESEARCH_DRIVE_FOLDER_ID`；或 (2) 指定带
-versioning/retention 的 GCS/S3 bucket、region、预算和最小凭证。完成真实 write/read-back/
-clean recovery 前不得激活。除此之外没有需要用户决定的策略或数据参数。
+`D1_DRIVE_FOLDER_SHARE_REQUIRED`：durable backend、专用 folder 与 folder ID GitHub Secret
+已完成；仍需用户把该 folder 以 writer 身份仅共享给既有 service account。PR #112 未获
+合并授权，workflow 尚不在 main；真实 access
+probe、write/read-back、clean recovery 和首次自然 session 尚未运行。完成这些条件前不得
+激活或报告 `D1_COLLECTION_ACTIVE`。除此之外没有需要用户决定的策略参数。
 
 ## Next Action
 
-- 等待 durable research storage 选择；获授权后实现对应 backend adapter、做真实恢复验证，
-  再分别记录 CN/US activation timestamp 与首个完整 session，接入不影响正式日报的独立
-  research schedule/attachment。未授权前只允许 frozen synthetic fixture。
+- 获取既有 service account 的 `client_email`，由用户只共享专用 Drive folder 并配置 folder
+  ID secret；#112 经正常 review/merge 后运行真实 access/write/read-back/recovery 验收，再按
+  CN/US 自然 schedule 分别记录 activation timestamp 与首个完整 session。不得用人工指定日期
+  或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 
@@ -78,6 +91,8 @@ clean recovery 前不得激活。除此之外没有需要用户决定的策略�
 - 不改 Wave/Swing/Fibonacci 核心实现，不访问 Final OOS，不读取真实持仓。
 - 不把 H1 后 running high 标成 confirmed Swing；不在看到收益后逐笔选择 stop、target 或 exit。
 - Target-before-RR；不得用 T2/T3 绕过 T1，不得为过 2R 延伸 T1 或缩小 stop。
+- `ECONOMIC_ATTRACTIVENESS` 与 `SIGNAL_VALID`、`RISK_VALID`、`TARGET_GEOMETRY`、
+  `RESEARCH_ADMISSION` 分离；低 gross/net 收益偏好先只读记录，未批准前不得恢复或新设门槛。
 - 不得用 `entry_ceiling` 预过滤 `entry_trigger` 上方的合法近 T1。
 - 路径 A/B、CN/US 分别报告；不得合并掩盖失败或凑证据下限。
 - Candidate-only、Paper、production state、Sheet、broker 边界不变。

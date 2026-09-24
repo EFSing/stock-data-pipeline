@@ -108,12 +108,45 @@ def _diagnostics(entry: float, stop: float, t1: float) -> dict[str, Any]:
     risk = entry - stop
     upside = (t1 - entry) / entry if entry > 0 else None
     rr = (t1 - entry) / risk if risk > 0 else None
+    stop_distance = risk / entry if entry > 0 and risk > 0 else None
+    if upside is None:
+        return_band = "UNAVAILABLE"
+    elif upside < .01:
+        return_band = "LT_1_PCT"
+    elif upside < .02:
+        return_band = "1_TO_LT_2_PCT"
+    elif upside < .03:
+        return_band = "2_TO_LT_3_PCT"
+    elif upside < .05:
+        return_band = "3_TO_LT_5_PCT"
+    else:
+        return_band = "GE_5_PCT"
     return {
         "target_upside_pct": upside,
+        "gross_t1_headroom_pct": upside,
+        "planned_stop_distance_pct": stop_distance,
+        "one_r_pct": stop_distance,
         "t1_rr": rr,
         "five_pct_pass": bool(upside is not None and upside >= .05),
         "two_r_pass": bool(rr is not None and rr >= 2.0),
         "gate_role": "DIAGNOSTIC_ONLY_G1_DOES_NOT_REJECT",
+        "estimated_trading_cost": {
+            "status": "PENDING_EVENT_DATE_QUANTITY_AND_EFFECTIVE_FEE_EVIDENCE",
+            "baseline_spread_slippage_bp_per_side": 10.0,
+            "stress_spread_slippage_bp_per_side": 25.0,
+            "gross_is_not_net": True,
+        },
+        "diagnostic_dimensions": {
+            "SIGNAL_VALID": "VALID",
+            "RISK_VALID": "VALID" if stop_distance is not None else "INVALID",
+            "TARGET_GEOMETRY": "NEAREST_CAUSAL_T1_RECORDED",
+            "ECONOMIC_ATTRACTIVENESS": {
+                "status": "READ_ONLY_DIAGNOSTIC_NO_HARD_THRESHOLD",
+                "gross_headroom_band": return_band,
+                "user_low_return_preference_recorded": True,
+            },
+            "RESEARCH_ADMISSION": "ADMITTED_UNDER_FROZEN_D1_PROTOCOL",
+        },
     }
 
 
