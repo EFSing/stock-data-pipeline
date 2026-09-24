@@ -440,7 +440,7 @@
   不读 T+1）。两者都不改变正式策略、生产状态或既有审计结论；历史聚合日志仍不能转
   换成逐股机会率。
 - `SETUP01_EARLY_ENTRY_INDEPENDENT_VALIDATION_V1`（独立样本第一阶段，research-only，
-  artifact 与实现位于 PR #107，本次授权不自动合并）：唯一实验组是既有正式 SETUP_01
+  已随 PR #107 squash merge 进入 main）：唯一实验组是既有正式 SETUP_01
   ARMED 里程碑（`SETUP01_RECOVERY_RATIO=0.5`）作为入场触发，对照组为首次
   `close > H1` CONFIRMED 入场；样本为已冻结 clean-holdout roster（20 CN + 20 US，
   2017-01-01..2026-08-26），其 manifest 证明与 A1 formal 120、development universe v1
@@ -452,6 +452,19 @@
   成本／净收益研究，不授权任何 production rule、Entry、Stop、Target、5%、2R、仓位或
   allocation 变更。较早入场结构上必然取得更低入场价（非 edge 证明），且约 2/3 触发
   最终未确认；成本、净收益、胜率、期望与 Final OOS 均不在本阶段范围内。
+- `SETUP01_EARLY_ENTRY_SECOND_STAGE_DECISION_V1`（第二阶段执行可行性决策节点，
+  research-only，位于保持 OPEN 的独立 PR）：在同一冻结 cohort 上重建 2,291 个 anchor
+  contexts 与 987 个 ARMED 信号（986 个有可执行 exact next-session OPEN），审计实验组
+  的可交易定义是否已由冻结规则唯一确定。结论：入场准入、确认前执行止损／风险基准、
+  确认前目标与 5%/2R 口径、确认前终止与长期未确认处理、确认后 PM/Exit 衔接、成本与
+  可交易性输入均**未被唯一确定**，因此状态为 `READY_FOR_DECISION`，未注册、未冻结任何
+  第二阶段协议，也未计算成本、净收益、胜率或期望。已由冻结规则唯一确定的部分：ARMED
+  触发、`data <= t` 信息集与 exact T+1 OPEN、结构失效（close <= 已确认 Wave 2 low /
+  Wave 1 origin）、完整共同分母。交付登记三个互斥候选 package：A 仅结构止损、
+  B 结构低点 − 0.5×ATR14（信号日）执行止损、C 现行确认纪律前移至信号日（含
+  trigger band、5% 与 2R）。几何事实：A 准入 984/986、B 986/986、C 0/986（831/986 先被
+  5% 目标上行门槛阻断）；每笔 1R 距离中位数 A 5.7% / B 7.1%（占 entry），0.5% 风险下
+  名义金额中位数 A 8.8% / B 7.0%（占 allocation_budget）。未选择任何 package。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。

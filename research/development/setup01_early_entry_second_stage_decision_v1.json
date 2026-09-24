@@ -1,0 +1,989 @@
+{
+  "artifact_type": "setup01-early-entry-second-stage-decision",
+  "artifact_version": "SETUP01_EARLY_ENTRY_SECOND_STAGE_DECISION_V1",
+  "candidate_packages": {
+    "PKG_A_STRUCTURAL_RISK_ONLY": {
+      "combined": {
+        "admission_counts": {
+          "ADMITTED": 984,
+          "SKIP_OPEN_AT_OR_BELOW_STRUCTURAL_INVALIDATION": 2
+        },
+        "admission_note": "admits 984/986; blocked: SKIP_OPEN_AT_OR_BELOW_STRUCTURAL_INVALIDATION=2",
+        "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+        "admitted_count": 984,
+        "admitted_eventual_status_composition": {
+          "FAILED": 288,
+          "LATER_CONFIRMED": 329,
+          "NEVER_CONFIRMED": 367
+        },
+        "admitted_resolution_composition": {
+          "SCREENED_OUT_BY_CURRENT_SYSTEM": 363,
+          "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 81,
+          "TERMINAL_CONFIRMED": 329,
+          "TERMINAL_FAILED": 207,
+          "TIMEOUT_UNRESOLVED_AT_DATA_END": 4
+        },
+        "admitted_share_of_executable": 0.9979716024340771,
+        "notional_over_allocation_budget_at_half_percent_risk": {
+          "median": 0.08810256410256405,
+          "n": 984,
+          "p10": 0.04058807308485505,
+          "p25": 0.059852136742917866,
+          "p75": 0.12290966386554635,
+          "p90": 0.17564211541484845
+        },
+        "package_id": "PKG_A_STRUCTURAL_RISK_ONLY",
+        "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_CLOSE_BASED",
+        "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+        "risk_per_share_over_wave1_R": {
+          "median": 0.4290618359557844,
+          "n": 984,
+          "p10": 0.23371602204326672,
+          "p25": 0.3150945378151263,
+          "p75": 0.5548734683649823,
+          "p90": 0.7146639892637978
+        },
+        "risk_per_share_pct_of_entry": {
+          "median": 0.0567521141649049,
+          "n": 984,
+          "p10": 0.02846697795788628,
+          "p25": 0.040680297988654704,
+          "p75": 0.08353922898250216,
+          "p90": 0.1231889633994747
+        },
+        "sessions_from_entry_to_resolution": {
+          "median": 6.0,
+          "n": 984,
+          "p10": 1.0,
+          "p25": 2.0,
+          "p75": 13.0,
+          "p90": 18.0
+        },
+        "signals_with_executable_next_open": 986
+      },
+      "definition": {
+        "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+        "entry": "exact next frozen market-session OPEN",
+        "entry_trigger": "existing SETUP_01 ARMED milestone, unchanged",
+        "post_confirmation": "target set taken at the first CONFIRMED day from then-available data; initial stop retained as the frozen 1R basis; admission gates are admission-only for an already open position",
+        "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_CLOSE_BASED",
+        "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+        "sizing": "0.5% of allocation_budget over |entry - execution_stop|",
+        "structural_invalidation": "confirmed Wave 2 low (close-based), per market"
+      },
+      "per_market": {
+        "CN": {
+          "admission_counts": {
+            "ADMITTED": 461
+          },
+          "admission_note": "admits every executable signal (461/461)",
+          "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+          "admitted_count": 461,
+          "admitted_eventual_status_composition": {
+            "FAILED": 139,
+            "LATER_CONFIRMED": 153,
+            "NEVER_CONFIRMED": 169
+          },
+          "admitted_resolution_composition": {
+            "SCREENED_OUT_BY_CURRENT_SYSTEM": 167,
+            "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 35,
+            "TERMINAL_CONFIRMED": 153,
+            "TERMINAL_FAILED": 104,
+            "TIMEOUT_UNRESOLVED_AT_DATA_END": 2
+          },
+          "admitted_share_of_executable": 1.0,
+          "notional_over_allocation_budget_at_half_percent_risk": {
+            "median": 0.08157894736842108,
+            "n": 461,
+            "p10": 0.03947368421052631,
+            "p25": 0.05560344827586209,
+            "p75": 0.11257142857142853,
+            "p90": 0.16500000000000023
+          },
+          "package_id": "PKG_A_STRUCTURAL_RISK_ONLY",
+          "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_CLOSE_BASED",
+          "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+          "risk_per_share_over_wave1_R": {
+            "median": 0.4311649016641453,
+            "n": 461,
+            "p10": 0.2607361963190181,
+            "p25": 0.3246753246753243,
+            "p75": 0.5645488300999476,
+            "p90": 0.7187500000000011
+          },
+          "risk_per_share_pct_of_entry": {
+            "median": 0.061290322580645144,
+            "n": 461,
+            "p10": 0.030303030303030262,
+            "p25": 0.04441624365482235,
+            "p75": 0.08992248062015501,
+            "p90": 0.1266666666666667
+          },
+          "sessions_from_entry_to_resolution": {
+            "median": 7.0,
+            "n": 461,
+            "p10": 1.0,
+            "p25": 2.0,
+            "p75": 13.0,
+            "p90": 18.0
+          },
+          "signals_with_executable_next_open": 461
+        },
+        "US": {
+          "admission_counts": {
+            "ADMITTED": 523,
+            "SKIP_OPEN_AT_OR_BELOW_STRUCTURAL_INVALIDATION": 2
+          },
+          "admission_note": "admits 523/525; blocked: SKIP_OPEN_AT_OR_BELOW_STRUCTURAL_INVALIDATION=2",
+          "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+          "admitted_count": 523,
+          "admitted_eventual_status_composition": {
+            "FAILED": 149,
+            "LATER_CONFIRMED": 176,
+            "NEVER_CONFIRMED": 198
+          },
+          "admitted_resolution_composition": {
+            "SCREENED_OUT_BY_CURRENT_SYSTEM": 196,
+            "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 46,
+            "TERMINAL_CONFIRMED": 176,
+            "TERMINAL_FAILED": 103,
+            "TIMEOUT_UNRESOLVED_AT_DATA_END": 2
+          },
+          "admitted_share_of_executable": 0.9961904761904762,
+          "notional_over_allocation_budget_at_half_percent_risk": {
+            "median": 0.09446787447172567,
+            "n": 523,
+            "p10": 0.04144216112495671,
+            "p25": 0.06477515819818751,
+            "p75": 0.12987658434212127,
+            "p90": 0.1805145631189979
+          },
+          "package_id": "PKG_A_STRUCTURAL_RISK_ONLY",
+          "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_CLOSE_BASED",
+          "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+          "risk_per_share_over_wave1_R": {
+            "median": 0.42745884733801864,
+            "n": 523,
+            "p10": 0.2141358038701745,
+            "p25": 0.29513238118697155,
+            "p75": 0.541296714078709,
+            "p90": 0.7102992276168999
+          },
+          "risk_per_share_pct_of_entry": {
+            "median": 0.05292804594112578,
+            "n": 523,
+            "p10": 0.027698605820435915,
+            "p25": 0.03849808677966671,
+            "p75": 0.0771910157536746,
+            "p90": 0.12065063062956298
+          },
+          "sessions_from_entry_to_resolution": {
+            "median": 6.0,
+            "n": 523,
+            "p10": 1.0,
+            "p25": 2.0,
+            "p75": 12.0,
+            "p90": 18.0
+          },
+          "signals_with_executable_next_open": 525
+        }
+      }
+    },
+    "PKG_B_ATR_EXECUTION_STOP": {
+      "combined": {
+        "admission_counts": {
+          "ADMITTED": 986
+        },
+        "admission_note": "admits every executable signal (986/986)",
+        "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+        "admitted_count": 986,
+        "admitted_eventual_status_composition": {
+          "FAILED": 290,
+          "LATER_CONFIRMED": 329,
+          "NEVER_CONFIRMED": 367
+        },
+        "admitted_resolution_composition": {
+          "SCREENED_OUT_BY_CURRENT_SYSTEM": 363,
+          "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 82,
+          "TERMINAL_CONFIRMED": 329,
+          "TERMINAL_FAILED": 208,
+          "TIMEOUT_UNRESOLVED_AT_DATA_END": 4
+        },
+        "admitted_share_of_executable": 1.0,
+        "notional_over_allocation_budget_at_half_percent_risk": {
+          "median": 0.07043286425068339,
+          "n": 986,
+          "p10": 0.03357628281046778,
+          "p25": 0.04961288850771206,
+          "p75": 0.09596466275651319,
+          "p90": 0.13069542821247487
+        },
+        "package_id": "PKG_B_ATR_EXECUTION_STOP",
+        "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+        "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+        "risk_per_share_over_wave1_R": {
+          "median": 0.5329153027467726,
+          "n": 986,
+          "p10": 0.3087111316025275,
+          "p25": 0.401645171169402,
+          "p75": 0.6857243739142018,
+          "p90": 0.8770370190679149
+        },
+        "risk_per_share_pct_of_entry": {
+          "median": 0.0709895895968281,
+          "n": 986,
+          "p10": 0.03825793870288015,
+          "p25": 0.052102516383268835,
+          "p75": 0.10078034311209999,
+          "p90": 0.1489153775172688
+        },
+        "sessions_from_entry_to_resolution": {
+          "median": 6.0,
+          "n": 986,
+          "p10": 1.0,
+          "p25": 2.0,
+          "p75": 13.0,
+          "p90": 18.0
+        },
+        "signals_with_executable_next_open": 986
+      },
+      "definition": {
+        "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+        "entry": "exact next frozen market-session OPEN",
+        "entry_trigger": "existing SETUP_01 ARMED milestone, unchanged",
+        "post_confirmation": "target set taken at the first CONFIRMED day from then-available data; initial stop retained as the frozen 1R basis; admission gates are admission-only for an already open position",
+        "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+        "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+        "sizing": "0.5% of allocation_budget over |entry - execution_stop|",
+        "structural_invalidation": "confirmed Wave 2 low (close-based), per market"
+      },
+      "per_market": {
+        "CN": {
+          "admission_counts": {
+            "ADMITTED": 461
+          },
+          "admission_note": "admits every executable signal (461/461)",
+          "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+          "admitted_count": 461,
+          "admitted_eventual_status_composition": {
+            "FAILED": 139,
+            "LATER_CONFIRMED": 153,
+            "NEVER_CONFIRMED": 169
+          },
+          "admitted_resolution_composition": {
+            "SCREENED_OUT_BY_CURRENT_SYSTEM": 167,
+            "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 35,
+            "TERMINAL_CONFIRMED": 153,
+            "TERMINAL_FAILED": 104,
+            "TIMEOUT_UNRESOLVED_AT_DATA_END": 2
+          },
+          "admitted_share_of_executable": 1.0,
+          "notional_over_allocation_budget_at_half_percent_risk": {
+            "median": 0.06461941612180953,
+            "n": 461,
+            "p10": 0.033159805099573524,
+            "p25": 0.044950911607522515,
+            "p75": 0.08757315808549518,
+            "p90": 0.12130879812774714
+          },
+          "package_id": "PKG_B_ATR_EXECUTION_STOP",
+          "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+          "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+          "risk_per_share_over_wave1_R": {
+            "median": 0.5426392783808834,
+            "n": 461,
+            "p10": 0.33762661836990027,
+            "p25": 0.4151864400774851,
+            "p75": 0.7105568641162855,
+            "p90": 0.8900439945233478
+          },
+          "risk_per_share_pct_of_entry": {
+            "median": 0.07737612470182105,
+            "n": 461,
+            "p10": 0.04121712585705968,
+            "p25": 0.05709512034633538,
+            "p75": 0.11123244938069848,
+            "p90": 0.15078496345155862
+          },
+          "sessions_from_entry_to_resolution": {
+            "median": 7.0,
+            "n": 461,
+            "p10": 1.0,
+            "p25": 2.0,
+            "p75": 13.0,
+            "p90": 18.0
+          },
+          "signals_with_executable_next_open": 461
+        },
+        "US": {
+          "admission_counts": {
+            "ADMITTED": 525
+          },
+          "admission_note": "admits every executable signal (525/525)",
+          "admission_rule": "UNCONDITIONAL_EXACT_NEXT_SESSION_OPEN",
+          "admitted_count": 525,
+          "admitted_eventual_status_composition": {
+            "FAILED": 151,
+            "LATER_CONFIRMED": 176,
+            "NEVER_CONFIRMED": 198
+          },
+          "admitted_resolution_composition": {
+            "SCREENED_OUT_BY_CURRENT_SYSTEM": 196,
+            "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 47,
+            "TERMINAL_CONFIRMED": 176,
+            "TERMINAL_FAILED": 104,
+            "TIMEOUT_UNRESOLVED_AT_DATA_END": 2
+          },
+          "admitted_share_of_executable": 1.0,
+          "notional_over_allocation_budget_at_half_percent_risk": {
+            "median": 0.07543882084683869,
+            "n": 525,
+            "p10": 0.03488979476366023,
+            "p25": 0.053093089494217115,
+            "p75": 0.10123469732481323,
+            "p90": 0.14104737264045264
+          },
+          "package_id": "PKG_B_ATR_EXECUTION_STOP",
+          "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+          "pre_confirmation_targets": "DEFERRED_TO_THE_FIRST_CONFIRMED_DAY",
+          "risk_per_share_over_wave1_R": {
+            "median": 0.5256853867528994,
+            "n": 525,
+            "p10": 0.2713546440914481,
+            "p25": 0.38805663115262334,
+            "p75": 0.6687091177345386,
+            "p90": 0.8553725260842869
+          },
+          "risk_per_share_pct_of_entry": {
+            "median": 0.06627887265299863,
+            "n": 525,
+            "p10": 0.03545043616870662,
+            "p25": 0.049390180759442744,
+            "p75": 0.09417421452832574,
+            "p90": 0.1433089251073146
+          },
+          "sessions_from_entry_to_resolution": {
+            "median": 6.0,
+            "n": 525,
+            "p10": 1.0,
+            "p25": 2.0,
+            "p75": 12.0,
+            "p90": 18.0
+          },
+          "signals_with_executable_next_open": 525
+        }
+      }
+    },
+    "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE": {
+      "combined": {
+        "admission_counts": {
+          "SKIP_OPEN_OUTSIDE_TRIGGER_BAND": 102,
+          "SKIP_RR_BELOW_MINIMUM_AT_OPEN": 53,
+          "SKIP_TARGET_UPSIDE_BELOW_MINIMUM": 831
+        },
+        "admission_note": "admits no trade on the frozen sample: 831/986 signals are blocked first by SKIP_TARGET_UPSIDE_BELOW_MINIMUM",
+        "admission_rule": "TRIGGER_BAND_PLUS_INCUMBENT_TARGET_UPSIDE_AND_RR_GATES",
+        "admitted_count": 0,
+        "admitted_eventual_status_composition": {},
+        "admitted_resolution_composition": {},
+        "admitted_share_of_executable": 0.0,
+        "notional_over_allocation_budget_at_half_percent_risk": {
+          "median": null,
+          "n": 0,
+          "p10": null,
+          "p25": null,
+          "p75": null,
+          "p90": null
+        },
+        "package_id": "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE",
+        "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+        "pre_confirmation_targets": "EVALUATED_AT_THE_SIGNAL_DATE",
+        "risk_per_share_over_wave1_R": {
+          "median": null,
+          "n": 0,
+          "p10": null,
+          "p25": null,
+          "p75": null,
+          "p90": null
+        },
+        "risk_per_share_pct_of_entry": {
+          "median": null,
+          "n": 0,
+          "p10": null,
+          "p25": null,
+          "p75": null,
+          "p90": null
+        },
+        "sessions_from_entry_to_resolution": {
+          "median": null,
+          "n": 0,
+          "p10": null,
+          "p25": null,
+          "p75": null,
+          "p90": null
+        },
+        "signals_with_executable_next_open": 986
+      },
+      "definition": {
+        "admission_rule": "TRIGGER_BAND_PLUS_INCUMBENT_TARGET_UPSIDE_AND_RR_GATES",
+        "entry": "exact next frozen market-session OPEN",
+        "entry_trigger": "existing SETUP_01 ARMED milestone, unchanged",
+        "post_confirmation": "target set taken at the first CONFIRMED day from then-available data; initial stop retained as the frozen 1R basis; admission gates are admission-only for an already open position",
+        "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+        "pre_confirmation_targets": "EVALUATED_AT_THE_SIGNAL_DATE",
+        "sizing": "0.5% of allocation_budget over |entry - execution_stop|",
+        "structural_invalidation": "confirmed Wave 2 low (close-based), per market"
+      },
+      "per_market": {
+        "CN": {
+          "admission_counts": {
+            "SKIP_OPEN_OUTSIDE_TRIGGER_BAND": 38,
+            "SKIP_RR_BELOW_MINIMUM_AT_OPEN": 29,
+            "SKIP_TARGET_UPSIDE_BELOW_MINIMUM": 394
+          },
+          "admission_note": "admits no trade on the frozen sample: 394/461 signals are blocked first by SKIP_TARGET_UPSIDE_BELOW_MINIMUM",
+          "admission_rule": "TRIGGER_BAND_PLUS_INCUMBENT_TARGET_UPSIDE_AND_RR_GATES",
+          "admitted_count": 0,
+          "admitted_eventual_status_composition": {},
+          "admitted_resolution_composition": {},
+          "admitted_share_of_executable": 0.0,
+          "notional_over_allocation_budget_at_half_percent_risk": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "package_id": "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE",
+          "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+          "pre_confirmation_targets": "EVALUATED_AT_THE_SIGNAL_DATE",
+          "risk_per_share_over_wave1_R": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "risk_per_share_pct_of_entry": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "sessions_from_entry_to_resolution": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "signals_with_executable_next_open": 461
+        },
+        "US": {
+          "admission_counts": {
+            "SKIP_OPEN_OUTSIDE_TRIGGER_BAND": 64,
+            "SKIP_RR_BELOW_MINIMUM_AT_OPEN": 24,
+            "SKIP_TARGET_UPSIDE_BELOW_MINIMUM": 437
+          },
+          "admission_note": "admits no trade on the frozen sample: 437/525 signals are blocked first by SKIP_TARGET_UPSIDE_BELOW_MINIMUM",
+          "admission_rule": "TRIGGER_BAND_PLUS_INCUMBENT_TARGET_UPSIDE_AND_RR_GATES",
+          "admitted_count": 0,
+          "admitted_eventual_status_composition": {},
+          "admitted_resolution_composition": {},
+          "admitted_share_of_executable": 0.0,
+          "notional_over_allocation_budget_at_half_percent_risk": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "package_id": "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE",
+          "pre_confirmation_execution_stop": "CONFIRMED_WAVE2_LOW_MINUS_HALF_ATR14_AT_SIGNAL_DATE",
+          "pre_confirmation_targets": "EVALUATED_AT_THE_SIGNAL_DATE",
+          "risk_per_share_over_wave1_R": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "risk_per_share_pct_of_entry": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "sessions_from_entry_to_resolution": {
+            "median": null,
+            "n": 0,
+            "p10": null,
+            "p25": null,
+            "p75": null,
+            "p90": null
+          },
+          "signals_with_executable_next_open": 525
+        }
+      }
+    }
+  },
+  "compatibility": {
+    "PKG_A_STRUCTURAL_RISK_ONLY": {
+      "new_rules_required": [
+        "early entry bypasses the confirmation-day entry zone",
+        "structural invalidation becomes an executable exit and the 1R basis",
+        "pre-confirmation positions are exempt from the T-day 5%/2R admission gates"
+      ],
+      "reuses": [
+        "ARMED milestone and Wave/Swing engine",
+        "confirmed Wave 2 low structural invalidation",
+        "exact T+1 OPEN timing and the market-session SSOT",
+        "confirmation-day target set and Position Management / Exit v1 afterwards"
+      ],
+      "risk_profile_note": "narrower per-trade risk distance than the ATR-buffer package, because the buffer sits 0.5*ATR below the structural low; the implied notional per 0.5% risk unit is therefore larger"
+    },
+    "PKG_B_ATR_EXECUTION_STOP": {
+      "new_rules_required": [
+        "early entry bypasses the confirmation-day entry zone",
+        "a pre-confirmation execution stop equal to the incumbent ATR formula evaluated at the signal date",
+        "pre-confirmation positions are exempt from the T-day 5%/2R admission gates"
+      ],
+      "reuses": [
+        "ARMED milestone and Wave/Swing engine",
+        "incumbent execution-stop formula wave2_low - 0.5*ATR14",
+        "confirmation-day target set and Position Management / Exit v1 afterwards"
+      ],
+      "risk_profile_note": "per-trade risk distance is wider than the structural-only package on every lifecycle, because the incumbent Execution Stop formula places the stop 0.5*ATR below the structural low; it also admits the opens that gap below the structural low but not below that stop. The stop itself is not part of any registered pre-confirmation semantics"
+    },
+    "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE": {
+      "new_rules_required": [
+        "early entry zone [recovery level, H1 + 0.5*ATR14 at the signal date]",
+        "pre-confirmation execution stop equal to the incumbent ATR formula at the signal date",
+        "the incumbent 5% target-upside and 2R gates are evaluated at the signal date against a signal-date target set"
+      ],
+      "reuses": [
+        "ARMED milestone and Wave/Swing engine",
+        "incumbent target construction, 5% gate and 2R gate, unmodified, on the earlier information set",
+        "confirmation-day target set and Position Management / Exit v1 afterwards"
+      ],
+      "risk_profile_note": "most restrictive package because H1 necessarily becomes the nearest target candidate on the earlier date, which makes the incumbent upside and R/R gates bind far earlier than at confirmation"
+    }
+  },
+  "controls": {
+    "broker_orders": 0,
+    "execution_cost_computed": false,
+    "final_oos_accessed": false,
+    "net_return_or_pnl_computed": false,
+    "parameter_search_or_threshold_sweep": false,
+    "position_or_allocation_authorized": false,
+    "production_strategy_unchanged": true,
+    "protocol_registered": false,
+    "provider_or_symbol_switch": false,
+    "real_holdings_accessed": false,
+    "research_only": true,
+    "sample_replaced_or_extended": false,
+    "sheets_writes": 0,
+    "state_writes": 0,
+    "win_rate_or_expectancy_computed": false
+  },
+  "decision_required": true,
+  "denominator": {
+    "anchor_contexts": 2291,
+    "cohort_rule": "unchanged first-stage common denominator: every causal Wave2 anchor context of the frozen independent sample, including FAILED, never-CONFIRMED, screened-out and right-censored rows",
+    "denominator_matches_first_stage": true,
+    "first_stage_executable_early_signals": {
+      "CN": 461,
+      "US": 525
+    },
+    "rebuilt_executable_early_signals": {
+      "CN": 461,
+      "US": 525
+    }
+  },
+  "determinacy_audit": {
+    "not_determined": [
+      {
+        "dimension": "entry_admission_geometry",
+        "evidence": "trading/setup01_decision.py entry_zone_low=confirmation_level and opening < entry_zone_low -> SKIP_GAP_BELOW_CONFIRMATION; stage-1 entry_to_H1_distance distribution",
+        "resolved_by": [
+          "PKG_A_STRUCTURAL_RISK_ONLY",
+          "PKG_B_ATR_EXECUTION_STOP",
+          "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE"
+        ],
+        "why_blocking": "the only frozen SETUP_01 admission rule is the confirmation-day Decision entry zone [H1, H1 + 0.5*ATR14(T)] with entry_zone_low = H1, and its executor classifies any OPEN below H1 as SKIP_GAP_BELOW_CONFIRMATION; the overwhelming majority of early entries opens below H1 by construction, so that frozen rule rejects almost every early trade and a new admission rule must be chosen"
+      },
+      {
+        "dimension": "preconfirmation_execution_stop_and_risk_basis",
+        "evidence": "stage-1 policies.ARMED_HALF_RECOVERY.stop_invalidation_first.production_stop_semantics = NOT_DEFINED_BY_THIS_RESEARCH_PROTOCOL; trading/risk.py position_size(); docs/PORTFOLIO_RISK_V1.md risk unit",
+        "resolved_by": [
+          "PKG_A_STRUCTURAL_RISK_ONLY",
+          "PKG_B_ATR_EXECUTION_STOP",
+          "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE"
+        ],
+        "why_blocking": "no stop exists for a pre-confirmation position; the 0.5% risk budget and position_size() need |entry - execution_stop|, and the stage-1 artifact records production_stop_defined=false for the experimental group"
+      },
+      {
+        "dimension": "preconfirmation_target_and_gate_semantics",
+        "evidence": "trading/setup01_decision.py _target_candidates and target ordering; trading/risk.py MIN_TARGET_UPSIDE_PCT and rr_quality; docs/TRADING_SYSTEM_SPEC.md Target/RR rules",
+        "resolved_by": [
+          "PKG_A_STRUCTURAL_RISK_ONLY",
+          "PKG_B_ATR_EXECUTION_STOP",
+          "PKG_C_INCUMBENT_DISCIPLINE_AT_SIGNAL_DATE"
+        ],
+        "why_blocking": "the incumbent target set is built from confirmed swing highs known as of T and above the confirmed reference entry, plus Wave-1 projections; at an earlier date the nearest confirmed swing high above the entry is normally H1 itself, so T1, the 5% gross-upside gate and the 2R gate produce a different admission set than at confirmation, and reusing the confirmation-day target set on the earlier date would backfill geometry that only exists at confirmation"
+      },
+      {
+        "dimension": "preconfirmation_termination_and_long_unconfirmed_handling",
+        "evidence": "stage-1 cohort 2291 with 942 FAILED / 559 never-CONFIRMED / 551 screened-out; docs/POSITION_MANAGEMENT_EXIT_V1.md scope",
+        "residual_decision": "hold until the producing lifecycle fails, the execution stop triggers or the data ends, versus a pre-registered maximum waiting window",
+        "resolved_by": null,
+        "why_blocking": "about two thirds of executable early signals never reach the incumbent confirmation, and the cohort also contains screened-out and right-censored contexts; the frozen Position Management protocol only consumes positions created by an EXECUTED confirmation-day Decision, so no frozen rule says when a pre-confirmation position must be closed"
+      },
+      {
+        "dimension": "post_confirmation_handoff",
+        "evidence": "docs/POSITION_MANAGEMENT_EXIT_V1.md 1R and stop-raise rules; docs/SETUP_01_DECISION_RISK_V1.md execution ledger invariants",
+        "residual_decision": "targets recomputed at the first CONFIRMED day from then-available data, initial stop retained as the frozen 1R basis, and admission gates treated as admission-only for an already open position",
+        "resolved_by": null,
+        "why_blocking": "Position Management / Exit v1 freezes 1R = actual_entry - initial_execution_stop and its stop-raise rule references the T close of the confirmation-day Decision; an early position needs an explicit mapping of the initial stop, of the target set taken at the first CONFIRMED day, and of whether the confirmation-day 5%/2R gates may eject an already open position"
+      },
+      {
+        "dimension": "execution_cost_and_market_tradability_inputs",
+        "evidence": "stage-1 protocol out_of_scope; docs/PORTFOLIO_RISK_V1.md (V1 does not round for A-shares or US shares); the raw CN payload retains pctChg/preclose/amount/turn while the US payload carries OHLCV only",
+        "residual_decision": "frozen cost scenarios must be registered before any net metric is computed",
+        "resolved_by": null,
+        "why_blocking": "no cost, spread, slippage, lot-size, price-limit or suspension rule is registered for either market, and the frozen replay input carries no quote or spread data; these must be pre-registered as explicit scenarios with sources and dates, or marked unknown"
+      }
+    ],
+    "uniquely_determined": [
+      {
+        "dimension": "entry_trigger",
+        "rule": "first causal primary/alternate WAVE_2_TO_3 context day with all three Swing anchors confirmed, close >= wave2_low + 0.5 * (wave1_peak - wave2_low) and close <= wave1_peak",
+        "source": "trading/setup01.py SETUP01_RECOVERY_RATIO=0.5 ARMED predicate; stage-1 protocol single_experimental_group"
+      },
+      {
+        "dimension": "signal_information_set_and_execution_timing",
+        "rule": "data <= signal date only; entry is the exact next frozen market-session OPEN; no same-bar fill; no later-bar or T+2 substitution",
+        "source": "stage-1 protocol causal_contract; research/market_sessions.py session SSOT; docs/SETUP_01_DECISION_RISK_V1.md time contract"
+      },
+      {
+        "dimension": "structural_invalidation",
+        "rule": "close <= confirmed Wave 2 low is the SETUP_01 trade-structure invalidation; close <= Wave 1 origin is the wave-scenario invalidation",
+        "source": "trading/setup01.py _state_for_candidate and _context_failure_reason"
+      },
+      {
+        "dimension": "common_denominator",
+        "rule": "every strict as-of causal Wave2 anchor context of the frozen sample, including FAILED, never-CONFIRMED, screened-out and right-censored rows; never the later-CONFIRMED subset",
+        "source": "stage-1 protocol denominator and cohort_construction"
+      }
+    ]
+  },
+  "production_authorization": false,
+  "protocol_frozen_before_any_second_stage_outcome": false,
+  "protocol_registered": false,
+  "residual_decisions": [
+    {
+      "decision_id": "PRE_CONFIRMATION_WAITING_BOUND",
+      "no_default": true,
+      "question": "may a pre-confirmation position stay open until the producing lifecycle fails, its execution stop triggers or the data ends, or must a maximum waiting window be pre-registered?",
+      "required_before": "stage-2 protocol registration"
+    },
+    {
+      "decision_id": "COST_AND_TRADABILITY_SCENARIOS",
+      "no_default": true,
+      "question": "which commission, minimum fee, sell-side tax, spread, slippage and tradability scenarios are pre-registered, and which cost items stay unknown for each market?",
+      "required_before": "any net metric is computed"
+    },
+    {
+      "decision_id": "POST_CONFIRMATION_HANDOFF_CONFIRMATION",
+      "no_default": true,
+      "question": "confirm that the confirmation-day target set is the post-confirmation management geometry, that the initial stop stays the frozen 1R basis and that admission gates never eject an already open position",
+      "required_before": "stage-2 protocol registration"
+    }
+  ],
+  "second_stage_protocol_id": null,
+  "shared_geometry_facts": {
+    "combined": {
+      "dataset_end_resolution": {
+        "AT_DATASET_END": 5,
+        "RESOLVED": 981
+      },
+      "early_signals": 987,
+      "entry_to_H1_R": {
+        "median": 0.1746149830734109,
+        "n": 986,
+        "p10": 0.02082218012531442,
+        "p25": 0.08490828425152278,
+        "p75": 0.28228380819042,
+        "p90": 0.37817460317460316
+      },
+      "entry_to_atr_execution_stop_R": {
+        "median": 0.5329153027467726,
+        "n": 986,
+        "p10": 0.3087111316025275,
+        "p25": 0.401645171169402,
+        "p75": 0.6857243739142018,
+        "p90": 0.8770370190679149
+      },
+      "entry_to_atr_execution_stop_pct_of_entry": {
+        "median": 0.0709895895968281,
+        "n": 986,
+        "p10": 0.03825793870288015,
+        "p25": 0.052102516383268835,
+        "p75": 0.10078034311209999,
+        "p90": 0.1489153775172688
+      },
+      "entry_to_wave2_low_R": {
+        "median": 0.4285930555366726,
+        "n": 986,
+        "p10": 0.23309077302706618,
+        "p25": 0.3147538449293149,
+        "p75": 0.554804428794123,
+        "p90": 0.7145559106986319
+      },
+      "entry_to_wave2_low_pct_of_entry": {
+        "median": 0.056644910048266814,
+        "n": 986,
+        "p10": 0.028416722144942647,
+        "p25": 0.04062274341523281,
+        "p75": 0.08334023514051062,
+        "p90": 0.12314983718353062
+      },
+      "eventual_status_composition": {
+        "FAILED": 290,
+        "LATER_CONFIRMED": 329,
+        "NEVER_CONFIRMED": 368
+      },
+      "executable_next_session_open": 986,
+      "incumbent_entry_zone_class": {
+        "ENTRY_OPEN_AT_OR_ABOVE_CONFIRMATION_LEVEL": 67,
+        "ENTRY_OPEN_BELOW_CONFIRMATION_LEVEL": 919
+      },
+      "non_executable_next_session_open": 1,
+      "resolution_composition": {
+        "SCREENED_OUT_BY_CURRENT_SYSTEM": 363,
+        "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 82,
+        "TERMINAL_CONFIRMED": 329,
+        "TERMINAL_FAILED": 208,
+        "TIMEOUT_UNRESOLVED_AT_DATA_END": 5
+      },
+      "sessions_from_entry_to_resolution": {
+        "median": 6.0,
+        "n": 986,
+        "p10": 1.0,
+        "p25": 2.0,
+        "p75": 13.0,
+        "p90": 18.0
+      }
+    },
+    "per_market": {
+      "CN": {
+        "dataset_end_resolution": {
+          "AT_DATASET_END": 2,
+          "RESOLVED": 459
+        },
+        "early_signals": 462,
+        "entry_to_H1_R": {
+          "median": 0.19157088122605404,
+          "n": 461,
+          "p10": 0.035971223021582774,
+          "p25": 0.09192200557102996,
+          "p75": 0.2830188679245284,
+          "p90": 0.37692307692307647
+        },
+        "entry_to_atr_execution_stop_R": {
+          "median": 0.5426392783808834,
+          "n": 461,
+          "p10": 0.33762661836990027,
+          "p25": 0.4151864400774851,
+          "p75": 0.7105568641162855,
+          "p90": 0.8900439945233478
+        },
+        "entry_to_atr_execution_stop_pct_of_entry": {
+          "median": 0.07737612470182105,
+          "n": 461,
+          "p10": 0.04121712585705968,
+          "p25": 0.05709512034633538,
+          "p75": 0.11123244938069848,
+          "p90": 0.15078496345155862
+        },
+        "entry_to_wave2_low_R": {
+          "median": 0.4311649016641453,
+          "n": 461,
+          "p10": 0.2607361963190181,
+          "p25": 0.3246753246753243,
+          "p75": 0.5645488300999476,
+          "p90": 0.7187500000000011
+        },
+        "entry_to_wave2_low_pct_of_entry": {
+          "median": 0.061290322580645144,
+          "n": 461,
+          "p10": 0.030303030303030262,
+          "p25": 0.04441624365482235,
+          "p75": 0.08992248062015501,
+          "p90": 0.1266666666666667
+        },
+        "eventual_status_composition": {
+          "FAILED": 139,
+          "LATER_CONFIRMED": 153,
+          "NEVER_CONFIRMED": 170
+        },
+        "executable_next_session_open": 461,
+        "incumbent_entry_zone_class": {
+          "ENTRY_OPEN_AT_OR_ABOVE_CONFIRMATION_LEVEL": 24,
+          "ENTRY_OPEN_BELOW_CONFIRMATION_LEVEL": 437
+        },
+        "non_executable_next_session_open": 1,
+        "resolution_composition": {
+          "SCREENED_OUT_BY_CURRENT_SYSTEM": 167,
+          "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 35,
+          "TERMINAL_CONFIRMED": 153,
+          "TERMINAL_FAILED": 104,
+          "TIMEOUT_UNRESOLVED_AT_DATA_END": 3
+        },
+        "sessions_from_entry_to_resolution": {
+          "median": 7.0,
+          "n": 461,
+          "p10": 1.0,
+          "p25": 2.0,
+          "p75": 13.0,
+          "p90": 18.0
+        }
+      },
+      "US": {
+        "dataset_end_resolution": {
+          "AT_DATASET_END": 3,
+          "RESOLVED": 522
+        },
+        "early_signals": 525,
+        "entry_to_H1_R": {
+          "median": 0.16388691080289622,
+          "n": 525,
+          "p10": 0.00931555846591535,
+          "p25": 0.07076407858737434,
+          "p75": 0.2799059603791341,
+          "p90": 0.3801202237765392
+        },
+        "entry_to_atr_execution_stop_R": {
+          "median": 0.5256853867528994,
+          "n": 525,
+          "p10": 0.2713546440914481,
+          "p25": 0.38805663115262334,
+          "p75": 0.6687091177345386,
+          "p90": 0.8553725260842869
+        },
+        "entry_to_atr_execution_stop_pct_of_entry": {
+          "median": 0.06627887265299863,
+          "n": 525,
+          "p10": 0.03545043616870662,
+          "p25": 0.049390180759442744,
+          "p75": 0.09417421452832574,
+          "p90": 0.1433089251073146
+        },
+        "entry_to_wave2_low_R": {
+          "median": 0.4254191194261628,
+          "n": 525,
+          "p10": 0.21279578211764782,
+          "p25": 0.29401297424153217,
+          "p75": 0.5389731418197372,
+          "p90": 0.7102978251553453
+        },
+        "entry_to_wave2_low_pct_of_entry": {
+          "median": 0.05270204181882532,
+          "n": 525,
+          "p10": 0.02754936131645267,
+          "p25": 0.03841871876916628,
+          "p75": 0.07692304795267413,
+          "p90": 0.12052180817480304
+        },
+        "eventual_status_composition": {
+          "FAILED": 151,
+          "LATER_CONFIRMED": 176,
+          "NEVER_CONFIRMED": 198
+        },
+        "executable_next_session_open": 525,
+        "incumbent_entry_zone_class": {
+          "ENTRY_OPEN_AT_OR_ABOVE_CONFIRMATION_LEVEL": 43,
+          "ENTRY_OPEN_BELOW_CONFIRMATION_LEVEL": 482
+        },
+        "non_executable_next_session_open": 0,
+        "resolution_composition": {
+          "SCREENED_OUT_BY_CURRENT_SYSTEM": 196,
+          "STRUCTURAL_INVALIDATION_BEFORE_CONFIRMATION": 47,
+          "TERMINAL_CONFIRMED": 176,
+          "TERMINAL_FAILED": 104,
+          "TIMEOUT_UNRESOLVED_AT_DATA_END": 2
+        },
+        "sessions_from_entry_to_resolution": {
+          "median": 6.0,
+          "n": 525,
+          "p10": 1.0,
+          "p25": 2.0,
+          "p75": 12.0,
+          "p90": 18.0
+        }
+      }
+    }
+  },
+  "source_artifacts": {
+    "dataset_manifest": {
+      "path": "research/early_entry_validation_sample/dataset_manifest.json",
+      "sha256": "sha256:71a4faa2d681abbbae3151904d93f8c20dbf9c1b4d455a13ebe67aa8af3082b0"
+    },
+    "dataset_version": "SETUP01-EARLY-ENTRY-INDEPENDENT-VALIDATION-DATASET-CN-BAOSTOCK-US-YFINANCE-2026-09-24-v1",
+    "frozen_replay_input": {
+      "path": "artifacts/setup01_early_entry_independent_validation_v1/independent_validation_replay_input.jsonl.gz",
+      "sha256": "sha256:8caf05e24222f57eaa3224f874238db0a2d394d4f6a3f761b684221ca9897080"
+    },
+    "replay_aggregate_hash": "sha256:2500398be662fa2bd894aa4e3d538e9f3c6a04f0a291ece8ff85dfb5164aa4e7",
+    "stage1_json": {
+      "path": "research/development/setup01_early_entry_independent_validation_v1.json",
+      "sha256": "sha256:acd9e966f0f9b7284d272f978778147140f1b2c7adcd80606befc3de9119d670"
+    },
+    "stage1_markdown": {
+      "path": "research/development/setup01_early_entry_independent_validation_v1.md",
+      "sha256": "sha256:9bbd5ea0b4c6257f05c5771e30a9038704597bafb1074e88bf2cba658b84c088"
+    },
+    "stage1_protocol": {
+      "path": "research/protocols/setup01_early_entry_independent_validation_v1.json",
+      "sha256": "sha256:ac4d6da233cf78082550fcfdf33d552cd8fa74c9abca6e36e4523de4508f1334"
+    },
+    "universe_manifest_sha256": "sha256:bee3b399a50393fb793862408935d2f5397f93e1c2209ced91183e6ee9517f9b",
+    "universe_symbol_list_sha256": "sha256:a00cdd73e6976546df43ea92a6e5e48f64124af974ff20c7812ee6c350399e58"
+  },
+  "stage1_reference": {
+    "artifact_version": "v1",
+    "immutable": true,
+    "overall_classification": "FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION",
+    "protocol_version": "SETUP01_EARLY_ENTRY_INDEPENDENT_VALIDATION_V1",
+    "status": "FIRST_STAGE_SUPPORTED_FOR_SECOND_STAGE_APPLICATION",
+    "supports_second_stage_application": true
+  },
+  "stage2_protocol_items_ready_to_freeze": [
+    "frozen sample identity, provider contract, hashes and roster (unchanged)",
+    "common denominator of the first stage, per market, with FAILED, never-CONFIRMED, screened-out and right-censored rows retained",
+    "signal information set, exact T+1 OPEN execution, no same-bar fill, no T+2 fallback",
+    "structural invalidation semantics",
+    "conservative same-bar tie-breaking for stop and target conditions",
+    "separate reporting of net R, net return, notional, holding period, capital occupation and opportunity cost",
+    "per-market clustering, time aggregation and cross-market uncertainty reporting",
+    "no Final OOS, no sample replacement, no parameter search"
+  ],
+  "status": "READY_FOR_DECISION",
+  "validation": {
+    "admission_counts_conserved": true,
+    "denominator_matches_first_stage": true,
+    "every_package_covers_the_full_executable_denominator": true,
+    "outcome_metrics_computed": false,
+    "packages_registered": 3,
+    "per_market_split_conserved": true
+  }
+}
