@@ -708,3 +708,16 @@ exact-T 尾行，缺失或过期统一 fail closed。
 **Reason:** 原 Cloud cutover 假设旧行情表只是持久化展示，但现有自动化监控仍把该 Sheet
 作为行情输入；移除旧 schedule 后会造成 Sheet 停更并使旧行存在被误读风险。恢复 writer
 可以补回既有输入职责，同时保持 Cloud 日报的只读内存边界、策略状态边界和交易语义不变。
+
+## 2026-09-24 — Scheduled Cloud report quality gate
+
+**Decision:** 定时 CN/US Cloud 日报必须在报告质量为 `PARTIAL_DATA_QUALITY` 时给出
+nonzero Actions conclusion，即使 exact-T 数据可用、核心计算成功、JSON/HTML 已形成且通知
+已交付。CLI 默认的 read-only 运维返回码仍允许 partial delivery exit 0；定时 workflow
+显式使用 `--require-complete`，使质量不完整 exit 2。`always()` artifact 上传仍在生成
+步骤之后执行。`SUCCESS`、`SKIPPED_NON_SESSION`、无 exact-T、核心异常与通知本身的
+既有语义不变。
+
+**Reason:** 2026-09-23 US 日报存在大量 Candidate 覆盖缺失与正式池 QFQ stale，
+但 Actions 绿色掩盖了分析不完整。将交付和分析质量分开，可保留诊断产物，同时让
+定时运行的 CI 结论真实表达数据质量。

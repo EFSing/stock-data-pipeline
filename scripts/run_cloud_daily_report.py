@@ -641,6 +641,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--date", "--trade-date", dest="trade_date", type=_date, default=None)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--no-notify", action="store_true")
+    parser.add_argument("--require-complete", action="store_true",
+                        help="Exit nonzero for a delivered PARTIAL_DATA_QUALITY report")
     args = parser.parse_args(argv)
     generated_at = datetime.now(timezone.utc)
     calendar_provider = ExactExchangeCalendarProvider()
@@ -667,7 +669,9 @@ def main(argv: list[str] | None = None) -> int:
                         and metadata.get("calendar_gate") == "EXACT_COMPLETED_SESSION"
                         and metadata.get("data_quality", {}).get("operationally_complete")
                         and all((args.output / name).is_file() for name in ARTIFACT_ALLOWLIST))
-    return 0 if partial_complete else 1
+    if partial_complete:
+        return 2 if args.require_complete else 0
+    return 1
 
 
 if __name__ == "__main__":

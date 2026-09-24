@@ -303,7 +303,7 @@ Bark/SMTP。SMTP 同时发送 `text/plain` fallback、独立的静态
 `asia-close` / `us-close` 的 Sheet-backed `main.py --mode latest` scheduled writer
 与 Cloud path 并行存在但职责不同：它按 `CN/HK/JP` 与 `US/SE` 维护旧行情中台，
 Cloud path 不读写这些行情表；两条链路都不写同一策略状态。Asia cron 为
-`30 9 * * 1-5`（北京时间 17:30），US cron 为 `30 22 * * 1-5`，每条 workflow
+`30 9 * * 1-5`（北京时间 17:30），US cron 为 `30 0 * * 2-6`（北京时间 08:30），每条 workflow
 通过独立 concurrency 串行 schedule/dispatch，schedule 强制 latest，full 仍仅手动。
 
 `--mode latest` 是 Sheet-backed 亚洲/欧美 scheduled writer：只读取自选清单，使用短窗口
@@ -729,7 +729,7 @@ Source of Truth；Cloud path 注入内存 rows 后沿用同一 gate，但不读�
 ## GitHub Actions
 
 - `asia-close.yml`：`cron "30 9 * * 1-5"`（UTC）= 北京 17:30；覆盖 CN/HK/JP，schedule 强制运行 `python main.py --group asia --mode latest`，随后仅刷新正式 CN QFQ；workflow_dispatch 可选 full
-- `us-close.yml`：`cron "30 22 * * 1-5"`（UTC）；覆盖 US/SE，schedule 强制运行 `python main.py --group us --mode latest`，随后仅刷新正式 US QFQ；workflow_dispatch 可选 full
+- `us-close.yml`：`cron "30 0 * * 2-6"`（UTC，北京时间 08:30）；覆盖 US/SE，schedule 强制运行 `python main.py --group us --mode latest`，随后仅刷新正式 US QFQ；workflow_dispatch 可选 full
 - `cn-daily-report.yml` / `us-daily-report.yml`：Cloud Daily Report 独立 read-only workflow；只从 provider 将目标市场行情放入进程内存，不读取/写入 `最新行情` 或 `历史行情_前复权`，不替代上述 Sheet-backed writer
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
 - `wave-shadow.yml`：已移除；不通过 GitHub Actions 读取或输出真实持仓派生信息。`scripts/run_wave_shadow.py` 仅保留 private/local capability，本轮不调用

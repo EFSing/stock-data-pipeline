@@ -4,9 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-22（补齐 CN/US Candidate→Daily→Dashboard 覆盖诊断、
-> exact-T QFQ 尾部重试与 Sheets 读取限额保护；Cloud Daily Report 保持独立
-> read-only 内存边界）。
+> 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
+> IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界）。
 
 ## 项目身份
 
@@ -29,16 +28,18 @@
 
 - 定时行情流水线：`asia-close`（CN/HK/JP）与 `us-close`（US/SE）两个 GitHub
   Actions workflow 按市场收盘时间调度，运行 `main.py --mode latest`；Asia 为工作日
-  09:30 UTC（北京时间 17:30），US 为工作日 22:30 UTC。
+  09:30 UTC（北京时间 17:30），US 为周二至周六 00:30 UTC（北京时间 08:30）。
 - `latest` 模式只抓取短窗口最新行情、执行 source-date evidence、双源校验与
   ordinary-calendar freshness guard，写入 `最新行情`、`校验记录`、`运行日志`；
   不抓取多年历史／qfq，不运行策略路径，`history_rows_written=0`。
 - 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
   策略股票刷新 exact latest date 的前复权历史；HK/JP/SE 不被猜测扩展为 QFQ 范围，
   `full` 仍只可由 workflow_dispatch 手动触发。
-- `PRODUCTION_ACCEPTANCE_PENDING`：上述 Sheet-backed schedule wiring 已恢复，但截至当前
-  closeout 尚无恢复后的 `main` Asia/US writer run；真实 Sheet 最新交易日、正式 CN/US QFQ
-  尾日与自动化监控 freshness 尚未验收，也不包含历史补抓。
+- `PRODUCTION_ACCEPTANCE_PENDING`：Sheet-backed schedule 已有自然运行。9/23 CN writer
+  正式 QFQ 更新 3/3，CN 日报 516 只 `DATA_OK`；同日 US writer 4 只 latest 均待复核、
+  正式 QFQ 更新 0，US 日报 BABA/RKLB 仅有 T-1 QFQ，动态 Candidate 覆盖 1/1023。
+  US 修复仍须在合并后的自然运行只读验收 exact-T、正式 QFQ 与 Candidate 覆盖；
+  这些结果不代表历史补抓或 US 生产验收完成。
 - 行情完全失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
   和显式禁止复用旧行情的备注，并使 scheduled job 非零退出；pending/single-source
   仍显式为非 `已验证`。下游 production reader 要求 exact T、`正式收盘=True`、
@@ -85,10 +86,12 @@
   included/excluded 审计行。
 - Candidate selector 仍不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；
   `scripts/run_production_daily_decision.py --run` 在真实 `SheetsClient` 上按 CN/US
-  独立运行两阶段输入：Stage A 用固定 yfinance batch 获取至少 60 bars 并调用现有
+  独立运行两阶段输入：Stage A 用固定 yfinance batch 请求 70 个 completed sessions，
+  保留至少 60 bars 与 exact-T 尾日门槛，并调用现有
   selector，Stage B 只对 included Candidate（已存在正式池/持仓输入的标的复用已有
   QFQ）加载深历史并交给同一套 Strategy/Daily 分析。Stage A 对空或无可用历史批次做
-  有界重试；仍无可用 Stage-A 行时标记 discovery coverage incomplete，不把它伪装成
+  有界重试（含 stale 尾部）；仍无可用 Stage-A 行或至少 20 个 seed 时可用覆盖低于
+  50%，标记 discovery coverage incomplete，不把它伪装成
   规则筛选后的 `NO_CANDIDATES`。结果显式暴露 Seed、数据合格、included、Stage B
   requested/ready、策略分析尝试/完成/阻断及筛选原因。
 - 动态集合只存在于当日内存和 JSON/Markdown 报告中，按 market-aware identity 与
@@ -277,10 +280,10 @@
 
 ### Cloud Daily Report V1 / Mobile Dashboard V2（live acceptance 已通过，正式 cutover）
 
-- 运维 exit 与 report quality 分离：`PARTIAL_DATA_QUALITY` 只有 exact target-session usable data 存在、核心日报计算完成且 final JSON/HTML 已形成时 exit 0，状态仍保持 partial。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
+- 运维交付与分析质量分离：默认只读 CLI 在 exact target-session usable data、核心计算及 final JSON/HTML 完成时，`PARTIAL_DATA_QUALITY` 仍可 exit 0；定时 CN/US workflow 使用 `--require-complete`，使该质量状态在产物与通知形成后 exit 2，Actions 不再以绿色表示分析完整。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
   `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
-  和 22:30 UTC 运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
+  和周二至周六 01:00 UTC（北京时间 09:00）运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
   completed-session gate。周末或交易所休市返回 `SKIPPED_NON_SESSION`，不使用上一
   交易日替代；未收盘、provider 失败、latest/QFQ 不完整或校验失败均 fail closed，
   仍生成异常报告并通知。自动调度的 T 由 timezone-aware 当前时刻转换到目标交易所
@@ -327,10 +330,11 @@
   仍为零，final artifact allowlist 不变。`asia-close` / `us-close` 是独立的 Sheet-backed
   scheduled writer；Cloud Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` /
   `历史行情_前复权`，也不改变 writer 的事实源边界。Bark/SMTP 仍为可选通知。
-- 代码与只读运行证据已暴露两类真实生产验收风险：provider 尾部可能暂时落后 exact T，
-  Sheets writer 可能因相邻日报/行情任务的读取竞争遇到 429。修复后仍必须等待自然 schedule
-  做真实 Sheet latest、正式 CN/US QFQ 尾日、日报状态和监控 freshness 的只读验收；代码测试
-  或 Cloud 日报成功不能替代该验收，状态保持 `PRODUCTION_ACCEPTANCE_PENDING`。
+- 自然运行与只读诊断已证实 US provider 尾部可暂时落后 exact T，且相邻任务读取 Sheets
+  曾遇到 429。CN 9/23 writer 已完成正式 QFQ 3/3，但 US 同日 latest 待复核、正式 QFQ
+  更新 0；Candidate 大规模历史不足和绿色日报掩盖部分质量亦已形成独立修复 PR。
+  合并后仍需自然 schedule 只读验收 US exact-T、Candidate 覆盖、writer、日报状态与通知；
+  代码测试或 Cloud 日报送达不能替代该验收，状态保持 `PRODUCTION_ACCEPTANCE_PENDING`。
 - 下一阶段优先观察真实 prospective Cloud Daily Reports / Paper 数据的正常 production
   runs；这些 observational acceptance 不自动启动新的 strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。

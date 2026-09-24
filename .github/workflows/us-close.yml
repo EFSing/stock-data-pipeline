@@ -2,8 +2,8 @@ name: 欧美市场收盘更新
 
 on:
   schedule:
-    # 工作日收盘后运行；固定 UTC 时间覆盖夏令时/冬令时的收盘后窗口。
-    - cron: "30 22 * * 1-5"
+    # 美股交易日后的北京时间 08:30（次日 UTC 00:30，周二至周六）。
+    - cron: "30 0 * * 2-6"
   workflow_dispatch:
     inputs:
       mode:

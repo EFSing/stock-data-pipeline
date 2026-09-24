@@ -2,7 +2,8 @@ name: US Daily Report
 
 on:
   schedule:
-    - cron: "30 22 * * 1-5"
+    # 美股交易日后的北京时间 09:00（次日 UTC 01:00，周二至周六）。
+    - cron: "0 1 * * 2-6"
   workflow_dispatch:
     inputs:
       trade_date:
@@ -38,9 +39,9 @@ jobs:
       - name: Generate US report
         run: |
           if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market US --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/US"
+            python scripts/run_cloud_daily_report.py --market US --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/US" --require-complete
           else
-            python scripts/run_cloud_daily_report.py --market US --output "$RUNNER_TEMP/cloud-daily-report/US"
+            python scripts/run_cloud_daily_report.py --market US --output "$RUNNER_TEMP/cloud-daily-report/US" --require-complete
           fi
       - name: Upload final US artifacts
         if: always()
