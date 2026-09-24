@@ -1953,6 +1953,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "strategy_rules": rules,
         "workspace_order": ("today", "paper", "performance", "rules", "diagnostics"),
         "cloud_daily_report": dict(cloud_daily),
+        "prospective_observation": dict(_mapping(payload.get("prospective_observation"))),
     }
 
 
@@ -2524,6 +2525,22 @@ def _render_market_cards(markets: Sequence[Mapping[str, Any]]) -> str:
         f'<span class="data-status status-{_escape(item.get("status_key"))}">{_escape(item.get("status_label"))}</span>'
         '</div>'
         for item in markets
+    )
+
+
+def _render_prospective_observation(projection: Mapping[str, Any]) -> str:
+    observation = _mapping(projection.get("prospective_observation"))
+    if not observation:
+        return ""
+    return (
+        '<section class="diagnostic-card" aria-label="前瞻只读观察" data-protocol="'
+        + _escape(observation.get("protocol_version")) + '">'
+        + '<h3>前瞻只读观察</h3><p>'
+        + f'正式池 {_escape(observation.get("formal_symbols"))}；动态候选 {_escape(observation.get("dynamic_symbols"))}；'
+        + f'重叠 {_escape(observation.get("overlap_symbols"))}；并集 {_escape(observation.get("union_symbols"))}；'
+        + f'DATA_OK {_escape(observation.get("data_ok_symbols"))}；DATA_BLOCKED {_escape(observation.get("data_blocked_symbols"))}；'
+        + f'首次确认 {_escape(observation.get("first_event_count"))}；Decision {_escape(observation.get("decision_count"))}'
+        + '</p></section>'
     )
 
 
@@ -3128,6 +3145,7 @@ def render_dashboard_html(value: Any) -> str:
 </section>
 <section class="market-grid" aria-label="市场数据状态">{_render_market_cards(projection['markets'])}</section>
  {_render_diagnostics(projection)}
+ {_render_prospective_observation(projection)}
 <nav class="workspace-nav" aria-label="工作台导航">{workspace_nav}</nav>
 {_render_paper_workspace(paper)}
 {_render_performance_workspace(paper)}

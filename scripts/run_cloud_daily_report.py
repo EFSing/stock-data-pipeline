@@ -35,11 +35,15 @@ from trading.ephemeral_market_data import (
 from trading.notifications import github_run_url, send_bark, send_optional_email
 from trading.production_candidate_runtime import ProductionCandidateRuntime
 from trading.production_prerequisites import ExactExchangeCalendarProvider
+from trading.risk import MIN_TARGET_UPSIDE_PCT
+from trading.setup01_decision import SETUP01_MINIMUM_RR
+from trading.setup02_decision import SETUP02_MINIMUM_RR
 
 
 CLOUD_DAILY_REPORT_PROTOCOL_VERSION = "CLOUD-DAILY-REPORT-MOBILE-V1-2026-09-14"
 MARKET_LABELS = {"CN": "A股", "US": "美股"}
 ARTIFACT_ALLOWLIST = ("daily-report.json", "daily-report.html")
+PROSPECTIVE_FUNNEL_PROTOCOL_VERSION = "PROSPECTIVE_EXACT_T_FUNNEL_V1"
 
 
 def _iso(value: Any) -> str | None:
@@ -377,6 +381,157 @@ def _cloud_metadata(
     }
 
 
+def _known_rejection_gates(decision: Mapping[str, Any] | None, setup: str) -> tuple[list[str], bool]:
+    """Project T-known gates; identify when primary-gate order hid geometry."""
+    if not isinstance(decision, Mapping):
+        return [], False
+    if decision.get("action") == "ENTRY_ALLOWED":
+        return [], True
+    gates: list[str] = []
+    entry, upper = decision.get("planned_entry"), decision.get("entry_zone_high")
+    targets = decision.get("targets") or []
+    if entry is not None and upper is not None and entry > upper:
+        gates.append("ABOVE_ENTRY_ZONE")
+    if decision.get("gate_reason") == "NO_VALID_TARGET":
+        gates.append("NO_VALID_TARGET")
+    upside = decision.get("target_upside_pct")
+    if upside is not None and upside < MIN_TARGET_UPSIDE_PCT:
+        gates.append("TARGET_UPSIDE_BELOW_MINIMUM")
+    ratios = (decision.get("rr") or {}).get("rr_ratios") or []
+    rr_minimum = SETUP01_MINIMUM_RR if setup == "SETUP_01" else SETUP02_MINIMUM_RR
+    if ratios and ratios[0] < rr_minimum:
+        gates.append("RR_BELOW_MINIMUM")
+    if decision.get("target_reasonableness_passed") is False:
+        gates.append("TARGET_PROVENANCE_GEOMETRY")
+    primary = str(decision.get("gate_reason") or "")
+    if primary and primary != "ENTRY_ALLOWED" and primary not in gates:
+        gates.append(primary)
+    return sorted(set(gates)), bool(targets and ratios and entry is not None and upper is not None)
+
+
+def build_prospective_observation(result: Mapping[str, Any], market: str, trade_date: date) -> dict[str, Any]:
+    """Compact read-only projection of the already evaluated natural report."""
+    target_t = trade_date.isoformat()
+    candidate = (result.get("candidate_markets") or {}).get(market) or {}
+    records: dict[str, dict[str, Any]] = {}
+    variants: set[str] = set()
+    formal: set[str] = set()
+    dynamic: set[str] = set()
+    for entry in sorted(result.get("reports") or [], key=lambda item: str(item.get("账户ID") or "")):
+        if not isinstance(entry, Mapping) or entry.get("市场") != market:
+            continue
+        universe = entry.get("universe") or {}
+        formal.update(str(value).upper() for value in universe.get("formal_strategy_pool") or [])
+        dynamic.update(str(value).upper() for value in universe.get("dynamic_candidate_set") or [])
+        for row in (entry.get("报告") or {}).get("results") or []:
+            symbol = str(row.get("symbol") or "").upper()
+            if symbol:
+                prior = records.get(symbol)
+                if prior is None:
+                    records[symbol] = row
+                elif any(prior.get(key) != row.get(key) for key in (
+                    "as_of_date", "data_status", "weekly_state", "daily_state",
+                    "setup01_state", "setup02_state", "new_confirmed_event_identities"
+                )):
+                    variants.add(symbol)
+    candidate_records = {
+        str(row.get("symbol") or "").upper(): row
+        for row in candidate.get("candidate_records") or []
+        if isinstance(row, Mapping) and row.get("included")
+    }
+    requested = set(candidate.get("deep_history_requested_symbols") or [])
+    ready = set(candidate.get("deep_history_ready_symbols") or [])
+    observations = []
+    for symbol in sorted(formal | dynamic):
+        row = records.get(symbol) or {}
+        if symbol in variants:
+            row = {"as_of_date": target_t, "data_status": "ACCOUNT_VARIANT_UNKNOWN"}
+        is_formal, is_dynamic = symbol in formal, symbol in dynamic
+        bucket = "OVERLAP" if is_formal and is_dynamic else "FORMAL_ONLY" if is_formal else "DYNAMIC_ONLY"
+        candidate_row = candidate_records.get(symbol) or {}
+        identities = set(row.get("new_confirmed_event_identities") or [])
+        decisions = {
+            str(item.get("event_identity")): item
+            for item in row.get("individual_decision_candidates") or []
+            if isinstance(item, Mapping) and item.get("event_identity")
+        }
+        for setup, state_key in (("SETUP_01", "setup01_state"), ("SETUP_02", "setup02_state")):
+            event_identity = next((item for item in sorted(identities)
+                                   if f"|{setup}|" in item or item.startswith(f"{setup}|")), None)
+            decision = decisions.get(event_identity) if event_identity else None
+            gates, complete = _known_rejection_gates(decision, setup)
+            missing = []
+            if not row:
+                missing.append("MISSING_DAILY_RESULT")
+            if symbol in variants:
+                missing.append("CONFLICTING_ACCOUNT_OBSERVATIONS")
+            elif row.get("as_of_date") != target_t:
+                missing.append("ROW_NOT_EXACT_T")
+            if event_identity and decision is None:
+                missing.append("FIRST_EVENT_DECISION_UNAVAILABLE")
+            elif event_identity and not complete and decision and decision.get("action") != "ENTRY_ALLOWED":
+                missing.append("ALL_FAIL_GEOMETRY_NOT_EVALUATED")
+            if row and row.get("data_status") != "DATA_OK":
+                missing.append("DATA_NOT_OK")
+            observations.append({
+                "identity": f"{market}|{target_t}|{symbol}|{setup}",
+                "market": market, "T": target_t, "symbol": symbol, "setup": setup,
+                "formal_pool": is_formal, "dynamic_candidate": is_dynamic,
+                "provenance_bucket": bucket,
+                "stage_a_qualified": bool(candidate_row.get("included")) if is_dynamic else None,
+                "stage_a_history_bars": candidate_row.get("history_bar_count") if is_dynamic else None,
+                "stage_a_tail_date": candidate_row.get("latest_history_date") if is_dynamic else None,
+                "stage_b": ("READY" if symbol in ready else "REQUESTED_NOT_READY" if symbol in requested
+                            else "REUSED_FORMAL" if is_dynamic and is_formal else "UNKNOWN") if is_dynamic else "NOT_APPLICABLE",
+                "data_status": row.get("data_status") if row else "MISSING_DAILY_RESULT",
+                "exact_t_data": (row.get("as_of_date") == target_t and row.get("data_status") == "DATA_OK") if row else None,
+                "data_reasons": row.get("reasons") if row else None,
+                "weekly_state": row.get("weekly_state"), "daily_state": row.get("daily_state"),
+                "setup_state": row.get(state_key),
+                "first_confirmed": bool(event_identity), "event_identity": event_identity,
+                "decision_action": decision.get("action") if decision else None,
+                "primary_rejection": (decision.get("gate_reason") if decision and decision.get("action") != "ENTRY_ALLOWED" else None),
+                "all_fail_known": gates, "all_fail_complete": complete if event_identity else None,
+                "geometry": ({key: decision.get(key) for key in (
+                    "planned_entry", "entry_zone_low", "entry_zone_high", "T1", "structural_invalidation",
+                    "execution_stop", "target_upside_pct", "atr14")}
+                    | {"t1_source": next((target.get("source") for target in decision.get("target_candidates") or []
+                                           if target.get("price") == decision.get("T1")), None),
+                       "t1_rr": next(iter((decision.get("rr") or {}).get("rr_ratios") or []), None)}
+                    if decision else None),
+                "missing_reasons": missing,
+            })
+    return {
+        "protocol_version": PROSPECTIVE_FUNNEL_PROTOCOL_VERSION,
+        "market": market, "T": target_t, "source_run_url": github_run_url(),
+        "seed_source_as_of": candidate.get("seed_source_as_of"),
+        "seed": candidate.get("seed_count"),
+        "stage_a_qualified": candidate.get("candidate_data_qualified_count"),
+        "included": candidate.get("candidate_included_count"),
+        "stage_b_requested": candidate.get("deep_history_requested_count"),
+        "stage_b_ready": candidate.get("deep_history_ready_count"),
+        "formal_symbols": len(formal), "dynamic_symbols": len(dynamic),
+        "formal_only_symbols": len(formal - dynamic), "dynamic_only_symbols": len(dynamic - formal),
+        "overlap_symbols": len(formal & dynamic),
+        "union_symbols": len(formal | dynamic),
+        "observation_count": len(observations),
+        "data_ok_symbols": sum(symbol not in variants and records.get(symbol, {}).get("data_status") == "DATA_OK"
+                               for symbol in formal | dynamic),
+        "data_blocked_symbols": sum(symbol not in variants and bool(records.get(symbol, {}).get("data_status")) and
+                                    records[symbol]["data_status"] != "DATA_OK" for symbol in formal | dynamic),
+        "account_variant_symbols": len(variants),
+        "missing_daily_result_symbols": sum(symbol not in records for symbol in formal | dynamic),
+        "first_event_count": sum(item["first_confirmed"] for item in observations),
+        "decision_count": sum(item["first_confirmed"] and item["decision_action"] is not None for item in observations),
+        "daily_state_counts": {
+            setup: {state: sum(item["setup"] == setup and item["setup_state"] == state for item in observations)
+                    for state in ("WATCH", "ARMED", "CONFIRMED")}
+            for setup in ("SETUP_01", "SETUP_02")
+        },
+        "observations": observations,
+    }
+
+
 def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
     market = str(cloud.get("market") or "").upper()
@@ -615,6 +770,7 @@ def run_cloud_daily_report(
         "market": normalized_market,
         "as_of_date": as_of_date.isoformat(),
         "generated_at": generated_at.isoformat(),
+        "prospective_observation": build_prospective_observation(result, normalized_market, as_of_date),
         "cloud_daily_report": _cloud_metadata(
             market=normalized_market,
             as_of_date=as_of_date,
