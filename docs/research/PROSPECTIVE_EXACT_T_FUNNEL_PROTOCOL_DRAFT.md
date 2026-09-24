@@ -1,5 +1,9 @@
-<!-- READ_ONLY_DRAFT; NO_STRATEGY_STATE_WRITE; NO_FINAL_OOS -->
-# Prospective exact-T CN/US funnel protocol — draft
+<!-- READ_ONLY_FROZEN_V1; NO_STRATEGY_STATE_WRITE; NO_FINAL_OOS -->
+# Prospective exact-T CN/US funnel protocol — frozen v1
+
+Implementation: the naturally scheduled `scripts/run_cloud_daily_report.py` appends `prospective_observation` to the existing final JSON and projects its market/T summary into the existing HTML. The event rows remain only in the already permitted final JSON; no new production artifact or storage path is introduced. `PROSPECTIVE_EXACT_T_FUNNEL_V1`, `(market,T,symbol,setup)` and the existing first-confirmation lifecycle identity are immutable record keys. Duplicate account rows with conflicting content fail the projection rather than double counting. Replaying the same natural report yields the same observation rows. The source run URL and Candidate seed source-as-of are retained when available.
+
+The implementation projects only fields emitted by the causal daily result. Where the incumbent primary gate stops before target/RR evaluation, `all_fail_known` lists observed conditions and `all_fail_complete=false` with `ALL_FAIL_GEOMETRY_NOT_EVALUATED`; it does not claim a reconstructed all-fail list. QFQ and latest source timestamps unavailable per stock remain unknown; `DATA_OK` plus exact report T is a summary data gate, not fabricated provider evidence. Source logs from 9/22–23 cannot be used to backfill event rows.
 
 ## Question and observation unit
 
@@ -19,4 +23,4 @@ CN and US are reported separately by exchange calendar, Setup and provenance buc
 
 ## Unknowns and stopping boundary
 
-The 2026-09-22/23 CN and 9/23 US Actions logs provide aggregate counters but no complete per-symbol event/overlap cross-tab, exact Stage A tail histogram, or formal-versus-dynamic opportunity rates. These remain `unknown` until actual compact event evidence is available. If the natural reports cannot supply it read-only, record the schema gap and stop attribution; do not manufacture rows from aggregates. This draft does not select a new independent validation sample or early-entry rule. New independent samples, earlier-entry validation and execution-cost work require later user approval. The confirmed-after-retest study remains closed.
+The 2026-09-22/23 CN and 9/23 US Actions logs provide aggregate counters but no complete per-symbol event/overlap cross-tab, exact Stage A tail histogram, or formal-versus-dynamic opportunity rates. These remain `unknown` until actual compact event evidence is available. If the natural reports cannot supply it read-only, record the schema gap and stop attribution; do not manufacture rows from aggregates. This protocol does not select a new independent validation sample or early-entry rule. New independent samples, earlier-entry validation and execution-cost work require later user approval. The confirmed-after-retest study remains closed.

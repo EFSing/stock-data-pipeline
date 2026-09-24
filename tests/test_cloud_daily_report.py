@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from core import Quote
 from scripts.run_cloud_daily_report import (
+    build_prospective_observation,
     main as cloud_report_main,
     _notification_text,
     _status_from_result,
@@ -98,6 +99,50 @@ def _cloud_us_client():
 
 
 class CloudDailyReportTests(unittest.TestCase):
+    def test_prospective_union_identity_and_first_event_are_distinct_from_daily_state(self):
+        t = date(2026, 9, 23)
+        identity = "AAA|SETUP_01|2026-09-23|CONFIRMED|lifecycle=1"
+        result = {
+            "candidate_markets": {"US": {
+                "seed_count": 3, "candidate_data_qualified_count": 2,
+                "candidate_included_count": 2, "candidate_records": [
+                    {"symbol": "AAA", "included": True, "history_bar_count": 65,
+                     "latest_history_date": t.isoformat()},
+                    {"symbol": "BBB", "included": True, "history_bar_count": 64,
+                     "latest_history_date": t.isoformat()}],
+                "deep_history_requested_symbols": ["BBB"],
+                "deep_history_ready_symbols": ["BBB"],
+            }},
+            "reports": [{"市场": "US", "universe": {
+                "formal_strategy_pool": ["AAA"], "dynamic_candidate_set": ["AAA", "BBB"]},
+                "报告": {"results": [
+                    {"symbol": "AAA", "as_of_date": t.isoformat(), "data_status": "DATA_OK",
+                     "setup01_state": "CONFIRMED", "setup02_state": "WATCH",
+                     "new_confirmed_event_identities": [identity],
+                     "individual_decision_candidates": [{"event_identity": identity,
+                         "action": "REJECTED", "gate_reason": "ABOVE_ENTRY_ZONE",
+                         "planned_entry": 110.0, "entry_zone_high": 100.0,
+                         "targets": [], "rr": None}]},
+                    {"symbol": "BBB", "as_of_date": t.isoformat(), "data_status": "DATA_BLOCKED",
+                     "setup01_state": "WATCH", "setup02_state": "WATCH",
+                     "new_confirmed_event_identities": []},
+                ]}}],
+        }
+        observation = build_prospective_observation(result, "US", t)
+        self.assertEqual((observation["formal_only_symbols"], observation["dynamic_only_symbols"],
+                          observation["overlap_symbols"], observation["union_symbols"]), (0, 1, 1, 2))
+        self.assertEqual((observation["observation_count"], observation["first_event_count"],
+                          observation["decision_count"]), (4, 1, 1))
+        self.assertEqual(observation["daily_state_counts"]["SETUP_01"]["CONFIRMED"], 1)
+        event = next(item for item in observation["observations"] if item["first_confirmed"])
+        self.assertEqual(event["identity"], "US|2026-09-23|AAA|SETUP_01")
+        self.assertEqual(event["provenance_bucket"], "OVERLAP")
+        self.assertEqual(event["stage_a_history_bars"], 65)
+        self.assertFalse(event["all_fail_complete"])
+        self.assertIn("ALL_FAIL_GEOMETRY_NOT_EVALUATED", event["missing_reasons"])
+        self.assertIn("前瞻只读观察", render_dashboard_html({"prospective_observation": observation,
+                                              "cloud_daily_report": {"market": "US"}}))
+
     def test_notification_uses_explicit_confirmation_and_position_semantics(self):
         payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
         payload["cloud_daily_report"] = {"market": "US", "status": "SUCCESS"}
