@@ -6,7 +6,7 @@
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
 > IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界；
-> 新增独立样本上的 SETUP_01 较早入场第一阶段只读验证结论）。
+> SETUP_01 H1 突破后双路径研究架构已冻结；D2 因缺合规 point-in-time 数据源阻塞）。
 
 ## 项目身份
 
@@ -453,7 +453,7 @@
   allocation 变更。较早入场结构上必然取得更低入场价（非 edge 证明），且约 2/3 触发
   最终未确认；成本、净收益、胜率、期望与 Final OOS 均不在本阶段范围内。
 - `SETUP01_EARLY_ENTRY_SECOND_STAGE_DECISION_V1`（第二阶段执行可行性决策节点，
-  research-only，位于保持 OPEN 的独立 PR）：在同一冻结 cohort 上重建 2,291 个 anchor
+  research-only，已随 PR #109 squash merge 进入 main）：在同一冻结 cohort 上重建 2,291 个 anchor
   contexts 与 987 个 ARMED 信号（986 个有可执行 exact next-session OPEN），审计实验组
   的可交易定义是否已由冻结规则唯一确定。结论：入场准入、确认前执行止损／风险基准、
   确认前目标与 5%/2R 口径、确认前终止与长期未确认处理、确认后 PM/Exit 衔接、成本与
@@ -465,6 +465,30 @@
   trigger band、5% 与 2R）。几何事实：A 准入 984/986、B 986/986、C 0/986（831/986 先被
   5% 目标上行门槛阻断）；每笔 1R 距离中位数 A 5.7% / B 7.1%（占 entry），0.5% 风险下
   名义金额中位数 A 8.8% / B 7.0%（占 allocation_budget）。未选择任何 package。
+- `SETUP01_EARLY_ENTRY_STAGE2_ECONOMIC_VALIDATION_V1` 位于保持 OPEN 的独立 PR #110，
+  未合并：用户选择的受约束 `PKG_B_ATR_EXECUTION_STOP` 在同一已暴露样本上得到
+  `INSUFFICIENT_EVIDENCE`；实验组净 R 在 CN/US 均为负，完整现行 Decision 成交过少，
+  且删失敏感性会改变比较排序。该结果不授权生产变更，也不允许改参重跑；PR 状态和 CI
+  以 GitHub 实时事实为准。
+- `SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_RESEARCH_V1_DRAFT`（research-only）已形成
+  可预注册但不可执行的架构草案：以既有首次 `close > H1` event 为 overlay 出生点，
+  因果路由 `BREAKOUT_CONTINUATION` 与 `BREAKOUT_RETEST`，明确 running-leg Fib 与 confirmed
+  Swing 的信息边界、两类信号 K、next-session buy-stop、路径止损、target/exit、CN/US
+  执行差异、5%/2R 两种研究角色、已暴露样本与新独立验证漏斗。状态为
+  `ARCHITECTURE_FROZEN_AWAITING_D2_DATA_AND_COST_FREEZE`。用户已在新样本结果访问前选择
+  `PRICE_ACTION_ONLY`、`ONE_PER_PATH_UNTIL_FILL`（20-session 总窗口不重置）、
+  `SIGNAL_SUPPORT_ATR_STOP`、primary `X1_MECHANICAL_T1_EXIT`、primary
+  `G1_SIGNAL_FIRST_DIAGNOSTIC_GATES` 与 `D2_NEW_SYMBOL_DISJOINT_HISTORICAL`；X2 与 G0
+  分别只作预注册 sensitivity / nested attribution。冻结前确认 B 日可直接成为路径 A
+  信号 K（最早 B+1 执行，且消耗同一 A 路径机会），路径 B 仍须等待 B 后真实回踩；目标
+  按 `price > entry_trigger` nearest-first 冻结，`entry_ceiling` 不得预过滤较近 T1。上述
+  修正在 D2 roster、行情、信号和收益均未创建或访问时记录，并由独立 architecture
+  freeze record 绑定协议 hash。D2 数据可行性审计结论为
+  `BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE`：US 缺历史 membership/
+  退市 master，CN 仍缺逐日 board/ST/涨跌停/lot、完整 identity lifecycle 与已证明公司行动
+  合同。D2 roster、provider、成本来源和 snapshot/hash 尚未冻结，因此仍不可执行；未
+  建立 roster、抓取 D2 bars、生成信号或运行经济回放，
+  未改变生产 SETUP/Risk/Paper/Sheet/broker 或 Final OOS。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
