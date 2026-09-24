@@ -4,10 +4,11 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-SETUP_01 新一代 H1 突破后双路径入场研究已完成架构冻结；D2 数据可行性审计结论为
-`READY_FOR_DECISION_D2_POINT_IN_TIME_DATA_SOURCE`。没有建立 D2 roster、抓取 D2 bars、
-生成信号或读取收益，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或
-broker 语义。
+用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
+`D1_PROSPECTIVE_TIME_ISOLATED`。独立 D1 协议、collector/reference store、完整性/恢复、
+causal 双路径 observer 与中文只读报告已实现；因尚无获批的 12 个月 durable research
+backend，CN/US 均为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也
+没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -31,6 +32,10 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - D2 审计：`docs/research/SETUP01_D2_DATA_FEASIBILITY_AUDIT.md` 与
   `research/protocols/setup01_d2_data_feasibility_audit_v1.json`。现有免费栈结论为
   `BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE`。
+- D1 修订：`research/protocols/setup01_post_breakout_d1_prospective_v1.json` 及独立 freeze
+  record；旧 D2 audit/draft/freeze 均保留，D1 与 D2 不被表述为同一协议。
+- 新分支 `research/setup01-d1-prospective-time-isolated-v1` 基于 PR #111 head，预期作为
+  #111 的独立堆叠 PR；#110/#111 均保持 OPEN，不自动合并。
 
 ## Completed
 
@@ -46,22 +51,25 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `entry_ceiling` 不预过滤近 T1，actual entry >= T1 时直接 skip，不得替换为 T2。
 - 明确所有已暴露 Development / holdout / early-entry / SETUP_03 资产不可重新命名为新独立
   样本，并登记 prospective time-isolated 与新 symbol-disjoint historical 两个数据选项。
+- 新增 D1 五组件不可变 session snapshot、content-addressed object/session commit、幂等重跑、
+  缺日/hash/protocol/component 检测、clean recovery、private holdings/account key fail-closed、
+  Path A/B 生命周期、next-session 模型、CN T+1、同日歧义与独立中文研究报告/CLI；全部仅以
+  frozen synthetic fixture 验证，未形成正式 D1 事件。
 
 ## Blocker / Decision
 
-D2 已选择，但现有免费数据栈不满足冻结标准：US 的 latest IWB holdings + known-ticker
-yfinance history 缺历史 membership 与退市 master；CN 虽有日期化指数查询，仍缺可冻结的
-逐日 board/ST/涨跌停/lot、完整 security lifecycle 与已证明公司行动合同。不得用当前
-成分股回填历史，不得自动采购付费数据。
-
-下一步需要用户在两类方向中决定：提供/指定有权使用的 point-in-time 数据源继续 D2，
-或留下新决策记录并重新开启数据设计、改走既有 D1 prospective time-isolated。成本来源
-仍需在任何数据启动前冻结。正式 Risk/Decision 修改仍需独立长期治理决策。
+`READY_FOR_DECISION_D1_DURABLE_STORAGE`：现有 Actions artifact 只有 30 天 retention，
+不能承载固定 12 个月 D1；现有 Google Sheet 属生产职责，本次授权禁止新增 production
+Sheet/state 写入。需要用户选择并授权：(1) 独立 Google Drive research folder，向既有
+service account 只授予该 folder 并配置 `D1_RESEARCH_DRIVE_FOLDER_ID`；或 (2) 指定带
+versioning/retention 的 GCS/S3 bucket、region、预算和最小凭证。完成真实 write/read-back/
+clean recovery 前不得激活。除此之外没有需要用户决定的策略或数据参数。
 
 ## Next Action
 
-- 等待 point-in-time 数据方向决定；若继续 D2，下一步仅做供应商/用户数据 capability
-  sample、许可与字段合同冻结，不直接生成信号或收益。若改 D1，先更新冻结决策记录。
+- 等待 durable research storage 选择；获授权后实现对应 backend adapter、做真实恢复验证，
+  再分别记录 CN/US activation timestamp 与首个完整 session，接入不影响正式日报的独立
+  research schedule/attachment。未授权前只允许 frozen synthetic fixture。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 

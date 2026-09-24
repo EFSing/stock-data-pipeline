@@ -489,6 +489,17 @@
   合同。D2 roster、provider、成本来源和 snapshot/hash 尚未冻结，因此仍不可执行；未
   建立 roster、抓取 D2 bars、生成信号或运行经济回放，
   未改变生产 SETUP/Risk/Paper/Sheet/broker 或 Final OOS。
+- `SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1` 已作为独立协议修订冻结，明确以 D1 前瞻
+  时间隔离替代受 point-in-time 数据源阻塞的 D2；D2 审计与 architecture freeze 保留，
+  双路径 signal/opportunity/stop/target/exit/gate 选择均未重选。已实现 research-only
+  causal Path A/B observer、next-session OHLC 模型、CN T+1、同日歧义、右删失、五组件
+  hash-bound session snapshot、content-addressed immutable reference store、跨日幂等、
+  missing/hash/protocol 检测、clean-directory recovery 与独立中文报告/CLI。该 filesystem
+  store 只用于 local/CI fixture，不是正式 durable backend；现有 Actions artifact 仅保留
+  30 天，生产 Google Sheet 又不在本研究写入授权内。CN/US 当前均为
+  `D1_READY_NOT_ACTIVE`、activation/window 边界 pending、正式事件数 0；待用户授权独立
+  Google Drive folder 或 versioned object bucket 并通过真实 write/read-back/recovery 后
+  才能接入 schedule。未访问历史经济样本、Final OOS、真实持仓，未启用 Paper 或生产写入。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
