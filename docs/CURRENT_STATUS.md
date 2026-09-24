@@ -465,6 +465,18 @@
   trigger band、5% 与 2R）。几何事实：A 准入 984/986、B 986/986、C 0/986（831/986 先被
   5% 目标上行门槛阻断）；每笔 1R 距离中位数 A 5.7% / B 7.1%（占 entry），0.5% 风险下
   名义金额中位数 A 8.8% / B 7.0%（占 allocation_budget）。未选择任何 package。
+- `SETUP01_EARLY_ENTRY_STAGE2_ECONOMIC_VALIDATION_V1`（第二阶段只读经济验证，
+  research-only，独立 PR 保持 OPEN，不自动合并）：用户选择受约束
+  `PKG_B_ATR_EXECUTION_STOP`；协议先于任何经济结果冻结（协议哈希在 artifact 内
+  fail-closed 校验），样本身份与 2,291 cohort 不变。结论 **`INSUFFICIENT_EVIDENCE`**：
+  实验组 C 的实现净 R 均值 CN −0.231 / US −0.115（绝对为负；压力 25bp 情景 pooled
+  −0.216），同确认时点、无准入门槛的对照 B 为 −0.525，C−B pooled +0.356（股票聚类
+  bootstrap 95% [0.299, 0.416]）；完整现行 Decision A 在 790 次首次确认中仅 3 笔成交
+  （低于预注册 per-market floor），C−A 不可评估（原始点估计 −0.295）。C 的确认前
+  20-session 等待上限使其 96% 入场实现，而 B 仅 82%，期末估值敏感性会反转 C−B 排序，
+  故经济结论对删失不稳健。未产生任何 production rule、Paper、Sheet 或 broker 行为；
+  组合回撤标记 `NOT_ESTIMABLE`（未建模账户级并发与预算路径）。仍需用户决定是否申请
+  下一轮独立执行验证；未获新授权前不得重跑、改参或把早入场用于生产。
 - SETUP_03：structural development stopped；formal validation 未执行；无 production
   tolerance 选择；Phase 5K-B0 dataset 未获取；Final OOS 未建立。
 - SETUP_04：未实现。
