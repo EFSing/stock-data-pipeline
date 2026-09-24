@@ -2,7 +2,8 @@
 
 > `FROZEN_SYNTHETIC_FIXTURE` 示例；不是正式 D1 数据，不是交易建议。
 
-状态：COMPLETE；前瞻合格：fixture 中为是，正式事件计数为否。  
+状态：COMPLETE；前瞻合格：fixture 中为是，正式事件计数为否。
+
 研究候选与正式 `ENTRY_ALLOWED` 严格分离；本报告不写策略池、Paper 或 broker。
 
 - 当日新增 H1 突破：1
@@ -22,4 +23,3 @@
 
 实际运行会显示 D1 event ID、协议版本、五个 component hash 与 whole-event SHA-256。
 fixture 不进入正式 store，不占用 CN/US 窗口或样本计数。
-
