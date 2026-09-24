@@ -1,0 +1,20 @@
+<!-- DEVELOPMENT_ONLY; READ_ONLY_DRAFT; NO_FINAL_OOS -->
+# Frozen Development T1 / Entry Zone / execution-stop geometry protocol — draft
+
+## Population and clock
+
+Use the already approved frozen 40-symbol Development input and unchanged SETUP_01/02 first-confirmation Decision stream. The common denominator for every geometry and rejection stratum is all **999** first causal `CONFIRMED` Decisions: CN 376, US 623. Include the 8 `ENTRY_ALLOWED` events, invalid geometry and no-valid-T1 cases; report unavailable numeric geometry as missing inside this denominator. Do not select only low-R/R or eventual winners. Report market and Setup splits; this Development sample does not identify today's formal pool or dynamic Candidate provenance, so those fields are `unknown` and cannot be used as strata.
+
+T is the first confirmation close. Inputs must have been known at or before T: already confirmed Swing pivots and confirmation dates, frozen Wave anchors, T close, causal ATR14, Entry Zone, structural invalidation, execution stop and existing legal T1 candidates with source. Use the existing nearest-valid-T1 selection before the 5% and 2R checks. Do not read T+1 OPEN, later returns, MFE/MAE, Final OOS or a future-confirmed Swing for this T-day attribution. If an event-level tuple cannot be recovered from the frozen Development input and current causal evaluator, mark it `unknown`; the compact aggregate audit alone does not supply it.
+
+## Paired decomposition
+
+For each event retain `planned_entry=P`, zone `[L,U]`, nearest formal `T1`, target source and T-known provenance, structural invalidation `I`, execution stop `S`, and ATR14. Compute zone extension `P-U`, target price space `T1-P`, gross upside `(T1-P)/P`, structural distance `P-I`, stop buffer `I-S`, total execution risk `P-S`, and unchanged first-target `RR=(T1-P)/(P-S)` when legal. For SETUP_01/02 Fib candidates, use only their existing causal Wave1/Wave2 anchors and ratios; separate the nearest confirmed-swing resistance from farther Fib projections without replacing the formal T1. Check the algebraic identity `P-S=(P-I)+(I-S)` and report residual/missing counts. Normalize distances by P and causal ATR14 for descriptive comparison, with no fitted cutoff.
+
+Record the existing Decision's primary reason and all applicable failures (`ABOVE_ENTRY_ZONE`, `TARGET_UPSIDE_BELOW_MINIMUM`, `RR_BELOW_MINIMUM`, stale geometry, no valid T1 and any other emitted reason). Tabulate singles and intersections on the same 999-event denominator, by market, Setup and T1 source where source is known. Do not sum overlapping failures as lost unique plans or treat a one-gate ablation as an executable strategy. Existing frozen aggregate references are 745 upside failures, 942 R/R failures and 595 above-zone conditions across rejected Decisions; event-level intersections must reconcile with the existing audit before any finer attribution is reported.
+
+## Falsification and boundaries
+
+The hypothesis that one geometry mechanism explains most rejection is weakened or falsified if paired decomposition leaves material unexplained residuals, source strata have similar price/risk distributions, or apparent concentration disappears when all first confirmations and overlapping conditions are included. CN and US must remain separate; CN has zero allowed plans in this Development sample, while US has eight, so no CN execution or cost inference follows. Record first-fail, overlap, missingness and concentration by market, Setup, symbol and time without tuning a threshold or changing eligibility.
+
+This scope changes no formal Wave, Setup, Entry Zone, Target/T1 ordering, stop, 5%, 2R, Risk or T→T+1 semantics. It does not estimate future returns, select a farther target, tighten a stop, reopen confirmed-after-retest research, or test an earlier-entry policy. An independent sample, earlier-entry strategy validation and execution-cost research need later user approval; this draft ends at read-only geometry attribution on the already frozen Development data.
