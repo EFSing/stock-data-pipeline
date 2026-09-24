@@ -34,8 +34,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE`。
 - D1 修订：`research/protocols/setup01_post_breakout_d1_prospective_v1.json` 及独立 freeze
   record；旧 D2 audit/draft/freeze 均保留，D1 与 D2 不被表述为同一协议。
-- 新分支 `research/setup01-d1-prospective-time-isolated-v1` 基于 PR #111 head，预期作为
-  #111 的独立堆叠 PR；#110/#111 均保持 OPEN，不自动合并。
+- 新分支 `research/setup01-d1-prospective-time-isolated-v1` 基于 PR #111 head，已创建
+  独立堆叠 PR #112（base 为 #111 分支）；#110/#111/#112 均保持 OPEN，不自动合并。
 
 ## Completed
 
