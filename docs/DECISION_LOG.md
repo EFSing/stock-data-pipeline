@@ -805,3 +805,37 @@ local/CI fixture store 或短期 artifact 冒充正式 D1 存储。
 session 当时可见的信息形成审计链；代价是必须等待固定窗口且可能证据不足。它解决的是
 独立数据设计，不利用 #110 的已暴露 `INSUFFICIENT_EVIDENCE` 结果重新选择信号、止损、
 目标、退出或 gate。
+
+## 2026-09-24 — D1 durable backend 选择独立 Google Drive research folder
+
+**Decision:** D1 长期研究记录使用独立 Google Drive research folder，并只向既有 service
+account 授予该 folder 的最小 writer 权限；运行时只通过 `D1_RESEARCH_DRIVE_FOLDER_ID` 与
+既有 `GOOGLE_SERVICE_ACCOUNT_JSON` 注入。不得扩大 service account 到整个 My Drive，不得
+读取真实持仓、其他 Drive 文件或生产 Sheet state，也不得自动购买付费服务。GitHub Actions
+短期 artifact 只作非权威 observation receipt，不替代 durable object。
+
+正式激活必须依次证明 folder capability、immutable create-if-absent、write 后 read-back hash、
+全图 verify、Drive→空目录跨设备恢复、CN/US 独立 schedule，以及各市场首次自然完整 session。
+人工指定日期固定为 diagnostic backfill，不能成为 prospective evidence。在以上条件与 PR 正常
+合并均完成前，状态保持 `D1_READY_NOT_ACTIVE`。
+
+**Reason:** 文件夹级共享能在既有 Google 配额和凭证通道内提供 12 个月研究对象的跨设备
+可恢复性，同时保持研究写入与生产 Sheet、私人持仓及整个 Drive 权限隔离。
+
+## 2026-09-24 — 普通股票绝对收益空间作为独立经济吸引力诊断
+
+**Decision:** 用户的产品与研究偏好是：普通股票交易即使无印花税，若预期或最终只能获得
+0.x%、1.x%、2.x%，也不符合其交易目标。该偏好不修改当前 D1 冻结门槛，不恢复或新增正式
+绝对收益 hard gate，不改变 primary economic evaluation、T1 全退规则或研究准入。新的报告
+合同把 `SIGNAL_VALID`、`RISK_VALID`、`TARGET_GEOMETRY`、`ECONOMIC_ATTRACTIVENESS`、
+`RESEARCH_ADMISSION` 明确分离，并只读记录全部收益区间与资金占用。
+
+日常中文研究报告先呈现最近合法 T1 的 gross headroom；较远 Fibonacci/T2/T3 只能作为截至
+当时结构可说明、带不确定性的候选，不得绕过 T1 或冒充可实现盈利。报告另列计划止损距离、
+1R、R/R 与预估成本；只有冻结协议下存在合法最终结果时，才呈现 net return%、net R、持有期
+和资金占用。gross 不得称为 net，未来阈值或退出政策变更必须另立前瞻协议决策，禁止看结果后
+挑阈值。
+
+**Reason:** 信号成立、风险有效、目标几何、经济意义和研究准入是不同问题。G1 把既有 5%/2R
+作为诊断不代表用户接受低绝对收益交易；完整保留分布可为未来独立协议提供证据而不污染当前
+D1、Final OOS 或 #110 的 `INSUFFICIENT_EVIDENCE` 结论。

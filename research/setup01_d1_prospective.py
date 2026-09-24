@@ -353,14 +353,46 @@ def render_research_report(snapshot: Mapping[str, Any]) -> str:
     for item in observations:
         levels = item.get("levels") or {}
         diagnostics = item.get("diagnostics") or {}
+        dimensions = diagnostics.get("diagnostic_dimensions") or {}
+        costs = diagnostics.get("estimated_trading_cost") or {}
         lines.append(
             f"- {item.get('symbol', '—')}｜{item.get('event_type', '—')}｜"
             f"支撑 {levels.get('support_zone', '—')}｜触发 {levels.get('entry_trigger', '—')}｜"
             f"上限 {levels.get('entry_ceiling', '—')}｜止损 {levels.get('stop', '—')}｜"
-            f"T1 {levels.get('T1', '—')}｜5%/2R 诊断 "
+            f"最近合法 T1 {levels.get('T1', '—')}｜gross headroom "
+            f"{diagnostics.get('gross_t1_headroom_pct', '—')}｜止损距离/1R "
+            f"{diagnostics.get('planned_stop_distance_pct', '—')}/"
+            f"{diagnostics.get('one_r_pct', '—')}｜R/R {diagnostics.get('t1_rr', '—')}｜"
+            f"预估成本 {costs.get('status', '—')}｜5%/2R 诊断 "
             f"{diagnostics.get('five_pct_pass', '—')}/{diagnostics.get('two_r_pass', '—')}｜"
             f"模型结果 {item.get('model_outcome', '—')}"
         )
+        if dimensions:
+            lines.append(
+                "  - 独立诊断："
+                f"SIGNAL_VALID={dimensions.get('SIGNAL_VALID', '—')}；"
+                f"RISK_VALID={dimensions.get('RISK_VALID', '—')}；"
+                f"TARGET_GEOMETRY={dimensions.get('TARGET_GEOMETRY', '—')}；"
+                f"ECONOMIC_ATTRACTIVENESS={dimensions.get('ECONOMIC_ATTRACTIVENESS', '—')}；"
+                f"RESEARCH_ADMISSION={dimensions.get('RESEARCH_ADMISSION', '—')}"
+            )
+        final_economics = item.get("final_economics")
+        if isinstance(final_economics, Mapping) and final_economics.get("status") == "LEGAL_FINAL_RESULT":
+            lines.append(
+                "  - 最终净结果："
+                f"net return={final_economics.get('net_return_pct')}；"
+                f"net R={final_economics.get('net_r')}；"
+                f"持有期={final_economics.get('holding_sessions')} sessions；"
+                f"资金占用={final_economics.get('capital_occupation')}"
+            )
+    lines.extend([
+        "",
+        "## 目标与经济解释",
+        "",
+        "最近合法 T1 始终优先；更远 Fibonacci / T2 / T3 仅是当时结构可说明的候选，"
+        "存在路径、时间与成交不确定性，不代表可实现盈利。gross headroom 不是 net return。",
+        "ECONOMIC_ATTRACTIVENESS 当前只记录收益区间与资金占用，不构成新硬门槛，也不改变研究准入。",
+    ])
     lines.extend([
         "",
         "## 完整性",
