@@ -38,9 +38,9 @@ jobs:
       - name: Generate CN report
         run: |
           if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN"
+            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" --require-complete
           else
-            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN"
+            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" --require-complete
           fi
       - name: Upload final CN artifacts
         if: always()

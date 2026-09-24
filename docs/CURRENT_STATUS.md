@@ -4,9 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-22（补齐 CN/US Candidate→Daily→Dashboard 覆盖诊断、
-> exact-T QFQ 尾部重试与 Sheets 读取限额保护；Cloud Daily Report 保持独立
-> read-only 内存边界）。
+> 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
+> IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界）。
 
 ## 项目身份
 
@@ -85,10 +84,12 @@
   included/excluded 审计行。
 - Candidate selector 仍不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；
   `scripts/run_production_daily_decision.py --run` 在真实 `SheetsClient` 上按 CN/US
-  独立运行两阶段输入：Stage A 用固定 yfinance batch 获取至少 60 bars 并调用现有
+  独立运行两阶段输入：Stage A 用固定 yfinance batch 请求 70 个 completed sessions，
+  保留至少 60 bars 与 exact-T 尾日门槛，并调用现有
   selector，Stage B 只对 included Candidate（已存在正式池/持仓输入的标的复用已有
   QFQ）加载深历史并交给同一套 Strategy/Daily 分析。Stage A 对空或无可用历史批次做
-  有界重试；仍无可用 Stage-A 行时标记 discovery coverage incomplete，不把它伪装成
+  有界重试（含 stale 尾部）；仍无可用 Stage-A 行或至少 20 个 seed 时可用覆盖低于
+  50%，标记 discovery coverage incomplete，不把它伪装成
   规则筛选后的 `NO_CANDIDATES`。结果显式暴露 Seed、数据合格、included、Stage B
   requested/ready、策略分析尝试/完成/阻断及筛选原因。
 - 动态集合只存在于当日内存和 JSON/Markdown 报告中，按 market-aware identity 与
@@ -277,7 +278,7 @@
 
 ### Cloud Daily Report V1 / Mobile Dashboard V2（live acceptance 已通过，正式 cutover）
 
-- 运维 exit 与 report quality 分离：`PARTIAL_DATA_QUALITY` 只有 exact target-session usable data 存在、核心日报计算完成且 final JSON/HTML 已形成时 exit 0，状态仍保持 partial。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
+- 运维交付与分析质量分离：默认只读 CLI 在 exact target-session usable data、核心计算及 final JSON/HTML 完成时，`PARTIAL_DATA_QUALITY` 仍可 exit 0；定时 CN/US workflow 使用 `--require-complete`，使该质量状态在产物与通知形成后 exit 2，Actions 不再以绿色表示分析完整。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
   `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
   和 22:30 UTC 运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确

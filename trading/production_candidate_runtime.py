@@ -57,6 +57,8 @@ YFINANCE_BATCH_CHUNK = 80
 # contract and avoids treating a provider-tail/rate-limit response as a valid
 # zero-candidate market.
 YFINANCE_BATCH_RETRY_ATTEMPTS = 2
+STAGE_A_HISTORY_BUFFER_SESSIONS = 10
+STAGE_A_MIN_COVERAGE_RATIO = 0.5
 # yfinance accepts an explicit integer thread bound.  Keep the bound small and
 # stable so Stage A gains transport parallelism without opening an unbounded
 # client-side fan-out or changing the batch/normalization contract.
@@ -512,7 +514,7 @@ def _completed_session_window(
 
 
 def _normalise_ticker(value: str) -> str:
-    return str(value).strip().upper().replace(".", "-").replace("/", "-")
+    return str(value).strip().upper().replace(".", "-").replace("/", "-").replace(" ", "-")
 
 
 def _yfinance_ticker(seed: Any) -> str:
@@ -527,7 +529,7 @@ def _yfinance_ticker(seed: Any) -> str:
             return f"{code}.SZ"
         if code.isdigit() and len(code) == 6:
             return f"{code}.SS" if code.startswith(("5", "6", "9")) else f"{code}.SZ"
-    return symbol.replace("/", "-").replace(".", "-")
+    return _normalise_ticker(symbol)
 
 
 def _provider_watch(seed: Any) -> dict[str, str]:
@@ -680,10 +682,9 @@ def _default_short_history_loader(
                         end_date=end_date,
                     )
                     symbol = str(seed.symbol).strip().upper()
-                    histories[symbol] = quotes
-                    if quotes:
-                        chunk_rows += len(quotes)
-                    else:
+                    if quotes or not histories[symbol]:
+                        histories[symbol] = quotes
+                    if not quotes or quotes[-1].trade_date != end_date:
                         unresolved.append(seed)
                 pending = unresolved
             except Exception as exc:
@@ -692,6 +693,9 @@ def _default_short_history_loader(
                 # The next bounded attempt asks yfinance for the same chunk;
                 # a successful retry clears a transient batch exception.
                 continue
+        chunk_rows = sum(
+            len(histories[str(seed.symbol).strip().upper()]) for seed in chunk
+        )
         rows += chunk_rows
         if pending and not chunk_rows:
             # Empty/shape-invalid responses for the whole chunk are provider
@@ -702,6 +706,10 @@ def _default_short_history_loader(
             )
         elif pending and batch_errors:
             errors.extend(batch_errors)
+        if pending:
+            errors.append(
+                f"BATCH_INCOMPLETE_TAIL:unresolved={len(pending)},chunk={len(chunk)}"
+            )
     return HistoryLoadResult(histories, requests, rows, tuple(errors))
 
 
@@ -933,7 +941,8 @@ class ProductionCandidateRuntime:
                 short_sessions = ()
             else:
                 short_sessions = self.session_window_loader(
-                    normalized_market, as_of_date, MIN_HISTORY_BARS
+                    normalized_market, as_of_date,
+                    MIN_HISTORY_BARS + STAGE_A_HISTORY_BUFFER_SESSIONS,
                 )
                 short_result = _normalise_history_result(
                     self.short_history_loader(seeds, short_sessions[0], as_of_date)
@@ -945,9 +954,19 @@ class ProductionCandidateRuntime:
             )
             short_usable = sum(
                 len(short_histories.get(symbol, ())) >= MIN_HISTORY_BARS
+                and short_histories[symbol][-1].trade_date == as_of_date
                 for symbol in symbols
             )
             short_incomplete = bool(seeds) and short_usable == 0
+            short_coverage_low = (
+                len(seeds) >= 20
+                and short_usable / len(seeds) < STAGE_A_MIN_COVERAGE_RATIO
+            )
+            if short_coverage_low:
+                errors.append(
+                    "CANDIDATE_STAGE_A_COVERAGE_LOW:"
+                    f"usable={short_usable},seed={len(seeds)}"
+                )
             if short_incomplete and not short_result.errors:
                 # A provider may return an empty or too-shallow batch without
                 # raising.  Treat a market with no Stage-A-usable history as
@@ -974,10 +993,12 @@ class ProductionCandidateRuntime:
                     if not seeds
                     else "SUCCESS"
                     if not short_result.errors and not short_incomplete
+                    and not short_coverage_low
                     else "PARTIAL_DATA_QUALITY"
                 ),
                 source="yfinance",
                 history_bars=MIN_HISTORY_BARS,
+                requested_sessions=MIN_HISTORY_BARS + STAGE_A_HISTORY_BUFFER_SESSIONS,
                 batch_chunk_size=YFINANCE_BATCH_CHUNK,
                 batch_threads=YFINANCE_BATCH_THREADS,
                 missing_or_short_count=max(len(seeds) - short_usable, 0),
@@ -1005,6 +1026,7 @@ class ProductionCandidateRuntime:
                 as_of_date,
                 top_n_per_sector=TOP_N_PER_SECTOR,
                 min_history_bars=MIN_HISTORY_BARS,
+                max_staleness_days=0,
             )
             _record_stage(
                 timings,

@@ -38,9 +38,9 @@ jobs:
       - name: Generate US report
         run: |
           if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market US --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/US"
+            python scripts/run_cloud_daily_report.py --market US --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/US" --require-complete
           else
-            python scripts/run_cloud_daily_report.py --market US --output "$RUNNER_TEMP/cloud-daily-report/US"
+            python scripts/run_cloud_daily_report.py --market US --output "$RUNNER_TEMP/cloud-daily-report/US" --require-complete
           fi
       - name: Upload final US artifacts
         if: always()

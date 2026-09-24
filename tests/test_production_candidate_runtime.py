@@ -38,6 +38,7 @@ from trading.production_candidate_runtime import (
     YFINANCE_BATCH_RETRY_ATTEMPTS,
     YFINANCE_BATCH_THREADS,
     YFINANCE_DEEP_HISTORY_WORKERS,
+    STAGE_A_HISTORY_BUFFER_SESSIONS,
     _default_deep_qfq_history_loader,
     _default_short_history_loader,
 )
@@ -581,6 +582,32 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         self.assertEqual(result.rows, 2)
         self.assertEqual(tuple(result.histories), ("AAA",))
 
+    def test_short_history_loader_retries_stale_and_partial_batch(self):
+        start = T_DAY - timedelta(days=1)
+        seeds = (_seed("US", "AAA"), _seed("US", "BBB"))
+        def frame(ticker, dates):
+            result = pd.DataFrame({
+                (ticker, "Open"): [10.0] * len(dates),
+                (ticker, "High"): [11.0] * len(dates),
+                (ticker, "Low"): [9.0] * len(dates),
+                (ticker, "Close"): [10.5] * len(dates),
+                (ticker, "Volume"): [100.0] * len(dates),
+            }, index=pd.to_datetime(dates))
+            result.columns = pd.MultiIndex.from_tuples(result.columns, names=["Ticker", "Price"])
+            return result
+        calls = []
+        def download(**kwargs):
+            calls.append(kwargs["tickers"])
+            return frame("AAA", [start]) if len(calls) == 1 else frame("AAA", [start, T_DAY]).rename(
+                columns={"AAA": "BBB"}, level=0
+            ) if len(calls) == 2 else pd.DataFrame()
+        with patch.dict("sys.modules", {"yfinance": SimpleNamespace(download=download)}):
+            result = _default_short_history_loader(seeds, start, T_DAY)
+        self.assertEqual(calls, [["AAA", "BBB"], ["AAA", "BBB"]])
+        self.assertEqual(result.histories["AAA"][-1].trade_date, start)
+        self.assertEqual(result.histories["BBB"][-1].trade_date, T_DAY)
+        self.assertTrue(any("BATCH_INCOMPLETE_TAIL" in error for error in result.errors))
+
     def test_empty_stage_a_batch_is_discovery_failure_not_valid_zero_candidate(self):
         seed = _seed("CN", "600001.SH")
         runtime = ProductionCandidateRuntime(
@@ -612,6 +639,58 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
             payload["candidate_exclusion_reason_counts"],
             {"HISTORY_INSUFFICIENT": 1},
         )
+
+    def test_stage_a_buffer_preserves_sixty_bar_gate_and_exact_t(self):
+        seeds = tuple(_seed("US", f"S{i:02d}") for i in range(20))
+        requested = []
+        def history_loader(values, start, end):
+            requested.append(start)
+            return HistoryLoadResult({seed.symbol: _history(seed.symbol, "US", "USD", bars=59)
+                                      if seed.symbol == "S00"
+                                      else _history(seed.symbol, "US", "USD", bars=61)[:-1]
+                                      if seed.symbol == "S01"
+                                      else _history(seed.symbol, "US", "USD", bars=60)
+                                      for seed in values})
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"US": lambda as_of: (T_DAY, seeds)},
+            short_history_loader=history_loader,
+            deep_history_loader=lambda values, start, end: HistoryLoadResult({
+                seed.symbol: _history(seed.symbol, "US", "USD") for seed in values
+            }),
+            session_window_loader=lambda market, end, bars: (
+                date(2026, 1, 1), end
+            ) if bars == 60 + STAGE_A_HISTORY_BUFFER_SESSIONS else (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+        result = runtime.run(market="US", as_of_date=T_DAY,
+                             completed_session_identity=_identity("US"))
+        reasons = {row.symbol: row.exclusion_reason for row in result.universe.records}
+        self.assertEqual(requested, [date(2026, 1, 1)])
+        self.assertEqual(reasons["S00"], "HISTORY_INSUFFICIENT")
+        self.assertEqual(reasons["S01"], "HISTORY_STALE")
+        self.assertEqual(result.status, "SUCCESS")
+
+    def test_extremely_low_stage_a_coverage_is_partial_even_with_one_candidate(self):
+        seeds = tuple(_seed("US", f"S{i:02d}") for i in range(20))
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"US": lambda as_of: (T_DAY, seeds)},
+            short_history_loader=lambda values, start, end: HistoryLoadResult({
+                seed.symbol: _history(seed.symbol, "US", "USD")
+                if seed.symbol == "S00" else _history(seed.symbol, "US", "USD", bars=61)[:-1]
+                for seed in values
+            }),
+            deep_history_loader=lambda values, start, end: HistoryLoadResult({
+                seed.symbol: _history(seed.symbol, "US", "USD") for seed in values
+            }),
+            session_window_loader=lambda market, end, bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+        result = runtime.run(market="US", as_of_date=T_DAY,
+                             completed_session_identity=_identity("US"))
+        self.assertEqual(result.status, "PARTIAL_DATA_QUALITY")
+        self.assertEqual(result.to_dict()["candidate_included_count"], 1)
+        self.assertTrue(any("CANDIDATE_STAGE_A_COVERAGE_LOW" in error
+                            for error in result.errors))
 
     def test_complete_stage_a_with_rule_exclusions_is_explicit_no_candidates(self):
         seed = _seed("US", "EXPENSIVE", price=1500.0)

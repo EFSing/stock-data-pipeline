@@ -184,16 +184,19 @@ class IwbContractTests(unittest.TestCase):
             [],
             ["Ticker", "Name", "Sector", "Asset Class", "Market Value", "Weight (%)", "Notional Value", "Quantity", "Price", "Location", "Exchange", "Currency"],
             ["AAPL", "APPLE", "Information Technology", "Equity", "1", "1", "1", "1", "200.00", "United States", "NASDAQ", "USD"],
+            ["BRK B", "BERKSHIRE", "Financials", "Equity", "1", "1", "1", "1", "500.00", "United States", "NYSE", "USD"],
             ["CASH", "Cash", "-", "Cash", "1", "1", "1", "1", "1", "United States", "-", "USD"],
         ]
         payload = io.StringIO()
         csv.writer(payload, lineterminator="\n").writerows(rows)
         source_date, seeds = parse_iwb_holdings_csv(payload.getvalue())
         self.assertEqual(source_date, date(2026, 9, 3))
-        self.assertEqual(len(seeds), 1)
+        self.assertEqual(len(seeds), 2)
         self.assertEqual(seeds[0].symbol, "AAPL")
         self.assertEqual(seeds[0].sector, "Information Technology")
         self.assertEqual(seeds[0].reference_price, 200.0)
+        self.assertEqual(seeds[1].symbol, "BRK-B")
+        self.assertEqual(seeds[1].source_symbol, "BRK B")
 
 
 class BaoStockContractTests(unittest.TestCase):

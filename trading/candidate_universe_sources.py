@@ -157,7 +157,7 @@ def _parse_float(value: str | None) -> float | None:
 
 def _normalize_us_symbol(ticker: str) -> str:
     # yfinance-compatible canonical identity while preserving source_symbol.
-    return str(ticker or "").strip().upper().replace(".", "-").replace("/", "-")
+    return str(ticker or "").strip().upper().replace(".", "-").replace("/", "-").replace(" ", "-")
 
 
 def parse_iwb_holdings_csv(payload: bytes | str) -> tuple[date | None, tuple[SeedSecurity, ...]]:

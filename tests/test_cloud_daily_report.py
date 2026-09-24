@@ -687,6 +687,12 @@ class CloudDailyReportTests(unittest.TestCase):
                      patch("scripts.run_cloud_daily_report.run_cloud_daily_report", return_value=payload):
                     self.assertEqual(cloud_report_main(["--market", "US", "--output", directory]), expected)
                 self.assertEqual(payload["cloud_daily_report"]["status"], "PARTIAL_DATA_QUALITY")
+                if complete and gate == "EXACT_COMPLETED_SESSION" and files:
+                    with patch("scripts.run_cloud_daily_report.resolve_cloud_trade_date", return_value=US_T_DAY), \
+                         patch("scripts.run_cloud_daily_report.run_cloud_daily_report", return_value=payload):
+                        self.assertEqual(cloud_report_main([
+                            "--market", "US", "--output", directory, "--require-complete"
+                        ]), 2)
 
     def test_mobile_dashboard_uses_human_wave_mapping_and_collapsed_raw_data(self):
         payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
