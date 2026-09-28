@@ -21,8 +21,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Current State
 
-- 当前 GCS 实现位于独立分支 `codex/setup01-d1-gcs-durable-storage-v1`；独立 PR 尚未创建，
-  真实 GCS 环境尚未 provisioned。
+- 当前 GCS 实现位于独立分支 `codex/setup01-d1-gcs-durable-storage-v1`；独立公开 PR #117
+  已创建并保持 OPEN，真实 GCS 环境尚未 provisioned。
 - GitHub `main` 已包含 #109 的 SETUP_01 early-entry 第二阶段决策节点；#110 是独立 OPEN
   research-only PR，保持不合并、不改写。#82 与 #96 仍是无关开放 PR。
 - #110 的正式研究结论为 `INSUFFICIENT_EVIDENCE`：受约束 PKG_B 实验组净 R 在 CN/US
