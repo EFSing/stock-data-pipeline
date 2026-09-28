@@ -1,0 +1,48 @@
+name: SETUP01 D1 GCS Natural Collector
+
+# This workflow is manual until the per-market immutable activation record is
+# created.  A future schedule may be added only after activation; the natural
+# collector itself refuses pre-activation and diagnostic sessions.
+on:
+  workflow_dispatch:
+    inputs:
+      market:
+        description: "Market with an existing immutable activation record"
+        required: true
+        type: choice
+        options:
+          - CN
+          - US
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      D1_RESEARCH_GCS_BUCKET: ${{ secrets.D1_RESEARCH_GCS_BUCKET }}
+      D1_RESEARCH_GCS_PROJECT: ${{ secrets.D1_RESEARCH_GCS_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Collect one natural D1 session
+        run: >-
+          python scripts/run_setup01_d1_natural_collector.py
+          --market "${{ inputs.market }}"
+          --output "$RUNNER_TEMP/d1-collector-receipt.json"
+          --report-output "$RUNNER_TEMP/d1-research-report.md"
+      - name: Upload non-authoritative receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup01-d1-${{ inputs.market }}-collector-receipt
+          path: |
+            ${{ runner.temp }}/d1-collector-receipt.json
+            ${{ runner.temp }}/d1-research-report.md

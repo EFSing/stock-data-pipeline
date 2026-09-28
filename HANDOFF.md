@@ -5,15 +5,13 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 ## Current Task
 
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
-`D1_PROSPECTIVE_TIME_ISOLATED`。独立 D1 协议、collector/reference store、Drive durable
-backend、完整性/恢复、causal 双路径 observer 与中文只读报告已实现；
-专用 Drive folder 已由用户账号创建，`D1_RESEARCH_DRIVE_FOLDER_ID` GitHub Actions Secret
-已配置，用户侧权限元数据确认既有 service account 已获该 folder 的 writer 权限；main 上
-实际 service-account `files.get` 返回 404，未发生真实写入/回读/恢复。Cloud 日报当前不包含可持久化的
-raw/QFQ prefix 和实际 Path A/B observer 输出，且不可变 activation record 尚未实现；正式
-Drive commit 因此 fail closed，CN/US 自动 collector schedule 尚未启用。因此 CN/US
-仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也
-没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
+`D1_PROSPECTIVE_TIME_ISOLATED`，并放弃 Google Drive durable storage，改用独立 GCS bucket。
+Drive 404 失败证据保留为历史实现/测试资产，未扩大 Drive OAuth scope，也没有 Drive 正式
+D1 evidence。新的独立 GCS backend、generation-precondition immutable store、bucket policy
+gate、activation record、public Candidate source/observer contract、自然 session collector
+与中文只读报告已实现并以 synthetic fixture 验证；尚未使用真实 GCS 凭证写入。CN/US
+仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也没有修改正式
+SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -23,6 +21,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Current State
 
+- 当前 GCS 实现位于独立分支 `codex/setup01-d1-gcs-durable-storage-v1`；独立 PR 尚未创建，
+  真实 GCS 环境尚未 provisioned。
 - GitHub `main` 已包含 #109 的 SETUP_01 early-entry 第二阶段决策节点；#110 是独立 OPEN
   research-only PR，保持不合并、不改写。#82 与 #96 仍是无关开放 PR。
 - #110 的正式研究结论为 `INSUFFICIENT_EVIDENCE`：受约束 PKG_B 实验组净 R 在 CN/US
@@ -40,9 +40,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   record；旧 D2 audit/draft/freeze 均保留，D1 与 D2 不被表述为同一协议。
 - D1 PR #112 已重基于 #111 合并后的 main，exact-head CI 通过并已合并；Actions 启动路径
   修复 PR #113 与 folder ID 身份校验 PR #115 随后合并。#110 保持独立 OPEN。
-- D1 专用 folder `EFSing stock-data-pipeline — D1 Research` 已创建；folder identity 只用于
-  `D1_RESEARCH_DRIVE_FOLDER_ID`，不得扩大到整个 My Drive。service account 已获该 folder
-  的 writer 权限；service-account API 实测对配置 ID 返回 404，未创建对象。
+- Drive 专用 folder 路线已停止：正确 folder ID 的 service-account API `files.get` 仍返回 404，
+  未创建对象；不扩大 Drive scope。GCS 路线使用新的 backend identity/version：
+  `SETUP01_D1_GCS_DURABLE_STORAGE` / `GCS_D1_DURABLE_BACKEND_V1`。
 
 ## Completed
 
@@ -67,30 +67,40 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   fail-closed、全图 verify 与 clean-directory 跨设备恢复；独立 synthetic validation workflow
   已在 main 上执行，但受 folder `files.get` 404 阻断。原 CN/US 诊断 workflow 会调用可能
   读取真实持仓的生产日报，已移除；正式 schedule 尚未启用。
+- 新增独立 GCS backend：使用 GCS JSON API `ifGenerationMatch=0` create-only 写入，校验
+  `STANDARD`、uniform bucket-level access、Public Access Prevention enforced、关闭 Object
+  Versioning、无不可逆 retention lock；对象布局为 `objects/`、`sessions/CN/`、`sessions/US/`、
+  `system/` prefix。对象和 session pointer 都绑定 protocol、market、session、classification、
+  SHA-256 与 GCS generation；activation record 在 `system/activation/{CN,US}.json`，formal
+  commit 在 activation/window/source contract 全部满足前 fail closed。
+- D1 source/observer contract 不再从普通 Cloud 日报摘要反推：独立 natural collector 只消费
+  public Candidate runtime 的当日 seed、raw Stage-A prefix、exact-T QFQ prefix，并运行既有
+  causal SETUP_01 replay + dual-path observer；不读取真实 holdings、Paper 或生产 Sheet state。
+  observer 输出包含 signal/touch/no-signal、trigger/ceiling/stop/T1-T3、G1/G0 与 5%/2R/
+  `ECONOMIC_ATTRACTIVENESS` diagnostics、next-session model boundary、follow-up set 和中文报告。
 - 用户普通股票收益偏好已登记为独立只读诊断：报告分别呈现最近合法 T1 gross headroom、
   后续结构目标及不确定性、止损距离/1R/RR/成本，以及仅在合法最终结果存在时呈现 net
   return/net R/持有期/资金占用；不新增绝对收益硬阈值，不改变 D1/5%/2R/T1 全退或准入。
 
 ## Blocker / Decision
 
-`D1_DURABLE_STORAGE_ACCESS_FAILED`：main 上 synthetic validation 已使用既有 service account
-与配置的 folder ID；该 ID 与用户提供的专用 folder 链接已通过 SHA-256 一致性校验，排除
-Secret ID 不匹配。随后 `files.get` 仍返回 HTTP 404，在任何写入前停止。用户侧共享权限
-元数据与实际 service-account API 可见性不一致；`drive.file` 对用户共享文件夹的可见性
-限制是可能原因，尚未证明唯一根因。不得扩大 Drive 权限或遍历 folder 外内容。
-另有
-`D1_SOURCE_ACTIVATION_CONTRACT_PENDING`：Cloud 日报只提供摘要，缺 raw/QFQ prefix 与
-Path A/B observer 的可验证输入/输出；不可变 activation record 和 CN/US 正式 schedule
-尚未具备。正式 Drive commit 已 fail closed。完成这些条件及首次自然 session 前
-不得激活或报告 `D1_COLLECTION_ACTIVE`。没有需要用户选择的新策略参数。
+`D1_GCS_ENVIRONMENT_NOT_PROVISIONED`：当前本地环境没有 `GOOGLE_SERVICE_ACCOUNT_JSON`、
+`D1_RESEARCH_GCS_BUCKET` 或 `D1_RESEARCH_GCS_PROJECT`，因此尚未核对真实 GCP project、
+billing、location constraint、bucket policy 或 Storage IAM，也未做真实 GCS synthetic
+write/read-back/recovery。需要用户在既有 GCP project 中选择 location、创建专用 Standard
+bucket、启用 uniform access/PAP、保持 versioning/retention lock 关闭，并按 bucket scope
+授予最小 runtime IAM，然后在 GitHub Secrets 配置 bucket/project。没有这些外部事实不能
+合法创建 activation record。
+另有 `D1_NATURAL_COLLECTION_NOT_STARTED`：source/observer contract 已完成代码合同和
+synthetic 验收，但 CN/US activation record 尚未创建，manual-only collector workflow
+尚未转为 schedule；正式事件数仍为 0。不得报告 `D1_COLLECTION_ACTIVE`。
 
 ## Next Action
 
-- 由用户决定不扩大现有 Drive 权限的 durable storage 身份/位置；现有 service-account
-  `drive.file` + 用户自有 folder 路线已在正确 ID 上遭遇 API 404。之后重跑 synthetic validation，
-  再完成 source/observer、
-  不可变 activation 与 CN/US 正式 schedule contract，按自然 session 分别启动。不得用
-  人工指定日期或旧日报补为首个合法 session。
+- 由用户一次性完成 GCS bucket/project/location/billing 与 bucket-scoped IAM/Secrets 配置；
+  然后运行 GCS synthetic validation，按市场以当前主线 code SHA 创建不可变 activation
+  record。activation 后先 manual-run 每个市场首个自然 session，read-back + verify 成功后
+  才允许启用该市场 schedule；不得用人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 

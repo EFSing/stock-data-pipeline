@@ -69,14 +69,18 @@ CLI：
 python scripts/run_setup01_d1_collector.py collect --input INPUT.json --store STORE --report-output research.md
 python scripts/run_setup01_d1_collector.py verify --store STORE
 python scripts/run_setup01_d1_collector.py recover --store STORE --target EMPTY_DIRECTORY
-python scripts/run_setup01_d1_collector.py drive-access-check --write-readback-probe
-python scripts/run_setup01_d1_collector.py drive-validate-storage --expected-folder-id-sha256 SHA256_OF_USER_PROVIDED_FOLDER_ID
-python scripts/run_setup01_d1_collector.py drive-collect-daily-report --daily-report daily-report.json --report-output research.md
-python scripts/run_setup01_d1_collector.py drive-verify
-python scripts/run_setup01_d1_collector.py drive-recover --target EMPTY_DIRECTORY
+python scripts/run_setup01_d1_collector.py gcs-access-check --write-readback-probe
+python scripts/run_setup01_d1_collector.py gcs-validate-storage --expected-bucket-identity-sha256 SHA256_OF_PROJECT_BUCKET_IDENTITY
+python scripts/run_setup01_d1_collector.py gcs-create-activation --market CN --activation-timestamp ISO8601 --code-sha MAIN_CODE_SHA
+python scripts/run_setup01_d1_natural_collector.py --market CN --output receipt.json --report-output research.md
+python scripts/run_setup01_d1_collector.py gcs-verify
+python scripts/run_setup01_d1_collector.py gcs-recover --target EMPTY_DIRECTORY
 ```
 
 本地文件 store 只用于实现、fixture 与恢复合同验证，不等于获批的 12 个月 durable backend。
+`gcs-create-activation` 和 natural collector 不接受历史日期补抓；每个市场只能在 storage/source
+gate 完成后独立激活，natural collector 只解析当前自然 exchange session。首次完整自然 session
+验证通过前，市场保持 `D1_READY_NOT_ACTIVE`；验证通过后才可进入 `D1_COLLECTION_ACTIVE`。
 
 ## 成本与执行证据
 
@@ -100,29 +104,42 @@ stop/target 顺序不明要单列 ambiguity，不能标记为真实成交。
 ## 持久化与 source/activation 验收边界
 
 现有仓库只有 30 天 GitHub Actions artifact；它不满足 12 个月、跨设备恢复和不可变对象
-要求。独立 Google Drive research folder 已创建，folder-scoped durable adapter 与
-synthetic storage validation workflow 已实现；adapter 只接收 `D1_RESEARCH_DRIVE_FOLDER_ID`，使用既有 service
-account 的 `drive.file` scope，并验证 writer capability，不列举或读取 folder 外文件。当前该
-folder ID GitHub Actions Secret 已配置，service account 已获该 folder 的 writer 权限并经
-用户侧权限元数据回读确认；main 上 service-account `files.get` 对配置的 folder ID 返回
-HTTP 404，未创建 validation object，未做真实 write/read-back/recovery。该 Secret ID 与用户
-提供的 folder 链接 ID 已通过 SHA-256 比较，故 ID 错误已排除。`drive.file` 对用户共享
-folder 的可见性可能是原因，不能仅凭 404 确定唯一根因；不得扩大
-权限或访问 folder 之外内容。CN/US 正式 schedule 尚未启用；Cloud 日报摘要未保留 raw/QFQ
-prefix 和实际 Path A/B observer 输出，不能作为正式 D1 证据。正式 Drive commit 在不可变
-activation record 与完整 source/observer contract 实现前 fail closed。正式事件数为 0。
+要求。D1 正式 backend 已改为独立 GCS bucket；Drive 路线仅保留历史失败证据：主线上的
+service-account `files.get` 对配置 folder ID 返回 HTTP 404，未创建 validation object、未做
+真实 write/read-back/recovery，也没有正式 D1 数据需要迁移。不得扩大 Drive OAuth scope；Drive
+adapter 只可作为历史 synthetic/test 资产。
 
-可选方案：
+GCS backend 的固定合同如下：
 
-1. **独立 Google Drive 文件夹（已选择，实测未通过）**：用户创建仅存 public research objects 的专用
-   folder，将既有 service account 只授予该 folder，并新增 `D1_RESEARCH_DRIVE_FOLDER_ID`
-   secret。通常在既有 Workspace/Drive 配额内无新增服务费；具体配额/费用由用户账户决定。
-   需要验证 create-if-absent、read-back hash、独立 restore 后才能激活。Google 官方
-   `drive.file` 文档限定 app 可见文件；官方 Shared Drive 文档指出 service account 不能拥有
-   My Drive 文件。不能因用户侧 folder writer 元数据直接假定这条写入链可用。
-2. **独立对象存储 bucket**：新建带 object versioning/retention 的 GCS/S3 bucket 和最小
-   写入凭证。会新增云资源、权限与按存储/请求/出口流量计费；需用户指定 provider、region、
-   retention 与预算后再实现。
+- dedicated Standard bucket；uniform bucket-level access enabled；Public Access Prevention
+  enforced；本阶段不启用 object versioning，不设置 retention lock 或不可逆 retention policy；
+  若组织策略强制 retention，必须先停在人工复核，不得静默接受；
+- 仅使用 `objects/`、`sessions/CN/`、`sessions/US/`、`system/` 前缀；session pointer 与
+  content-addressed object 均保存 generation、SHA-256、backend/version、protocol、market、
+  session 和 classification metadata；读取时必须交叉校验 pointer/object generation、bytes、
+  metadata、snapshot/component/event hash；
+- 每次对象写入使用 GCS `ifGenerationMatch=0`（create-only）；同一 bytes 只能返回
+  `IDEMPOTENT_REPLAY`，同一 identity 的不同 bytes、metadata mismatch、generation mismatch、
+  missing/corrupt object 一律 fail closed；没有 overwrite/update API；
+- runtime service account 只在该 bucket 上拥有对象 create/read/list 所需能力，禁止 delete、
+  bucket IAM 管理、bucket create/delete、project-wide Storage Admin；bucket policy gate 需要
+  的 metadata read 能力与 runtime object 写入能力分开理解；
+- synthetic validation object 的 classification 固定为
+  `SYNTHETIC_VALIDATION_OBJECT_NOT_D1_EVIDENCE`，不得计入 formal event；任何 formal session
+  都必须绑定不可变 per-market activation record，且 activation 之后不得回填。
+
+### Source / observer contract
+
+正式 natural collector 不读取 holdings-aware Cloud Daily Report，不从普通日报摘要反推证据，
+而是独立调用公开 Candidate runtime。每个完整 session 必须保存并 hash-bound：当日 universe
+snapshot；raw source identity 与 Stage-A payload/reference；前复权 QFQ exact-T causal prefix；
+精确 market/session identity；LOW0、H1、Wave2 Low；causal Swing/Fibonacci；Path A/B observer
+input/output；signal、touch、explicit no-signal；entry trigger/ceiling、stop、nearest-first
+T1/T2/T3；G1/G0 与 5%/2R diagnostics；`ECONOMIC_ATTRACTIVENESS`；next-session model
+execution/skip；open follow-up set；中文只读报告。缺任一 source/QFQ/observer 组件、出现未来行、
+session identity 不精确或出现 holdings/account/broker 字段时，snapshot 为 incomplete，不能
+formal commit。所有 output 仍固定为 research-only，不代表 formal entry、real fill、Paper、
+production Sheet/state 或 broker action；D1 storage failure 不能改变生产日报路径。
 
 在真实 write/read-back/clean recovery、完整 source/observer、不可变 activation record、
 CN/US 正式 schedule 和首次自然完整 session 全部通过前，CN/US 均保持

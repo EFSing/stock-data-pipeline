@@ -839,3 +839,35 @@ account 授予该 folder 的最小 writer 权限；运行时只通过 `D1_RESEAR
 **Reason:** 信号成立、风险有效、目标几何、经济意义和研究准入是不同问题。G1 把既有 5%/2R
 作为诊断不代表用户接受低绝对收益交易；完整保留分布可为未来独立协议提供证据而不污染当前
 D1、Final OOS 或 #110 的 `INSUFFICIENT_EVIDENCE` 结论。
+
+## 2026-09-28 — D1 durable storage 从 Drive 切换到 GCS
+
+**Decision:** 用户批准停止独立 Google Drive folder 路线，改用独立 Google Cloud Storage
+bucket 作为 D1 的正式 durable backend。Drive folder 的 `files.get` 404、未写入/未回读/未
+恢复的事实证据保留，不扩大 Drive OAuth scope；Drive synthetic adapter 保留为历史实现/测试
+资产，不再是正式 D1 backend，也没有需要迁移的正式 session 数据。
+
+GCS backend identity/version 固定为
+`SETUP01_D1_GCS_DURABLE_STORAGE` / `GCS_D1_DURABLE_BACKEND_V1`，不能沿用 Drive identity。
+bucket 必须专用、Standard、uniform bucket-level access、Public Access Prevention enforced；
+本阶段不启用 Object Versioning，不自行启用 retention lock 或不可逆 retention policy。正式
+object 使用 `objects/`、`sessions/CN/`、`sessions/US/`、`system/` prefix；写入必须使用
+GCS generation precondition `ifGenerationMatch=0`，读回校验 generation、metadata 与 SHA-256，
+正式 evidence 不提供 overwrite/delete API。runtime service account 的权限只在该 bucket 范围内，
+  以 `roles/storage.objectCreator` + `roles/storage.objectViewer` 满足 create/get/list；bucket metadata
+  policy gate 若由同一身份执行，额外使用 bucket-scoped `roles/storage.bucketViewer`，不授予
+project-wide Storage Admin 或 bucket IAM 管理权限。管理面创建 bucket / 设置 IAM 与运行面写
+object 分离。
+
+**Source boundary:** D1 formal collector 不再从 holdings-aware Cloud 日报摘要反推证据。独立
+natural collector 只消费公开 Candidate runtime 的当日 seed、Stage-A raw prefix 与 exact-T
+QFQ prefix，复用既有 causal SETUP_01 replay、Wilder ATR、Fibonacci 和 dual-path observer；
+不读取真实持仓、Paper、生产 Sheet/state 或 broker。五组件 session object 必须同时绑定
+universe、raw source、normalized causal prefix、research-only Decision/observer、中文报告，
+并记录 G1/G0、5%/2R、`ECONOMIC_ATTRACTIVENESS` 与 next-session/follow-up diagnostics。
+
+**Reason:** 正确的 Drive folder 在 service-account API 侧不可见，继续扩大 Drive 权限不符合
+隔离和最小权限边界；专用 GCS bucket 可以提供明确的 bucket-level IAM 与原子 generation
+precondition，同时保持 D1 research object 与生产 Sheet、私人 holdings 隔离。该决定只改变
+durable storage 与 source collection contract，不改变已冻结的双路径 signal/stop/exit/gate、
+D1 前瞻窗口、正式交易策略或 #110 研究结论。

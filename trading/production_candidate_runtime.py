@@ -20,7 +20,7 @@ module never replaces that data.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 import math
 import time
@@ -133,6 +133,9 @@ class CandidateMarketRuntimeResult:
     deep_requested_symbols: tuple[str, ...] = ()
     paper_active_symbols: tuple[str, ...] = ()
     paper_seeds: tuple[Any, ...] = ()
+    # Kept only in memory for the independent D1 source contract.  The
+    # ordinary Candidate report deliberately continues to omit raw bars.
+    short_histories: Mapping[str, tuple[Quote, ...]] = field(default_factory=dict)
 
     @property
     def seed_count(self) -> int:
@@ -1275,6 +1278,7 @@ class ProductionCandidateRuntime:
             tuple(str(seed.symbol).strip().upper() for seed in deep_targets),
             paper_symbols,
             paper_seeds,
+            {str(symbol).upper(): tuple(values) for symbol, values in short_histories.items()},
         )
 
 

@@ -147,6 +147,20 @@ def _diagnostics(entry: float, stop: float, t1: float) -> dict[str, Any]:
             },
             "RESEARCH_ADMISSION": "ADMITTED_UNDER_FROZEN_D1_PROTOCOL",
         },
+        "gate_diagnostics": {
+            "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES": {
+                "admission": "ADMITTED_UNDER_FROZEN_D1_PROTOCOL",
+                "five_pct": bool(upside is not None and upside >= .05),
+                "two_r": bool(rr is not None and rr >= 2.0),
+                "does_not_reject": True,
+            },
+            "G0_INCUMBENT_HARD_GATES": {
+                "five_pct": bool(upside is not None and upside >= .05),
+                "two_r": bool(rr is not None and rr >= 2.0),
+                "attribution_only": True,
+                "does_not_change_observer": True,
+            },
+        },
     }
 
 
@@ -316,6 +330,14 @@ def observe_dual_path(quotes: list[Quote], anchor: BreakoutAnchor, *, as_of_date
     elif not censored_emitted and not completed and pending is None:
         events.append(_event(symbol, market, visible[-1].trade_date, "RIGHT_CENSORED",
                              model_outcome="OBSERVATION_PREFIX_ENDED"))
+    if not any(item.get("event_type") in {"PATH_A_SIGNAL", "PATH_B_SIGNAL"} for item in events):
+        events.append(_event(
+            symbol,
+            market,
+            visible[-1].trade_date,
+            "NO_SIGNAL",
+            model_outcome="NO_PATH_A_OR_PATH_B_SIGNAL_IN_CAUSAL_PREFIX",
+        ))
     return events
 
 
