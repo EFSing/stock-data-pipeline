@@ -27,6 +27,27 @@ REQUIRED_COMPONENTS = (
 CAPTURE_STATUSES = {"COMPLETE", "DATA_MISSING", "LATE_SOURCE"}
 
 
+def verify_frozen_protocol() -> dict[str, str]:
+    """Bind the runtime identity to the tracked D1 and architecture freezes."""
+    root = Path(__file__).resolve().parents[1]
+    folder = root / "research" / "protocols"
+    protocol_bytes = (folder / "setup01_post_breakout_d1_prospective_v1.json").read_bytes().replace(b"\r\n", b"\n")
+    freeze = json.loads((folder / "setup01_post_breakout_d1_prospective_freeze_v1.json").read_text(encoding="utf-8"))
+    protocol = json.loads(protocol_bytes)
+    digest = sha256(protocol_bytes).hexdigest()
+    if digest != freeze.get("protocol_sha256") or protocol.get("protocol_version") != PROTOCOL_VERSION:
+        raise D1IntegrityError("D1 frozen protocol/runtime identity mismatch")
+    architecture_bytes = (folder / "setup01_post_breakout_dual_path_entry_v1_draft.json").read_bytes().replace(b"\r\n", b"\n")
+    architecture = json.loads((folder / "setup01_post_breakout_dual_path_architecture_freeze_v1.json").read_text(encoding="utf-8"))
+    if sha256(architecture_bytes).hexdigest() != architecture.get("protocol_sha256"):
+        raise D1IntegrityError("D1 architecture freeze mismatch")
+    selected = protocol.get("selected_package") or {}
+    if any(selected.get(key) != value for key, value in (architecture.get("selected_package") or {}).items() if key != "independent_data"):
+        raise D1IntegrityError("D1 selected package differs from architecture freeze")
+    return {"protocol_version": PROTOCOL_VERSION, "protocol_sha256": digest,
+            "architecture_sha256": architecture["protocol_sha256"]}
+
+
 class D1IntegrityError(RuntimeError):
     """Raised when an immutable identity is reused with different bytes."""
 

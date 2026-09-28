@@ -70,6 +70,7 @@ python scripts/run_setup01_d1_collector.py collect --input INPUT.json --store ST
 python scripts/run_setup01_d1_collector.py verify --store STORE
 python scripts/run_setup01_d1_collector.py recover --store STORE --target EMPTY_DIRECTORY
 python scripts/run_setup01_d1_collector.py drive-access-check --write-readback-probe
+python scripts/run_setup01_d1_collector.py drive-validate-storage
 python scripts/run_setup01_d1_collector.py drive-collect-daily-report --daily-report daily-report.json --report-output research.md
 python scripts/run_setup01_d1_collector.py drive-verify
 python scripts/run_setup01_d1_collector.py drive-recover --target EMPTY_DIRECTORY
@@ -96,16 +97,17 @@ CN 每日快照必须保留 board/ST/lot/price-limit/suspension 事实，买入�
 由 OHLC 证明。US halt、spread 与滑点没有报价证据时只能写模型假设。buy-stop 与同日
 stop/target 顺序不明要单列 ambiguity，不能标记为真实成交。
 
-## 持久化审计与唯一 blocker
+## 持久化与 source/activation 验收边界
 
 现有仓库只有 30 天 GitHub Actions artifact；它不满足 12 个月、跨设备恢复和不可变对象
-要求。独立 Google Drive research folder 已创建，folder-scoped durable adapter 与 CN/US
-独立 workflow 已实现；adapter 只接收 `D1_RESEARCH_DRIVE_FOLDER_ID`，使用既有 service
+要求。独立 Google Drive research folder 已创建，folder-scoped durable adapter 与
+synthetic storage validation workflow 已实现；adapter 只接收 `D1_RESEARCH_DRIVE_FOLDER_ID`，使用既有 service
 account 的 `drive.file` scope，并验证 writer capability，不列举或读取 folder 外文件。当前该
 folder ID GitHub Actions Secret 已配置，service account 已获该 folder 的 writer 权限并经
 权限元数据回读确认；真实 service-account write/read-back/recovery 与首次自然 session 尚未
-完成，workflow 仍在未合并 PR。因此尚未
-写外部 D1 object，正式事件数为 0。
+完成。当前 CN/US workflow 只允许人工 diagnostic backfill；Cloud 日报摘要未保留 raw/QFQ
+prefix 和实际 Path A/B observer 输出，不能作为正式 D1 证据。正式 Drive commit 在不可变
+activation record 与完整 source/observer contract 实现前 fail closed。正式事件数为 0。
 
 可选方案：
 
@@ -117,8 +119,8 @@ folder ID GitHub Actions Secret 已配置，service account 已获该 folder 的
    写入凭证。会新增云资源、权限与按存储/请求/出口流量计费；需用户指定 provider、region、
    retention 与预算后再实现。
 
-在 service account 文件夹级 writer 权限、folder ID secret、真实 write/read-back/clean
-recovery、workflow 合并和首次自然完整 session 全部通过前，CN/US 均保持
+在真实 write/read-back/clean recovery、完整 source/observer、不可变 activation record、
+CN/US 正式 schedule 和首次自然完整 session 全部通过前，CN/US 均保持
 `D1_READY_NOT_ACTIVE`。
 
 ## 普通股票绝对收益空间诊断

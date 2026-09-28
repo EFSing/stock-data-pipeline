@@ -166,7 +166,7 @@ class D1PersistenceTests(unittest.TestCase):
         protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
         import hashlib
         self.assertEqual(protocol["protocol_version"], PROTOCOL_VERSION)
-        self.assertEqual(hashlib.sha256(protocol_path.read_bytes()).hexdigest(), freeze["protocol_sha256"])
+        self.assertEqual(hashlib.sha256(protocol_path.read_bytes().replace(b"\r\n", b"\n")).hexdigest(), freeze["protocol_sha256"])
         self.assertTrue(freeze["d2_history_preserved"])
         self.assertFalse(freeze["formal_collection_started"])
 

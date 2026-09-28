@@ -8,9 +8,11 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 from datetime import date
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Iterable, Mapping, Protocol
 from uuid import uuid4
 
@@ -21,6 +23,7 @@ from research.setup01_d1_prospective import (
     canonical_bytes,
     content_sha256,
     validate_session_snapshot,
+    verify_frozen_protocol,
 )
 
 
@@ -255,8 +258,64 @@ class GoogleDriveD1Store:
             result["probe_status"] = "CREATED_AND_VERIFIED" if created else "IDEMPOTENT_AND_VERIFIED"
         return result
 
+    def validate_durable_storage(self) -> dict[str, Any]:
+        """Exercise a synthetic system object, never a formal market session."""
+        frozen = verify_frozen_protocol()
+        access = self.verify_access(write_probe=True)
+        system = self._layout()["system"]
+        name = "durable-validation-v1.json"
+        payload = canonical_bytes({
+            "classification": "SYNTHETIC_VALIDATION_OBJECT_NOT_D1_EVIDENCE",
+            "protocol_version": PROTOCOL_VERSION,
+        })
+        digest = sha256(payload).hexdigest()
+        file_id, created = self._write_once(
+            system, name, payload,
+            app_properties={"d1_kind": "VALIDATION_ONLY", "sha256": digest},
+        )
+        replay_id, replay_created = self._write_once(
+            system, name, payload,
+            app_properties={"d1_kind": "VALIDATION_ONLY", "sha256": digest},
+        )
+        if replay_created or replay_id != file_id:
+            raise D1IntegrityError("validation object idempotency failed")
+        try:
+            self._write_once(system, name, payload + b" ", app_properties={"d1_kind": "VALIDATION_ONLY"})
+        except D1IntegrityError:
+            conflict_failed_closed = True
+        else:
+            raise D1IntegrityError("validation identity accepted different bytes")
+        with TemporaryDirectory() as directory:
+            recovered = Path(directory) / name
+            recovered.write_bytes(self.api.download(file_id))
+            if sha256(recovered.read_bytes()).hexdigest() != digest:
+                raise D1IntegrityError("clean-directory validation recovery hash mismatch")
+        graph = self.verify()
+        if graph["status"] != "VERIFIED":
+            raise D1IntegrityError("D1 session graph verification failed")
+        return {
+            "status": "VERIFIED",
+            "classification": "SYNTHETIC_VALIDATION_OBJECT_NOT_D1_EVIDENCE",
+            "folder_id": self.folder_id,
+            "service_account_scope": access["scope_boundary"],
+            "object_sha256": digest,
+            "object_file_id": file_id,
+            "create_status": "CREATED" if created else "IDEMPOTENT_REPLAY",
+            "read_back_hash_match": True,
+            "idempotent_rerun": True,
+            "clean_directory_recovery": True,
+            "different_content_fail_closed": conflict_failed_closed,
+            "session_counts": graph["session_counts"],
+            **frozen,
+        }
+
     def commit(self, snapshot: Mapping[str, Any]) -> DriveCommitResult:
         validate_session_snapshot(snapshot)
+        if snapshot["prospective_eligible"]:
+            raise D1IntegrityError(
+                "D1_ACTIVATION_RECORD_REQUIRED: formal Drive collection is unavailable "
+                "until the source/observer contract and immutable market activation are implemented"
+            )
         layout = self._layout()
         digest = str(snapshot["event_sha256"])
         object_name = f"{digest}.json"

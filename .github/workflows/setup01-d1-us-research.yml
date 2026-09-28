@@ -1,14 +1,11 @@
 name: SETUP01 D1 US Research Collection
 
 on:
-  schedule:
-    # 独立于生产日报；美股收盘后的北京时间 09:30（周二至周六）。
-    - cron: "30 1 * * 2-6"
   workflow_dispatch:
     inputs:
       trade_date:
-        description: "Optional diagnostic date (YYYY-MM-DD); never prospective evidence"
-        required: false
+        description: "Diagnostic date (YYYY-MM-DD); never prospective evidence"
+        required: true
         type: string
 
 permissions:
@@ -33,20 +30,15 @@ jobs:
         run: python scripts/run_setup01_d1_collector.py drive-access-check --write-readback-probe
       - name: Generate independent US observation source
         run: |
-          if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market US --date "$REPORT_DATE" --output "$RUNNER_TEMP/d1-source/US" --no-notify || true
-          else
-            python scripts/run_cloud_daily_report.py --market US --output "$RUNNER_TEMP/d1-source/US" --no-notify || true
-          fi
+          python scripts/run_cloud_daily_report.py --market US --date "$REPORT_DATE" --output "$RUNNER_TEMP/d1-source/US" --no-notify || true
           test -f "$RUNNER_TEMP/d1-source/US/daily-report.json"
-      - name: Commit immutable US D1 session
+      - name: Commit diagnostic US report projection
         run: |
-          EXTRA_ARGS=()
-          if [ -n "$REPORT_DATE" ]; then EXTRA_ARGS+=(--diagnostic-backfill); fi
+          mkdir -p "$RUNNER_TEMP/d1-output/US"
           python scripts/run_setup01_d1_collector.py drive-collect-daily-report \
             --daily-report "$RUNNER_TEMP/d1-source/US/daily-report.json" \
             --report-output "$RUNNER_TEMP/d1-output/US/research-observation.md" \
-            "${EXTRA_ARGS[@]}" | tee "$RUNNER_TEMP/d1-output/US/storage-receipt.json"
+            --diagnostic-backfill | tee "$RUNNER_TEMP/d1-output/US/storage-receipt.json"
       - name: Verify durable CN/US object graph
         run: python scripts/run_setup01_d1_collector.py drive-verify
       - name: Upload non-authoritative observation receipt

@@ -85,7 +85,13 @@ def drive_collect(input_path: Path, report_output: Path | None = None) -> dict[s
 def daily_report_input(
     report_path: Path, *, diagnostic_backfill: bool = False
 ) -> dict[str, Any]:
-    """Project one natural CN/US daily report into the frozen five components."""
+    """Project report metadata for diagnostics, never formal D1 evidence.
+
+    The Cloud report deliberately omits raw/QFQ bars and the Path A/B observer
+    prefix. Its fingerprint cannot substitute for those frozen components.
+    """
+    if not diagnostic_backfill:
+        raise ValueError("D1_SOURCE_CONTRACT_NOT_READY: raw/QFQ prefix and causal Path A/B observer required")
     payload = _load(report_path)
     metadata = payload.get("cloud_daily_report") or {}
     market = str(metadata.get("market") or payload.get("market") or "").upper()
@@ -98,8 +104,7 @@ def daily_report_input(
         raise ValueError("D1 collection requires an exact completed exchange session")
     status = str(metadata.get("status") or "FAILED")
     quality = metadata.get("data_quality") or {}
-    complete = status == "SUCCESS" and quality.get("operationally_complete") is True
-    capture_status = "COMPLETE" if complete else "DATA_MISSING"
+    capture_status = "DATA_MISSING"
     prospective = payload.get("prospective_observation") or {}
     observed_rows = list(prospective.get("observations") or ())
     members = []
@@ -122,7 +127,7 @@ def daily_report_input(
         "session_date": session_date,
         "acquired_at": generated_at,
         "capture_status": capture_status,
-        "diagnostic_backfill": bool(diagnostic_backfill),
+        "diagnostic_backfill": True,
         "source_identity": {
             "provider": "CLOUD_DAILY_REPORT_EPHEMERAL_MARKET_DATA",
             "source_date": session_date,
@@ -136,6 +141,7 @@ def daily_report_input(
         },
         "raw_source_snapshot": {
             "persisted_raw_bars": False,
+            "source_contract_status": "DIAGNOSTIC_REPORT_PROJECTION_ONLY",
             "provider_status": provider_status,
             "input_fingerprint": fingerprint,
             "daily_report_git_sha": metadata.get("git_sha"),
@@ -143,6 +149,7 @@ def daily_report_input(
         "normalized_prefix_snapshot": {
             "adjustment": "QFQ",
             "persisted_raw_bars": False,
+            "source_contract_status": "DIAGNOSTIC_REPORT_PROJECTION_ONLY",
             "input_fingerprint": fingerprint,
             "session_identity": metadata.get("session_identity"),
             "data_quality": quality,
@@ -210,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     recover_parser.add_argument("--target", type=Path, required=True)
     drive_access_parser = sub.add_parser("drive-access-check")
     drive_access_parser.add_argument("--write-readback-probe", action="store_true")
+    sub.add_parser("drive-validate-storage")
     drive_collect_parser = sub.add_parser("drive-collect")
     drive_collect_parser.add_argument("--input", type=Path, required=True)
     drive_collect_parser.add_argument("--report-output", type=Path)
@@ -232,6 +240,8 @@ def main(argv: list[str] | None = None) -> int:
             write_probe=args.write_readback_probe
         )
         result["service_account_email"] = GoogleDriveApi.service_account_email_from_env()
+    elif args.command == "drive-validate-storage":
+        result = GoogleDriveD1Store.from_env().validate_durable_storage()
     elif args.command == "drive-collect":
         result = drive_collect(args.input, args.report_output)
     elif args.command == "drive-collect-daily-report":

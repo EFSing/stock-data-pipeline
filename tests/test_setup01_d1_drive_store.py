@@ -54,6 +54,7 @@ def _snapshot():
     return build_session_snapshot(
         market="CN", session_date=date(2026, 9, 25),
         acquired_at="2026-09-25T18:00:00+08:00", capture_status="COMPLETE",
+        diagnostic_backfill=True,
         source_identity={"provider": "fixture", "source_date": "2026-09-25",
                          "obtained_at": "2026-09-25T18:00:00+08:00"},
         universe_snapshot={"members": []}, raw_source_snapshot={"fixture": True},
@@ -66,8 +67,12 @@ class GoogleDriveD1StoreTests(unittest.TestCase):
     def test_access_probe_commit_readback_idempotency_and_clean_recovery(self):
         api = MemoryDriveApi()
         store = GoogleDriveD1Store(api, "root")
+        validation = store.validate_durable_storage()
+        self.assertEqual(validation["classification"], "SYNTHETIC_VALIDATION_OBJECT_NOT_D1_EVIDENCE")
+        self.assertTrue(validation["different_content_fail_closed"])
+        self.assertEqual(store.validate_durable_storage()["create_status"], "IDEMPOTENT_REPLAY")
         access = store.verify_access(write_probe=True)
-        self.assertEqual(access["probe_status"], "CREATED_AND_VERIFIED")
+        self.assertEqual(access["probe_status"], "IDEMPOTENT_AND_VERIFIED")
         first, second = store.commit(_snapshot()), store.commit(_snapshot())
         self.assertEqual((first.status, second.status), ("COMMITTED", "IDEMPOTENT_REPLAY"))
         self.assertEqual(store.load("CN", date(2026, 9, 25))["event_id"],
@@ -77,12 +82,35 @@ class GoogleDriveD1StoreTests(unittest.TestCase):
             target = Path(parent) / "new-device"
             self.assertEqual(store.recover_to(target)["status"], "VERIFIED")
 
+    def test_formal_drive_commit_requires_activation(self):
+        # Rebuild a valid formal snapshot, so the activation gate is tested after hash validation.
+        formal = build_session_snapshot(
+            market="CN", session_date=date(2026, 9, 25),
+            acquired_at="2026-09-25T18:00:00+08:00", capture_status="COMPLETE",
+            source_identity={"provider": "fixture", "source_date": "2026-09-25",
+                             "obtained_at": "2026-09-25T18:00:00+08:00"},
+            universe_snapshot={"members": []}, raw_source_snapshot={"fixture": True},
+            normalized_prefix_snapshot={"adjustment": "QFQ"}, decision_snapshot={},
+            research_observation_report={"observations": []},
+        )
+        with self.assertRaisesRegex(D1IntegrityError, "D1_ACTIVATION_RECORD_REQUIRED"):
+            GoogleDriveD1Store(MemoryDriveApi(), "root").commit(formal)
+
     def test_conflicting_same_session_and_readback_tamper_fail_closed(self):
         api = MemoryDriveApi()
         store = GoogleDriveD1Store(api, "root")
         committed = store.commit(_snapshot())
-        changed = dict(_snapshot())
-        changed["event_sha256"] = "0" * 64
+        changed = _snapshot()
+        changed = build_session_snapshot(
+            market="CN", session_date=date(2026, 9, 25),
+            acquired_at="2026-09-25T18:01:00+08:00", capture_status="COMPLETE",
+            diagnostic_backfill=True,
+            source_identity={"provider": "fixture", "source_date": "2026-09-25",
+                             "obtained_at": "2026-09-25T18:01:00+08:00"},
+            universe_snapshot={"members": []}, raw_source_snapshot={"fixture": True},
+            normalized_prefix_snapshot={"adjustment": "QFQ"}, decision_snapshot={},
+            research_observation_report={"observations": []},
+        )
         with self.assertRaises(D1IntegrityError):
             store.commit(changed)
         api.payloads[committed.object_file_id] = b"{}\n"
@@ -107,11 +135,12 @@ class GoogleDriveD1StoreTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "daily-report.json"
             path.write_text(json.dumps(payload), encoding="utf-8")
-            value = daily_report_input(path)
-            self.assertEqual(value["capture_status"], "COMPLETE")
-            self.assertFalse(value["diagnostic_backfill"])
+            with self.assertRaisesRegex(ValueError, "D1_SOURCE_CONTRACT_NOT_READY"):
+                daily_report_input(path)
+            value = daily_report_input(path, diagnostic_backfill=True)
+            self.assertEqual(value["capture_status"], "DATA_MISSING")
+            self.assertTrue(value["diagnostic_backfill"])
             self.assertEqual(value["universe_snapshot"]["members"][0]["symbol"], "AAPL")
-            self.assertTrue(daily_report_input(path, diagnostic_backfill=True)["diagnostic_backfill"])
 
 
 if __name__ == "__main__":
