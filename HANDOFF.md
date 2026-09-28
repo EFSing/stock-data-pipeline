@@ -4,10 +4,16 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-SETUP_01 新一代 H1 突破后双路径入场研究已完成架构冻结；D2 数据可行性审计结论为
-`READY_FOR_DECISION_D2_POINT_IN_TIME_DATA_SOURCE`。没有建立 D2 roster、抓取 D2 bars、
-生成信号或读取收益，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或
-broker 语义。
+用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
+`D1_PROSPECTIVE_TIME_ISOLATED`。独立 D1 协议、collector/reference store、Drive durable
+backend、完整性/恢复、causal 双路径 observer、CN/US 诊断 workflow 与中文只读报告已实现；
+专用 Drive folder 已由用户账号创建，`D1_RESEARCH_DRIVE_FOLDER_ID` GitHub Actions Secret
+已配置，既有 service account 已获该 folder 的 writer 权限且权限元数据已回读确认；真实
+write/read-back/recovery 与首次自然 session 均未完成。Cloud 日报当前不包含可持久化的
+raw/QFQ prefix 和实际 Path A/B observer 输出，且不可变 activation record 尚未实现；正式
+Drive commit 因此 fail closed，CN/US 自动 collector schedule 尚未启用。因此 CN/US
+仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也
+没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -23,14 +29,19 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   均为负，完整现行 Decision 成交过少，比较又对删失敏感；不构成生产授权。
 - 已关闭的 `POST_CONFIRMATION_RETEST_ENTRY_CAUSAL_RESEARCH_V1` 继续关闭。新双路径不是
   “进入旧 Entry Zone 后再套旧 5%/2R”的重命名版本，而是新的 research overlay 契约。
-- 新分支 `research/setup01-post-breakout-dual-path-protocol-v1` 从 `origin/main` 独立建立，
-  PR #111 保持 OPEN，未混入 #82/#96/#110，不自动合并。
+- 双路径架构 PR #111 已合并进入 main，未混入 #82/#96/#110。
 - 架构文档：`docs/research/SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_PROTOCOL_DRAFT.md`。
 - 机器草案：`research/protocols/setup01_post_breakout_dual_path_entry_v1_draft.json`；独立
   architecture freeze record 已绑定其 hash，研究仍不可执行。
 - D2 审计：`docs/research/SETUP01_D2_DATA_FEASIBILITY_AUDIT.md` 与
   `research/protocols/setup01_d2_data_feasibility_audit_v1.json`。现有免费栈结论为
   `BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE`。
+- D1 修订：`research/protocols/setup01_post_breakout_d1_prospective_v1.json` 及独立 freeze
+  record；旧 D2 audit/draft/freeze 均保留，D1 与 D2 不被表述为同一协议。
+- D1 PR #112 已重基于 #111 合并后的 main，仍待 exact-head CI 与合并；#110 保持独立 OPEN。
+- D1 专用 folder `EFSing stock-data-pipeline — D1 Research` 已创建；folder identity 只用于
+  `D1_RESEARCH_DRIVE_FOLDER_ID`，不得扩大到整个 My Drive。service account 已获该 folder
+  的 writer 权限；真实写入仍待验证。
 
 ## Completed
 
@@ -46,22 +57,33 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `entry_ceiling` 不预过滤近 T1，actual entry >= T1 时直接 skip，不得替换为 T2。
 - 明确所有已暴露 Development / holdout / early-entry / SETUP_03 资产不可重新命名为新独立
   样本，并登记 prospective time-isolated 与新 symbol-disjoint historical 两个数据选项。
+- 新增 D1 五组件不可变 session snapshot、content-addressed object/session commit、幂等重跑、
+  缺日/hash/protocol/component 检测、clean recovery、private holdings/account key fail-closed、
+  Path A/B 生命周期、next-session 模型、CN T+1、同日歧义与独立中文研究报告/CLI；全部仅以
+  frozen synthetic fixture 验证，未形成正式 D1 事件。
+- 新增 folder-scoped Google Drive backend：只按配置 folder ID 访问，使用 `drive.file` scope，
+  支持最小 writer capability 检查、write/read-back probe、immutable create-if-absent、冲突
+  fail-closed、全图 verify 与 clean-directory 跨设备恢复；独立 synthetic validation workflow
+  可实测 storage。CN/US workflow 仅支持人工 diagnostic backfill，不得成为前瞻证据。
+- 用户普通股票收益偏好已登记为独立只读诊断：报告分别呈现最近合法 T1 gross headroom、
+  后续结构目标及不确定性、止损距离/1R/RR/成本，以及仅在合法最终结果存在时呈现 net
+  return/net R/持有期/资金占用；不新增绝对收益硬阈值，不改变 D1/5%/2R/T1 全退或准入。
 
 ## Blocker / Decision
 
-D2 已选择，但现有免费数据栈不满足冻结标准：US 的 latest IWB holdings + known-ticker
-yfinance history 缺历史 membership 与退市 master；CN 虽有日期化指数查询，仍缺可冻结的
-逐日 board/ST/涨跌停/lot、完整 security lifecycle 与已证明公司行动合同。不得用当前
-成分股回填历史，不得自动采购付费数据。
-
-下一步需要用户在两类方向中决定：提供/指定有权使用的 point-in-time 数据源继续 D2，
-或留下新决策记录并重新开启数据设计、改走既有 D1 prospective time-isolated。成本来源
-仍需在任何数据启动前冻结。正式 Risk/Decision 修改仍需独立长期治理决策。
+`D1_DURABLE_STORAGE_RUNTIME_VERIFICATION_PENDING`：durable backend、专用 folder、folder ID
+GitHub Secret 与 service account folder-level writer 权限均已完成并回读确认；真实
+service-account access/write/read-back/clean recovery 仍待 main 上运行。另有
+`D1_SOURCE_ACTIVATION_CONTRACT_PENDING`：Cloud 日报只提供摘要，缺 raw/QFQ prefix 与
+Path A/B observer 的可验证输入/输出；不可变 activation record 和 CN/US 正式 schedule
+尚未具备。#112 的正式 Drive commit 已 fail closed。完成这些条件及首次自然 session 前
+不得激活或报告 `D1_COLLECTION_ACTIVE`。没有需要用户选择的新策略参数。
 
 ## Next Action
 
-- 等待 point-in-time 数据方向决定；若继续 D2，下一步仅做供应商/用户数据 capability
-  sample、许可与字段合同冻结，不直接生成信号或收益。若改 D1，先更新冻结决策记录。
+- #112 经正常 review/merge 后运行真实 service-account synthetic validation；另行完成
+  source/observer、不可变 activation 与 CN/US 正式 schedule contract，再按自然 session
+  分别启动。不得用人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 
@@ -70,6 +92,8 @@ yfinance history 缺历史 membership 与退市 master；CN 虽有日期化指�
 - 不改 Wave/Swing/Fibonacci 核心实现，不访问 Final OOS，不读取真实持仓。
 - 不把 H1 后 running high 标成 confirmed Swing；不在看到收益后逐笔选择 stop、target 或 exit。
 - Target-before-RR；不得用 T2/T3 绕过 T1，不得为过 2R 延伸 T1 或缩小 stop。
+- `ECONOMIC_ATTRACTIVENESS` 与 `SIGNAL_VALID`、`RISK_VALID`、`TARGET_GEOMETRY`、
+  `RESEARCH_ADMISSION` 分离；低 gross/net 收益偏好先只读记录，未批准前不得恢复或新设门槛。
 - 不得用 `entry_ceiling` 预过滤 `entry_trigger` 上方的合法近 T1。
 - 路径 A/B、CN/US 分别报告；不得合并掩盖失败或凑证据下限。
 - Candidate-only、Paper、production state、Sheet、broker 边界不变。

@@ -1,0 +1,23 @@
+name: SETUP01 D1 Storage Validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      D1_RESEARCH_DRIVE_FOLDER_ID: ${{ secrets.D1_RESEARCH_DRIVE_FOLDER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate synthetic object in configured research folder
+        run: python scripts/run_setup01_d1_collector.py drive-validate-storage
