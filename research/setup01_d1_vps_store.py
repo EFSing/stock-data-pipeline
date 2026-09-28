@@ -13,6 +13,7 @@ identity fails closed.  Formal evidence has no update or delete path.
 """
 from __future__ import annotations
 
+import atexit
 import base64
 import json
 import os
@@ -23,7 +24,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import tempfile
-from typing import Any, BinaryIO, Callable, Mapping, Protocol, Sequence
+from typing import Any, BinaryIO, Mapping, Protocol, Sequence
 
 from research.setup01_d1_activation import (
     build_activation_record,
@@ -268,6 +269,14 @@ def _write_secret_file(content: str, *, prefix: str, mode: int) -> str:
     finally:
         handle.close()
     os.chmod(handle.name, mode)
+
+    def _cleanup_secret(path: str = handle.name) -> None:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+    atexit.register(_cleanup_secret)
     return handle.name
 
 
@@ -1042,7 +1051,7 @@ class VpsD1Store:
                 snapshot = filesystem.load(market, date.fromisoformat(path.stem))
                 self.commit(snapshot)
                 imported += 1
-        graph_after = self.verify()
+        graph_after = self.verify(full_objects=True)
         if (
             graph_after["status"] != "VERIFIED"
             or graph_after["session_counts"] != source_verify["session_counts"]

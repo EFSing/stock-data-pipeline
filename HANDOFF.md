@@ -25,6 +25,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Current State
 
+- 本次 storage 变更在独立分支 `research/setup01-d1-vps-durable-storage`（PR 标题
+  `research: switch SETUP01 D1 durable storage to VPS`）；merge 授权前保持 OPEN，不改 #110、
+  #82、#96。branch / HEAD / PR / CI 以 GitHub 实时状态为准。
 - GCS durable storage 实现已随 PR #117 squash merge 进入 main；用户随后决定不部署它。
   当前 formal D1 durable backend 是 VPS SSH immutable store，GCS/Drive 仅为 retained
   adapter 与历史证据。

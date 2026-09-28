@@ -475,7 +475,7 @@ def build_d1_snapshot_from_candidate_runtime(
     acquired_at: str,
     activation_record: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the immutable snapshot used by the GCS collector."""
+    """Build the immutable snapshot used by the durable natural collector."""
 
     contract = build_d1_source_contract(
         runtime,
