@@ -8,8 +8,8 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 `D1_PROSPECTIVE_TIME_ISOLATED`。独立 D1 协议、collector/reference store、Drive durable
 backend、完整性/恢复、causal 双路径 observer、CN/US 独立 workflow 与中文只读报告已实现；
 专用 Drive folder 已由用户账号创建，`D1_RESEARCH_DRIVE_FOLDER_ID` GitHub Actions Secret
-已配置，但既有 service account 尚未共享该 folder，真实 write/read-back/recovery 与首次
-自然 session 均未完成。因此 CN/US
+已配置，既有 service account 已获该 folder 的 writer 权限且权限元数据已回读确认；真实
+write/read-back/recovery 与首次自然 session 均未完成。因此 CN/US
 仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也
 没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
 
@@ -71,16 +71,15 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`D1_DRIVE_FOLDER_SHARE_REQUIRED`：durable backend、专用 folder 与 folder ID GitHub Secret
-已完成；仍需用户把该 folder 以 writer 身份仅共享给既有 service account。PR #112 未获
-合并授权，workflow 尚不在 main；真实 access
+`D1_DURABLE_STORAGE_RUNTIME_VERIFICATION_PENDING`：durable backend、专用 folder、folder ID
+GitHub Secret 与 service account folder-level writer 权限均已完成并回读确认。PR #112 未获
+合并授权，workflow 尚不在 main；真实 service-account access
 probe、write/read-back、clean recovery 和首次自然 session 尚未运行。完成这些条件前不得
 激活或报告 `D1_COLLECTION_ACTIVE`。除此之外没有需要用户决定的策略参数。
 
 ## Next Action
 
-- 获取既有 service account 的 `client_email`，由用户只共享专用 Drive folder 并配置 folder
-  ID secret；#112 经正常 review/merge 后运行真实 access/write/read-back/recovery 验收，再按
+- #112 经正常 review/merge 后运行真实 service-account access/write/read-back/recovery 验收，再按
   CN/US 自然 schedule 分别记录 activation timestamp 与首个完整 session。不得用人工指定日期
   或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。

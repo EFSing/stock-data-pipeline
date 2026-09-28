@@ -498,8 +498,9 @@
   fixture store 外，已实现只访问配置 folder ID 的 Google Drive backend（`drive.file` scope）、
   最小 writer capability 检查、write/read-back probe、create-if-absent、全图验证和 Drive→空
   目录恢复，并新增 CN/US 独立 schedule；人工指定日期固定为 diagnostic backfill。专用 folder
-  已创建且 folder ID GitHub Actions Secret 已配置，但尚未共享给既有 service account；真实
-  write/read-back/recovery 与首次自然 session 未完成，
+  已创建，folder ID GitHub Actions Secret 已配置，且 service account 已获该 folder 的 writer
+  权限并经权限元数据回读确认；真实 service-account write/read-back/recovery 与首次自然 session
+  未完成，
   且 workflow 仍在未合并的堆叠 PR 中。因此 CN/US 继续为 `D1_READY_NOT_ACTIVE`、activation/
   window pending、正式事件数 0。未访问历史经济样本、Final OOS、真实持仓，未启用 Paper、
   production Sheet/state 或 broker 写入。

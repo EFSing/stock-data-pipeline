@@ -102,8 +102,9 @@ stop/target 顺序不明要单列 ambiguity，不能标记为真实成交。
 要求。独立 Google Drive research folder 已创建，folder-scoped durable adapter 与 CN/US
 独立 workflow 已实现；adapter 只接收 `D1_RESEARCH_DRIVE_FOLDER_ID`，使用既有 service
 account 的 `drive.file` scope，并验证 writer capability，不列举或读取 folder 外文件。当前该
-folder ID GitHub Actions Secret 已配置，但 folder 尚未共享给 service account，真实
-write/read-back/recovery 与首次自然 session 尚未完成，workflow 仍在未合并 PR。因此尚未
+folder ID GitHub Actions Secret 已配置，service account 已获该 folder 的 writer 权限并经
+权限元数据回读确认；真实 service-account write/read-back/recovery 与首次自然 session 尚未
+完成，workflow 仍在未合并 PR。因此尚未
 写外部 D1 object，正式事件数为 0。
 
 可选方案：
