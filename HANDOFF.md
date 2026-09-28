@@ -6,10 +6,10 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
 `D1_PROSPECTIVE_TIME_ISOLATED`。独立 D1 协议、collector/reference store、Drive durable
-backend、完整性/恢复、causal 双路径 observer、CN/US 诊断 workflow 与中文只读报告已实现；
+backend、完整性/恢复、causal 双路径 observer 与中文只读报告已实现；
 专用 Drive folder 已由用户账号创建，`D1_RESEARCH_DRIVE_FOLDER_ID` GitHub Actions Secret
-已配置，既有 service account 已获该 folder 的 writer 权限且权限元数据已回读确认；真实
-write/read-back/recovery 与首次自然 session 均未完成。Cloud 日报当前不包含可持久化的
+已配置，用户侧权限元数据确认既有 service account 已获该 folder 的 writer 权限；main 上
+实际 service-account `files.get` 返回 404，未发生真实写入/回读/恢复。Cloud 日报当前不包含可持久化的
 raw/QFQ prefix 和实际 Path A/B observer 输出，且不可变 activation record 尚未实现；正式
 Drive commit 因此 fail closed，CN/US 自动 collector schedule 尚未启用。因此 CN/US
 仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也
@@ -38,10 +38,11 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `BLOCKED_EXISTING_FREE_STACK_NO_COMPLIANT_POINT_IN_TIME_SOURCE`。
 - D1 修订：`research/protocols/setup01_post_breakout_d1_prospective_v1.json` 及独立 freeze
   record；旧 D2 audit/draft/freeze 均保留，D1 与 D2 不被表述为同一协议。
-- D1 PR #112 已重基于 #111 合并后的 main，仍待 exact-head CI 与合并；#110 保持独立 OPEN。
+- D1 PR #112 已重基于 #111 合并后的 main，exact-head CI 通过并已合并；Actions 启动路径
+  修复 PR #113 随后合并。#110 保持独立 OPEN。
 - D1 专用 folder `EFSing stock-data-pipeline — D1 Research` 已创建；folder identity 只用于
   `D1_RESEARCH_DRIVE_FOLDER_ID`，不得扩大到整个 My Drive。service account 已获该 folder
-  的 writer 权限；真实写入仍待验证。
+  的 writer 权限；service-account API 实测对配置 ID 返回 404，未创建对象。
 
 ## Completed
 
@@ -64,26 +65,31 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - 新增 folder-scoped Google Drive backend：只按配置 folder ID 访问，使用 `drive.file` scope，
   支持最小 writer capability 检查、write/read-back probe、immutable create-if-absent、冲突
   fail-closed、全图 verify 与 clean-directory 跨设备恢复；独立 synthetic validation workflow
-  可实测 storage。CN/US workflow 仅支持人工 diagnostic backfill，不得成为前瞻证据。
+  已在 main 上执行，但受 folder `files.get` 404 阻断。原 CN/US 诊断 workflow 会调用可能
+  读取真实持仓的生产日报，已移除；正式 schedule 尚未启用。
 - 用户普通股票收益偏好已登记为独立只读诊断：报告分别呈现最近合法 T1 gross headroom、
   后续结构目标及不确定性、止损距离/1R/RR/成本，以及仅在合法最终结果存在时呈现 net
   return/net R/持有期/资金占用；不新增绝对收益硬阈值，不改变 D1/5%/2R/T1 全退或准入。
 
 ## Blocker / Decision
 
-`D1_DURABLE_STORAGE_RUNTIME_VERIFICATION_PENDING`：durable backend、专用 folder、folder ID
-GitHub Secret 与 service account folder-level writer 权限均已完成并回读确认；真实
-service-account access/write/read-back/clean recovery 仍待 main 上运行。另有
+`D1_DURABLE_STORAGE_ACCESS_FAILED`：main 上 synthetic validation 已使用既有 service account
+与配置的 folder ID，`files.get` 返回 HTTP 404，在任何写入前停止。用户侧共享权限元数据
+与实际 service-account API 可见性不一致；可能是 folder ID/Secret 不匹配或 `drive.file`
+scope 对用户共享文件夹的可见性限制，尚不能确定。不得扩大 Drive 权限或遍历 folder 外内容。
+另有
 `D1_SOURCE_ACTIVATION_CONTRACT_PENDING`：Cloud 日报只提供摘要，缺 raw/QFQ prefix 与
 Path A/B observer 的可验证输入/输出；不可变 activation record 和 CN/US 正式 schedule
-尚未具备。#112 的正式 Drive commit 已 fail closed。完成这些条件及首次自然 session 前
+尚未具备。正式 Drive commit 已 fail closed。完成这些条件及首次自然 session 前
 不得激活或报告 `D1_COLLECTION_ACTIVE`。没有需要用户选择的新策略参数。
 
 ## Next Action
 
-- #112 经正常 review/merge 后运行真实 service-account synthetic validation；另行完成
-  source/observer、不可变 activation 与 CN/US 正式 schedule contract，再按自然 session
-  分别启动。不得用人工指定日期或旧日报补为首个合法 session。
+- 先核实专用 folder ID 与 `D1_RESEARCH_DRIVE_FOLDER_ID` Secret 是否完全一致，并在不扩大
+  权限的前提下解决 service-account API 404；若确为 `drive.file`/My Drive 限制，需用户决定
+  合规的 durable storage 身份/位置。之后重跑 synthetic validation，再完成 source/observer、
+  不可变 activation 与 CN/US 正式 schedule contract，按自然 session 分别启动。不得用
+  人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 
