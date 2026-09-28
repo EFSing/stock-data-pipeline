@@ -70,7 +70,7 @@ python scripts/run_setup01_d1_collector.py collect --input INPUT.json --store ST
 python scripts/run_setup01_d1_collector.py verify --store STORE
 python scripts/run_setup01_d1_collector.py recover --store STORE --target EMPTY_DIRECTORY
 python scripts/run_setup01_d1_collector.py drive-access-check --write-readback-probe
-python scripts/run_setup01_d1_collector.py drive-validate-storage
+python scripts/run_setup01_d1_collector.py drive-validate-storage --expected-folder-id-sha256 SHA256_OF_USER_PROVIDED_FOLDER_ID
 python scripts/run_setup01_d1_collector.py drive-collect-daily-report --daily-report daily-report.json --report-output research.md
 python scripts/run_setup01_d1_collector.py drive-verify
 python scripts/run_setup01_d1_collector.py drive-recover --target EMPTY_DIRECTORY
