@@ -260,6 +260,24 @@ class SshVpsRunner:
         return int(completed.returncode), out, bytes(completed.stderr or b"")
 
 
+def _restrict_to_owner(path: str, *, mode: int) -> None:
+    """Make a temporary credential readable only by the current account."""
+
+    os.chmod(path, mode)
+    if os.name != "nt":
+        return
+    owner = str(os.environ.get("USERNAME") or "").strip()
+    if not owner:
+        return
+    # Windows OpenSSH refuses a private key that other accounts can read.
+    subprocess.run(
+        ["icacls", path, "/inheritance:r", "/grant:r", f"{owner}:(R)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
 def _write_secret_file(content: str, *, prefix: str, mode: int) -> str:
     handle = tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", prefix=prefix, delete=False, newline="\n"
@@ -268,7 +286,7 @@ def _write_secret_file(content: str, *, prefix: str, mode: int) -> str:
         handle.write(content if content.endswith("\n") else content + "\n")
     finally:
         handle.close()
-    os.chmod(handle.name, mode)
+    _restrict_to_owner(handle.name, mode=mode)
 
     def _cleanup_secret(path: str = handle.name) -> None:
         try:
