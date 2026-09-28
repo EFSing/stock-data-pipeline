@@ -10,6 +10,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
+      PYTHONPATH: .
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       D1_RESEARCH_DRIVE_FOLDER_ID: ${{ secrets.D1_RESEARCH_DRIVE_FOLDER_ID }}
     steps:
