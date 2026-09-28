@@ -105,8 +105,9 @@ synthetic storage validation workflow 已实现；adapter 只接收 `D1_RESEARCH
 account 的 `drive.file` scope，并验证 writer capability，不列举或读取 folder 外文件。当前该
 folder ID GitHub Actions Secret 已配置，service account 已获该 folder 的 writer 权限并经
 用户侧权限元数据回读确认；main 上 service-account `files.get` 对配置的 folder ID 返回
-HTTP 404，未创建 validation object，未做真实 write/read-back/recovery。不能据此认定 folder
-ID 错误或 permission 无效，`drive.file` 对用户共享 folder 的可见性亦可能是原因；不得扩大
+HTTP 404，未创建 validation object，未做真实 write/read-back/recovery。该 Secret ID 与用户
+提供的 folder 链接 ID 已通过 SHA-256 比较，故 ID 错误已排除。`drive.file` 对用户共享
+folder 的可见性可能是原因，不能仅凭 404 确定唯一根因；不得扩大
 权限或访问 folder 之外内容。CN/US 正式 schedule 尚未启用；Cloud 日报摘要未保留 raw/QFQ
 prefix 和实际 Path A/B observer 输出，不能作为正式 D1 证据。正式 Drive commit 在不可变
 activation record 与完整 source/observer contract 实现前 fail closed。正式事件数为 0。

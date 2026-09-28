@@ -39,7 +39,7 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - D1 修订：`research/protocols/setup01_post_breakout_d1_prospective_v1.json` 及独立 freeze
   record；旧 D2 audit/draft/freeze 均保留，D1 与 D2 不被表述为同一协议。
 - D1 PR #112 已重基于 #111 合并后的 main，exact-head CI 通过并已合并；Actions 启动路径
-  修复 PR #113 随后合并。#110 保持独立 OPEN。
+  修复 PR #113 与 folder ID 身份校验 PR #115 随后合并。#110 保持独立 OPEN。
 - D1 专用 folder `EFSing stock-data-pipeline — D1 Research` 已创建；folder identity 只用于
   `D1_RESEARCH_DRIVE_FOLDER_ID`，不得扩大到整个 My Drive。service account 已获该 folder
   的 writer 权限；service-account API 实测对配置 ID 返回 404，未创建对象。
@@ -74,9 +74,10 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 ## Blocker / Decision
 
 `D1_DURABLE_STORAGE_ACCESS_FAILED`：main 上 synthetic validation 已使用既有 service account
-与配置的 folder ID，`files.get` 返回 HTTP 404，在任何写入前停止。用户侧共享权限元数据
-与实际 service-account API 可见性不一致；可能是 folder ID/Secret 不匹配或 `drive.file`
-scope 对用户共享文件夹的可见性限制，尚不能确定。不得扩大 Drive 权限或遍历 folder 外内容。
+与配置的 folder ID；该 ID 与用户提供的专用 folder 链接已通过 SHA-256 一致性校验，排除
+Secret ID 不匹配。随后 `files.get` 仍返回 HTTP 404，在任何写入前停止。用户侧共享权限
+元数据与实际 service-account API 可见性不一致；`drive.file` 对用户共享文件夹的可见性
+限制是可能原因，尚未证明唯一根因。不得扩大 Drive 权限或遍历 folder 外内容。
 另有
 `D1_SOURCE_ACTIVATION_CONTRACT_PENDING`：Cloud 日报只提供摘要，缺 raw/QFQ prefix 与
 Path A/B observer 的可验证输入/输出；不可变 activation record 和 CN/US 正式 schedule
@@ -85,9 +86,9 @@ Path A/B observer 的可验证输入/输出；不可变 activation record 和 CN
 
 ## Next Action
 
-- 先核实专用 folder ID 与 `D1_RESEARCH_DRIVE_FOLDER_ID` Secret 是否完全一致，并在不扩大
-  权限的前提下解决 service-account API 404；若确为 `drive.file`/My Drive 限制，需用户决定
-  合规的 durable storage 身份/位置。之后重跑 synthetic validation，再完成 source/observer、
+- 由用户决定不扩大现有 Drive 权限的 durable storage 身份/位置；现有 service-account
+  `drive.file` + 用户自有 folder 路线已在正确 ID 上遭遇 API 404。之后重跑 synthetic validation，
+  再完成 source/observer、
   不可变 activation 与 CN/US 正式 schedule contract，按自然 session 分别启动。不得用
   人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
