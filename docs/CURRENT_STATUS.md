@@ -500,7 +500,8 @@
   目录恢复，并新增独立 synthetic storage validation workflow；CN/US 正式 schedule 尚未启用。专用 folder
   已创建，folder ID GitHub Actions Secret 已配置，且 service account 已获该 folder 的 writer
   权限并经用户侧权限元数据回读确认；main 上 service-account `files.get` 对配置的 folder ID
-  返回 404，未发生写入/回读/恢复。Cloud 日报摘要不包含 raw/QFQ prefix 和实际 Path A/B observer 输出，故不能作为
+  返回 404；该 Secret ID 与用户提供的专用 folder ID 经 SHA-256 比较一致，未发生写入/回读/恢复。
+  Cloud 日报摘要不包含 raw/QFQ prefix 和实际 Path A/B observer 输出，故不能作为
   正式 D1 证据；不可变 activation record 尚未实现，正式 Drive commit fail closed。因此
   CN/US 继续为 `D1_READY_NOT_ACTIVE`、activation/
   window pending、正式事件数 0。未访问历史经济样本、Final OOS、真实持仓，未启用 Paper、
