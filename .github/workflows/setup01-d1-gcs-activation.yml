@@ -1,0 +1,41 @@
+name: SETUP01 D1 GCS Activation Record
+
+# Manual only.  Creates one immutable per-market activation record that binds
+# the frozen D1 protocol, the dedicated bucket identity, the source/observer
+# contract and the current main code SHA.  The natural collector refuses to run
+# before this record exists, and the record is never rewritten afterwards.
+on:
+  workflow_dispatch:
+    inputs:
+      market:
+        description: "Market to activate independently"
+        required: true
+        type: choice
+        options:
+          - CN
+          - US
+
+permissions:
+  contents: read
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      D1_RESEARCH_GCS_BUCKET: ${{ secrets.D1_RESEARCH_GCS_BUCKET }}
+      D1_RESEARCH_GCS_PROJECT: ${{ secrets.D1_RESEARCH_GCS_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Create immutable activation record
+        run: >-
+          python scripts/run_setup01_d1_collector.py gcs-create-activation
+          --market "${{ inputs.market }}"
+          --activation-timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          --code-sha "$GITHUB_SHA"

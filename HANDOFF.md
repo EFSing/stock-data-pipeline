@@ -21,8 +21,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Current State
 
-- 当前 GCS 实现位于独立分支 `codex/setup01-d1-gcs-durable-storage-v1`；独立公开 PR #117
-  已创建并保持 OPEN，真实 GCS 环境尚未 provisioned。
+- GCS durable storage 实现已随 PR #117 squash merge 进入 main（合并后 main CI 通过），
+  实现分支已关闭；真实 GCS 环境（bucket / bucket-scoped IAM / Secrets）尚未 provisioned。
 - GitHub `main` 已包含 #109 的 SETUP_01 early-entry 第二阶段决策节点；#110 是独立 OPEN
   research-only PR，保持不合并、不改写。#82 与 #96 仍是无关开放 PR。
 - #110 的正式研究结论为 `INSUFFICIENT_EVIDENCE`：受约束 PKG_B 实验组净 R 在 CN/US
@@ -84,23 +84,33 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`D1_GCS_ENVIRONMENT_NOT_PROVISIONED`：当前本地环境没有 `GOOGLE_SERVICE_ACCOUNT_JSON`、
-`D1_RESEARCH_GCS_BUCKET` 或 `D1_RESEARCH_GCS_PROJECT`，因此尚未核对真实 GCP project、
-billing、location constraint、bucket policy 或 Storage IAM，也未做真实 GCS synthetic
-write/read-back/recovery。需要用户在既有 GCP project 中选择 location、创建专用 Standard
-bucket、启用 uniform access/PAP、保持 versioning/retention lock 关闭，并按 bucket scope
-授予最小 runtime IAM，然后在 GitHub Secrets 配置 bucket/project。没有这些外部事实不能
-合法创建 activation record。
+`D1_GCS_ENVIRONMENT_NOT_PROVISIONED`：当前开发环境既没有 `GOOGLE_SERVICE_ACCOUNT_JSON`
+也没有 `gcloud` / ADC，无法自行创建或核对 GCS 资源；运行期 service account 也不得被
+授予 bucket create/delete、bucket IAM 管理或 project-wide Storage Admin。需要用户在既有
+service-account 所属 GCP project 中一次性完成：创建 D1 专用 Standard bucket
+`efsing-stock-data-pipeline-d1-research-7acffb`（全局唯一；若已占用则改同格式随机后缀名并
+同步本文件与 GitHub Secrets；bucket 名不得含 secret、邮箱或账户信息），位置 `us-central1`
+（除非项目存在既定 location/organization constraint），uniform bucket-level access ON、
+Public Access Prevention enforced、Object Versioning OFF、不设 retention lock/policy、
+不允许 public access，bucket 只保存 D1 public-market research evidence；并仅对该 bucket
+给运行期 SA 授予 `storage.buckets.get`、`storage.objects.create`、`storage.objects.get`、
+`storage.objects.list` 四个权限（预定义 role 若不满足无-delete 最小集合则建 bucket-scoped
+custom role，不得给 Storage Admin 或 Object Admin）。bucket 就绪后由 Codex 配置 GitHub
+Secrets `D1_RESEARCH_GCS_BUCKET` / `D1_RESEARCH_GCS_PROJECT`（继续复用既有
+`GOOGLE_SERVICE_ACCOUNT_JSON`，不生成新的长期密钥）。没有这些外部事实不能合法创建
+activation record。
 另有 `D1_NATURAL_COLLECTION_NOT_STARTED`：source/observer contract 已完成代码合同和
 synthetic 验收，但 CN/US activation record 尚未创建，manual-only collector workflow
 尚未转为 schedule；正式事件数仍为 0。不得报告 `D1_COLLECTION_ACTIVE`。
 
 ## Next Action
 
-- 由用户一次性完成 GCS bucket/project/location/billing 与 bucket-scoped IAM/Secrets 配置；
-  然后运行 GCS synthetic validation，按市场以当前主线 code SHA 创建不可变 activation
-  record。activation 后先 manual-run 每个市场首个自然 session，read-back + verify 成功后
-  才允许启用该市场 schedule；不得用人工指定日期或旧日报补为首个合法 session。
+- 用户完成上述 bucket + bucket-scoped IAM 后：配置 GitHub Secrets，在 main 上运行
+  `setup01-d1-gcs-storage-validation`（输入 bucket identity SHA-256）；通过后用
+  `setup01-d1-gcs-activation` 按市场以当时主线 code SHA 分别创建 CN/US 不可变 activation
+  record，再 manual-run 每个市场首个合法自然 session（`setup01-d1-gcs-natural-collector`），
+  universe/raw/QFQ/observer/report/hash/GCS commit/read-back 全链通过后该市场才进入
+  `D1_COLLECTION_ACTIVE`；不得用人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 
