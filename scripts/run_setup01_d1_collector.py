@@ -14,6 +14,11 @@ from research.setup01_d1_prospective import (
     render_research_report,
 )
 from research.setup01_d1_drive_store import GoogleDriveApi, GoogleDriveD1Store
+from research.setup01_d1_gcs_store import (
+    GoogleCloudStorageApi,
+    GoogleCloudStorageD1Store,
+)
+from research.setup01_d1_source_contract import source_contract_descriptor
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -77,6 +82,39 @@ def drive_collect(input_path: Path, report_output: Path | None = None) -> dict[s
         "event_sha256": committed.event_sha256,
         "object_file_id": committed.object_file_id,
         "commit_file_id": committed.commit_file_id,
+        "prospective_eligible": snapshot["prospective_eligible"],
+        "research_only": True,
+        "production_state_write": False,
+    }
+
+
+def gcs_collect(input_path: Path, report_output: Path | None = None) -> dict[str, Any]:
+    value = _load(input_path)
+    snapshot = build_session_snapshot(
+        market=value["market"],
+        session_date=date.fromisoformat(value["session_date"]),
+        acquired_at=value["acquired_at"],
+        capture_status=value["capture_status"],
+        diagnostic_backfill=bool(value.get("diagnostic_backfill", False)),
+        source_identity=value["source_identity"],
+        universe_snapshot=value["universe_snapshot"],
+        raw_source_snapshot=value["raw_source_snapshot"],
+        normalized_prefix_snapshot=value["normalized_prefix_snapshot"],
+        decision_snapshot=value["decision_snapshot"],
+        research_observation_report=value["research_observation_report"],
+    )
+    committed = GoogleCloudStorageD1Store.from_env().commit(snapshot)
+    if report_output is not None:
+        report_output.parent.mkdir(parents=True, exist_ok=True)
+        report_output.write_text(render_research_report(snapshot), encoding="utf-8")
+    return {
+        "status": committed.status,
+        "event_id": committed.event_id,
+        "event_sha256": committed.event_sha256,
+        "object_name": committed.object_name,
+        "object_generation": committed.object_generation,
+        "commit_name": committed.commit_name,
+        "commit_generation": committed.commit_generation,
         "prospective_eligible": snapshot["prospective_eligible"],
         "research_only": True,
         "production_state_write": False,
@@ -230,6 +268,19 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("drive-verify")
     drive_recover_parser = sub.add_parser("drive-recover")
     drive_recover_parser.add_argument("--target", type=Path, required=True)
+    sub.add_parser("gcs-access-check").add_argument("--write-readback-probe", action="store_true")
+    gcs_validation_parser = sub.add_parser("gcs-validate-storage")
+    gcs_validation_parser.add_argument("--expected-bucket-identity-sha256")
+    gcs_activation_parser = sub.add_parser("gcs-create-activation")
+    gcs_activation_parser.add_argument("--market", choices=("CN", "US"), required=True)
+    gcs_activation_parser.add_argument("--activation-timestamp", required=True)
+    gcs_activation_parser.add_argument("--code-sha", required=True)
+    gcs_collect_parser = sub.add_parser("gcs-collect")
+    gcs_collect_parser.add_argument("--input", type=Path, required=True)
+    gcs_collect_parser.add_argument("--report-output", type=Path)
+    sub.add_parser("gcs-verify")
+    gcs_recover_parser = sub.add_parser("gcs-recover")
+    gcs_recover_parser.add_argument("--target", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "collect":
         result = collect(args.input, args.store, args.report_output)
@@ -260,11 +311,36 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "drive-verify":
         result = GoogleDriveD1Store.from_env().verify()
+    elif args.command == "gcs-access-check":
+        store = GoogleCloudStorageD1Store.from_env()
+        result = store.verify_access(write_probe=args.write_readback_probe)
+        result["service_account_email"] = GoogleCloudStorageApi.service_account_email_from_env()
+        result["service_account_project_id"] = GoogleCloudStorageApi.project_id_from_env()
+    elif args.command == "gcs-validate-storage":
+        result = GoogleCloudStorageD1Store.from_env().validate_durable_storage(
+            expected_bucket_identity_sha256=args.expected_bucket_identity_sha256
+        )
+    elif args.command == "gcs-create-activation":
+        store = GoogleCloudStorageD1Store.from_env()
+        record = store.create_activation_record(
+            market=args.market,
+            activation_timestamp=args.activation_timestamp,
+            code_sha=args.code_sha,
+            source_contract=source_contract_descriptor(),
+            observer_version=source_contract_descriptor()["observer_version"],
+        )
+        result = {"status": "ACTIVATION_CREATED", "record": record}
+    elif args.command == "gcs-collect":
+        result = gcs_collect(args.input, args.report_output)
+    elif args.command == "gcs-verify":
+        result = GoogleCloudStorageD1Store.from_env().verify()
+    elif args.command == "gcs-recover":
+        result = GoogleCloudStorageD1Store.from_env().recover_to(args.target)
     else:
         result = GoogleDriveD1Store.from_env().recover_to(args.target)
     print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
     return 0 if result.get("status") in {
-        "ACCESS_VERIFIED", "COMMITTED", "IDEMPOTENT_REPLAY", "VERIFIED"
+        "ACCESS_VERIFIED", "ACTIVATION_CREATED", "COMMITTED", "IDEMPOTENT_REPLAY", "VERIFIED"
     } else 1
 
 

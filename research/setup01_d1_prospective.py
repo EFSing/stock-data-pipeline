@@ -347,7 +347,7 @@ class FilesystemD1Store:
         return recovered
 
 
-def render_research_report(snapshot: Mapping[str, Any]) -> str:
+def render_research_report(snapshot: Mapping[str, Any], *, include_integrity: bool = True) -> str:
     """Render an independent Chinese research report from committed facts."""
     validate_session_snapshot(snapshot)
     report = snapshot["components"]["research_observation_report"]["payload"]
@@ -414,14 +414,15 @@ def render_research_report(snapshot: Mapping[str, Any]) -> str:
         "存在路径、时间与成交不确定性，不代表可实现盈利。gross headroom 不是 net return。",
         "ECONOMIC_ATTRACTIVENESS 当前只记录收益区间与资金占用，不构成新硬门槛，也不改变研究准入。",
     ])
-    lines.extend([
-        "",
-        "## 完整性",
-        "",
-        f"事件 ID：`{snapshot['event_id']}`  ",
-        f"事件 SHA-256：`{snapshot['event_sha256']}`  ",
-        f"协议：`{snapshot['protocol_version']}`",
-    ])
+    if include_integrity:
+        lines.extend([
+            "",
+            "## 完整性",
+            "",
+            f"事件 ID：`{snapshot['event_id']}`  ",
+            f"事件 SHA-256：`{snapshot['event_sha256']}`  ",
+            f"协议：`{snapshot['protocol_version']}`",
+        ])
     return "\n".join(lines) + "\n"
 
 

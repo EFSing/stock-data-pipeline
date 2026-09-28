@@ -4,9 +4,9 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-24（US Stage A exact-T 历史窗口缓冲与覆盖告警、
-> IWB share-class 映射修复；Cloud Daily Report 保持独立 read-only 内存边界；
-> SETUP_01 H1 突破后双路径研究架构已冻结；D2 因缺合规 point-in-time 数据源阻塞）。
+> 最后实质更新：2026-09-28（D1 durable backend 改为 GCS；新增 immutable activation、
+> public source/observer contract 与 natural collector；Cloud Daily Report 保持独立
+> read-only 内存边界；SETUP_01 H1 突破后双路径研究架构与 D1 协议仍冻结）。
 
 ## 项目身份
 
@@ -494,18 +494,32 @@
   双路径 signal/opportunity/stop/target/exit/gate 选择均未重选。已实现 research-only
   causal Path A/B observer、next-session OHLC 模型、CN T+1、同日歧义、右删失、五组件
   hash-bound session snapshot、content-addressed immutable reference store、跨日幂等、
-  missing/hash/protocol 检测、clean-directory recovery 与独立中文报告/CLI。除 filesystem
-  fixture store 外，已实现只访问配置 folder ID 的 Google Drive backend（`drive.file` scope）、
-  最小 writer capability 检查、write/read-back probe、create-if-absent、全图验证和 Drive→空
-  目录恢复，并新增独立 synthetic storage validation workflow；CN/US 正式 schedule 尚未启用。专用 folder
-  已创建，folder ID GitHub Actions Secret 已配置，且 service account 已获该 folder 的 writer
-  权限并经用户侧权限元数据回读确认；main 上 service-account `files.get` 对配置的 folder ID
-  返回 404；该 Secret ID 与用户提供的专用 folder ID 经 SHA-256 比较一致，未发生写入/回读/恢复。
-  Cloud 日报摘要不包含 raw/QFQ prefix 和实际 Path A/B observer 输出，故不能作为
-  正式 D1 证据；不可变 activation record 尚未实现，正式 Drive commit fail closed。因此
-  CN/US 继续为 `D1_READY_NOT_ACTIVE`、activation/
-  window pending、正式事件数 0。未访问历史经济样本、Final OOS、真实持仓，未启用 Paper、
-  production Sheet/state 或 broker 写入。
+  missing/hash/protocol 检测、clean-directory recovery 与独立中文报告/CLI。
+- D1 durable backend 已由用户正式决定改为独立 Google Cloud Storage bucket。代码已实现
+  独立 backend identity/version、`objects/`、`sessions/CN/`、`sessions/US/`、`system/`
+  prefix、GCS generation `ifGenerationMatch=0` create-only 写入、pointer/object
+  generation+SHA-256+metadata 交叉校验、幂等/冲突 fail-closed、空目录 recovery、bucket
+  policy gate（Standard、uniform bucket-level access、Public Access Prevention enforced、
+  本阶段关闭 object versioning、无 retention lock/policy）及 synthetic validation workflow。
+  真实 GCP bucket、location/billing、service-account bucket-scoped IAM 和 GitHub Secrets
+  尚未在当前环境提供，因此未运行真实 GCS write/read-back，也未创建 activation record。
+- 独立公开 source/observer contract 已接入既有 Candidate runtime：保存当日 universe、raw
+  Stage-A payload/hash、QFQ exact-T causal prefix/hash、精确 session identity、既有 causal
+  Swing/Fibonacci 与双路径 observer 的 signal/touch/no-signal、trigger/ceiling、stop、
+  nearest-first T1/T2/T3、G1/G0/5%/2R、`ECONOMIC_ATTRACTIVENESS`、next-session model
+  execution/skip、open follow-up set 和中文报告；不从普通 Cloud 日报摘要推导正式 D1 证据，
+  不读取 holdings、Paper、production Sheet/state 或 broker。natural collector 与生产日报
+  独立，D1 failure 不改变生产日报结果。
+- 不可变 per-market activation record 已实现，绑定冻结 protocol SHA、GCS backend/version、
+  bucket identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
+  cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。
+  但 CN/US 均仍为 `D1_READY_NOT_ACTIVE`，正式 schedule 未启用，正式事件数为 0；首次自然
+  完整 session 必须通过 source/universe/observer/report/hash/pointer/read-back 验收后才可将
+  市场标记为 `D1_COLLECTION_ACTIVE`。
+- Google Drive 路线仅作为历史失败证据保留：主线上的 service-account `files.get` 对配置
+  folder ID 返回 404，未创建 validation object，未发生正式写入/迁移；不扩大 Drive OAuth
+  scope，Drive synthetic adapter 仅保留为历史测试资产。未访问历史经济样本、Final OOS、
+  真实持仓，未启用 Paper、production Sheet/state 或 broker 写入。
 - 普通股票绝对收益偏好已作为独立研究/产品诊断登记：`SIGNAL_VALID`、`RISK_VALID`、
   `TARGET_GEOMETRY`、`ECONOMIC_ATTRACTIVENESS`、`RESEARCH_ADMISSION` 分开报告；日常中文研究
   报告记录最近合法 T1 gross headroom、后续结构目标不确定性、止损距离/1R/RR/成本，并仅在
