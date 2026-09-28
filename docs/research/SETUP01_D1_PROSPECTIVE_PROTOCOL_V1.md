@@ -69,18 +69,23 @@ CLI：
 python scripts/run_setup01_d1_collector.py collect --input INPUT.json --store STORE --report-output research.md
 python scripts/run_setup01_d1_collector.py verify --store STORE
 python scripts/run_setup01_d1_collector.py recover --store STORE --target EMPTY_DIRECTORY
-python scripts/run_setup01_d1_collector.py gcs-access-check --write-readback-probe
-python scripts/run_setup01_d1_collector.py gcs-validate-storage --expected-bucket-identity-sha256 SHA256_OF_PROJECT_BUCKET_IDENTITY
-python scripts/run_setup01_d1_collector.py gcs-create-activation --market CN --activation-timestamp ISO8601 --code-sha MAIN_CODE_SHA
-python scripts/run_setup01_d1_natural_collector.py --market CN --output receipt.json --report-output research.md
-python scripts/run_setup01_d1_collector.py gcs-verify
-python scripts/run_setup01_d1_collector.py gcs-recover --target EMPTY_DIRECTORY
+python scripts/run_setup01_d1_collector.py vps-identity
+python scripts/run_setup01_d1_collector.py vps-status
+python scripts/run_setup01_d1_collector.py vps-validate-storage --expected-storage-identity-sha256 SHA256_OF_STORAGE_IDENTITY
+python scripts/run_setup01_d1_collector.py vps-create-activation --market CN --activation-timestamp ISO8601 --code-sha MAIN_CODE_SHA
+python scripts/run_setup01_d1_natural_collector.py --backend vps --market CN --output receipt.json --report-output research.md
+python scripts/run_setup01_d1_collector.py vps-verify
+python scripts/run_setup01_d1_collector.py vps-export --target EMPTY_DIRECTORY
+python scripts/run_setup01_d1_collector.py vps-recover --target EMPTY_DIRECTORY
+python scripts/run_setup01_d1_collector.py vps-migrate --from EXPORTED_DIRECTORY
 ```
 
 本地文件 store 只用于实现、fixture 与恢复合同验证，不等于获批的 12 个月 durable backend。
-`gcs-create-activation` 和 natural collector 不接受历史日期补抓；每个市场只能在 storage/source
+`vps-create-activation` 和 natural collector 不接受历史日期补抓；每个市场只能在 storage/source
 gate 完成后独立激活，natural collector 只解析当前自然 exchange session。首次完整自然 session
 验证通过前，市场保持 `D1_READY_NOT_ACTIVE`；验证通过后才可进入 `D1_COLLECTION_ACTIVE`。
+保留的 `gcs-*` / `drive-*` 命令属于被禁用的历史 adapter：正式 D1 backend 是 VPS，误用它们
+写 formal evidence 会在运行期 fail closed。
 
 ## 成本与执行证据
 
@@ -104,26 +109,28 @@ stop/target 顺序不明要单列 ambiguity，不能标记为真实成交。
 ## 持久化与 source/activation 验收边界
 
 现有仓库只有 30 天 GitHub Actions artifact；它不满足 12 个月、跨设备恢复和不可变对象
-要求。D1 正式 backend 已改为独立 GCS bucket；Drive 路线仅保留历史失败证据：主线上的
-service-account `files.get` 对配置 folder ID 返回 HTTP 404，未创建 validation object、未做
-真实 write/read-back/recovery，也没有正式 D1 数据需要迁移。不得扩大 Drive OAuth scope；Drive
-adapter 只可作为历史 synthetic/test 资产。
+要求。D1 正式 durable backend 是用户自有 Ubuntu VPS 上的
+`SETUP01_D1_VPS_SSH_DURABLE_STORAGE` / `VPS_D1_DURABLE_BACKEND_V1`。Drive 与 GCS 路线
+仅保留历史实现/测试资产：Drive service-account `files.get` 对配置 folder ID 返回 HTTP 404；
+GCS adapter 已实现并合并，但在创建 bucket、activation 或任何 formal D1 evidence 之前被停止。
+两者都不是当前 formal backend，误用会在运行期 fail closed；不得扩大 Drive OAuth scope，
+也不需要 GCS Secrets 或 Google Billing。
 
-GCS backend 的固定合同如下：
+VPS durable backend 的固定合同见
+`docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`，其要点为：
 
-- dedicated Standard bucket；uniform bucket-level access enabled；Public Access Prevention
-  enforced；本阶段不启用 object versioning，不设置 retention lock 或不可逆 retention policy；
-  若组织策略强制 retention，必须先停在人工复核，不得静默接受；
-- 仅使用 `objects/`、`sessions/CN/`、`sessions/US/`、`system/` 前缀；session pointer 与
-  content-addressed object 均保存 generation、SHA-256、backend/version、protocol、market、
-  session 和 classification metadata；读取时必须交叉校验 pointer/object generation、bytes、
-  metadata、snapshot/component/event hash；
-- 每次对象写入使用 GCS `ifGenerationMatch=0`（create-only）；同一 bytes 只能返回
-  `IDEMPOTENT_REPLAY`，同一 identity 的不同 bytes、metadata mismatch、generation mismatch、
-  missing/corrupt object 一律 fail closed；没有 overwrite/update API；
-- runtime service account 只在该 bucket 上拥有对象 create/read/list 所需能力，禁止 delete、
-  bucket IAM 管理、bucket create/delete、project-wide Storage Admin；bucket policy gate 需要
-  的 metadata read 能力与 runtime object 写入能力分开理解；
+- GitHub Actions 继续负责全部计算；VPS 只做 immutable storage、activation/pointer 存储、
+  SHA 校验、verify/recovery/export 与磁盘健康，不主动抓行情、不运行 pipeline、不读取
+  holdings/account/Paper/production Sheet/broker/Final OOS；
+- 通过 SSH 公钥运行单一 repository-owned、stdlib-only remote helper，不使用 nginx、数据库、
+Docker、Redis、S3 gateway、FTP 或常驻 Web API；create-only 写入（`O_CREAT|O_EXCL`）+
+  fsync + 落盘后重算 SHA-256 + read-back；同一 bytes 只能返回 `IDEMPOTENT_REPLAY`，同一
+  identity 的不同 bytes、partial/interrupted transfer、missing/corrupt object 一律 fail closed；
+- 目录固定为 `objects/`、`sessions/CN/`、`sessions/US/`、`system/activation/`、
+  `system/validation/`、`manifests/`；formal evidence 没有 update 或 delete 路径，
+  `manifests/` 只保存可重建的 derived index；
+- GitHub Actions 必须校验 host key 与冻结 fingerprint，禁止 `StrictHostKeyChecking=no`；
+  private key 只经 Secret 注入临时文件，不写入 repo、artifact、log 或 receipt；
 - synthetic validation object 的 classification 固定为
   `SYNTHETIC_VALIDATION_OBJECT_NOT_D1_EVIDENCE`，不得计入 formal event；任何 formal session
   都必须绑定不可变 per-market activation record，且 activation 之后不得回填。

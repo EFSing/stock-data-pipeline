@@ -1,4 +1,11 @@
-name: SETUP01 D1 GCS Storage Validation
+name: "[DISABLED] SETUP01 D1 GCS Storage Validation"
+
+# DISABLED / NON-PRODUCTION.  The approved SETUP_01 D1 durable backend is
+# SETUP01_D1_VPS_SSH_DURABLE_STORAGE (see docs/DECISION_LOG.md).  This GCS
+# adapter is retained only as a future migration option and cannot write
+# formal D1 evidence while the VPS activation records exist.  Re-enabling
+# requires a recorded decision plus the D1_GCS_BACKEND_ENABLED repository
+# variable.
 
 on:
   workflow_dispatch:
@@ -20,6 +27,11 @@ jobs:
       D1_RESEARCH_GCS_BUCKET: ${{ secrets.D1_RESEARCH_GCS_BUCKET }}
       D1_RESEARCH_GCS_PROJECT: ${{ secrets.D1_RESEARCH_GCS_PROJECT }}
     steps:
+      - name: Confirm D1 backend approval
+        if: vars.D1_GCS_BACKEND_ENABLED != 'true'
+        run: |
+          echo "::error::GCS is not the approved SETUP_01 D1 durable backend. See docs/DECISION_LOG.md."
+          exit 1
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:

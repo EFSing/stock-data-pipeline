@@ -1,4 +1,8 @@
-name: SETUP01 D1 Storage Validation
+name: "[DISABLED] SETUP01 D1 Drive Storage Validation"
+
+# DISABLED / HISTORICAL.  The Google Drive folder route returned 404 for the
+# configured folder ID and is no longer a D1 backend.  This workflow is kept
+# only as the historical synthetic adapter test path.
 
 on:
   workflow_dispatch:

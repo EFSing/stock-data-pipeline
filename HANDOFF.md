@@ -5,13 +5,17 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 ## Current Task
 
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
-`D1_PROSPECTIVE_TIME_ISOLATED`，并放弃 Google Drive durable storage，改用独立 GCS bucket。
-Drive 404 失败证据保留为历史实现/测试资产，未扩大 Drive OAuth scope，也没有 Drive 正式
-D1 evidence。新的独立 GCS backend、generation-precondition immutable store、bucket policy
-gate、activation record、public Candidate source/observer contract、自然 session collector
-与中文只读报告已实现并以 synthetic fixture 验证；尚未使用真实 GCS 凭证写入。CN/US
-仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。没有运行历史经济验证，也没有修改正式
-SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
+`D1_PROSPECTIVE_TIME_ISOLATED`，并已依次放弃 Google Drive 与 Google Cloud Storage durable
+storage，改用用户自有 Ubuntu VPS。Drive 404 与已合并的 GCS adapter 都保留为历史实现/测试
+资产；GCS 在任何真实 bucket、activation 或 formal D1 evidence 之前停止，其 workflows 现为
+disabled/non-production，运行期没有 explicit approval 时拒绝写 formal D1。当前正式 backend
+是 SSH immutable store `SETUP01_D1_VPS_SSH_DURABLE_STORAGE` /
+`VPS_D1_DURABLE_BACKEND_V1`：GitHub Actions 继续做全部计算，VPS 只做 immutable storage、
+activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。实现与工作流已用
+本地等价 helper 执行验证，但尚未使用真实 VPS SSH 凭证，因此没有真实 VPS synthetic
+validation，也没有 activation record。CN/US 仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。
+没有运行历史经济验证，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或
+broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -21,8 +25,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Current State
 
-- GCS durable storage 实现已随 PR #117 squash merge 进入 main（合并后 main CI 通过），
-  实现分支已关闭；真实 GCS 环境（bucket / bucket-scoped IAM / Secrets）尚未 provisioned。
+- GCS durable storage 实现已随 PR #117 squash merge 进入 main；用户随后决定不部署它。
+  当前 formal D1 durable backend 是 VPS SSH immutable store，GCS/Drive 仅为 retained
+  adapter 与历史证据。
 - GitHub `main` 已包含 #109 的 SETUP_01 early-entry 第二阶段决策节点；#110 是独立 OPEN
   research-only PR，保持不合并、不改写。#82 与 #96 仍是无关开放 PR。
 - #110 的正式研究结论为 `INSUFFICIENT_EVIDENCE`：受约束 PKG_B 实验组净 R 在 CN/US
@@ -41,8 +46,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - D1 PR #112 已重基于 #111 合并后的 main，exact-head CI 通过并已合并；Actions 启动路径
   修复 PR #113 与 folder ID 身份校验 PR #115 随后合并。#110 保持独立 OPEN。
 - Drive 专用 folder 路线已停止：正确 folder ID 的 service-account API `files.get` 仍返回 404，
-  未创建对象；不扩大 Drive scope。GCS 路线使用新的 backend identity/version：
-  `SETUP01_D1_GCS_DURABLE_STORAGE` / `GCS_D1_DURABLE_BACKEND_V1`。
+  未创建对象；不扩大 Drive scope。GCS 路线已实现（`SETUP01_D1_GCS_DURABLE_STORAGE` /
+  `GCS_D1_DURABLE_BACKEND_V1`）但未部署，现降级为 disabled/future adapter。
 
 ## Completed
 
@@ -67,12 +72,24 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   fail-closed、全图 verify 与 clean-directory 跨设备恢复；独立 synthetic validation workflow
   已在 main 上执行，但受 folder `files.get` 404 阻断。原 CN/US 诊断 workflow 会调用可能
   读取真实持仓的生产日报，已移除；正式 schedule 尚未启用。
-- 新增独立 GCS backend：使用 GCS JSON API `ifGenerationMatch=0` create-only 写入，校验
+- 新增 VPS durable backend：通过 SSH 公钥运行单一 repository-owned、stdlib-only、流式 remote
+  helper（不使用 nginx/数据库/Docker/Redis/S3 gateway/FTP/常驻 Web API）。目录固定为
+  `objects/`、`sessions/CN/`、`sessions/US/`、`system/activation|validation/`、`manifests/`；
+  写入为 create-only（`O_CREAT|O_EXCL`）+ fsync + 落盘后重算 SHA-256 + pointer/object
+  read-back 交叉校验；相同 bytes 返回 `IDEMPOTENT_REPLAY`，同一 identity 不同 bytes、partial/
+  interrupted transfer、missing/corrupt object、pointer 篡改、duplicate session 一律 fail
+  closed；formal evidence 无 update/delete 路径。SSH 必须校验 host key 与冻结 fingerprint
+  （`StrictHostKeyChecking=yes`，禁止 `no`），运行期只用专用非 root 账户，private key 仅经
+  Secret 注入临时文件。另含磁盘 free-space 安全/危险阈值（危险阈值 fail closed，绝不自动
+  删除 evidence）、root manifest、VPS → 空目录 verified export/recovery，以及
+  旧 VPS → export → 新 VPS import → full verify 迁移路径。
+- 保留的 GCS backend（历史实现）：使用 GCS JSON API `ifGenerationMatch=0` create-only 写入，校验
   `STANDARD`、uniform bucket-level access、Public Access Prevention enforced、关闭 Object
   Versioning、无不可逆 retention lock；对象布局为 `objects/`、`sessions/CN/`、`sessions/US/`、
   `system/` prefix。对象和 session pointer 都绑定 protocol、market、session、classification、
   SHA-256 与 GCS generation；activation record 在 `system/activation/{CN,US}.json`，formal
-  commit 在 activation/window/source contract 全部满足前 fail closed。
+  commit 在 activation/window/source contract 全部满足前 fail closed；现为 disabled/future
+  adapter，运行期未获 explicit approval 时拒绝写 formal D1。
 - D1 source/observer contract 不再从普通 Cloud 日报摘要反推：独立 natural collector 只消费
   public Candidate runtime 的当日 seed、raw Stage-A prefix、exact-T QFQ prefix，并运行既有
   causal SETUP_01 replay + dual-path observer；不读取真实 holdings、Paper 或生产 Sheet state。
@@ -84,33 +101,36 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`D1_GCS_ENVIRONMENT_NOT_PROVISIONED`：当前开发环境既没有 `GOOGLE_SERVICE_ACCOUNT_JSON`
-也没有 `gcloud` / ADC，无法自行创建或核对 GCS 资源；运行期 service account 也不得被
-授予 bucket create/delete、bucket IAM 管理或 project-wide Storage Admin。需要用户在既有
-service-account 所属 GCP project 中一次性完成：创建 D1 专用 Standard bucket
-`efsing-stock-data-pipeline-d1-research-7acffb`（全局唯一；若已占用则改同格式随机后缀名并
-同步本文件与 GitHub Secrets；bucket 名不得含 secret、邮箱或账户信息），位置 `us-central1`
-（除非项目存在既定 location/organization constraint），uniform bucket-level access ON、
-Public Access Prevention enforced、Object Versioning OFF、不设 retention lock/policy、
-不允许 public access，bucket 只保存 D1 public-market research evidence；并仅对该 bucket
-给运行期 SA 授予 `storage.buckets.get`、`storage.objects.create`、`storage.objects.get`、
-`storage.objects.list` 四个权限（预定义 role 若不满足无-delete 最小集合则建 bucket-scoped
-custom role，不得给 Storage Admin 或 Object Admin）。bucket 就绪后由 Codex 配置 GitHub
-Secrets `D1_RESEARCH_GCS_BUCKET` / `D1_RESEARCH_GCS_PROJECT`（继续复用既有
-`GOOGLE_SERVICE_ACCOUNT_JSON`，不生成新的长期密钥）。没有这些外部事实不能合法创建
-activation record。
+`D1_VPS_ACCESS_NOT_PROVISIONED`：当前开发环境没有该 Ubuntu VPS 的 SSH endpoint 或凭证，
+无法自行创建 store root、安装 remote helper 或核对 host key。需要用户一次性完成（约 5
+分钟，详见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`）：
+
+1. 生成一对专用 SSH key（GitHub Actions 侧用新 private key；不要复用 root key、不要在
+   本地覆盖已有 key），把 public key 交给初始化脚本；
+2. 在 VPS 上以 root 执行一次
+   `sudo D1_VPS_PUBLIC_KEY="ssh-ed25519 ... d1-github-actions" bash scripts/setup01_d1_vps_bootstrap.sh`
+   （创建 `d1store` 非 root 账户、冻结目录布局、安装 root-owned helper，并打印 host key
+   fingerprint 与 storage identity）；
+3. 把脚本输出的 host key entry / fingerprint / storage identity 与 private key 填入
+   GitHub Secrets：`D1_VPS_HOST`、`D1_VPS_SSH_PRIVATE_KEY`、`D1_VPS_KNOWN_HOSTS`、
+   `D1_VPS_HOST_KEY_FINGERPRINT`（非敏感项可用 Variables：`D1_VPS_PORT`、`D1_VPS_USER`、
+   `D1_VPS_STORAGE_ROOT`）。
+
+没有这些外部事实不能合法创建 activation record；不得让 VPS 承担计算，也不得为其部署
+nginx/数据库/Docker/Redis/S3 gateway/FTP/Web API。
 另有 `D1_NATURAL_COLLECTION_NOT_STARTED`：source/observer contract 已完成代码合同和
 synthetic 验收，但 CN/US activation record 尚未创建，manual-only collector workflow
 尚未转为 schedule；正式事件数仍为 0。不得报告 `D1_COLLECTION_ACTIVE`。
 
 ## Next Action
 
-- 用户完成上述 bucket + bucket-scoped IAM 后：配置 GitHub Secrets，在 main 上运行
-  `setup01-d1-gcs-storage-validation`（输入 bucket identity SHA-256）；通过后用
-  `setup01-d1-gcs-activation` 按市场以当时主线 code SHA 分别创建 CN/US 不可变 activation
-  record，再 manual-run 每个市场首个合法自然 session（`setup01-d1-gcs-natural-collector`），
-  universe/raw/QFQ/observer/report/hash/GCS commit/read-back 全链通过后该市场才进入
-  `D1_COLLECTION_ACTIVE`；不得用人工指定日期或旧日报补为首个合法 session。
+- 用户完成上述 VPS 一次性初始化并提供 Secrets 后：在 main 上运行
+  `setup01-d1-vps-storage-validation`（输入 `vps-identity` 给出的 storage identity SHA-256）；
+  通过后用 `setup01-d1-vps-activation` 按市场以当时主线 code SHA 分别创建 CN/US 不可变
+  activation record，再 manual-run 每个市场首个合法自然 session
+  （`setup01-d1-vps-natural-collector`），universe/raw/QFQ/observer/report/hash/VPS
+  commit/read-back 全链通过并 `vps-verify` 成功后该市场才进入 `D1_COLLECTION_ACTIVE`；
+  不得用人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 

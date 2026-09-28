@@ -871,3 +871,32 @@ universe、raw source、normalized causal prefix、research-only Decision/observ
 precondition，同时保持 D1 research object 与生产 Sheet、私人 holdings 隔离。该决定只改变
 durable storage 与 source collection contract，不改变已冻结的双路径 signal/stop/exit/gate、
 D1 前瞻窗口、正式交易策略或 #110 研究结论。
+
+## 2026-09-28 — D1 durable storage 从 GCS 切换到用户自有 Ubuntu VPS
+
+**Decision:** 用户正式决定停止部署 Google Cloud Storage，把 SETUP_01 D1 prospective durable
+storage 改为用户现有 Ubuntu VPS 上的 SSH immutable store。GCS backend 已实现、合并并通过
+synthetic fixture 验证，但在创建任何真实 bucket、activation record 或 formal D1 evidence
+之前被停止；原因是不希望为 GCS 启用付费 Billing，且已有现成 VPS。GCS adapter 与 workflows
+保留为 future backend / 历史实现，但被明确标为 disabled/non-production，运行期在未获显式
+重新批准时会拒绝创建 activation 或提交 formal session。Drive 404 失败证据同样保留，不改写。
+
+正式 durable backend identity 固定为
+`SETUP01_D1_VPS_SSH_DURABLE_STORAGE` / `VPS_D1_DURABLE_BACKEND_V1`，remote helper 为
+`D1_VPS_STORE_HELPER_V1`。GitHub Actions 继续承担全部计算；VPS 只承担 immutable storage、
+activation/session pointer、SHA 校验、verify/recovery/export/migrate 与磁盘健康，不主动抓
+行情、不运行 pipeline，也不读取 holdings/account/Paper/production Sheet/broker/Final OOS。
+存储合同（目录布局、SSH host key pin、create-only 写入、read-back、receipt、磁盘阈值、
+迁移与生命周期风险）记录在 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`。
+
+同一 market activation identity 下只允许一个 approved durable backend：activation record
+绑定 backend identity/version 与 storage identity hash，session pointer 只能由持有该
+activation record 的 backend 写入，因此不存在两个 backend 同时可写 formal D1 的 split-brain。
+storage identity 冻结的是 storage root 与 backend version，而不是 IP/port；同一 frozen root
+迁移到新主机仍是同一个 store，改变 storage root 需要用户单独决定。
+
+**Reason:** D1 需要 12 个月不可变、可校验、可导出的 durable storage，而用户已有一个仅承担
+存储的月租 VPS，可以在不启用付费 Billing、不增加托管服务与攻击面的前提下满足同一 byte
+合同；这避免为一个 research-only prospective collector 引入新的云计费依赖。该决定只改变
+durable storage backend、SSH 传输与迁移路径，不改变 D1 协议中的 signal/stop/target/exit/G1/G0
+语义、前瞻窗口、source/observer 证据合同、正式交易策略、#110 结论或任何 production 边界。

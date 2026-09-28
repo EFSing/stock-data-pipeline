@@ -1,0 +1,44 @@
+name: SETUP01 D1 VPS Storage Validation
+
+# Manual only.  Exercises the real Ubuntu VPS with a synthetic object:
+# SSH public-key authentication, pinned host key, storage root identity,
+# create-only write, remote SHA-256, read-back, idempotent replay, conflict
+# fail-closed and clean-directory recovery.  The synthetic object is
+# SYNTHETIC_VALIDATION_OBJECT_NOT_D1_EVIDENCE and never enters the formal
+# D1 session graph.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_storage_identity_sha256:
+        description: "SHA-256 of the frozen D1 VPS storage identity (from vps-identity)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+      D1_VPS_HOST: ${{ secrets.D1_VPS_HOST }}
+      D1_VPS_PORT: ${{ vars.D1_VPS_PORT }}
+      D1_VPS_USER: ${{ vars.D1_VPS_USER }}
+      D1_VPS_STORAGE_ROOT: ${{ vars.D1_VPS_STORAGE_ROOT }}
+      D1_VPS_SSH_PRIVATE_KEY: ${{ secrets.D1_VPS_SSH_PRIVATE_KEY }}
+      D1_VPS_KNOWN_HOSTS: ${{ secrets.D1_VPS_KNOWN_HOSTS }}
+      D1_VPS_HOST_KEY_FINGERPRINT: ${{ secrets.D1_VPS_HOST_KEY_FINGERPRINT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate durable VPS storage with a synthetic object
+        env:
+          EXPECTED_STORAGE_IDENTITY_SHA256: ${{ inputs.expected_storage_identity_sha256 }}
+        run: >-
+          python scripts/run_setup01_d1_collector.py vps-validate-storage
+          --expected-storage-identity-sha256 "$EXPECTED_STORAGE_IDENTITY_SHA256"

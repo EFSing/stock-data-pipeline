@@ -1,4 +1,10 @@
-name: SETUP01 D1 GCS Natural Collector
+name: "[DISABLED] SETUP01 D1 GCS Natural Collector"
+
+# DISABLED / NON-PRODUCTION.  The approved SETUP_01 D1 durable backend is
+# SETUP01_D1_VPS_SSH_DURABLE_STORAGE (see docs/DECISION_LOG.md).  The runtime
+# additionally refuses any GCS activation/commit without an explicit
+# D1_GCS_BACKEND_APPROVED_FOR_FORMAL_D1 approval, so two backends can never
+# hold writable formal D1 authority at the same time.
 
 # This workflow is manual until the per-market immutable activation record is
 # created.  A future schedule may be added only after activation; the natural
@@ -26,6 +32,11 @@ jobs:
       D1_RESEARCH_GCS_BUCKET: ${{ secrets.D1_RESEARCH_GCS_BUCKET }}
       D1_RESEARCH_GCS_PROJECT: ${{ secrets.D1_RESEARCH_GCS_PROJECT }}
     steps:
+      - name: Confirm D1 backend approval
+        if: vars.D1_GCS_BACKEND_ENABLED != 'true'
+        run: |
+          echo "::error::GCS is not the approved SETUP_01 D1 durable backend. See docs/DECISION_LOG.md."
+          exit 1
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
