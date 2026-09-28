@@ -497,11 +497,10 @@
   missing/hash/protocol 检测、clean-directory recovery 与独立中文报告/CLI。除 filesystem
   fixture store 外，已实现只访问配置 folder ID 的 Google Drive backend（`drive.file` scope）、
   最小 writer capability 检查、write/read-back probe、create-if-absent、全图验证和 Drive→空
-  目录恢复，并新增独立 synthetic storage validation workflow；CN/US 目前仅允许人工
-  diagnostic backfill，正式 schedule 尚未启用。专用 folder
+  目录恢复，并新增独立 synthetic storage validation workflow；CN/US 正式 schedule 尚未启用。专用 folder
   已创建，folder ID GitHub Actions Secret 已配置，且 service account 已获该 folder 的 writer
-  权限并经权限元数据回读确认；真实 service-account write/read-back/recovery 与首次自然 session
-  未完成。Cloud 日报摘要不包含 raw/QFQ prefix 和实际 Path A/B observer 输出，故不能作为
+  权限并经用户侧权限元数据回读确认；main 上 service-account `files.get` 对配置的 folder ID
+  返回 404，未发生写入/回读/恢复。Cloud 日报摘要不包含 raw/QFQ prefix 和实际 Path A/B observer 输出，故不能作为
   正式 D1 证据；不可变 activation record 尚未实现，正式 Drive commit fail closed。因此
   CN/US 继续为 `D1_READY_NOT_ACTIVE`、activation/
   window pending、正式事件数 0。未访问历史经济样本、Final OOS、真实持仓，未启用 Paper、

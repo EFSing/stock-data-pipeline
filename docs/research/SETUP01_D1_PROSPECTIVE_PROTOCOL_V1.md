@@ -104,17 +104,21 @@ stop/target 顺序不明要单列 ambiguity，不能标记为真实成交。
 synthetic storage validation workflow 已实现；adapter 只接收 `D1_RESEARCH_DRIVE_FOLDER_ID`，使用既有 service
 account 的 `drive.file` scope，并验证 writer capability，不列举或读取 folder 外文件。当前该
 folder ID GitHub Actions Secret 已配置，service account 已获该 folder 的 writer 权限并经
-权限元数据回读确认；真实 service-account write/read-back/recovery 与首次自然 session 尚未
-完成。当前 CN/US workflow 只允许人工 diagnostic backfill；Cloud 日报摘要未保留 raw/QFQ
+用户侧权限元数据回读确认；main 上 service-account `files.get` 对配置的 folder ID 返回
+HTTP 404，未创建 validation object，未做真实 write/read-back/recovery。不能据此认定 folder
+ID 错误或 permission 无效，`drive.file` 对用户共享 folder 的可见性亦可能是原因；不得扩大
+权限或访问 folder 之外内容。CN/US 正式 schedule 尚未启用；Cloud 日报摘要未保留 raw/QFQ
 prefix 和实际 Path A/B observer 输出，不能作为正式 D1 证据。正式 Drive commit 在不可变
 activation record 与完整 source/observer contract 实现前 fail closed。正式事件数为 0。
 
 可选方案：
 
-1. **独立 Google Drive 文件夹（建议）**：用户创建仅存 public research objects 的专用
+1. **独立 Google Drive 文件夹（已选择，实测未通过）**：用户创建仅存 public research objects 的专用
    folder，将既有 service account 只授予该 folder，并新增 `D1_RESEARCH_DRIVE_FOLDER_ID`
    secret。通常在既有 Workspace/Drive 配额内无新增服务费；具体配额/费用由用户账户决定。
-   需要实现并验证 create-if-absent、read-back hash、独立 restore 后才能激活。
+   需要验证 create-if-absent、read-back hash、独立 restore 后才能激活。Google 官方
+   `drive.file` 文档限定 app 可见文件；官方 Shared Drive 文档指出 service account 不能拥有
+   My Drive 文件。不能因用户侧 folder writer 元数据直接假定这条写入链可用。
 2. **独立对象存储 bucket**：新建带 object versioning/retention 的 GCS/S3 bucket 和最小
    写入凭证。会新增云资源、权限与按存储/请求/出口流量计费；需用户指定 provider、region、
    retention 与预算后再实现。
