@@ -1,0 +1,352 @@
+{
+  "schema_version": "setup01-post-breakout-dual-path-entry-v1-draft",
+  "protocol_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_ENTRY_RESEARCH_V1_DRAFT",
+  "registered_date": "2026-09-24",
+  "status": "ARCHITECTURE_FROZEN_AWAITING_D2_DATA_AND_COST_FREEZE",
+  "scope": "RESEARCH_ARCHITECTURE_AND_PREREGISTRATION_ONLY",
+  "production_authorization": false,
+  "economic_replay_authorized": false,
+  "final_oos_access_authorized": false,
+  "invariants": {
+    "signal_information": "data <= signal close",
+    "earliest_execution": "exact next completed market session after signal close",
+    "same_bar_signal_execution": false,
+    "wave_swing_fibonacci_core_rewrite": false,
+    "one_executed_position_per_breakout_lifecycle": true,
+    "target_before_rr": true,
+    "future_confirmed_swing_backfill": false,
+    "production_setup_risk_paper_sheet_broker_changes": false
+  },
+  "birth_event": {
+    "source": "existing SETUP_01 first CONFIRMED event",
+    "predicate": "first close > confirmed Wave1 peak H1",
+    "event_identity_source": "trading.setup01_replay.Setup01ReplayEvent.event_identity",
+    "overlay_identity": "confirmed_event_identity + protocol_version",
+    "breakout_day_may_be_signal_day": true,
+    "breakout_day_path": "BREAKOUT_CONTINUATION only",
+    "breakout_day_plan_timing": "after breakout-day close; earliest execution exact B+1 session",
+    "breakout_day_retest_allowed": false
+  },
+  "state_machine": {
+    "states": [
+      "WAVE2_CONTEXT",
+      "H1_BREAKOUT_CONFIRMED",
+      "POST_BREAKOUT_OBSERVATION",
+      "RETEST_PENDING",
+      "CONTINUATION_SIGNAL",
+      "RETEST_SIGNAL",
+      "ENTRY_PLAN",
+      "EXECUTED",
+      "COMPLETED",
+      "CENSORED",
+      "TERMINATED"
+    ],
+    "routing": {
+      "breakout_day_continuation_signal_allowed": true,
+      "breakout_day_retest_signal_allowed": false,
+      "continuation_allowed_only_before_any_active_zone_touch": true,
+      "first_active_zone_touch_permanently_routes_future_signals_to_retest": true,
+      "same_bar_path_priority": "BREAKOUT_RETEST on sessions after breakout day",
+      "future_retest_may_not_relabel_prior_continuation": true
+    },
+    "termination": [
+      "close <= confirmed Wave2 low",
+      "close <= confirmed Wave1 origin LOW0",
+      "new SETUP_01 anchor tuple replaces context",
+      "one plan executes",
+      "pre-registered observation window expires",
+      "data end produces right censoring"
+    ]
+  },
+  "causal_support_zones": {
+    "calculation_time": "before session t using data <= t-1",
+    "h1_shelf": {
+      "lower": "H1 - 0.25 * ATR14(breakout_day)",
+      "upper": "H1 + 0.25 * ATR14(breakout_day)"
+    },
+    "running_leg_fib": {
+      "anchor_low": "H1",
+      "anchor_high": "max(high[breakout_day:t-1])",
+      "minimum_leg": "anchor_high - H1 >= 0.5 * ATR14(breakout_day)",
+      "lower": "anchor_high - 0.618 * (anchor_high - H1)",
+      "upper": "anchor_high - 0.382 * (anchor_high - H1)",
+      "anchor_is_confirmed_swing": false
+    },
+    "confirmed_swing_support": {
+      "eligibility": "post-breakout Swing low with confirmed_index <= t-1",
+      "lower": "swing_low - 0.25 * ATR14(swing_confirmation_day)",
+      "upper": "swing_low + 0.25 * ATR14(swing_confirmation_day)"
+    },
+    "active_zone_selection": "highest-priced eligible zone below previous close and above Wave2 low",
+    "tie_priority": ["CONFIRMED_SWING", "RUNNING_LEG_FIB", "H1_SHELF"],
+    "same_session_lower_zone_fallback_after_gap_through": false
+  },
+  "signal_packages": {
+    "PRICE_ACTION_ONLY": {
+      "continuation": [
+        "on breakout day B the active-zone-touch predicate is not applicable; after B there is no prior or current active-zone touch",
+        "close > H1",
+        "close > previous_high",
+        "close > open",
+        "abs(close-open)/(high-low) >= 0.50",
+        "(close-low)/(high-low) >= 0.75"
+      ],
+      "retest": [
+        "session range intersects the active zone frozen before the session",
+        "close > active_zone.upper",
+        "close > open",
+        "close > previous_close",
+        "abs(close-open)/(high-low) >= 0.35",
+        "(close-low)/(high-low) >= 0.70"
+      ],
+      "volume_role": "RVOL20 diagnostic only"
+    },
+    "PRICE_PLUS_RVOL": {
+      "base": "PRICE_ACTION_ONLY",
+      "additional_gate": "volume_t / median(volume[t-20:t-1]) >= 1.20",
+      "missing_or_nonpositive_volume": "FAIL_CLOSED"
+    },
+    "parallel_or_selection_forbidden": true,
+    "selected": "PRICE_ACTION_ONLY",
+    "selection_basis": "user accepted the pre-outcome recommendation on 2026-09-24; RVOL remains diagnostic because no cross-market Entry-layer volume SSOT exists"
+  },
+  "entry_plan": {
+    "created_after_signal_close": true,
+    "entry_trigger": "signal_high",
+    "entry_ceiling": "signal_high + 0.5 * ATR14(signal_day)",
+    "validity": "exact next completed session only",
+    "fill_rules": [
+      "open > ceiling => SKIP_GAP_ABOVE_CEILING",
+      "trigger <= open <= ceiling => fill at open",
+      "open < trigger and high >= trigger => fill at trigger",
+      "high < trigger => NOT_TRIGGERED"
+    ],
+    "later_session_substitution": false,
+    "same_bar_ohlc_ambiguity": "assume entry occurs and stop takes precedence",
+    "skip_reasons_required": true
+  },
+  "invalidation": {
+    "setup_structural": "close <= confirmed Wave2 low",
+    "wave_scenario": "close <= confirmed Wave1 origin LOW0",
+    "execution_stop_never_overwrites_structural_invalidation": true
+  },
+  "execution_stop_packages": {
+    "SIGNAL_SUPPORT_ATR_STOP": {
+      "continuation": "min(signal_low, H1) - 0.25 * ATR14(signal_day)",
+      "retest": "min(signal_low, active_zone.lower) - 0.25 * ATR14(signal_day)"
+    },
+    "WAVE2_STRUCTURAL_ATR_STOP": {
+      "both_paths": "confirmed Wave2 low - 0.5 * ATR14(signal_day)"
+    },
+    "selected": "SIGNAL_SUPPORT_ATR_STOP",
+    "per_trade_post_result_selection_forbidden": true
+  },
+  "targets": {
+    "freeze_time": "signal close before RR",
+    "sources": [
+      "confirmed Swing highs with confirmed_index <= signal index and price > entry_trigger",
+      "Wave2 low + (H1-LOW0) * existing 1.272/1.618/2.0/2.618 ratios strictly above entry_trigger"
+    ],
+    "ordering": "ascending price, deduplicated with merged provenance",
+    "published": ["T1", "T2", "T3"],
+    "entry_ceiling_may_filter_candidates": false,
+    "target_between_trigger_and_ceiling": "retain in nearest-first ordering and evaluate under the frozen gate and actual-entry rules",
+    "h1_role": "support and routing level, never an above-entry target",
+    "running_high_target_source_allowed": false,
+    "execution_open_at_or_above_t1": "SKIP_NO_REMAINING_TARGET",
+    "t2_substitution_to_bypass_t1": false,
+    "target_replacement_or_extension_to_pass_rr": false
+  },
+  "gate_role_candidates": {
+    "G0_INCUMBENT_HARD_GATES": {
+      "plan_gate": "T1 gross upside from entry_ceiling >= 0.05 and T1 RR from entry_ceiling >= 2.0",
+      "execution_recheck": "same gates from actual entry",
+      "formal_constants_modified": false
+    },
+    "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES": {
+      "hard_5pct_gate": false,
+      "hard_2r_gate": false,
+      "admission": "valid signal, valid stop, structure valid, T1 > actual entry, cost/quantity calculable, market executable",
+      "diagnostics": ["target_upside_pct", "RR", "5pct_pass", "2R_pass", "cost_per_R"],
+      "future_production_use_requires_new_long_term_decision": true
+    },
+    "selected_primary": "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES",
+    "nested_attribution_only": "G0_INCUMBENT_HARD_GATES",
+    "post_result_winner_selection_forbidden": true
+  },
+  "exit_packages": {
+    "X1_MECHANICAL_T1_EXIT": {
+      "research_only": true,
+      "order": ["gap_stop", "intraday_stop", "T1_full_exit", "structural_close_pending_next_open", "60_session_time_exit_next_open"],
+      "gap_above_t1_fill": "T1",
+      "same_bar_stop_target": "STOP_FIRST",
+      "difference_from_formal_pm": "formal targets are diagnostic and never auto-sell"
+    },
+    "X2_FORMAL_PM_COMPATIBLE_EXIT": {
+      "mapping": "freeze actual entry, initial stop, targets and anchors into PositionOrigin",
+      "target_auto_exit": false,
+      "reuse": "confirmed-higher-low stop, MFE floor, structural next-open exit",
+      "session_60": "right-censoring checkpoint, not forced exit"
+    },
+    "selected_primary": "X1_MECHANICAL_T1_EXIT",
+    "selected_secondary_sensitivity": "X2_FORMAL_PM_COMPATIBLE_EXIT",
+    "secondary_if_any_must_be_preregistered_sensitivity": true
+  },
+  "market_constraints": {
+    "CN": {
+      "same_day_sell_allowed": false,
+      "entry_day_stop_touch": "ENTRY_DAY_STOP_BREACH_PENDING; earliest next-session open",
+      "requires_point_in_time": ["board", "ST status", "lot size", "price limit", "suspension", "fee schedule"],
+      "queue_fill_provable_from_daily_ohlcv": false
+    },
+    "US": {
+      "same_day_exit_allowed": true,
+      "default_quantity": "whole shares unless broker-specific fractional evidence is frozen",
+      "requires": ["halt handling", "fee schedule", "spread/slippage source or frozen scenario"]
+    }
+  },
+  "exposure_registry": [
+    {
+      "sample": "SETUP_03 development dataset v2, 40 symbols / 84284 bars",
+      "uses": ["SETUP_03 structural development", "SETUP_01/02 development support"],
+      "classification": "DEVELOPMENT_EXPOSED_NOT_INDEPENDENT_NOT_FINAL_OOS"
+    },
+    {
+      "sample": "Phase5J-v3 development holdout, 40 symbols / 86305 bars",
+      "uses": ["SETUP_03 lifecycle", "SETUP_01/02 scarcity", "post-confirmation retest", "pre-confirmation early-entry"],
+      "classification": "DEVELOPMENT_EXPOSED_NOT_INDEPENDENT_NOT_FINAL_OOS"
+    },
+    {
+      "sample": "early-entry validation sample, CN20+US20 / 88075 bars / 2017-01-01..2026-08-26",
+      "uses": ["ARMED stage1", "stage2 decision", "PR110 economic validation"],
+      "classification": "EXPOSED_PRIOR_INDEPENDENT_SAMPLE_NOT_FRESH_NOT_FINAL_OOS"
+    },
+    {
+      "sample": "Phase5K-A1 formal roster and SETUP_03 manifests",
+      "uses": ["universe and structural protocol design"],
+      "classification": "NOT_AUTOMATICALLY_ELIGIBLE_FOR_NEW_ECONOMIC_VALIDATION"
+    }
+  ],
+  "independent_data_options": {
+    "D1_PROSPECTIVE_TIME_ISOLATED": {
+      "window": "fixed 12 months beginning first full session after protocol approval",
+      "roster_frozen_before_signal_access": true,
+      "insufficient_events": "INSUFFICIENT_EVIDENCE"
+    },
+    "D2_NEW_SYMBOL_DISJOINT_HISTORICAL": {
+      "minimum_roster": {"CN": 60, "US": 60},
+      "symbol_intersection_with_all_exposed_rosters": 0,
+      "window": "2017-01-01..2026-08-26 fixed",
+      "regime_overlap_disclosed": true,
+      "requires_point_in_time_metadata_or_paid_data": true
+    },
+    "selected": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL",
+    "final_oos": "NOT_ESTABLISHED_NOT_ACCESSED"
+  },
+  "snapshot_and_integrity": {
+    "freeze_before_signal_access": ["universe", "normalized symbol roster", "raw payload", "normalized bars", "session set", "cost schedule", "protocol choices"],
+    "hash": "SHA-256 over canonical LF-normalized tracked JSON; raw payload hashes cross-bound to manifest",
+    "replacement_after_failure": false,
+    "provider_switch_after_freeze": false,
+    "window_extension_after_signal_access": false
+  },
+  "funnel": [
+    "all causal Wave2 contexts",
+    "first H1 breakout",
+    "post-breakout observable",
+    "legal path A/B signal",
+    "Entry Plan",
+    "exact next-session model-executable",
+    "completed exit or right-censored",
+    "gross and net economic result"
+  ],
+  "mandatory_retained_outcomes": [
+    "no breakout",
+    "no retest",
+    "zone touch without signal",
+    "signal without trigger",
+    "gap skip",
+    "market microstructure blocked",
+    "invalid stop",
+    "minimum quantity blocked",
+    "structural failure",
+    "observation timeout",
+    "position right censoring"
+  ],
+  "reporting": {
+    "paths_must_be_separate": true,
+    "markets_must_be_separate": true,
+    "combined_result_may_hide_path_failure": false,
+    "metrics": [
+      "opportunity/signal/plan/execution/completion/censor counts",
+      "gross and net R",
+      "gross and net return",
+      "tail loss and worst trade",
+      "holding sessions",
+      "notional and capital-time",
+      "stop distance pct and ATR",
+      "T1 headroom, RR, 5pct/2R diagnostics",
+      "symbol/sector/time concentration",
+      "baseline/stress cost and censoring sensitivity"
+    ],
+    "suggested_floors_per_path_per_market": {
+      "completed_trades_min": 40,
+      "contributing_symbols_min": 8,
+      "censored_share_max": 0.10,
+      "single_symbol_share_max": 0.25
+    },
+    "path_outcomes": ["SUPPORTED", "NOT_SUPPORTED", "INSUFFICIENT_EVIDENCE"],
+    "framework_outcomes": ["BOTH_SUPPORTED", "CONTINUATION_ONLY_SUPPORTED", "RETEST_ONLY_SUPPORTED", "NEITHER_SUPPORTED", "INSUFFICIENT_EVIDENCE"]
+  },
+  "selection_record": {
+    "selected_date": "2026-09-24",
+    "selected_by": "USER_EXPLICIT_DECISION",
+    "outcome_access_before_selection": false,
+    "SIGNAL_PACKAGE": "PRICE_ACTION_ONLY",
+    "OPPORTUNITY_POLICY": "ONE_PER_PATH_UNTIL_FILL",
+    "OBSERVATION_WINDOW_SESSIONS": 20,
+    "EXECUTION_STOP_PACKAGE": "SIGNAL_SUPPORT_ATR_STOP",
+    "PRIMARY_EXIT_PACKAGE": "X1_MECHANICAL_T1_EXIT",
+    "SECONDARY_EXIT_SENSITIVITY": "X2_FORMAL_PM_COMPATIBLE_EXIT",
+    "PRIMARY_GATE_ROLE": "G1_SIGNAL_FIRST_DIAGNOSTIC_GATES",
+    "NESTED_GATE_ATTRIBUTION": "G0_INCUMBENT_HARD_GATES",
+    "INDEPENDENT_DATA": "D2_NEW_SYMBOL_DISJOINT_HISTORICAL"
+  },
+  "pre_outcome_architecture_corrections": {
+    "recorded_date": "2026-09-24",
+    "d2_roster_created_before_correction": false,
+    "d2_market_data_accessed_before_correction": false,
+    "d2_signals_accessed_before_correction": false,
+    "d2_returns_accessed_before_correction": false,
+    "breakout_day_b_may_be_path_a_signal": true,
+    "path_b_requires_actual_post_breakout_retest": true,
+    "target_candidate_threshold": "price > entry_trigger",
+    "entry_ceiling_target_prefilter_forbidden": true
+  },
+  "opportunity_policy": {
+    "selected": "ONE_PER_PATH_UNTIL_FILL",
+    "maximum_plans_per_lifecycle": 2,
+    "maximum_executed_positions_per_lifecycle": 1,
+    "continuation_unfilled_then_retest_allowed": true,
+    "observation_window_sessions": 20,
+    "observation_window_counting": "breakout day B is session 1",
+    "breakout_day_path_a_plan_consumes_path_a_opportunity": true,
+    "window_resets_after_unfilled_plan": false
+  },
+  "unresolved_decisions": {
+    "D2_ROSTER_AND_POINT_IN_TIME_METADATA_SOURCE": "REQUIRED_BEFORE_DATA_ACCESS",
+    "D2_OHLCV_PROVIDER_AND_CORPORATE_ACTION_CONTRACT": "REQUIRED_BEFORE_DATA_ACCESS",
+    "COST_SOURCE": ["VERIFIED_ACCOUNT_AND_OFFICIAL_DATE_EFFECTIVE_FEES", "PREREGISTERED_ASSUMPTION_SCENARIOS"],
+    "SNAPSHOT_IDENTITIES_AND_HASHES": "REQUIRED_BEFORE_SIGNAL_ACCESS"
+  },
+  "activation_gate": "D2 roster/provider/point-in-time metadata and cost sources frozen, snapshot identities and protocol hash committed in a separate pre-outcome commit",
+  "prohibitions": [
+    "run economic backtest from this draft",
+    "select signals/stops/exits/gates after outcome access",
+    "rename exposed data as independent",
+    "access Final OOS",
+    "extend T1 or narrow stop to manufacture RR",
+    "merge or modify PR110",
+    "modify production SETUP/Risk/Paper/Sheet/broker behavior"
+  ]
+}
