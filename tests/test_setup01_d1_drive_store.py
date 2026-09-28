@@ -96,6 +96,14 @@ class GoogleDriveD1StoreTests(unittest.TestCase):
         with self.assertRaisesRegex(D1IntegrityError, "D1_ACTIVATION_RECORD_REQUIRED"):
             GoogleDriveD1Store(MemoryDriveApi(), "root").commit(formal)
 
+    def test_storage_validation_rejects_wrong_folder_before_drive_access(self):
+        api = MemoryDriveApi()
+        with self.assertRaisesRegex(D1IntegrityError, "differs from user-provided folder"):
+            GoogleDriveD1Store(api, "root").validate_durable_storage(
+                expected_folder_id_sha256="0" * 64
+            )
+        self.assertEqual(api.counter, 0)
+
     def test_conflicting_same_session_and_readback_tamper_fail_closed(self):
         api = MemoryDriveApi()
         store = GoogleDriveD1Store(api, "root")

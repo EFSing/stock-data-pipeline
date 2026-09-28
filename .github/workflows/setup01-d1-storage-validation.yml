@@ -2,6 +2,11 @@ name: SETUP01 D1 Storage Validation
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_folder_id_sha256:
+        description: "SHA-256 of the user-provided dedicated D1 folder ID"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,4 +26,6 @@ jobs:
       - name: Install runtime dependencies
         run: python -m pip install -r requirements.txt
       - name: Validate synthetic object in configured research folder
-        run: python scripts/run_setup01_d1_collector.py drive-validate-storage
+        env:
+          EXPECTED_FOLDER_ID_SHA256: ${{ inputs.expected_folder_id_sha256 }}
+        run: python scripts/run_setup01_d1_collector.py drive-validate-storage --expected-folder-id-sha256 "$EXPECTED_FOLDER_ID_SHA256"

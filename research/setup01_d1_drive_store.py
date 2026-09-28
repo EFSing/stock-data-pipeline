@@ -258,8 +258,12 @@ class GoogleDriveD1Store:
             result["probe_status"] = "CREATED_AND_VERIFIED" if created else "IDEMPOTENT_AND_VERIFIED"
         return result
 
-    def validate_durable_storage(self) -> dict[str, Any]:
+    def validate_durable_storage(self, *, expected_folder_id_sha256: str | None = None) -> dict[str, Any]:
         """Exercise a synthetic system object, never a formal market session."""
+        if expected_folder_id_sha256 is not None:
+            actual = sha256(self.folder_id.encode("utf-8")).hexdigest()
+            if actual != expected_folder_id_sha256:
+                raise D1IntegrityError("configured D1 folder ID differs from user-provided folder")
         frozen = verify_frozen_protocol()
         access = self.verify_access(write_probe=True)
         system = self._layout()["system"]

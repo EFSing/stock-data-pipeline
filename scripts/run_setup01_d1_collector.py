@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+from hashlib import sha256
 import json
 from pathlib import Path
 from typing import Any
@@ -217,7 +218,8 @@ def main(argv: list[str] | None = None) -> int:
     recover_parser.add_argument("--target", type=Path, required=True)
     drive_access_parser = sub.add_parser("drive-access-check")
     drive_access_parser.add_argument("--write-readback-probe", action="store_true")
-    sub.add_parser("drive-validate-storage")
+    storage_validation_parser = sub.add_parser("drive-validate-storage")
+    storage_validation_parser.add_argument("--expected-folder-id-sha256", required=True)
     drive_collect_parser = sub.add_parser("drive-collect")
     drive_collect_parser.add_argument("--input", type=Path, required=True)
     drive_collect_parser.add_argument("--report-output", type=Path)
@@ -241,7 +243,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         result["service_account_email"] = GoogleDriveApi.service_account_email_from_env()
     elif args.command == "drive-validate-storage":
-        result = GoogleDriveD1Store.from_env().validate_durable_storage()
+        store = GoogleDriveD1Store.from_env()
+        if sha256(store.folder_id.encode("utf-8")).hexdigest() != args.expected_folder_id_sha256:
+            raise ValueError("configured D1 folder ID differs from user-provided folder")
+        print(json.dumps({"folder_identity": "MATCH"}), flush=True)
+        result = store.validate_durable_storage(
+            expected_folder_id_sha256=args.expected_folder_id_sha256
+        )
     elif args.command == "drive-collect":
         result = drive_collect(args.input, args.report_output)
     elif args.command == "drive-collect-daily-report":
