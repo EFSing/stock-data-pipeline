@@ -7,9 +7,10 @@
 > 最后实质更新：2026-09-29（D1 durable backend 已 provision 到用户自有 Ubuntu VPS 并通过
 > 真实 synthetic validation，CN/US activation record 已建立、等待首个自然 session；新增
 > shared exact completed-session resolver、close-to-next-open reconciliation、Cloudflare/VPS
-> trigger-only fallback、日报 reliability classification 与独立 notification marker；SSH
-> immutable store、D1 source/observer contract、activation/prospective boundary、Cloud Daily
-> Report read-only 内存边界与 SETUP_01 H1 突破后双路径研究语义仍冻结）。
+> trigger-only fallback、日报 reliability classification 与独立 notification marker；
+> Cloudflare Worker 与 VPS watchdog 已按该架构完成部署和 trigger-only smoke；SSH immutable
+> store、D1 source/observer contract、activation/prospective boundary、Cloud Daily Report
+> read-only 内存边界与 SETUP_01 H1 突破后双路径研究语义仍冻结）。
 
 ## 项目身份
 
@@ -529,6 +530,12 @@
   只在 `session close <= now < next exchange session open` 内运行 natural collector；已提交
   返回 `NOOP_ALREADY_COMMITTED`，缺失但过了 next-open 返回 `MISSED_PROSPECTIVE_SESSION`
   且绝不历史 backfill。Daily Report 与 D1 reconciliation 仍是两个独立业务 workflow。
+- GitHub native CN/US schedules 是 primary；Cloudflare Worker Cron 是第一 fallback，独立
+  Ubuntu VPS user-level watchdog 是第二 fallback。两者只 dispatch repository-owned Daily
+  Report/D1 reconciliation workflow，不抓行情、不运行策略、不读取 holdings/Paper/broker、
+  不写 `/srv/d1-research`，不复制交易逻辑。Cloudflare Worker 已部署并完成 CN/US 受保护
+  smoke；VPS main 版本已部署，非 root runtime user credential 为 `0600`，CN/US timers
+  已 `enable/active` 并完成 trigger-only smoke。
 - 独立公开 source/observer contract 已接入既有 Candidate runtime：保存当日 universe、raw
   Stage-A payload/hash、QFQ exact-T causal prefix/hash、精确 session identity、既有 causal
   Swing/Fibonacci 与双路径 observer 的 signal/touch/no-signal、trigger/ceiling、stop、
@@ -539,7 +546,8 @@
 - 不可变 per-market activation record 已实现，绑定冻结 protocol SHA、VPS backend/version、
   storage identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。
-  当前 CN/US activation record 均已按主线 code SHA 创建，状态为 `D1_ACTIVATION_READY`：
+  当前 CN/US activation record 均已按主线 code SHA 创建，状态为
+  `D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION`：
   US 首个合格 session 为 2026-09-29 ET，CN 为 2026-09-30；两市场正式事件数仍为 0，首次
   自然完整 session 必须通过 source/universe/observer/report/hash/pointer/read-back 验收后
   才可将该市场标记为 `D1_COLLECTION_ACTIVE`；不得用人工日期或旧日报补首个 session。
