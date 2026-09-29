@@ -12,7 +12,11 @@ import sys
 from tempfile import TemporaryDirectory
 import unittest
 
-from research.setup01_d1_activation import validate_activation_record
+from research.setup01_d1_activation import (
+    ACTIVATION_SCHEMA_VERSION,
+    ACTIVATION_SCHEMA_VERSION_V2,
+    validate_activation_record,
+)
 from research.setup01_d1_prospective import (
     D1IntegrityError,
     build_session_snapshot,
@@ -298,6 +302,10 @@ class VpsDurableStoreTests(VpsStoreTestCase):
             source_contract_version=D1_SOURCE_CONTRACT_V2,
         )
         self.assertNotEqual(v1["record_sha256"], v2["record_sha256"])
+        self.assertEqual(v1["schema_version"], ACTIVATION_SCHEMA_VERSION)
+        self.assertNotIn("source_contract_version", v1)
+        self.assertEqual(v2["schema_version"], ACTIVATION_SCHEMA_VERSION_V2)
+        self.assertEqual(v2["source_contract_version"], D1_SOURCE_CONTRACT_V2)
         self.assertTrue((self.root / "system" / "activation" / "CN.json").exists())
         self.assertTrue(
             (
