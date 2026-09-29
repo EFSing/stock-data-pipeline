@@ -123,6 +123,11 @@ API：最近 90 分钟存在 queued/in-progress/success run 时 `NOOP_PRIMARY_AC
 不授予 Contents write、Administration 或其他仓库。Cloudflare 不需要 paid Workers、KV、
 R2、Durable Objects 或任何购买/升级操作。详细步骤见该目录 README。
 
+Worker 的公开 HTTP `POST` smoke 入口另需独立随机 secret `WATCHDOG_SMOKE_TOKEN`；
+该 secret 不得复用 GitHub token，且只用于一次性 trigger-only 验证。Cron scheduled
+handler 不依赖此 secret。未配置 smoke secret 时，HTTP `POST` fail closed，仍不影响
+Cloudflare Cron fallback。
+
 ## Ubuntu VPS watchdog fallback
 
 源码在 `infra/vps/market-close-watchdog/`。user-level systemd timers 约在：
@@ -161,8 +166,8 @@ activation 记录；不得静默覆盖既有 activation 或把历史/日报 back
 
 本 PR 不需要用户把任何 credential 发到聊天。真正部署时用户只需在各自控制面完成：
 
-1. Cloudflare Free Worker + `GITHUB_TOKEN` secret；
-2. GitHub fine-grained token 精确限制到本仓库 Actions read/write；
+1. Cloudflare Free Worker + `GITHUB_TOKEN` 与独立 `WATCHDOG_SMOKE_TOKEN` secrets；
+2. GitHub fine-grained tokens（Cloudflare/VPS 各一个）精确限制到本仓库 Actions read/write；
 3. VPS 0600 watchdog config + user systemd timers。
 
 没有新增付费服务或自动购买动作。

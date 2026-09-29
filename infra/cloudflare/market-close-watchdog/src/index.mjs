@@ -10,6 +10,7 @@
 const API_VERSION = "2022-11-28";
 const LOOKBACK_MS = 90 * 60 * 1000;
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+const SMOKE_TOKEN_SECRET = "WATCHDOG_SMOKE_TOKEN";
 
 export const WORKFLOWS = Object.freeze({
   CN: Object.freeze({
@@ -53,6 +54,29 @@ function headers(env, includeJson = false) {
   if (token) value.Authorization = `Bearer ${token}`;
   if (includeJson) value["Content-Type"] = "application/json";
   return value;
+}
+
+async function matchesSmokeToken(request, env) {
+  const expected = String(env[SMOKE_TOKEN_SECRET] || "").trim();
+  const authorization = request.headers.get("Authorization") || "";
+  const provided = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || "";
+  if (!expected || !provided) return false;
+
+  // Hash both values first so the comparison has a fixed length, then compare
+  // every byte without early exit. This secret gates only the optional manual
+  // smoke endpoint; the scheduled handler does not use HTTP authentication.
+  const encoder = new TextEncoder();
+  const [providedHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(provided)),
+    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
+  ]);
+  const left = new Uint8Array(providedHash);
+  const right = new Uint8Array(expectedHash);
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left[index] ^ right[index];
+  }
+  return difference === 0;
 }
 
 async function githubRequest(env, path, init = {}) {
@@ -172,6 +196,12 @@ export default {
     const kind = String(url.searchParams.get("kind") || "D1_PROSPECTIVE").toUpperCase();
     if (request.method !== "POST") {
       return new Response(JSON.stringify({ status: "READY", worker: "market-close-watchdog" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (!(await matchesSmokeToken(request, env))) {
+      return new Response(JSON.stringify({ status: "SMOKE_TOKEN_REQUIRED" }), {
+        status: 401,
         headers: { "Content-Type": "application/json" },
       });
     }

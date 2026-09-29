@@ -30,15 +30,43 @@ Cron expressions are UTC:
    `Actions: Read and write`; do not grant Contents write, Administration, or
    access to any other repository. Set an expiry and record it in the user's
    password manager; do not put it in Git or chat.
-3. Keep the tracked `GITHUB_REPOSITORY` and `GITHUB_REF` values unless the
+3. Set a separate random Worker secret named `WATCHDOG_SMOKE_TOKEN`. It only
+   protects the optional manual `POST` smoke endpoint; do not reuse the GitHub
+   token. Scheduled Cron events do not require this secret.
+4. Keep the tracked `GITHUB_REPOSITORY` and `GITHUB_REF` values unless the
    repository is intentionally renamed.
-4. Deploy with the normal Cloudflare Wrangler flow from this directory. The
+5. Deploy with the normal Cloudflare Wrangler flow from this directory. The
    Worker deployer must authenticate in the Cloudflare account; no Cloudflare
    credential belongs in this repository.
+
+From this directory, the minimal deployment commands are:
+
+```sh
+npx wrangler@latest secret put GITHUB_TOKEN --config wrangler.toml
+npx wrangler@latest secret put WATCHDOG_SMOKE_TOKEN --config wrangler.toml
+npx wrangler@latest deploy --config wrangler.toml
+```
+
+Each `secret put` prompt is entered locally and must not be pasted into Git or
+chat. The second secret can be generated locally with `openssl rand -hex 32`.
 
 The fallback is safe before deployment credentials exist: the source and tests
 can be reviewed and run without a token. A missing token produces
 `EXTERNAL_TOKEN_MISSING` and does not dispatch anything.
+
+For a controlled live smoke test after deployment, send a `POST` request with
+the separate smoke token to the deployed Worker URL, for example:
+
+```sh
+curl --fail-with-body -X POST \
+  "https://<worker-subdomain>.workers.dev/?market=CN&kind=D1_PROSPECTIVE" \
+  -H "Authorization: Bearer $WATCHDOG_SMOKE_TOKEN"
+```
+
+The expected result is either `DISPATCHED_RECONCILIATION` (then verify the
+corresponding `workflow_dispatch` run in GitHub Actions) or
+`NOOP_PRIMARY_ACTIVE_OR_SUCCESS`. The Worker still performs no market or D1
+work itself.
 
 ## Rotation / recovery
 

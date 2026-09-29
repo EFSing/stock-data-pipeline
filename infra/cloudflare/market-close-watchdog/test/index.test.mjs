@@ -6,11 +6,13 @@ import {
   WORKFLOWS,
   reconcileWorkflow,
 } from "../src/index.mjs";
+import worker from "../src/index.mjs";
 
 const ENV = {
   GITHUB_TOKEN: "fixture-token-never-logged",
   GITHUB_REPOSITORY: "EFSing/stock-data-pipeline",
   GITHUB_REF: "main",
+  WATCHDOG_SMOKE_TOKEN: "fixture-smoke-token-never-logged",
 };
 
 function jsonResponse(value, status = 200, headers = {}) {
@@ -105,6 +107,46 @@ test("missing token is fail-closed and never calls GitHub", async () => {
     assert.equal(result.status, "DISPATCH_FAILED");
     assert.equal(result.dispatch_error, "EXTERNAL_TOKEN_MISSING");
     assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("manual HTTP smoke endpoint requires its independent token", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return jsonResponse({}); };
+  try {
+    const response = await worker.fetch(new Request(
+      "https://watchdog.example/?market=CN&kind=D1_PROSPECTIVE",
+      { method: "POST" },
+    ), ENV);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { status: "SMOKE_TOKEN_REQUIRED" });
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("authorized HTTP smoke endpoint dispatches only the repository workflow", async () => {
+  const original = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (request, init) => {
+    requests.push({ request, init });
+    if (requests.length === 1) return jsonResponse({ workflow_runs: [] });
+    return new Response(null, { status: 204 });
+  };
+  try {
+    const response = await worker.fetch(new Request(
+      "https://watchdog.example/?market=CN&kind=D1_PROSPECTIVE",
+      { method: "POST", headers: { Authorization: "Bearer fixture-smoke-token-never-logged" } },
+    ), ENV);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, "DISPATCHED_RECONCILIATION");
+    assert.equal(requests.length, 2);
+    assert.match(String(requests[1].request), /setup01-d1-vps-natural-collector-cn\.yml/);
+    assert.doesNotMatch(JSON.stringify(requests[1].init), /fixture-smoke-token/);
   } finally {
     globalThis.fetch = original;
   }
