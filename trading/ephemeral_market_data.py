@@ -17,11 +17,32 @@ from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 from latest_snapshot import evaluate_latest_snapshot, project_latest_row, quote_row
+from market_data_contract import (
+    AdjustmentUnverifiedError,
+    CN_SINGLE_SOURCE_PROVIDER,
+    DATA_ADJUSTMENT_UNVERIFIED,
+    DATA_INVALID,
+    DATA_MISSING,
+    DATA_OK,
+    DATA_STALE,
+    DATA_UNAVAILABLE_FOR_DECISION,
+    ProviderGlobalFailure,
+    ProviderSymbolError,
+    PROVIDER_GLOBAL_FAILURE,
+    PROVIDER_SYMBOL_ERROR,
+    SINGLE_SOURCE_MARKET_DATA_VERSION,
+    canonical_provider_for_market,
+    status_from_contract_errors,
+    unavailable_reason,
+    validate_single_source_quotes,
+)
 from providers import (
     LATEST_PROVIDERS,
     PROVIDERS,
     QFQ_HISTORY_SOURCES,
+    SINGLE_SOURCE_QFQ_SOURCES,
     fetch_latest_with_retry,
+    fetch_single_source_with_retry,
     fetch_with_retry,
 )
 from trading.paper_lifecycle import (
@@ -214,6 +235,73 @@ def _provider_config_errors(watch: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(f"provider configuration missing/invalid: {item}" for item in missing))
 
 
+def _is_real_sheets_client(client: Any) -> bool:
+    """Identify the unattended production Sheet client without constructing it."""
+
+    try:
+        from sheets_client import SheetsClient
+
+        return isinstance(client, SheetsClient)
+    except Exception:
+        return False
+
+
+def _uses_single_source_contract(client: Any, watch: Mapping[str, Any]) -> bool:
+    configured = {
+        _text(watch, "主数据源"),
+        _text(watch, "校验数据源"),
+        _text(watch, "历史数据源"),
+    }
+    return _is_real_sheets_client(client) or bool(configured & SINGLE_SOURCE_QFQ_SOURCES)
+
+
+def _canonical_watch(watch: Mapping[str, Any], market: str) -> dict[str, Any]:
+    """Project legacy Sheet rows onto the V1 canonical source identity."""
+
+    result = dict(watch)
+    provider = canonical_provider_for_market(market)
+    result["主数据源"] = provider
+    result["校验数据源"] = ""
+    result["历史数据源"] = provider
+    if market == "CN":
+        result.setdefault("HITHINK代码", _text(watch, "统一代码"))
+    return result
+
+
+def _single_source_config_errors(watch: Mapping[str, Any], market: str) -> tuple[str, ...]:
+    missing = [field for field in ("时区", "收盘时间", "币种") if not _text(watch, field)]
+    if not _text(watch, "统一代码"):
+        missing.append("统一代码")
+    if market == "US" and not _text(watch, "yfinance代码"):
+        missing.append("yfinance代码")
+    if market == "CN" and not (_text(watch, "HITHINK代码") or _text(watch, "统一代码")):
+        missing.append("HITHINK代码")
+    try:
+        if _text(watch, "时区"):
+            ZoneInfo(_text(watch, "时区"))
+    except Exception:
+        missing.append(f"invalid timezone {_text(watch, '时区')}")
+    return tuple(
+        dict.fromkeys(
+            f"single-source configuration missing/invalid: {item}" for item in missing
+        )
+    )
+
+
+def _single_source_error_status(exc: BaseException, *, latest: bool = False) -> str:
+    if isinstance(exc, AdjustmentUnverifiedError):
+        return DATA_ADJUSTMENT_UNVERIFIED
+    if isinstance(exc, ProviderSymbolError):
+        return PROVIDER_SYMBOL_ERROR
+    if isinstance(exc, LookupError):
+        return DATA_STALE if latest else DATA_MISSING
+    if isinstance(exc, ValueError):
+        return DATA_INVALID
+    if isinstance(exc, ProviderGlobalFailure):
+        return PROVIDER_GLOBAL_FAILURE
+    return DATA_INVALID
+
+
 def _quote_identity_is_valid(quote: Any, watch: Mapping[str, Any]) -> bool:
     return (
         str(getattr(quote, "symbol", "")).strip().upper() == _text(watch, "统一代码").upper()
@@ -286,9 +374,22 @@ class EphemeralMarketDataSnapshot:
     input_fingerprint: str
     retry_count: int
     history_days: int
+    market_data_contract: str = SINGLE_SOURCE_MARKET_DATA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
         """Return report-safe metadata without any market-data rows."""
+
+        failed_by_reason: dict[str, list[str]] = {}
+        for symbol, status in self.symbol_status.items():
+            value = str(status.get("status") or "UNKNOWN")
+            if value != DATA_OK:
+                failed_by_reason.setdefault(value, []).append(symbol)
+        for symbols in failed_by_reason.values():
+            symbols.sort()
+        attempted = len(self.required_symbols)
+        usable = sum(
+            1 for status in self.symbol_status.values() if status.get("status") == DATA_OK
+        )
 
         return {
             "protocol_version": EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION,
@@ -310,6 +411,19 @@ class EphemeralMarketDataSnapshot:
             "input_fingerprint": self.input_fingerprint,
             "retry_count": self.retry_count,
             "history_days": self.history_days,
+            "market_data_contract": self.market_data_contract,
+            "attempted_universe": list(self.required_symbols),
+            "usable_symbols": sorted(
+                symbol
+                for symbol, status in self.symbol_status.items()
+                if status.get("status") == DATA_OK
+            ),
+            "failed_by_reason": failed_by_reason,
+            "coverage_ratio": (usable / attempted if attempted else 1.0),
+            "coverage_pct": (round(usable / attempted * 100, 2) if attempted else 100.0),
+            "provider_global_failure": any(
+                bool(item.get("global_failure")) for item in self.provider_status.values()
+            ),
             "raw_market_data_persisted": False,
             "qfq_persisted": False,
         }
@@ -341,6 +455,167 @@ def _fingerprint(
     return hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def _load_single_source_symbol(
+    *,
+    watch: Mapping[str, Any],
+    market: str,
+    symbol: str,
+    as_of_date: date,
+    fetched_at: datetime,
+    retry_count: int,
+    retry_wait: float,
+    history_days: int,
+    latest_start: date,
+    qfq_start: date,
+    close_tolerance: float,
+    volume_tolerance: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any], list[str]]:
+    """Fetch one CN/US identity through exactly one canonical provider."""
+
+    effective = _canonical_watch(watch, market)
+    provider = canonical_provider_for_market(market)
+    latest_rows: list[dict[str, Any]] = []
+    qfq_rows: list[dict[str, Any]] = []
+    detail: dict[str, Any] = {
+        "provider_identity": provider,
+        "configured_primary_source": provider,
+        "configured_history_source": provider,
+        "fallback_chain": [],
+        "acquired_at": fetched_at.isoformat(),
+    }
+    errors: list[str] = []
+    status = {
+        "latest": DATA_MISSING,
+        "qfq": DATA_MISSING,
+        "status": DATA_MISSING,
+    }
+
+    try:
+        latest_result = fetch_single_source_with_retry(
+            market,
+            effective,
+            "raw",
+            latest_start,
+            as_of_date,
+            retry_count,
+            retry_wait,
+            target_trade_date=as_of_date,
+        )
+        latest_errors = validate_single_source_quotes(
+            latest_result.quotes,
+            expected_symbol=symbol,
+            expected_market=market,
+            target_trade_date=as_of_date,
+            max_trade_date=as_of_date,
+        )
+        detail["latest_provenance"] = dict(latest_result.provenance)
+        detail["latest_api_requests"] = latest_result.api_requests
+        if latest_errors:
+            latest_status = status_from_contract_errors(latest_errors)
+            status["latest"] = latest_status
+            errors.append(f"latest {provider} {latest_status}: {','.join(latest_errors)}")
+        else:
+            latest_snapshot = evaluate_latest_snapshot(
+                latest_result.quotes,
+                (),
+                fetched_at=fetched_at,
+                timezone_name=_text(effective, "时区"),
+                close_time_text=_text(effective, "收盘时间"),
+                close_tolerance=close_tolerance,
+                volume_tolerance=volume_tolerance,
+                primary_source=provider,
+                verifier_source="",
+                expected_symbol=symbol,
+                expected_market=market,
+                apply_calendar_freshness=False,
+            )
+            projected_snapshot, preclose_source = _complete_latest_preclose(
+                latest_snapshot,
+                primary_quotes=latest_result.quotes,
+                verifier_quotes=(),
+            )
+            chosen = projected_snapshot.chosen
+            if chosen is None or chosen.trade_date != as_of_date:
+                status["latest"] = DATA_STALE
+                errors.append(
+                    f"latest {provider} {DATA_STALE}:"
+                    f"{chosen.trade_date.isoformat() if chosen else 'empty'}!={as_of_date.isoformat()}"
+                )
+            elif projected_snapshot.sanity_note or projected_snapshot.identity_errors:
+                status["latest"] = DATA_INVALID
+                errors.append(
+                    f"latest {provider} {DATA_INVALID}:"
+                    f"{projected_snapshot.sanity_note or projected_snapshot.identity_errors[0]}"
+                )
+            else:
+                projected_snapshot = replace(
+                    projected_snapshot,
+                    displayed_status=DATA_OK,
+                    confirmed=True,
+                    actual_primary_source=provider,
+                    actual_verifier_source="",
+                )
+                latest_rows.append(project_latest_row(projected_snapshot, fetched_at))
+                status["latest"] = DATA_OK
+                detail["latest_status"] = DATA_OK
+                if preclose_source:
+                    detail["latest_preclose_source"] = preclose_source
+    except Exception as exc:
+        status["latest"] = _single_source_error_status(exc, latest=True)
+        detail["latest_error_type"] = type(exc).__name__
+        detail["latest_error"] = _safe_error(exc)
+        detail["global_failure"] = detail.get("global_failure", False) or isinstance(exc, ProviderGlobalFailure)
+        errors.append(f"latest {provider} {status['latest']}: {_safe_error(exc)}")
+
+    try:
+        qfq_result = fetch_single_source_with_retry(
+            market,
+            effective,
+            "qfq",
+            qfq_start,
+            as_of_date,
+            max(retry_count, EXACT_QFQ_MIN_RETRY_ATTEMPTS),
+            retry_wait,
+            target_trade_date=as_of_date,
+        )
+        qfq_errors = validate_single_source_quotes(
+            qfq_result.quotes,
+            expected_symbol=symbol,
+            expected_market=market,
+            target_trade_date=as_of_date,
+            max_trade_date=as_of_date,
+            minimum_bars=min(60, max(1, history_days)),
+        )
+        detail["qfq_provenance"] = dict(qfq_result.provenance)
+        detail["qfq_api_requests"] = qfq_result.api_requests
+        if qfq_errors:
+            status["qfq"] = status_from_contract_errors(qfq_errors)
+            errors.append(f"qfq {provider} {status['qfq']}: {','.join(qfq_errors)}")
+        else:
+            qfq_rows.extend(
+                quote_row(quote, fetched_at, "前复权")
+                for quote in qfq_result.quotes
+                if quote.trade_date <= as_of_date
+            )
+            status["qfq"] = DATA_OK
+            detail["qfq_status"] = DATA_OK
+    except Exception as exc:
+        status["qfq"] = _single_source_error_status(exc)
+        detail["qfq_error_type"] = type(exc).__name__
+        detail["qfq_error"] = _safe_error(exc)
+        detail["global_failure"] = detail.get("global_failure", False) or isinstance(exc, ProviderGlobalFailure)
+        errors.append(f"qfq {provider} {status['qfq']}: {_safe_error(exc)}")
+
+    status["status"] = DATA_OK if status["latest"] == DATA_OK and status["qfq"] == DATA_OK else (
+        status["latest"] if status["latest"] != DATA_OK else status["qfq"]
+    )
+    status["decision_status"] = (
+        DATA_OK if status["status"] == DATA_OK else unavailable_reason(status["status"])
+    )
+    detail["source_contract"] = SINGLE_SOURCE_MARKET_DATA_VERSION
+    return latest_rows, qfq_rows, status, detail, list(dict.fromkeys(errors))
 
 
 def load_ephemeral_market_data(
@@ -386,8 +661,51 @@ def load_ephemeral_market_data(
         status = {"latest": "UNAVAILABLE", "qfq": "UNAVAILABLE"}
         provider_detail: dict[str, Any] = {}
         symbol_errors: list[str] = []
+        if watch is not None and _uses_single_source_contract(client, watch):
+            effective_watch = _canonical_watch(watch, normalized_market)
+            config_errors = _single_source_config_errors(effective_watch, normalized_market)
+            if config_errors:
+                symbol_errors.extend(config_errors)
+                status["latest"] = DATA_INVALID
+                status["qfq"] = DATA_INVALID
+                status["status"] = DATA_INVALID
+            else:
+                (
+                    single_latest_rows,
+                    single_qfq_rows,
+                    single_status,
+                    single_provider_detail,
+                    single_errors,
+                ) = _load_single_source_symbol(
+                    watch=effective_watch,
+                    market=normalized_market,
+                    symbol=symbol,
+                    as_of_date=as_of_date,
+                    fetched_at=fetched_at,
+                    retry_count=retry_count,
+                    retry_wait=retry_wait,
+                    history_days=history_days,
+                    latest_start=as_of_date - timedelta(days=14),
+                    qfq_start=start_date,
+                    close_tolerance=close_tolerance,
+                    volume_tolerance=volume_tolerance,
+                )
+                latest_rows.extend(single_latest_rows)
+                qfq_rows.extend(single_qfq_rows)
+                status = single_status
+                provider_detail = single_provider_detail
+                symbol_errors.extend(single_errors)
+            if symbol_errors:
+                symbol_errors = list(dict.fromkeys(symbol_errors))
+                errors.extend(f"{key}: {item}" for item in symbol_errors)
+            symbol_status[symbol] = {**status, "errors": symbol_errors}
+            provider_status[symbol] = provider_detail
+            continue
         if watch is None:
             symbol_errors.append(f"EPHEMERAL_PROVIDER_CONFIG_REQUIRED:{key}")
+            status["latest"] = DATA_MISSING
+            status["qfq"] = DATA_MISSING
+            status["status"] = DATA_MISSING
         else:
             config_errors = _provider_config_errors(watch)
             if config_errors:
@@ -508,7 +826,30 @@ def load_ephemeral_market_data(
             errors.extend(f"{key}: {item}" for item in symbol_errors)
         else:
             status["latest"] = status["latest"] or "OK"
-        symbol_status[symbol] = {**status, "errors": symbol_errors}
+        symbol_status[symbol] = {
+            **status,
+            "status": (
+                status.get("status")
+                if status.get("status") in {
+                    DATA_OK, DATA_MISSING, DATA_STALE, DATA_INVALID,
+                    DATA_ADJUSTMENT_UNVERIFIED, PROVIDER_SYMBOL_ERROR,
+                }
+                else DATA_OK if not symbol_errors else DATA_INVALID
+            ),
+            "decision_status": (
+                DATA_OK
+                if not symbol_errors
+                else unavailable_reason(
+                    status.get("status")
+                    if status.get("status") in {
+                        DATA_MISSING, DATA_STALE, DATA_INVALID,
+                        DATA_ADJUSTMENT_UNVERIFIED, PROVIDER_SYMBOL_ERROR,
+                    }
+                    else DATA_INVALID
+                )
+            ),
+            "errors": symbol_errors,
+        }
         provider_status[symbol] = provider_detail
 
     errors = list(dict.fromkeys(errors))

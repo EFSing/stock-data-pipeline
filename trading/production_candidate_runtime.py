@@ -8,10 +8,11 @@ by the caller for that day's Daily Decision Chain run.
 
 The runtime uses two data stages:
 
-* Candidate screening: official seed metadata plus one batched raw-history
-  request per yfinance chunk, with the existing 60-bar/20D/60D selector.
-* Strategy analysis: the selected Candidate symbols only, using the existing
-  yfinance QFQ history path and exact completed-session-T validation.
+* Candidate screening: official seed metadata plus one bounded raw-history
+  request per symbol through the market's canonical provider, with the existing
+  60-bar/20D/60D selector.
+* Strategy analysis: the selected Candidate symbols only, using the same
+  canonical-provider QFQ path and exact completed-session-T validation.
 
 Formal strategy-pool and open-position history remains owned by
 ``ProductionInputAdapter`` and is merged by the production runner.  This
@@ -27,6 +28,15 @@ import time
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from core import Quote
+from market_data_contract import (
+    DATA_INVALID,
+    DATA_MISSING,
+    DATA_STALE,
+    ProviderGlobalFailure,
+    ProviderSymbolError,
+    canonical_provider_for_market,
+    validate_single_source_quotes,
+)
 from trading.candidate_universe import (
     CandidateRecord,
     CandidateUniverse,
@@ -96,6 +106,7 @@ class HistoryLoadResult:
     api_requests: int = 0
     rows: int = 0
     errors: tuple[str, ...] = ()
+    provenance: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         normalized = {
@@ -106,6 +117,15 @@ class HistoryLoadResult:
         object.__setattr__(self, "api_requests", int(self.api_requests))
         object.__setattr__(self, "rows", int(self.rows))
         object.__setattr__(self, "errors", tuple(str(error) for error in self.errors))
+        object.__setattr__(
+            self,
+            "provenance",
+            {
+                str(symbol).strip().upper(): dict(value)
+                for symbol, value in (self.provenance or {}).items()
+                if isinstance(value, Mapping)
+            },
+        )
 
 
 SeedLoader = Callable[[date], Any]
@@ -136,6 +156,7 @@ class CandidateMarketRuntimeResult:
     # Kept only in memory for the independent D1 source contract.  The
     # ordinary Candidate report deliberately continues to omit raw bars.
     short_histories: Mapping[str, tuple[Quote, ...]] = field(default_factory=dict)
+    source_provenance: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
     @property
     def seed_count(self) -> int:
@@ -295,6 +316,10 @@ class CandidateMarketRuntimeResult:
             "errors": list(self.errors),
             "status": self.status,
             "qfq_contract": dict(self.qfq_contract),
+            "source_provenance": {
+                symbol: dict(value)
+                for symbol, value in sorted(self.source_provenance.items())
+            },
             "read_only": True,
             "sheets_write": False,
             "strategy_pool_write": False,
@@ -546,6 +571,9 @@ def _provider_watch(seed: Any) -> dict[str, str]:
         "币种": str(seed.currency).strip().upper(),
         "yfinance代码": ticker,
         "BaoStock代码": source_symbol or ticker,
+        "HITHINK代码": str(seed.symbol).strip().upper(),
+        "主数据源": canonical_provider_for_market(market),
+        "历史数据源": canonical_provider_for_market(market),
         "时区": "America/New_York" if market == "US" else "Asia/Shanghai",
     }
 
@@ -760,6 +788,91 @@ def _default_deep_qfq_history_loader(
     return HistoryLoadResult(histories, len(seeds), rows, tuple(errors))
 
 
+def _default_single_source_history_loader(
+    seeds: tuple[Any, ...],
+    start_date: date,
+    end_date: date,
+    *,
+    adjustment: str,
+) -> HistoryLoadResult:
+    """Load Candidate history one symbol at a time from its canonical vendor.
+
+    The transport is bounded and deterministic.  A failed symbol is retained
+    as a stage error; it never prevents other symbols from reaching the
+    selector or deep-history stage.
+    """
+
+    from providers import fetch_single_source_with_retry
+
+    def load_one(seed: Any) -> tuple[str, tuple[Quote, ...], int, str | None, Mapping[str, Any]]:
+        symbol = str(seed.symbol).strip().upper()
+        market = str(seed.market).strip().upper()
+        try:
+            result = fetch_single_source_with_retry(
+                market,
+                _provider_watch(seed),
+                adjustment,
+                start_date,
+                end_date,
+                retry_count=EXACT_QFQ_MIN_RETRY_ATTEMPTS,
+                retry_wait_seconds=0.0,
+                target_trade_date=end_date,
+            )
+            errors = validate_single_source_quotes(
+                result.quotes,
+                expected_symbol=symbol,
+                expected_market=market,
+                target_trade_date=end_date,
+                max_trade_date=end_date,
+            )
+            if errors:
+                return symbol, (), result.api_requests, f"{symbol}:DATA_INVALID:{','.join(errors)}", dict(result.provenance)
+            return symbol, result.quotes, result.api_requests, None, dict(result.provenance)
+        except ProviderGlobalFailure as exc:
+            return symbol, (), 1, f"{symbol}:PROVIDER_GLOBAL_FAILURE:{exc}", {}
+        except ProviderSymbolError as exc:
+            return symbol, (), 1, f"{symbol}:PROVIDER_SYMBOL_ERROR:{exc}", {}
+        except Exception as exc:
+            return symbol, (), 1, f"{symbol}:{type(exc).__name__}:{exc}", {}
+
+    with ThreadPoolExecutor(
+        max_workers=YFINANCE_DEEP_HISTORY_WORKERS,
+        thread_name_prefix="candidate-single-source",
+    ) as executor:
+        completed = tuple(executor.map(load_one, seeds))
+
+    histories: dict[str, tuple[Quote, ...]] = {}
+    errors: list[str] = []
+    provenance: dict[str, Mapping[str, Any]] = {}
+    requests = 0
+    rows = 0
+    for symbol, quotes, api_requests, error, item_provenance in completed:
+        requests += api_requests
+        if error is not None:
+            errors.append(error)
+            continue
+        histories[symbol] = tuple(quotes)
+        provenance[symbol] = dict(item_provenance)
+        rows += len(quotes)
+    return HistoryLoadResult(histories, requests, rows, tuple(errors), provenance)
+
+
+def _default_single_source_short_history_loader(
+    seeds: tuple[Any, ...], start_date: date, end_date: date
+) -> HistoryLoadResult:
+    return _default_single_source_history_loader(
+        seeds, start_date, end_date, adjustment="raw"
+    )
+
+
+def _default_single_source_deep_history_loader(
+    seeds: tuple[Any, ...], start_date: date, end_date: date
+) -> HistoryLoadResult:
+    return _default_single_source_history_loader(
+        seeds, start_date, end_date, adjustment="qfq"
+    )
+
+
 def _latest_completed_us_session(now: datetime) -> date:
     if now.tzinfo is None or now.utcoffset() is None:
         raise CandidateRuntimeError(US_COMPLETED_SESSION_REQUIRED)
@@ -787,7 +900,7 @@ def _latest_completed_us_session(now: datetime) -> date:
 
 
 def _validate_us_qfq_as_of(as_of_date: date, now: datetime) -> dict[str, Any]:
-    """Guard yfinance auto-adjusted history to the latest completed XNYS T."""
+    """Guard Yahoo Chart adjusted history to the latest completed XNYS T."""
 
     try:
         from trading.production_prerequisites import ExactExchangeCalendarProvider
@@ -802,7 +915,7 @@ def _validate_us_qfq_as_of(as_of_date: date, now: datetime) -> dict[str, Any]:
         raise CandidateRuntimeError(US_HISTORICAL_QFQ_ASOF_UNVERIFIED)
     return {
         "status": "SUCCESS",
-        "qfq_method": "EXISTING_YFINANCE_AUTO_ADJUSTED_PATH",
+        "qfq_method": "YAHOO_CHART_ADJCLOSE_ENGINE_V1",
         "as_of_mode": "LATEST_COMPLETED_SESSION_ONLY",
         "historical_replay_supported": False,
         "as_of_date": as_of_date.isoformat(),
@@ -816,15 +929,17 @@ class ProductionCandidateRuntime:
     SOURCE_CONTRACT = {
         "CN": {
             "seed": "BaoStock HS300 ∪ CSI500 + basic/industry metadata",
-            "candidate_short_history": "existing yfinance raw batch",
-            "strategy_deep_history": "existing yfinance QFQ path",
-            "qfq": "yfinance auto_adjust=True; exact completed session T",
+            "market_data_provider": "HITHINK_FINANCIAL_API",
+            "candidate_short_history": "HITHINK raw daily OHLCV",
+            "strategy_deep_history": "HITHINK raw OHLCV + corporate actions",
+            "qfq": "CN_FORWARD_ADJUSTMENT_ENGINE_V1; exact completed session T",
         },
         "US": {
             "seed": "official iShares IWB holdings",
-            "candidate_short_history": "existing yfinance raw batch",
-            "strategy_deep_history": "existing yfinance QFQ path",
-            "qfq": "yfinance auto_adjust=True; latest completed XNYS T only",
+            "market_data_provider": "YAHOO_CHART",
+            "candidate_short_history": "Yahoo Chart raw daily OHLCV",
+            "strategy_deep_history": "Yahoo Chart daily OHLCV + adjclose",
+            "qfq": "YAHOO_CHART_ADJCLOSE_ENGINE_V1; latest completed XNYS T only",
         },
     }
 
@@ -845,8 +960,8 @@ class ProductionCandidateRuntime:
                 for key, value in (seed_loaders or {}).items()
             },
         }
-        self.short_history_loader = short_history_loader or _default_short_history_loader
-        self.deep_history_loader = deep_history_loader or _default_deep_qfq_history_loader
+        self.short_history_loader = short_history_loader or _default_single_source_short_history_loader
+        self.deep_history_loader = deep_history_loader or _default_single_source_deep_history_loader
         self.session_window_loader = session_window_loader or _completed_session_window
         self.enforce_us_latest_qfq_asof = bool(enforce_us_latest_qfq_asof)
 
@@ -882,6 +997,7 @@ class ProductionCandidateRuntime:
         timings = _new_stage_timings()
         errors: list[str] = []
         qfq_contract = dict(self.SOURCE_CONTRACT[normalized_market])
+        source_provenance: dict[str, Mapping[str, Any]] = {}
         paper_symbols = tuple(
             dict.fromkeys(
                 str(symbol).strip().upper()
@@ -951,6 +1067,7 @@ class ProductionCandidateRuntime:
                     self.short_history_loader(seeds, short_sessions[0], as_of_date)
                 )
             errors.extend(short_result.errors)
+            source_provenance.update(short_result.provenance)
             short_histories = short_result.histories
             short_rows = short_result.rows or sum(
                 len(values) for values in short_histories.values()
@@ -999,7 +1116,7 @@ class ProductionCandidateRuntime:
                     and not short_coverage_low
                     else "PARTIAL_DATA_QUALITY"
                 ),
-                source="yfinance",
+                source=canonical_provider_for_market(normalized_market),
                 history_bars=MIN_HISTORY_BARS,
                 requested_sessions=MIN_HISTORY_BARS + STAGE_A_HISTORY_BUFFER_SESSIONS,
                 batch_chunk_size=YFINANCE_BATCH_CHUNK,
@@ -1126,6 +1243,7 @@ class ProductionCandidateRuntime:
                     )
                 )
                 deep_histories.update(deep_result.histories)
+                source_provenance.update(deep_result.provenance)
                 errors.extend(deep_result.errors)
                 for seed in deep_targets:
                     symbol = str(seed.symbol).strip().upper()
@@ -1172,7 +1290,7 @@ class ProductionCandidateRuntime:
                     ),
                     failed_count=len(deep_errors),
                     status=deep_status,
-                    source="yfinance",
+                    source=canonical_provider_for_market(normalized_market),
                     requested_bars=STRATEGY_HISTORY_BARS,
                     minimum_bars=MIN_HISTORY_BARS,
                     worker_count=YFINANCE_DEEP_HISTORY_WORKERS,
@@ -1279,6 +1397,7 @@ class ProductionCandidateRuntime:
             paper_symbols,
             paper_seeds,
             {str(symbol).upper(): tuple(values) for symbol, values in short_histories.items()},
+            source_provenance,
         )
 
 

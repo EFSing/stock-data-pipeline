@@ -7,9 +7,11 @@ import unittest
 from core import Quote
 from research.setup01_d1_prospective import validate_session_snapshot
 from research.setup01_d1_source_contract import (
+    D1_SOURCE_CONTRACT_V2,
     D1_SOURCE_CONTRACT_VERSION,
     build_d1_snapshot_from_candidate_runtime,
     build_d1_source_contract,
+    source_contract_descriptor,
 )
 
 
@@ -164,6 +166,43 @@ class D1SourceContractTests(unittest.TestCase):
                 },
                 acquired_at="2026-09-26T05:00:00+08:00",
             )
+
+    def test_v2_records_symbol_level_partiality_without_reusing_v1_contract(self):
+        self.runtime.qfq_contract = {
+            "seed": "fixture seed",
+            "market_data_provider": "YAHOO_CHART",
+            "qfq": "YAHOO_CHART_ADJCLOSE_ENGINE_V1",
+        }
+        self.runtime.deep_histories = {}
+        contract = build_d1_source_contract(
+            self.runtime,
+            session_identity={
+                "market": "US", "trade_date": "2026-09-25",
+                "identity": "exchange_calendars:XNYS:2026-09-25",
+                "exact_exchange_calendar": True,
+            },
+            acquired_at="2026-09-26T05:00:00+08:00",
+            contract_version=D1_SOURCE_CONTRACT_V2,
+        )
+        self.assertEqual(contract["contract_version"], D1_SOURCE_CONTRACT_V2)
+        self.assertEqual(contract["status"], "VERIFIED")
+        self.assertEqual(
+            contract["raw_source_snapshot"]["per_symbol_source_status"]["TEST"],
+            "DATA_MISSING",
+        )
+        self.assertEqual(contract["normalized_prefix_snapshot"]["provider_identity"], "YAHOO_CHART")
+        self.assertEqual(
+            source_contract_descriptor(D1_SOURCE_CONTRACT_V2)["migration_status"],
+            "SUPERSEDED_BEFORE_FIRST_FORMAL_EVIDENCE",
+        )
+        self.assertEqual(
+            contract["decision_snapshot"]["rows"][0]["data_status"],
+            "DATA_MISSING",
+        )
+        self.assertNotIn(
+            "NO_SIGNAL",
+            str(contract["decision_snapshot"]["rows"][0]),
+        )
 
 
 if __name__ == "__main__":

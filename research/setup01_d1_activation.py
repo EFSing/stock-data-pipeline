@@ -21,6 +21,9 @@ from research.setup01_d1_prospective import (
 
 
 ACTIVATION_SCHEMA_VERSION = "setup01-d1-activation-record-v1"
+ACTIVATION_SCHEMA_VERSION_V2 = "setup01-d1-activation-record-v2"
+SOURCE_CONTRACT_V1 = "SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1"
+SOURCE_CONTRACT_V2 = "SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2"
 ACTIVATION_STATUS = "D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{7,64}$", re.IGNORECASE)
@@ -81,6 +84,7 @@ def build_activation_record(
     code_sha: str,
     source_contract: Mapping[str, Any],
     observer_version: str,
+    source_contract_version: str | None = None,
 ) -> dict[str, Any]:
     """Build an activation record without performing any storage write."""
 
@@ -97,12 +101,23 @@ def build_activation_record(
         raise D1IntegrityError("D1_SOURCE_ACTIVATION_CONTRACT_PENDING")
     if not source_contract.get("contract_version"):
         raise ValueError("source contract version is required")
+    selected_contract_version = str(
+        source_contract_version or source_contract.get("contract_version")
+    ).strip()
+    if selected_contract_version not in {SOURCE_CONTRACT_V1, SOURCE_CONTRACT_V2}:
+        raise ValueError("unsupported D1 source contract version")
+    if source_contract.get("contract_version") != selected_contract_version:
+        raise ValueError("source contract version does not match source contract")
 
     activation = _aware_iso(activation_timestamp)
     window = prospective_window(normalized_market, datetime.fromisoformat(activation))
     frozen = _frozen_package()
     record = {
-        "schema_version": ACTIVATION_SCHEMA_VERSION,
+        "schema_version": (
+            ACTIVATION_SCHEMA_VERSION_V2
+            if selected_contract_version == SOURCE_CONTRACT_V2
+            else ACTIVATION_SCHEMA_VERSION
+        ),
         "status": ACTIVATION_STATUS,
         "market": normalized_market,
         "protocol_version": PROTOCOL_VERSION,
@@ -119,6 +134,7 @@ def build_activation_record(
         "final_cutoff_bjt": window["final_cutoff_bjt"],
         "calendar_horizon_status": window["calendar_horizon_status"],
         "source_contract": dict(source_contract),
+        "source_contract_version": selected_contract_version,
         "cost_scenario": dict(source_contract.get("cost_scenario") or {}),
         "observer_version": str(observer_version),
         "research_only": True,
@@ -141,7 +157,8 @@ def validate_activation_record(
 ) -> None:
     """Validate an activation record before it can authorize a commit."""
 
-    if record.get("schema_version") != ACTIVATION_SCHEMA_VERSION:
+    schema_version = record.get("schema_version")
+    if schema_version not in {ACTIVATION_SCHEMA_VERSION, ACTIVATION_SCHEMA_VERSION_V2}:
         raise D1IntegrityError("activation record schema mismatch")
     without_hash = dict(record)
     actual = without_hash.pop("record_sha256", None)
@@ -179,6 +196,15 @@ def validate_activation_record(
     source = record.get("source_contract")
     if not isinstance(source, Mapping) or source.get("status") != "VERIFIED":
         raise D1IntegrityError("activation record source contract mismatch")
+    expected_contract_version = (
+        SOURCE_CONTRACT_V2
+        if schema_version == ACTIVATION_SCHEMA_VERSION_V2
+        else SOURCE_CONTRACT_V1
+    )
+    if record.get("source_contract_version", source.get("contract_version")) != expected_contract_version:
+        raise D1IntegrityError("activation record source contract version mismatch")
+    if source.get("contract_version") != expected_contract_version:
+        raise D1IntegrityError("activation source contract version mismatch")
     if not record.get("observer_version"):
         raise D1IntegrityError("activation record observer version missing")
     if not isinstance(record.get("cost_scenario"), Mapping):
@@ -198,7 +224,10 @@ def session_is_in_activation_window(record: Mapping[str, Any], session_date: str
 
 __all__ = [
     "ACTIVATION_SCHEMA_VERSION",
+    "ACTIVATION_SCHEMA_VERSION_V2",
     "ACTIVATION_STATUS",
+    "SOURCE_CONTRACT_V1",
+    "SOURCE_CONTRACT_V2",
     "build_activation_record",
     "session_is_in_activation_window",
     "validate_activation_record",

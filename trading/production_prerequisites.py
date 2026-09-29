@@ -1429,6 +1429,21 @@ class ProductionInputAdapter:
                     )
                     if extra_detail and status != DATA_OK:
                         detail = str(extra_detail)
+                        # The ephemeral single-source boundary carries the
+                        # precise symbol contract status.  Preserve it in the
+                        # Daily Chain instead of collapsing DATA_MISSING or
+                        # DATA_STALE into the legacy DATA_UNAVAILABLE label.
+                        for canonical_status in (
+                            "DATA_MISSING",
+                            "DATA_STALE",
+                            "DATA_INVALID",
+                            "DATA_ADJUSTMENT_UNVERIFIED",
+                            "PROVIDER_SYMBOL_ERROR",
+                            "PROVIDER_GLOBAL_FAILURE",
+                        ):
+                            if canonical_status in str(extra_detail):
+                                status = canonical_status
+                                break
                     symbol_input = replace(
                         symbol_input,
                         risk_group=group.risk_group if group else None,

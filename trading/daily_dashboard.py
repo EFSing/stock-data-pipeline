@@ -136,7 +136,12 @@ _DATA_BLOCKED_FINAL_STATUSES = {
     "DATA_BLOCKED",
     "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED",
 }
-_DATA_BLOCKED_STATUSES = {"DATA_BAD", "DATA_STALE", "DATA_UNAVAILABLE", "DATA_BLOCKED"}
+_DATA_BLOCKED_STATUSES = {
+    "DATA_BAD", "DATA_STALE", "DATA_UNAVAILABLE", "DATA_BLOCKED",
+    "DATA_MISSING", "DATA_INVALID", "DATA_ADJUSTMENT_UNVERIFIED",
+    "PROVIDER_SYMBOL_ERROR", "PROVIDER_GLOBAL_FAILURE",
+    "DATA_UNAVAILABLE_FOR_DECISION",
+}
 _DATA_BLOCKING_REASONS = {
     "DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION",
     "T1_EXECUTION_DATA_REQUIRED",
@@ -1673,7 +1678,10 @@ def _diagnostic_data_issues(
         for reason in reasons:
             add(row.get("market"), row.get("symbol"), reason)
     cloud_status = _text(cloud.get("status")).upper()
-    if cloud_status in {"FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY"} and not issues:
+    if cloud_status in {
+        "FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY",
+        "PROVIDER_GLOBAL_FAILURE", "COMPLETED_NO_USABLE_SYMBOLS",
+    } and not issues:
         add(market, "系统", f"日报状态：{cloud_status}")
     return [
         {"market": market, "symbol": symbol, "reason": reason}
@@ -1736,7 +1744,10 @@ def _market_status(
         cloud_status = _text(cloud_daily.get("status"))
         if cloud_status == "SKIPPED_NON_SESSION":
             return {"status_key": "SKIPPED_NON_SESSION", "status_label": "非交易日，已跳过"}
-        if cloud_status in {"FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY"}:
+        if cloud_status in {
+            "FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY",
+            "PROVIDER_GLOBAL_FAILURE", "COMPLETED_NO_USABLE_SYMBOLS",
+        }:
             return {"status_key": "DATA_BLOCKED", "status_label": "数据异常"}
     candidate_markets = _mapping(payload.get("candidate_markets"))
     candidate = _mapping(candidate_markets.get(market))

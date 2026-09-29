@@ -40,7 +40,11 @@ from research.setup01_d1_prospective import (
     validate_session_snapshot,
     verify_frozen_protocol,
 )
-from research.setup01_d1_source_contract import D1_SOURCE_CONTRACT_VERSION
+from research.setup01_d1_source_contract import (
+    D1_SOURCE_CONTRACT_V1,
+    D1_SOURCE_CONTRACT_V2,
+    D1_SOURCE_CONTRACT_VERSION,
+)
 
 
 VPS_BACKEND_IDENTITY = "SETUP01_D1_VPS_SSH_DURABLE_STORAGE"
@@ -727,7 +731,8 @@ class VpsD1Store:
         if not snapshot.get("prospective_eligible") or snapshot.get("capture_status") != "COMPLETE":
             raise D1IntegrityError("D1 formal VPS commit requires a complete natural session")
         source = snapshot.get("source_identity") or {}
-        if source.get("source_contract_version") != D1_SOURCE_CONTRACT_VERSION:
+        source_version = source.get("source_contract_version")
+        if source_version not in {D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2}:
             raise D1IntegrityError("D1_SOURCE_ACTIVATION_CONTRACT_PENDING")
         if not source.get("activation_record_sha256"):
             raise D1IntegrityError("D1 activation record binding is missing")
@@ -740,7 +745,7 @@ class VpsD1Store:
         ):
             payload = (components.get(name) or {}).get("payload") or {}
             if (
-                payload.get("contract_version") != D1_SOURCE_CONTRACT_VERSION
+                payload.get("contract_version") != source_version
                 or payload.get("status") != "VERIFIED"
             ):
                 raise D1IntegrityError(f"D1 source contract incomplete: {name}")

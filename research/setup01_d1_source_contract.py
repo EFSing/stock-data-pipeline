@@ -13,6 +13,19 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from core import Quote
+from market_data_contract import (
+    CN_SINGLE_SOURCE_PROVIDER,
+    CN_ADJUSTMENT_ENGINE_VERSION,
+    DATA_ADJUSTMENT_UNVERIFIED,
+    DATA_INVALID,
+    DATA_MISSING,
+    DATA_OK,
+    DATA_STALE,
+    PROVIDER_GLOBAL_FAILURE,
+    PROVIDER_SYMBOL_ERROR,
+    US_ADJUSTMENT_ENGINE_VERSION,
+    US_SINGLE_SOURCE_PROVIDER,
+)
 from research.setup01_d1_prospective import (
     build_session_snapshot,
     content_sha256,
@@ -23,7 +36,13 @@ from trading.models import SetupState
 from trading.setup01_replay import replay_setup01_history
 
 
-D1_SOURCE_CONTRACT_VERSION = "SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1"
+D1_SOURCE_CONTRACT_V1 = "SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1"
+D1_SOURCE_CONTRACT_V2 = "SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2"
+SOURCE_MIGRATION_STATUS = "SUPERSEDED_BEFORE_FIRST_FORMAL_EVIDENCE"
+SOURCE_MIGRATION_REASON = "USER_APPROVED_SINGLE_SOURCE_MARKET_DATA_MIGRATION"
+# The legacy default remains available for frozen V1 fixtures.  The natural
+# collector explicitly requests V2 after a new activation epoch is approved.
+D1_SOURCE_CONTRACT_VERSION = D1_SOURCE_CONTRACT_V1
 
 
 def _safe(value: Any) -> Any:
@@ -92,6 +111,71 @@ def _rows_by_symbol(rows: Sequence[Mapping[str, Any]]) -> dict[str, list[dict[st
     return result
 
 
+def _prefix_status(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    session_date: date,
+) -> str:
+    """Classify one serialized raw/QFQ prefix without comparing vendors."""
+
+    if not rows:
+        return DATA_MISSING
+    dates: list[date] = []
+    try:
+        for row in rows:
+            dates.append(_row_date(row))
+    except (TypeError, ValueError):
+        return DATA_INVALID
+    if any(left >= right for left, right in zip(dates, dates[1:])):
+        return DATA_INVALID
+    if any(value > session_date for value in dates):
+        return DATA_INVALID
+    if dates[-1] < session_date:
+        return DATA_STALE
+    if dates[-1] > session_date:
+        return DATA_INVALID
+    return DATA_OK
+
+
+def _symbol_runtime_error_text(
+    symbol: str,
+    *,
+    market: str,
+    deep_errors: Mapping[str, Any],
+    runtime_errors: Sequence[str],
+) -> str:
+    values = [str(value) for value in (deep_errors.get(symbol) or ())]
+    symbol_prefixes = (
+        f"{symbol}:".upper(),
+        f"{market}|{symbol}:".upper(),
+    )
+    for value in runtime_errors:
+        normalized = str(value).upper()
+        if normalized.startswith(symbol_prefixes) or any(
+            marker in normalized for marker in ("PROVIDER_GLOBAL_FAILURE", "AUTH_MISSING", "SCHEMA_INVALID")
+        ):
+            values.append(str(value))
+    return "|".join(values).upper()
+
+
+def _status_from_runtime_error(text: str) -> str | None:
+    if not text:
+        return None
+    if any(marker in text for marker in ("PROVIDER_GLOBAL_FAILURE", "AUTH_MISSING", "SCHEMA_INVALID")):
+        return PROVIDER_GLOBAL_FAILURE
+    if "ADJUSTMENT_UNVERIFIED" in text:
+        return DATA_ADJUSTMENT_UNVERIFIED
+    if "PROVIDER_SYMBOL_ERROR" in text or "SYMBOL_ERROR" in text:
+        return PROVIDER_SYMBOL_ERROR
+    if "STALE" in text or "EXACT_T" in text:
+        return DATA_STALE
+    if "MISSING" in text or "UNAVAILABLE" in text:
+        return DATA_MISSING
+    if "INVALID" in text or "DATA_BAD" in text:
+        return DATA_INVALID
+    return None
+
+
 def _seed_row(seed: Any) -> dict[str, Any]:
     board_rule = getattr(seed, "board_rule", None)
     return {
@@ -153,6 +237,7 @@ def _observer_rows(
     session_date: date,
     qfq_by_symbol: Mapping[str, Sequence[Mapping[str, Any]]],
     first_session: date | None,
+    contract_version: str = D1_SOURCE_CONTRACT_VERSION,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     outputs: list[dict[str, Any]] = []
     follow_up: list[dict[str, Any]] = []
@@ -200,7 +285,7 @@ def _observer_rows(
             outputs.extend(unique_events)
             if not anchors:
                 outputs.append({
-                    "event_id": f"{D1_SOURCE_CONTRACT_VERSION}|{market}|{symbol}|{session_date.isoformat()}|NO_SIGNAL",
+                    "event_id": f"{contract_version}|{market}|{symbol}|{session_date.isoformat()}|NO_SIGNAL",
                     "observer_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
                     "symbol": symbol,
                     "market": market,
@@ -213,7 +298,7 @@ def _observer_rows(
                 })
             elif not ({"PATH_A_SIGNAL", "PATH_B_SIGNAL"} & event_types):
                 outputs.append({
-                    "event_id": f"{D1_SOURCE_CONTRACT_VERSION}|{market}|{symbol}|{session_date.isoformat()}|NO_SIGNAL",
+                    "event_id": f"{contract_version}|{market}|{symbol}|{session_date.isoformat()}|NO_SIGNAL",
                     "observer_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
                     "symbol": symbol,
                     "market": market,
@@ -227,7 +312,7 @@ def _observer_rows(
         except Exception as exc:
             errors.append(f"{market}|{symbol}:{type(exc).__name__}:{exc}")
             outputs.append({
-                "event_id": f"{D1_SOURCE_CONTRACT_VERSION}|{market}|{symbol}|{session_date.isoformat()}|DATA_MISSING",
+                "event_id": f"{contract_version}|{market}|{symbol}|{session_date.isoformat()}|DATA_MISSING",
                 "observer_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
                 "symbol": symbol,
                 "market": market,
@@ -247,12 +332,23 @@ def _cost_scenario() -> dict[str, Any]:
     return dict(value.get("cost_scenarios") or {})
 
 
-def source_contract_descriptor() -> dict[str, Any]:
+def source_contract_descriptor(
+    contract_version: str = D1_SOURCE_CONTRACT_VERSION,
+) -> dict[str, Any]:
     """Return the code-level readiness descriptor used before first natural data."""
 
     return {
-        "contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "contract_version": str(contract_version),
         "status": "VERIFIED",
+        **(
+            {
+                "migration_status": SOURCE_MIGRATION_STATUS,
+                "migration_reason": SOURCE_MIGRATION_REASON,
+                "formal_evidence_required_before_activation": 0,
+            }
+            if contract_version == D1_SOURCE_CONTRACT_V2
+            else {}
+        ),
         "observer_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
         "required_components": [
             "universe_snapshot",
@@ -261,8 +357,16 @@ def source_contract_descriptor() -> dict[str, Any]:
             "decision_snapshot",
             "research_observation_report",
         ],
-        "raw_source": "PUBLIC_CANDIDATE_RUNTIME_STAGE_A_PREFIX",
-        "normalized_prefix": "PUBLIC_CANDIDATE_RUNTIME_QFQ_EXACT_T_PREFIX",
+        "raw_source": (
+            "SINGLE_SOURCE_MARKET_DATA_V1_RAW_STAGE_A_PREFIX"
+            if contract_version == D1_SOURCE_CONTRACT_V2
+            else "PUBLIC_CANDIDATE_RUNTIME_STAGE_A_PREFIX"
+        ),
+        "normalized_prefix": (
+            "SINGLE_SOURCE_MARKET_DATA_V1_QFQ_EXACT_T_PREFIX"
+            if contract_version == D1_SOURCE_CONTRACT_V2
+            else "PUBLIC_CANDIDATE_RUNTIME_QFQ_EXACT_T_PREFIX"
+        ),
         "causal_observer": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
         "public_private_isolation": "PUBLIC_MARKET_RESEARCH_ONLY_NO_HOLDINGS",
         "cost_scenario": _cost_scenario(),
@@ -275,9 +379,13 @@ def build_d1_source_contract(
     session_identity: Mapping[str, Any],
     acquired_at: str,
     activation_record: Mapping[str, Any] | None = None,
+    contract_version: str = D1_SOURCE_CONTRACT_VERSION,
 ) -> dict[str, Any]:
     """Project a Candidate runtime into the five D1 source/observer inputs."""
 
+    contract_version = str(contract_version).strip()
+    if contract_version not in {D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2}:
+        raise ValueError(f"unsupported D1 source contract version: {contract_version}")
     market = str(getattr(runtime, "market", "")).upper()
     session_date = getattr(runtime, "as_of_date", None)
     if market not in {"CN", "US"} or not isinstance(session_date, date):
@@ -343,6 +451,7 @@ def build_d1_source_contract(
         session_date=session_date,
         qfq_by_symbol=qfq_by_symbol,
         first_session=first_session,
+        contract_version=contract_version,
     )
     members = []
     included_symbols = {
@@ -377,25 +486,140 @@ def build_d1_source_contract(
         for values in qfq_by_symbol.values()
     ):
         incomplete.append("QFQ_PREFIX_NOT_EXACT_T")
-    status = "VERIFIED" if not incomplete else "INCOMPLETE"
+    attempted_symbols = sorted(
+        {
+            str(getattr(seed, "symbol", "")).strip().upper()
+            for seed in seeds
+            if str(getattr(seed, "symbol", "")).strip()
+        }
+    )
+    deep_errors = getattr(runtime, "deep_errors", {}) or {}
+    provider_contract = _safe(getattr(runtime, "qfq_contract", {}))
+    per_symbol_provenance = _safe(getattr(runtime, "source_provenance", {}) or {})
+    provider_identity = str(provider_contract.get("market_data_provider") or "UNKNOWN")
+    qfq_contract_text = str(provider_contract.get("qfq") or "")
+    expected_provider = (
+        CN_SINGLE_SOURCE_PROVIDER if market == "CN" else US_SINGLE_SOURCE_PROVIDER
+    )
+    expected_adjustment_engine = (
+        CN_ADJUSTMENT_ENGINE_VERSION
+        if market == "CN"
+        else US_ADJUSTMENT_ENGINE_VERSION
+    )
+    v2_contract_errors: list[str] = []
+    if contract_version == D1_SOURCE_CONTRACT_V2:
+        if provider_identity != expected_provider:
+            v2_contract_errors.append(
+                f"PROVIDER_CONTRACT_PROVIDER_MISMATCH:{provider_identity}!={expected_provider}"
+            )
+        if expected_adjustment_engine not in qfq_contract_text:
+            v2_contract_errors.append(
+                f"PROVIDER_CONTRACT_ADJUSTMENT_ENGINE_MISMATCH:{qfq_contract_text}"
+            )
+        identity_market = str(session_identity.get("market") or "").upper()
+        identity_date = str(session_identity.get("trade_date") or "")[:10]
+        if identity_market != market or identity_date != session_date.isoformat():
+            v2_contract_errors.append("CANDIDATE_SESSION_IDENTITY_MISMATCH")
+        if not str(session_identity.get("identity") or "").strip():
+            v2_contract_errors.append("COMPLETED_SESSION_IDENTITY_MISSING")
+        if not bool(session_identity.get("exact_exchange_calendar")):
+            v2_contract_errors.append("COMPLETED_SESSION_CALENDAR_NOT_EXACT")
+    per_symbol_source_status: dict[str, str] = {}
+    for symbol in attempted_symbols:
+        qfq_values = qfq_by_symbol.get(symbol, ())
+        raw_status = _prefix_status(raw_by_symbol.get(symbol, ()), session_date=session_date)
+        qfq_status = _prefix_status(qfq_values, session_date=session_date)
+        runtime_status = _status_from_runtime_error(
+            _symbol_runtime_error_text(
+                symbol,
+                market=market,
+                deep_errors=deep_errors,
+                runtime_errors=runtime_errors,
+            )
+        )
+        if runtime_status is not None:
+            per_symbol_source_status[symbol] = runtime_status
+        elif raw_status == DATA_OK and qfq_status == DATA_OK:
+            per_symbol_source_status[symbol] = DATA_OK
+        elif DATA_MISSING in {raw_status, qfq_status}:
+            per_symbol_source_status[symbol] = DATA_MISSING
+        elif DATA_INVALID in {raw_status, qfq_status}:
+            per_symbol_source_status[symbol] = DATA_INVALID
+        elif DATA_STALE in {raw_status, qfq_status}:
+            per_symbol_source_status[symbol] = DATA_STALE
+        else:
+            per_symbol_source_status[symbol] = DATA_INVALID
+    provider_global_failure = any(
+        "PROVIDER_GLOBAL_FAILURE" in value or "AUTH_MISSING" in value or "SCHEMA_INVALID" in value
+        for value in runtime_errors
+    )
+    provider_global_failure = provider_global_failure or any(
+        _status_from_runtime_error(
+            _symbol_runtime_error_text(
+                symbol,
+                market=market,
+                deep_errors=deep_errors,
+                runtime_errors=runtime_errors,
+            )
+        )
+        == PROVIDER_GLOBAL_FAILURE
+        for symbol in attempted_symbols
+    )
+    if contract_version == D1_SOURCE_CONTRACT_V2:
+        # V2 treats symbol failures as data-plane diagnostics.  The formal
+        # session remains committable when the provider/session contract is
+        # exact and the attempted universe is explicit.  A seed or
+        # provider-wide failure still blocks the formal commit.
+        blocking_errors = [
+            value for value in runtime_errors
+            if value.startswith("SEED_METADATA_")
+            or value.startswith("CANDIDATE_SESSION_")
+            or value.startswith("COMPLETED_SESSION_")
+        ]
+        blocking_errors.extend(v2_contract_errors)
+        status = (
+            "VERIFIED"
+            if attempted_symbols and not provider_global_failure and not blocking_errors
+            else "INCOMPLETE"
+        )
+    else:
+        status = "VERIFIED" if not incomplete else "INCOMPLETE"
     raw_source = {
-        "contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "contract_version": contract_version,
         "status": status,
         "market": market,
         "session_date": session_date.isoformat(),
         "acquired_at": acquired_at,
         "source_identity": {
             "seed_source": str(getattr(runtime, "qfq_contract", {}).get("seed") or "UNKNOWN"),
-            "raw_history_source": "EXISTING_CANDIDATE_RUNTIME_STAGE_A",
-            "qfq_source": str(getattr(runtime, "qfq_contract", {}).get("qfq") or "UNKNOWN"),
+            "raw_history_source": (
+                str(provider_contract.get("market_data_provider") or "UNKNOWN")
+                if contract_version == D1_SOURCE_CONTRACT_V2
+                else "EXISTING_CANDIDATE_RUNTIME_STAGE_A"
+            ),
+            "qfq_source": str(provider_contract.get("qfq") or "UNKNOWN"),
+            "provider_identity": provider_identity,
+            "adjustment_engine_version": (
+                "CN_FORWARD_ADJUSTMENT_ENGINE_V1"
+                if market == "CN" and contract_version == D1_SOURCE_CONTRACT_V2
+                else "YAHOO_CHART_ADJCLOSE_ENGINE_V1"
+                if market == "US" and contract_version == D1_SOURCE_CONTRACT_V2
+                else None
+            ),
             "seed_source_as_of": _safe(getattr(runtime, "seed_source_as_of", None)),
         },
+        "attempted_universe": attempted_symbols,
+        "usable_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == "DATA_OK"),
+        "missing_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == "DATA_MISSING"),
+        "invalid_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value != "DATA_OK" and value != "DATA_MISSING"),
+        "per_symbol_source_status": dict(sorted(per_symbol_source_status.items())),
+        "per_symbol_provenance": per_symbol_provenance,
         "raw_prefix_by_symbol": raw_by_symbol,
         "raw_prefix_sha256": content_sha256(raw_by_symbol),
         "provider_contract": _safe(getattr(runtime, "qfq_contract", {})),
     }
     normalized = {
-        "contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "contract_version": contract_version,
         "status": status,
         "adjustment": "前复权",
         "market": market,
@@ -405,29 +629,44 @@ def build_d1_source_contract(
         "qfq_prefix_by_symbol": _safe(qfq_by_symbol),
         "qfq_prefix_sha256": content_sha256(qfq_by_symbol),
         "exact_session_identity": _safe(session_identity),
+        "provider_identity": provider_identity,
+        "adjustment_engine_version": (
+            "CN_FORWARD_ADJUSTMENT_ENGINE_V1" if market == "CN" and contract_version == D1_SOURCE_CONTRACT_V2
+            else "YAHOO_CHART_ADJCLOSE_ENGINE_V1" if market == "US" and contract_version == D1_SOURCE_CONTRACT_V2
+            else None
+        ),
+        "per_symbol_provenance": per_symbol_provenance,
+        "attempted_universe": attempted_symbols,
+        "usable_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == "DATA_OK"),
+        "missing_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == DATA_MISSING),
+        "invalid_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value != DATA_OK and value != DATA_MISSING),
     }
     decision_rows = []
-    for symbol in sorted(set(included_symbols) | set(qfq_by_symbol)):
+    decision_symbols = set(included_symbols) | set(qfq_by_symbol)
+    if contract_version == D1_SOURCE_CONTRACT_V2:
+        decision_symbols |= set(attempted_symbols)
+    for symbol in sorted(decision_symbols):
         decision_rows.append({
             "symbol": symbol,
             "market": market,
             "session_date": session_date.isoformat(),
-            "data_status": "DATA_OK" if symbol in deep_ready else "DATA_BLOCKED",
+            "data_status": per_symbol_source_status.get(symbol, "DATA_MISSING") if contract_version == D1_SOURCE_CONTRACT_V2 else "DATA_OK" if symbol in deep_ready else "DATA_BLOCKED",
             "research_overlay_only": True,
             "formal_entry_allowed": False,
             "real_fill_evidence": False,
             "production_state_write": False,
         })
     decision = {
-        "contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "contract_version": contract_version,
         "status": status,
         "session_identity": _safe(session_identity),
         "rows": decision_rows,
         "runtime_status": getattr(runtime, "status", None),
         "runtime_protocol": _safe(getattr(runtime, "qfq_contract", {})),
+        "per_symbol_source_status": dict(sorted(per_symbol_source_status.items())),
     }
     research = {
-        "contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "contract_version": contract_version,
         "status": status,
         "observer_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
         "session_identity": _safe(session_identity),
@@ -437,22 +676,30 @@ def build_d1_source_contract(
         "observer_output_sha256": content_sha256(observer_outputs),
         "cost_scenario": _cost_scenario(),
         "errors": sorted(set(incomplete)),
+        "attempted_universe": attempted_symbols,
+        "usable_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == "DATA_OK"),
+        "missing_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == DATA_MISSING),
+        "invalid_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value != DATA_OK and value != DATA_MISSING),
         "formal_entry_allowed": False,
         "real_fill_evidence": False,
     }
     return {
-        "contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "contract_version": contract_version,
         "status": status,
         "market": market,
         "session_date": session_date.isoformat(),
         "acquired_at": acquired_at,
         "session_identity": _safe(session_identity),
         "source_identity": {
-            "provider": "SETUP01_D1_PUBLIC_CANDIDATE_RUNTIME",
+            "provider": (
+                provider_identity
+                if contract_version == D1_SOURCE_CONTRACT_V2
+                else "SETUP01_D1_PUBLIC_CANDIDATE_RUNTIME"
+            ),
             "source_date": session_date.isoformat(),
             "obtained_at": acquired_at,
             "session_identity": _safe(session_identity),
-            "source_contract_version": D1_SOURCE_CONTRACT_VERSION,
+            "source_contract_version": contract_version,
             **({"activation_record_sha256": activation_record.get("record_sha256")} if activation_record else {}),
         },
         "universe_snapshot": {
@@ -474,6 +721,7 @@ def build_d1_snapshot_from_candidate_runtime(
     session_identity: Mapping[str, Any],
     acquired_at: str,
     activation_record: Mapping[str, Any] | None = None,
+    contract_version: str = D1_SOURCE_CONTRACT_VERSION,
 ) -> dict[str, Any]:
     """Build the immutable snapshot used by the durable natural collector."""
 
@@ -482,6 +730,7 @@ def build_d1_snapshot_from_candidate_runtime(
         session_identity=session_identity,
         acquired_at=acquired_at,
         activation_record=activation_record,
+        contract_version=contract_version,
     )
     capture_status = "COMPLETE" if contract["status"] == "VERIFIED" else "DATA_MISSING"
     report = dict(contract["research_observation_report"])
@@ -516,7 +765,11 @@ def build_d1_snapshot_from_candidate_runtime(
 
 
 __all__ = [
+    "D1_SOURCE_CONTRACT_V1",
+    "D1_SOURCE_CONTRACT_V2",
     "D1_SOURCE_CONTRACT_VERSION",
+    "SOURCE_MIGRATION_REASON",
+    "SOURCE_MIGRATION_STATUS",
     "build_d1_snapshot_from_candidate_runtime",
     "build_d1_source_contract",
     "source_contract_descriptor",

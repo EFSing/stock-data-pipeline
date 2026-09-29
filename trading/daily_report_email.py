@@ -29,6 +29,9 @@ _STATUS_LABELS = {
     "SKIPPED_NON_SESSION": "非交易日，已跳过",
     "INCOMPLETE_SESSION": "尚未收盘，本次未生成交易信号",
     "PARTIAL_DATA_QUALITY": "部分数据异常",
+    "COMPLETED_WITH_DATA_ERRORS": "运行完成，但部分标的数据异常",
+    "COMPLETED_NO_USABLE_SYMBOLS": "运行完成，但没有可用标的",
+    "PROVIDER_GLOBAL_FAILURE": "供应商全局故障",
     "FAILED": "数据异常",
 }
 _MARKET_LABELS = {"CN": "A股", "US": "美股"}
@@ -629,6 +632,26 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     market = _market_text(projection)
     trade_date = _escape(projection.get("as_of_date"))
     status = _escape(_status(projection))
+    cloud = _mapping(projection.get("cloud_daily_report"))
+    quality = _mapping(cloud.get("data_quality"))
+    run_status = _escape(cloud.get("run_status") or quality.get("run_status") or "UNKNOWN")
+    data_status = _escape(cloud.get("data_status") or quality.get("data_status") or "UNKNOWN")
+    coverage = _escape(quality.get("coverage_pct"), "—")
+    attempted = _escape(quality.get("attempted_universe"), "—")
+    data_ok = _escape(quality.get("data_ok_count"), "—")
+    failed_count = _escape(quality.get("failed_count"), "—")
+    analyzed = _escape(quality.get("strategy_analyzed_count"), "—")
+    blocked = _escape(quality.get("blocked_count"), "—")
+    failed_by_reason = _mapping(quality.get("failed_by_reason"))
+    reason_text = "、".join(
+        f"{_escape(key)}={len(value) if isinstance(value, (list, tuple, set)) else 1}"
+        for key, value in sorted(failed_by_reason.items())
+    ) or "无"
+    failed_symbols = "、".join(
+        _escape(value)
+        for value in _sequence(quality.get("failed_symbols"))[:EMAIL_MAX_HIGHLIGHTS]
+        if _text(value)
+    )
     title = _escape(projection.get("title"), "收盘交易决策日报")
 
     groups: list[str] = []
@@ -671,11 +694,17 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>市场</strong>：{html.escape(market, quote=True)}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>T</strong>：{trade_date}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>数据状态</strong>：{status}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>RUN_STATUS</strong>：{run_status}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>DATA_STATUS</strong>：{data_status}；覆盖率：{coverage}%</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>尝试标的</strong>：{attempted}；DATA_OK：{data_ok}；失败：{failed_count}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>策略分析</strong>：{analyzed}；数据阻断：{blocked}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>失败原因</strong>：{reason_text}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>新确认数量</strong>：{summary["new_confirmed"]}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>等待确认数量</strong>：{summary["armed"]}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>交易方案数量</strong>：{summary["plans"]}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>策略跟踪持仓数量</strong>：{summary["positions"]}</div>'
          f'<div style="padding:4px 0;"><strong>数据异常数量</strong>：{summary["data_issues"]}</div>'
+         f'<div style="padding:4px 0;border-top:1px solid #edf0f4;"><strong>异常标的</strong>：{failed_symbols or "无"}</div>'
          f'<div style="padding:4px 0;border-top:1px solid #edf0f4;"><strong>完整 HTML 实际分析覆盖</strong>：{len(all_rows)} 只；邮件重点摘要：{len(displayed_rows)} 只</div>'
          "</td></tr>"
          + _alert_html(projection, summary["data_issues"])

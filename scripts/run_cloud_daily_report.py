@@ -141,18 +141,36 @@ def _status_from_result(
 ) -> tuple[str, dict[str, Any]]:
     preflight = result.get("preflight") if isinstance(result.get("preflight"), Mapping) else {}
     report_values = result.get("reports") if isinstance(result.get("reports"), list) else []
-    counts = {"DATA_OK": 0, "DATA_BAD": 0, "DATA_STALE": 0, "DATA_UNAVAILABLE": 0}
+    counts: dict[str, int] = {
+        "DATA_OK": 0,
+        "DATA_MISSING": 0,
+        "DATA_STALE": 0,
+        "DATA_INVALID": 0,
+        "DATA_ADJUSTMENT_UNVERIFIED": 0,
+        "PROVIDER_SYMBOL_ERROR": 0,
+        "PROVIDER_GLOBAL_FAILURE": 0,
+        "DATA_BAD": 0,
+        "DATA_UNAVAILABLE": 0,
+    }
     failed_symbols: set[str] = set()
+    reported_symbols: set[str] = set()
     for entry in report_values:
         report = entry.get("报告") if isinstance(entry, Mapping) else {}
         for row in report.get("results", []) if isinstance(report, Mapping) else []:
+            symbol = str(row.get("symbol") or row.get("统一代码") or "")
+            if symbol:
+                reported_symbols.add(symbol)
             status = str(row.get("data_status") or "").upper()
             if status in counts:
                 counts[status] += 1
             if status and status != "DATA_OK":
-                failed_symbols.add(str(row.get("symbol") or ""))
+                failed_symbols.add(symbol)
     for symbol, item in ephemeral.symbol_status.items():
-        if item.get("errors"):
+        if symbol not in reported_symbols:
+            status = str(item.get("status") or "").upper()
+            if status in counts:
+                counts[status] += 1
+        if item.get("errors") or item.get("status") not in {None, "DATA_OK"}:
             failed_symbols.add(symbol)
     preflight_ready = str(preflight.get("production readiness") or "") == "READY"
     preflight_errors = tuple(str(value) for value in (preflight.get("errors") or ()) if value)
@@ -233,13 +251,21 @@ def _status_from_result(
             f"{ephemeral.market} Candidate status: NOT_REPORTED"
         )
     candidate_failed = bool(candidate_errors) or bool(candidate_quality_errors)
-    has_data_issue = bool(ephemeral.errors) or bool(failed_symbols) or not preflight_ready or candidate_failed
-    if not report_values and not preflight_ready:
-        status = "FAILED"
-    elif has_data_issue:
-        status = "PARTIAL_DATA_QUALITY"
-    else:
-        status = "SUCCESS"
+    attempted = len(ephemeral.required_symbols)
+    data_ok = sum(
+        1 for item in ephemeral.symbol_status.values() if item.get("status") == "DATA_OK"
+    )
+    symbol_failures = bool(failed_symbols) or data_ok < attempted
+    provider_global_failure = any(
+        bool(item.get("global_failure")) for item in ephemeral.provider_status.values()
+    )
+    data_status = (
+        "NO_USABLE_SYMBOLS"
+        if attempted and data_ok == 0
+        else "PARTIAL"
+        if symbol_failures or bool(ephemeral.errors) or candidate_failed
+        else "OK"
+    )
     # A warning report may complete operationally without upgrading its quality.
     rows = [row for entry in report_values for row in entry.get("报告", {}).get("results", [])]
     exact_rows = [row for row in rows if row.get("market") == ephemeral.market
@@ -248,7 +274,7 @@ def _status_from_result(
     latest_symbols = {str(row.get("统一代码")) for row in ephemeral.latest_rows
                       if str(row.get("交易日期")) == ephemeral.as_of_date.isoformat()
                       and str(row.get("市场")) == ephemeral.market
-                      and row.get("校验状态") in {"已验证", "单源可用"}}
+                      and row.get("校验状态") in {"已验证", "单源可用", "DATA_OK"}}
     qfq_symbols = {str(row.get("统一代码")) for row in ephemeral.qfq_rows
                    if str(row.get("交易日期")) == ephemeral.as_of_date.isoformat()
                    and str(row.get("市场")) == ephemeral.market}
@@ -258,19 +284,78 @@ def _status_from_result(
     core_failed = core_failed or any(
         "EVALUATION_FAILED" in str((row.get("position_management") or {}).get("status", ""))
         for row in rows)
-    operationally_complete = bool(report_values) and not core_failed and bool(
-        exact_rows or latest_symbols.intersection(qfq_symbols))
+    canonical_no_usable = data_status == "NO_USABLE_SYMBOLS" and any(
+        item.get("status") in {
+            "DATA_MISSING", "DATA_STALE", "DATA_INVALID",
+            "DATA_ADJUSTMENT_UNVERIFIED", "PROVIDER_SYMBOL_ERROR",
+            "PROVIDER_GLOBAL_FAILURE",
+        }
+        for item in ephemeral.symbol_status.values()
+    )
+    has_exact_market_data = bool(exact_rows or latest_symbols.intersection(qfq_symbols))
+    operationally_complete = (
+        bool(report_values)
+        and not core_failed
+        and (has_exact_market_data or canonical_no_usable)
+    )
+    if provider_global_failure:
+        run_status = "PROVIDER_GLOBAL_FAILURE"
+    elif not preflight_ready and not report_values:
+        run_status = "FAILED"
+    elif core_failed:
+        run_status = "FAILED"
+    elif data_status == "NO_USABLE_SYMBOLS":
+        run_status = "COMPLETED_NO_USABLE_SYMBOLS"
+    else:
+        run_status = "COMPLETED"
+    # Keep the historical status token as a display/API compatibility alias;
+    # callers must use run_status and data_status for exit semantics.
+    status = (
+        "FAILED"
+        if run_status == "FAILED"
+        else "PROVIDER_GLOBAL_FAILURE"
+        if run_status == "PROVIDER_GLOBAL_FAILURE"
+        else "PARTIAL_DATA_QUALITY"
+        if run_status == "COMPLETED_NO_USABLE_SYMBOLS"
+        else "PARTIAL_DATA_QUALITY"
+        if data_status != "OK"
+        else "SUCCESS"
+    )
+    coverage_ratio = data_ok / attempted if attempted else 1.0
     quality = {
         "status": status,
+        "run_status": run_status,
+        "data_status": data_status,
+        "attempted_universe": attempted,
+        "data_ok_count": data_ok,
+        "failed_count": max(attempted - data_ok, 0),
+        "coverage_ratio": coverage_ratio,
+        "coverage_pct": round(coverage_ratio * 100, 2),
+        "strategy_analyzed_count": len(exact_rows),
+        "blocked_count": max(attempted - len(exact_rows), 0),
+        "strategy_blocked_count": max(attempted - len(exact_rows), 0),
         "operationally_complete": operationally_complete,
         "counts": counts,
         "failed_symbols": sorted(symbol for symbol in failed_symbols if symbol),
+        "failed_by_reason": {
+            status_name: sorted(
+                symbol
+                for symbol, item in ephemeral.symbol_status.items()
+                if item.get("status") == status_name
+            )
+            for status_name in sorted({
+                str(item.get("status"))
+                for item in ephemeral.symbol_status.values()
+                if item.get("status") not in {None, "DATA_OK"}
+            })
+        },
         "ephemeral_errors": list(ephemeral.errors),
         "preflight_errors": list(preflight_errors),
         "candidate_runtime_errors": dict(candidate_errors) if isinstance(candidate_errors, Mapping) else {},
         "candidate_quality_errors": list(dict.fromkeys(candidate_quality_errors)),
         "preflight_ready": preflight_ready,
         "candidate_runtime_failed": candidate_failed,
+        "provider_global_failure": provider_global_failure,
     }
     return status, quality
 
@@ -325,7 +410,7 @@ def _reliability_classification(
         return "INCOMPLETE_SESSION"
     if status == "PARTIAL_DATA_QUALITY":
         return "DATA_QUALITY_PARTIAL"
-    if status == "FAILED":
+    if status in {"FAILED", "PROVIDER_GLOBAL_FAILURE"}:
         return "PROVIDER_FAILURE"
     if automatic_scheduler_delay:
         return "SCHEDULER_DELAY"
@@ -422,6 +507,10 @@ def _cloud_metadata(
         "git_sha": _git_sha(),
         "generated_at": generated_at.isoformat(),
         "status": status,
+        "RUN_STATUS": data_quality.get("run_status", status),
+        "DATA_STATUS": data_quality.get("data_status", data_quality.get("status", "UNKNOWN")),
+        "run_status": data_quality.get("run_status", status),
+        "data_status": data_quality.get("data_status", data_quality.get("status", "UNKNOWN")),
         "reliability_classification": reliability_classification or status,
         "session_identity": _session_payload(session_identity),
         "session_resolution": dict(session_resolution or {}),
@@ -603,13 +692,43 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     market = str(cloud.get("market") or "").upper()
     label = MARKET_LABELS.get(market, market or "市场")
     status = str(cloud.get("status") or "FAILED")
+    run_status = str(cloud.get("run_status") or cloud.get("RUN_STATUS") or status)
+    data_status = str(cloud.get("data_status") or cloud.get("DATA_STATUS") or "UNKNOWN")
     projection = build_dashboard_projection(payload)
     summary = projection.get("summary", {})
     freshness = projection.get("freshness_funnel", {})
     plan_count = int(summary.get("strategy_proposal_count", 0) or 0) + int(
         summary.get("entry_allowed_count", 0) or 0
     )
-    if status in {"SUCCESS", "SKIPPED_NON_SESSION"}:
+    if run_status in {"COMPLETED", "COMPLETED_NO_USABLE_SYMBOLS"}:
+        failed = ((cloud.get("data_quality") or {}).get("failed_symbols") or [])
+        quality = cloud.get("data_quality") or {}
+        attempted = quality.get("attempted_universe", "—")
+        data_ok = quality.get("data_ok_count", "—")
+        failed_count = quality.get("failed_count", "—")
+        analyzed = quality.get("strategy_analyzed_count", "—")
+        blocked = quality.get("blocked_count", "—")
+        reasons = quality.get("failed_by_reason") or {}
+        reason_text = "、".join(
+            f"{key}={len(values) if isinstance(values, (list, tuple, set)) else 1}"
+            for key, values in sorted(reasons.items())
+        ) or "无"
+        title = f"{label}日报完成" if run_status == "COMPLETED" else f"{label}日报完成但无可用标的"
+        body = (
+            f"市场：{label}\n"
+            f"数据日期：{projection.get('as_of_date', '—')}\n"
+            f"RUN_STATUS：{run_status}\n"
+            f"DATA_STATUS：{data_status}\n"
+            f"尝试标的：{attempted}；DATA_OK：{data_ok}；失败：{failed_count}\n"
+            f"覆盖率：{(cloud.get('data_quality') or {}).get('coverage_pct', '—')}%\n"
+            f"策略分析：{analyzed}；数据阻断：{blocked}\n"
+            f"失败原因：{reason_text}\n"
+            f"异常标的：{', '.join(failed[:20]) or '无'}\n"
+            f"新确认：{summary.get('new_confirmed_count', 0)}\n"
+            f"交易方案：{plan_count}\n"
+            "有效数据标的继续完成策略分析；异常标的仅本标的阻断。"
+        )
+    elif status in {"SUCCESS", "SKIPPED_NON_SESSION"}:
         title = f"{label}日报完成"
         body = (
             f"市场：{label}\n"
@@ -952,10 +1071,16 @@ def main(argv: list[str] | None = None) -> int:
         automatic_resolution=args.trade_date is None,
     )
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))
-    status = str(payload.get("cloud_daily_report", {}).get("status") or "FAILED")
-    if status in {"SUCCESS", "SKIPPED_NON_SESSION"}:
-        return 0
     metadata = payload.get("cloud_daily_report", {})
+    status = str(metadata.get("status") or "FAILED")
+    run_status = str(metadata.get("run_status") or metadata.get("RUN_STATUS") or status)
+    data_status = str(metadata.get("data_status") or metadata.get("DATA_STATUS") or "UNKNOWN")
+    if status in {"SUCCESS", "SKIPPED_NON_SESSION"} or run_status in {
+        "COMPLETED", "COMPLETED_NO_USABLE_SYMBOLS"
+    }:
+        if args.require_complete and data_status != "OK" and run_status.startswith("COMPLETED"):
+            return 2
+        return 0
     partial_complete = (status == "PARTIAL_DATA_QUALITY"
                         and metadata.get("calendar_gate") == "EXACT_COMPLETED_SESSION"
                         and metadata.get("data_quality", {}).get("operationally_complete")

@@ -1,0 +1,37 @@
+{
+  "protocol_version": "SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2",
+  "status": "PROSPECTIVE_ONLY_UNTIL_NEW_ACTIVATION",
+  "migration_status": "SUPERSEDED_BEFORE_FIRST_FORMAL_EVIDENCE",
+  "migration_reason": "USER_APPROVED_SINGLE_SOURCE_MARKET_DATA_MIGRATION",
+  "formal_evidence_required_before_activation": 0,
+  "scope": "SETUP_01_D1_PUBLIC_MARKET_RESEARCH_ONLY",
+  "provider_rule": "ONE_MARKET_ONE_MARKET_DATA_VENDOR",
+  "markets": {
+    "CN": {
+      "provider_identity": "HITHINK_FINANCIAL_API",
+      "raw_history": "adjust=none",
+      "corporate_actions": "HITHINK_FINANCIAL_API",
+      "adjustment_engine_version": "CN_FORWARD_ADJUSTMENT_ENGINE_V1"
+    },
+    "US": {
+      "provider_identity": "YAHOO_CHART",
+      "raw_history": "Yahoo Chart /v8/finance/chart",
+      "corporate_actions": "Yahoo Chart adjclose",
+      "adjustment_engine_version": "YAHOO_CHART_ADJCLOSE_ENGINE_V1"
+    }
+  },
+  "required_snapshot_fields": [
+    "attempted_universe",
+    "usable_symbols",
+    "missing_symbols",
+    "invalid_symbols",
+    "per_symbol_source_status",
+    "provider_identity",
+    "adjustment_engine_version",
+    "exact_session_identity"
+  ],
+  "symbol_failure_rule": "THIS_SYMBOL_BLOCKED",
+  "formal_commit_rule": "EXACT_SESSION_AND_SOURCE_CONTRACT_MAY_COMMIT_WITH_SYMBOL_LEVEL_PARTIAL_DATA",
+  "future_data_rule": "SIGNAL_T_USES_DATA_LE_T_ONLY",
+  "private_data_rule": "NO_HOLDINGS_OR_ACCOUNT_DATA"
+}

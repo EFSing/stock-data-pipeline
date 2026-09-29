@@ -4,7 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-29（D1 durable backend 已 provision 到用户自有 Ubuntu VPS 并通过
+> 最后实质更新：2026-09-29（生产 CN/US 已收敛到 `SINGLE_SOURCE_MARKET_DATA_V1`，D1
+> V2 migration gate 已加入；D1 durable backend 已 provision 到用户自有 Ubuntu VPS 并通过
 > 真实 synthetic validation，CN/US activation record 已建立、等待首个自然 session；新增
 > shared exact completed-session resolver、close-to-next-open reconciliation、Cloudflare/VPS
 > trigger-only fallback、日报 reliability classification 与独立 notification marker；
@@ -31,10 +32,27 @@
 
 ### 行情与数据质量（已生产运行）
 
+- 生产 CN/US 行情合同已收敛为 `SINGLE_SOURCE_MARKET_DATA_V1`：CN 唯一 price
+  provider 为 `HITHINK_FINANCIAL_API`，US 唯一 implementation 为 `YAHOO_CHART`。
+  provider retry 只重试同一 provider，不切换 vendor；Tencent/Sina/BaoStock/yfinance
+  仅保留 legacy/research/universe metadata 职责，不进入 CN/US production decision path。
+- 单源合同由 `market_data_contract.py` 统一验证 exact-T、严格递增且无重复日期、未来
+  bar、OHLC sanity、非负 volume、schema 与 required history。CN qfq 使用 HITHINK raw
+  `adjust=none` + 同一 vendor corporate actions，由 `CN_FORWARD_ADJUSTMENT_ENGINE_V1`
+  在仓库内生成并记录 adjustment-chain provenance；无法证明的 ETF 等 symbol 标为
+  `DATA_ADJUSTMENT_UNVERIFIED`，不回退其他 vendor。
+- symbol-level `DATA_MISSING`、`DATA_STALE`、`DATA_INVALID`、
+  `DATA_ADJUSTMENT_UNVERIFIED`、`PROVIDER_SYMBOL_ERROR` 只阻断自身并映射为
+  `DATA_UNAVAILABLE_FOR_DECISION`，不生成 `NO_SIGNAL`，其余正式池/持仓/Candidate 继续。
+  `PROVIDER_GLOBAL_FAILURE` 仅用于 provider-wide auth/schema/outage 等 system-level
+  failure；coverage 只作诊断，不作数量 hard gate。完整合同见
+  `docs/PRODUCTION_SINGLE_SOURCE_MARKET_DATA_V1.md`。
+
 - 定时行情流水线：`asia-close`（CN/HK/JP）与 `us-close`（US/SE）两个 GitHub
   Actions workflow 按市场收盘时间调度，运行 `main.py --mode latest`；Asia 为工作日
   09:30 UTC（北京时间 17:30），US 为周二至周六 00:30 UTC（北京时间 08:30）。
-- `latest` 模式只抓取短窗口最新行情、执行 source-date evidence、双源校验与
+- `latest` 模式只抓取短窗口最新行情、执行 source-date evidence 与单源合同校验，
+  对 CN/US 不再执行双源校验；
   ordinary-calendar freshness guard，写入 `最新行情`、`校验记录`、`运行日志`；
   不抓取多年历史／qfq，不运行策略路径，`history_rows_written=0`。
 - 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
@@ -45,26 +63,27 @@
   正式 QFQ 更新 0，US 日报 BABA/RKLB 仅有 T-1 QFQ，动态 Candidate 覆盖 1/1023。
   US 修复仍须在合并后的自然运行只读验收 exact-T、正式 QFQ 与 Candidate 覆盖；
   这些结果不代表历史补抓或 US 生产验收完成。
-- 行情完全失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
-  和显式禁止复用旧行情的备注，并使 scheduled job 非零退出；pending/single-source
-  仍显式为非 `已验证`。下游 production reader 要求 exact T、`正式收盘=True`、
+- 单 symbol 行情失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
+  和显式禁止复用旧行情的备注，同时隔离该 symbol；只有 provider-wide failure、
+  session/calendar 或 orchestrator failure 才使 scheduled job 非零退出。下游
+  production reader 要求 exact T、`正式收盘=True`、
   `校验状态=已验证` 及 QFQ exact-T 尾行，缺一即 DATA_* fail closed。
-- 数据源回退链稳定：主源 yfinance（含无 cookie Yahoo Chart 回退）、BaoStock
-  （CN）、Tencent / Sina 快照回退；AKShare 已从生产依赖移除，仅保留遗留别名路由。
+- legacy provider registry 仍为旧市场/研究 fixture 提供兼容性；CN/US production
+  不再使用 yfinance→其他 vendor、BaoStock/Tencent/Sina cross-check 或 qfq fallback。
 - 收盘语义固定：`交易日期` = 市场真实 session date，`抓取时间` = 北京时间，
   两者不可互换；未来日期 fail closed；未完成 session / 非正式收盘不得标记已验证。
-- 前复权（qfq）只允许 yfinance / BaoStock；生产 QFQ 刷新由
-  `scripts/refresh_production_qfq.py` 在 scheduled latest 成功后执行，失败 fail
-  closed。Cloud exact-T qfq fetch 会在完整但 stale 的 yfinance payload 后继续尝试
-  现有 Yahoo Chart fallback；Yahoo Chart 也未到 T 时仍 fail closed，不接受 T-1 替代 T。
-- US exact-T QFQ 在 yfinance / Yahoo Chart 返回非空但落后 T 时，会使用既有有限重试预算
-  重新请求后再 fail closed；该重试只作用于 `yfinance + qfq + target_trade_date`，不改变
-  CN/HK/US raw snapshot 的既有独立 fallback 顺序。`SheetsClient` 在单次进程内复用 worksheet
-  对象和 records 快照，并只对读取型 Sheets 429 做有限退避，不自动重试写入；日报、Candidate
-  Stage B 与正式 QFQ writer 的 exact-T QFQ 至少保留一次额外有限尝试，仍不接受 T-1。QFQ
-  历史替换仍先保留非目标行，且 provider 全部成功后才写入。
-- 数据质量核心（`core.py`）提供 Quote / ValidationResult、双源容差校验、freshness
-  guard、session-date 推导、OHLCV sanity；只依赖标准库，供所有上层复用。
+- 前复权（qfq）生产 CN/US 由各自 canonical provider 完成；生产 QFQ 刷新由
+  `scripts/refresh_production_qfq.py` 在 scheduled latest 后执行，单 symbol 失败隔离，
+  provider-wide failure 才 fail closed。Cloud exact-T qfq 只接受 canonical provider
+  的 exact T，不接受 T-1 替代 T。
+- US exact-T QFQ 由 direct Yahoo Chart implementation 使用有限同源重试，落后 T 时
+  fail closed，不接受 T-1；CN 同样只重试 HITHINK。`SheetsClient` 在单次进程内复用
+  worksheet 对象和 records 快照，并只对读取型 Sheets 429 做有限退避，不自动重试写入；
+  日报、Candidate Stage B 与正式 QFQ writer 的 exact-T QFQ 仍不接受 T-1。QFQ 历史替换
+  仍先保留非目标行，且单源结果通过合同后才写入。
+- 数据质量核心（`core.py`）提供 Quote / ValidationResult、legacy 双源容差校验、freshness
+  guard、session-date 推导、OHLCV sanity；`market_data_contract.py` 提供 CN/US 单源
+  合同校验，供所有 production 上层复用。
 
 ### 持仓数据生命周期与 holdings 操作（已生产运行）
 
@@ -91,7 +110,8 @@
   included/excluded 审计行。
 - Candidate selector 仍不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；
   `scripts/run_production_daily_decision.py --run` 在真实 `SheetsClient` 上按 CN/US
-  独立运行两阶段输入：Stage A 用固定 yfinance batch 请求 70 个 completed sessions，
+  独立运行两阶段输入：Stage A 使用 canonical HITHINK（CN）或 direct Yahoo Chart（US）
+  请求 70 个 completed sessions，
   保留至少 60 bars 与 exact-T 尾日门槛，并调用现有
   selector，Stage B 只对 included Candidate（已存在正式池/持仓输入的标的复用已有
   QFQ）加载深历史并交给同一套 Strategy/Daily 分析。Stage A 对空或无可用历史批次做
@@ -285,7 +305,12 @@
 
 ### Cloud Daily Report V1 / Mobile Dashboard V2（live acceptance 已通过，正式 cutover）
 
-- 运维交付与分析质量分离：默认只读 CLI 在 exact target-session usable data、核心计算及 final JSON/HTML 完成时，`PARTIAL_DATA_QUALITY` 仍可 exit 0；定时 CN/US workflow 使用 `--require-complete`，使该质量状态在产物与通知形成后 exit 2，Actions 不再以绿色表示分析完整。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
+- 运维交付与分析质量分离：scheduled CN/US workflow 使用 partial-symbol-tolerant 语义，
+  `RUN_STATUS=COMPLETED` + `DATA_STATUS=PARTIAL` 时 Actions 保持 success；manual
+  `workflow_dispatch` 可显式传 `--require-complete` 做 strict audit。单源保留 provider
+  provenance；stale/no exact-session、provider-wide failure、核心计算异常、artifact
+  失败继续 non-zero；`COMPLETED_NO_USABLE_SYMBOLS` 先生成完整诊断再由 strict audit
+  决定是否 non-zero。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
   `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 保留既有 primary
   schedules，并通过共享 `ExactExchangeCalendarProvider.latest_completed_session()` 选择
@@ -296,13 +321,11 @@
   `DATA_QUALITY_PARTIAL`、`PROVIDER_FAILURE`、`NO_SIGNAL` 与 `SUCCESS`，其中 `NO_SIGNAL`
   不是 failure。
 - `trading/ephemeral_market_data.py` 只抓取目标市场正式策略池、启用持仓和已有 Paper
-  continuation 所需的 provider rows；latest/QFQ 复用既有 provider fallback、
-  `latest_snapshot.py` 投影和 exact-T 校验，数据只在本次进程内存中存在，也不读取旧的
-  `最新行情`、`历史行情_前复权`；不写入缓存、artifact 原始数据或日志。latest verifier
-  会按第一路返回的实际 source 排除同源候选，确定性尝试下一独立 Tencent/Sina/yfinance
-  fallback，并在 provider metadata 中同时保留 configured source、actual source 与
-  fallback notes；同一实际 source 永不计作双源。Sheets 继续只承担配置、策略池、风险组、
-  持仓、决策状态和 Paper ledger 等既有事实源。
+  continuation 所需的 provider rows；CN/US latest/QFQ 只使用 canonical provider、
+  `latest_snapshot.py` 投影和 exact-T 单源合同校验，数据只在本次进程内存中存在，也不
+  读取旧的 `最新行情`、`历史行情_前复权`；不写入缓存、artifact 原始数据或日志。provider
+  metadata 保留 canonical identity、合同状态与 adjustment provenance。Sheets 继续只
+  承担配置、策略池、风险组、持仓、决策状态和 Paper ledger 等既有事实源。
 - 每次市场/T 只保留 `daily-report.json` 与 `daily-report.html` 两个 final artifact，
   JSON 元数据包含市场/T、git SHA、session identity、data quality、Candidate seed/as-of、
   CandidateRecord 的轻量筛选审计、Candidate 漏斗汇总、provider status、input fingerprint、
@@ -395,12 +418,11 @@
   `策略决策状态`、`策略股票池`、`策略持仓`，也不触发 Portfolio allocation、broker order
   或 scheduled execution；holdings 行情路径（上表）是已运行的例外。
 
-- 现有 `HiThink Financial API（同花顺金融数据服务）` 仅完成有界 CN transport
-  smoke：ticker/index constituents、market-dump signing、corporate-action
-  adjustment events、calendar；尚未证明财务报表字段契约、复权公式/as-of
-  语义或长历史覆盖。因此本 V1 不依赖、不接入 HiThink；后续可在单独验证后
-  作为 CN fundamentals/metadata 或 Candidate 辅助源，不能把它描述成已验证的
-  iFinD 替代品。当前生产链仍使用正式 `策略股票池` 与现有已验证的 QFQ 数据边界。
+- `HITHINK_FINANCIAL_API` 已接入 `SINGLE_SOURCE_MARKET_DATA_V1` 的 CN price path：
+  raw `adjust=none` 与 corporate-action events 在仓库内由统一 adjustment engine 生成
+  qfq；财务报表字段仍不属于当前 minimum market-data contract，也不作为 Wave/Fib/PA
+  依赖。ETF 等无法证明 adjustment chain 的 symbol 保持
+  `DATA_ADJUSTMENT_UNVERIFIED`，不换 vendor。
 
 ### Broker execution
 
@@ -543,14 +565,21 @@
   execution/skip、open follow-up set 和中文报告；不从普通 Cloud 日报摘要推导正式 D1 证据，
   不读取 holdings、Paper、production Sheet/state 或 broker。natural collector 与生产日报
   独立，D1 failure 不改变生产日报结果。
-- 不可变 per-market activation record 已实现，绑定冻结 protocol SHA、VPS backend/version、
+- 数据合同迁移已新增 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2`：保存 attempted/usable/
+  missing/invalid universe、per-symbol source status、provider identity、adjustment engine
+  version、session identity 与 per-symbol provenance；symbol-level partiality 不再被写成
+  `NO_SIGNAL`。natural collector 在 durable verify、formal session count 与 activation
+  version 通过前 fail closed：V1 返回 `D1_SOURCE_MIGRATION_PENDING`，formal evidence 已
+  存在则返回 `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE`。
+- 不可变 per-market activation record 仍绑定冻结 protocol SHA、VPS backend/version、
   storage identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。
-  当前 CN/US activation record 均已按主线 code SHA 创建，状态为
-  `D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION`：
-  US 首个合格 session 为 2026-09-29 ET，CN 为 2026-09-30；两市场正式事件数仍为 0，首次
-  自然完整 session 必须通过 source/universe/observer/report/hash/pointer/read-back 验收后
-  才可将该市场标记为 `D1_COLLECTION_ACTIVE`；不得用人工日期或旧日报补首个 session。
+  远端治理记录描述当前 CN/US activation record 已按主线 code SHA 创建，状态为
+  `D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION`；本任务未创建/覆盖 V2 activation，也未
+  改写旧 activation。由于本地核对因缺少 `D1_VPS_HOST` 未能建立 VPS 真实状态，不把 formal
+  session count 或 activation version 当作本地已验证事实；新 V2 activation 必须在真实 VPS
+  formal session count 核对、V2 source contract 验证和用户最终批准后创建。不得用人工日期或旧
+  日报补 session。
 - 同一 market activation identity 下只允许一个 approved durable backend：activation record
   绑定 backend identity/version 与 storage identity hash，因此保留的 GCS/Drive adapter 无法
   在 VPS activation 生效期间写 formal D1 evidence（运行期 fail closed），不构成 split-brain。

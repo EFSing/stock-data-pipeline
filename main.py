@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -15,6 +16,11 @@ from core import (
     ordinary_calendar_freshness_guard,
     quote_sanity_issue,
     validate_quotes,
+)
+from market_data_contract import (
+    ProviderGlobalFailure,
+    status_from_contract_errors,
+    validate_single_source_quotes,
 )
 from latest_snapshot import (
     evaluate_latest_snapshot,
@@ -245,8 +251,11 @@ def run(group: str, mode: str = "full") -> dict:
         raise ValueError(f"未知执行模式：{mode}，仅支持 latest 或 full")
 
     from providers import (
+        SINGLE_SOURCE_QFQ_SOURCES,
+        canonical_provider_for_market,
         QFQ_HISTORY_SOURCES,
         fetch_latest_with_retry,
+        fetch_single_source_with_retry,
         fetch_with_retry,
     )
     from sheets_client import HISTORY_HEADERS, LOG_HEADERS, VALIDATION_HEADERS, SheetsClient
@@ -269,6 +278,13 @@ def run(group: str, mode: str = "full") -> dict:
         else None
     )
     wanted_markets = wanted_markets_for_group(group)
+    # ``run`` constructs the real Sheets client in production.  Keep the
+    # legacy provider-injection seam usable for the existing unit/manual
+    # callers that replace that client with a fake, while the unattended
+    # Sheets path remains unconditionally canonical for CN/US.
+    production_sheets_client = (
+        getattr(client.__class__, "__module__", "") == "sheets_client"
+    )
 
     watchlist = client.records("自选清单")
     requested_symbols = [
@@ -287,6 +303,8 @@ def run(group: str, mode: str = "full") -> dict:
     pending_review_count = 0
     stale_sources_rejected = 0
     failed_symbols: list[str] = []
+    legacy_failed_symbols: list[str] = []
+    provider_global_failure = False
     failed_watch_rows: list[tuple[dict, str]] = []
     for watch in watchlist:
         if not as_bool(watch.get("启用")) or str(watch.get("市场")) not in wanted_markets:
@@ -294,27 +312,70 @@ def run(group: str, mode: str = "full") -> dict:
         primary_source = str(watch.get("主数据源") or "").strip()
         verifier_source = str(watch.get("校验数据源") or "").strip()
         historical_source = str(watch.get("历史数据源") or "").strip() if mode == "full" else ""
+        single_source_mode = (
+            production_sheets_client
+            and str(watch.get("市场") or "").strip().upper() in {"CN", "US"}
+        )
+        if single_source_mode:
+            primary_source = canonical_provider_for_market(str(watch.get("市场") or ""))
+            verifier_source = ""
+            historical_source = primary_source if mode == "full" else ""
+            watch = dict(watch)
+            watch["主数据源"] = primary_source
+            watch["校验数据源"] = ""
+            watch["历史数据源"] = historical_source
+            watch.setdefault("HITHINK代码", str(watch.get("统一代码") or ""))
         primary_quotes = []
         verifier_quotes = []
         errors = []
-        for source, target in ((primary_source, primary_quotes), (verifier_source, verifier_quotes)):
-            if not source:
-                continue
+        if single_source_mode:
             try:
-                if mode == "latest":
-                    target.extend(
-                        fetch_latest_with_retry(
-                            source, watch, end, retry_count, retry_wait
-                        )
+                result = fetch_single_source_with_retry(
+                    str(watch.get("市场") or ""),
+                    watch,
+                    "raw",
+                    end - timedelta(days=14) if mode == "latest" else start,
+                    end,
+                    retry_count,
+                    retry_wait,
+                    target_trade_date=end,
+                )
+                contract_errors = validate_single_source_quotes(
+                    result.quotes,
+                    expected_symbol=str(watch.get("统一代码") or ""),
+                    expected_market=str(watch.get("市场") or ""),
+                    target_trade_date=end,
+                    max_trade_date=end,
+                )
+                if contract_errors:
+                    raise ValueError(
+                        "单源raw合同无效："
+                        f"{status_from_contract_errors(contract_errors)}"
+                        f" ({','.join(contract_errors)})"
                     )
-                else:
-                    target.extend(
-                        fetch_with_retry(
-                            source, watch, "raw", start, end, retry_count, retry_wait,
-                        )
-                    )
+                primary_quotes.extend(result.quotes)
             except Exception as exc:
                 errors.append(str(exc))
+                provider_global_failure = provider_global_failure or isinstance(exc, ProviderGlobalFailure)
+        else:
+            for source, target in ((primary_source, primary_quotes), (verifier_source, verifier_quotes)):
+                if not source:
+                    continue
+                try:
+                    if mode == "latest":
+                        target.extend(
+                            fetch_latest_with_retry(
+                                source, watch, end, retry_count, retry_wait
+                            )
+                        )
+                    else:
+                        target.extend(
+                            fetch_with_retry(
+                                source, watch, "raw", start, end, retry_count, retry_wait,
+                            )
+                        )
+                except Exception as exc:
+                    errors.append(str(exc))
 
         snapshot = evaluate_latest_snapshot(
             primary_quotes,
@@ -329,12 +390,29 @@ def run(group: str, mode: str = "full") -> dict:
             errors=errors,
             apply_calendar_freshness=mode == "latest",
         )
+        if single_source_mode and snapshot.chosen is not None and not snapshot.sanity_note and not snapshot.identity_errors:
+            snapshot = replace(
+                snapshot,
+                displayed_status="DATA_OK",
+                confirmed=bool(
+                    snapshot.completed_trade_date == snapshot.chosen.trade_date
+                    and market_close_confirmed(
+                        snapshot.chosen.trade_date,
+                        str(watch["时区"]),
+                        str(watch["收盘时间"]),
+                        fetched_at,
+                    )
+                ),
+                actual_verifier_source="",
+            )
         errors = list(snapshot.errors)
         completed_date = snapshot.completed_trade_date
         stale_sources_rejected += snapshot.stale_sources_rejected
         if completed_date is None:
             failure_reason = "无法根据有效来源确定最新已完成市场交易日，已拒绝发布"
             failed_symbols.append(str(watch.get("统一代码") or ""))
+            if str(watch.get("市场") or "").strip().upper() not in {"CN", "US"}:
+                legacy_failed_symbols.append(str(watch.get("统一代码") or ""))
             failed_watch_rows.append((watch, failure_reason))
             errors.append(failure_reason)
             log_rows.append({
@@ -351,6 +429,8 @@ def run(group: str, mode: str = "full") -> dict:
         if chosen is None:
             failure_reason = "无法形成最新行情快照：主源和校验源均不可用"
             failed_symbols.append(str(watch.get("统一代码") or ""))
+            if str(watch.get("市场") or "").strip().upper() not in {"CN", "US"}:
+                legacy_failed_symbols.append(str(watch.get("统一代码") or ""))
             failed_watch_rows.append((watch, failure_reason))
             errors.append(failure_reason)
             log_rows.append({"运行时间": fetched_at, "任务组": group, "市场": watch["市场"], "统一代码": watch["统一代码"], "执行状态": "失败", "新增／更新行数": 0, "消息": "；".join(errors)})
@@ -395,20 +475,49 @@ def run(group: str, mode: str = "full") -> dict:
             if write_adjusted or confirmed:
                 if not historical_source:
                     errors.append("前复权失败：自选清单缺少历史数据源")
-                elif historical_source not in QFQ_HISTORY_SOURCES:
+                elif single_source_mode and historical_source not in SINGLE_SOURCE_QFQ_SOURCES:
+                    errors.append(f"前复权失败：生产单源{historical_source}不支持qfq")
+                elif not single_source_mode and historical_source not in QFQ_HISTORY_SOURCES:
                     errors.append(f"前复权失败：历史数据源{historical_source}不支持qfq")
                 else:
                     try:
-                        adjusted = fetch_with_retry(
-                            historical_source,
-                            watch,
-                            "qfq",
-                            start,
-                            end,
-                            retry_count,
-                            retry_wait,
-                            target_trade_date=chosen.trade_date,
-                        )
+                        if single_source_mode:
+                            adjusted_result = fetch_single_source_with_retry(
+                                str(watch.get("市场") or ""),
+                                watch,
+                                "qfq",
+                                start,
+                                end,
+                                retry_count,
+                                retry_wait,
+                                target_trade_date=chosen.trade_date,
+                            )
+                            contract_errors = validate_single_source_quotes(
+                                adjusted_result.quotes,
+                                expected_symbol=str(watch.get("统一代码") or ""),
+                                expected_market=str(watch.get("市场") or ""),
+                                target_trade_date=chosen.trade_date,
+                                max_trade_date=chosen.trade_date,
+                                minimum_bars=60,
+                            )
+                            if contract_errors:
+                                raise ValueError(
+                                    "单源qfq合同无效："
+                                    f"{status_from_contract_errors(contract_errors)}"
+                                    f" ({','.join(contract_errors)})"
+                                )
+                            adjusted = list(adjusted_result.quotes)
+                        else:
+                            adjusted = fetch_with_retry(
+                                historical_source,
+                                watch,
+                                "qfq",
+                                start,
+                                end,
+                                retry_count,
+                                retry_wait,
+                                target_trade_date=chosen.trade_date,
+                            )
                     except Exception as exc:
                         errors.append(f"前复权失败：{exc}")
             if write_adjusted and adjusted:
@@ -499,6 +608,10 @@ def run(group: str, mode: str = "full") -> dict:
         "stale_sources_rejected": stale_sources_rejected,
         "failed_symbols": len(failed_symbols),
         "failed_symbol_list": failed_symbols,
+        "legacy_failed_symbols": len(legacy_failed_symbols),
+        "provider_global_failure": provider_global_failure,
+        "run_status": "PROVIDER_GLOBAL_FAILURE" if provider_global_failure else "COMPLETED",
+        "data_status": "PARTIAL" if failed_symbols or pending_review_count else "OK",
         "history_rows_written": len(raw_rows) + len(adjusted_rows),
         "decision_rows_written": len(decision_rows),
         "status": "SUCCESS" if pending_review_count == 0 and not failed_symbols else "PARTIAL_DATA_QUALITY",
@@ -521,4 +634,8 @@ if __name__ == "__main__":
         # companion QFQ refresh cannot consume an older latest row.  Partial
         # review states (for example a legitimate single-source market) keep
         # the historical exit-0 behavior and remain visible in the summary.
-        raise SystemExit(1 if summary["failed_symbols"] else 0)
+        raise SystemExit(
+            1
+            if summary["provider_global_failure"] or summary["legacy_failed_symbols"]
+            else 0
+        )

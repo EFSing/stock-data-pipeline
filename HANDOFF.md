@@ -4,16 +4,16 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-当前逻辑任务是增强 CN/US 定时任务可靠性：保留 GitHub native schedule 作为 primary，新增
-共享 `LATEST_ELIGIBLE_COMPLETED_EXCHANGE_SESSION` resolver、D1 close-to-next-open
-reconciliation、Cloudflare Worker Cron 第一备用、Ubuntu VPS trigger-only watchdog 第二备用，
-并为 Daily Report 增加可靠性分类与独立 notification idempotency marker。所有入口最终复用
-同一 `market + session_date` resolution/commit 语义，不改变冻结交易策略、D1 source/observer
-研究语义或 activation prospective boundary。代码已在独立 `ops/market-close-trigger-resilience-v1`
-分支完成、提交并推送，PR #121 已 squash merge；其公开 smoke endpoint 安全修正 PR #122
-也已 squash merge，均未启用 auto-merge。合并后的 main 已完成 Cloudflare Worker Cron 第一
-备用与 Ubuntu VPS trigger-only watchdog 第二备用的实际部署；CN/US timers 与受保护 smoke
-均已核对通过，动态 merge commit、main head 与 CI 仍以 GitHub 实时状态为准。
+当前逻辑任务是把 CN/US production data plane 收敛为
+`SINGLE_SOURCE_MARKET_DATA_V1`：CN 唯一 `HITHINK_FINANCIAL_API`、US 唯一
+`YAHOO_CHART`，同 provider bounded retry，内部 adjustment/provenance 合同，symbol-level
+fault isolation，`RUN_STATUS`/`DATA_STATUS` 分离，以及 D1
+`SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` migration gate。代码在独立
+`refactor/single-source-market-data-v1` 分支；本分支当前尚未创建新 PR，branch/HEAD/CI
+动态事实以 GitHub 实时核对为准。不得改变冻结交易策略、Paper、broker、Final OOS 或
+整体 Wave/Setup 路线。
+此前已合并的 CN/US schedule、close reconciliation、Cloudflare Worker Cron 与 Ubuntu VPS
+trigger-only watchdog（PR #121/#122/#123）保持不动。
 
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
 `D1_PROSPECTIVE_TIME_ISOLATED`，并已依次放弃 Google Drive 与 Google Cloud Storage durable
@@ -22,13 +22,12 @@ storage，改用用户自有 Ubuntu VPS。Drive 404 与已合并的 GCS adapter 
 disabled/non-production，运行期没有 explicit approval 时拒绝写 formal D1。当前正式 backend
 是 SSH immutable store `SETUP01_D1_VPS_SSH_DURABLE_STORAGE` /
 `VPS_D1_DURABLE_BACKEND_V1`：GitHub Actions 继续做全部计算，VPS 只做 immutable storage、
-activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。VPS 已完成一次性
-初始化（专用非 root 账户 + root-owned helper + 冻结 storage root），GitHub Secrets/Variables
-已就位，真实 VPS synthetic storage validation 为 `VERIFIED`，CN/US 不可变 activation record
-均已创建；当前状态是 `D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION`，正式事件数仍为 0，
-等待各市场首个自然完整
-session。没有运行历史经济验证，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet
-或 broker 语义。
+activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。远端治理记录描述 VPS
+已完成 provision、synthetic validation 与历史 activation 准备；但这些属于 GitHub/远端动态
+事实。本次本地 `vps-status` 因缺少 `D1_VPS_HOST` 未能实际核对 CN/US formal session count，
+不能把 0/0 或 activation version 当作本地已验证事实；本次没有创建或覆盖 V2 activation。
+migration gate 已先于 natural collector 运行，formal evidence 非零时停止。没有运行历史经济
+验证，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -65,16 +64,19 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - Drive 专用 folder 路线已停止：正确 folder ID 的 service-account API `files.get` 仍返回 404，
   未创建对象；不扩大 Drive scope。GCS 路线已实现（`SETUP01_D1_GCS_DURABLE_STORAGE` /
   `GCS_D1_DURABLE_BACKEND_V1`）但未部署，现降级为 disabled/future adapter。
-- 当前 reliability implementation 已加入共享 exact resolver、reconciliation CLI、日报
-  `SCHEDULER_DELAY`/`SESSION_RESOLUTION_ERROR`/`INCOMPLETE_SESSION`/
-  `DATA_QUALITY_PARTIAL`/`PROVIDER_FAILURE`/`NO_SIGNAL`/`SUCCESS` 分类、独立日报通知
-  claim、Cloudflare Worker 源码/config、VPS watchdog 源码/systemd units、Actions step
-  summary 诊断与 focused tests；本地全量 unittest、静态检查、workflow YAML、Node 检查和
-  docs closeout 已通过，可靠性实现及其 smoke endpoint 安全修正已分别随 PR #121/#122
-  合并进入 main。Cloudflare Worker 已部署并完成 CN/US 受保护 smoke；VPS 已部署 main
-  版本，独立非 root runtime user 的 CN/US timers 已 enable/active 并完成 trigger-only smoke。
+- 既有 reliability implementation（exact resolver、reconciliation、日报 reliability/notification
+  marker、Cloudflare/VPS trigger-only fallback）及 PR #121/#122/#123 的部署语义保持不变。
+- 本分支新增 `SINGLE_SOURCE_MARKET_DATA_V1` provider adapters、内部 CN adjustment
+  engine/provenance、single-source contract QC、symbol-level isolation、日报
+  `RUN_STATUS`/`DATA_STATUS`、scheduled partial tolerance 与 D1 V2 source contract/gate；
+  交易策略核心未改，真实 credential/VPS migration 仍未宣称完成。
 
 ## Completed
+
+- 本分支已实现 `SINGLE_SOURCE_MARKET_DATA_V1`：CN `HITHINK_FINANCIAL_API`、US
+  `YAHOO_CHART`，CN raw+corporate-actions internal qfq，统一单源合同校验、provenance、
+  symbol status、partial Daily Report 语义和 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 代码路径；
+  交易策略核心未改。真实 credential / VPS migration 仍未宣称完成。
 
 - 完成 Wave/Swing/Fibonacci/SETUP_01/Decision/Risk/Position Management/Exit、冻结数据、
   #104 exact-T、关闭回踩研究及 #110 research-only exit/cost 边界审计。
@@ -131,13 +133,11 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`D1_FIRST_NATURAL_SESSION_PENDING`：VPS durable storage 已 provision 并通过真实 synthetic
-validation，CN/US activation record 均已创建，因此 D1 首个 formal session 仍只剩市场自然
-时间依赖。可靠性实现、Cloudflare Worker 与 VPS watchdog 均已部署并完成 trigger-only smoke，
-当前没有外部 fallback blocker：
-US 首个合格 session 是 2026-09-29 ET（北京时间 2026-09-30 04:00 收盘），CN 首个合格
-session 是 2026-09-30（北京时间 15:00 收盘）。在对应市场完成首个合法 natural session 的
-durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTION_ACTIVE`。
+`D1_SOURCE_MIGRATION_STATE_UNVERIFIED`：本地尝试执行 `vps-status` 在建立 SSH 前因缺少
+`D1_VPS_HOST` 失败，因此 CN/US formal session count、现有 activation version 与 VPS
+durable verification 尚未取得实时证据。本次没有读取/改写 activation，也没有创建 V2
+activation；natural collector 的 migration gate 会在远端核对完成前 fail closed。该 blocker
+只阻止 D1 migration/cutover，不阻止离线代码、fixture、Daily Report 或文档验证。
 
 注意：VPS 实例曾被重建，host key 已变更，当前冻结 fingerprint 以 GitHub Secret
 `D1_VPS_HOST_KEY_FINGERPRINT` 与 `D1_VPS_KNOWN_HOSTS` 为准；旧指纹文件已作废。VPS 仍禁止
@@ -145,17 +145,15 @@ durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTIO
 
 ## Next Action
 
-- 继续观察 GitHub native primary 与 Cloudflare/VPS fallback 的 `NOOP`、missed-window、
-  日报重复通知和 `D1_STORAGE_LOW_SPACE` diagnostics；不构造正式 D1 session，不修改
-  activation。
-- US：首个合格 session 收盘后由 market-close reconciliation 自动采集，核对 receipt、event
-  hash、object read-back、`vps-verify --full-objects`；通过后 US 进入 `D1_COLLECTION_ACTIVE`。
-- CN：首个合格 session 收盘后同样验收；不得用人工指定日期或旧日报补首个合法 session。
-- 两市场都 ACTIVE 后，继续观察 primary/fallback `NOOP`、missed-window、日报重复通知与
-  `D1_STORAGE_LOW_SPACE` diagnostics；不得人工构造 session。
-- 不得用人工指定日期或旧日报补为首个合法 session。
-- #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
-- US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
+- 通过用户提供的 VPS credential 或 GitHub Actions 受控环境实时核对 durable `verify` 与
+  CN/US formal counts。若 count 非零，立即停止 migration 并返回
+  `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE`；若为 0/0 且旧 activation 为 V1，保留旧
+  activation，等待用户最终批准后再创建新的 V2 immutable activation。
+- V2 activation 创建前不得运行会提交 formal evidence 的 production collector；不得人工
+  指定日期、补 migration window 或把旧日报转成 D1 evidence。
+- 代码验证已完成；可创建本分支 PR。PR 需说明唯一 provider、删除的 production fallback、
+  minimum contract、symbol isolation、Daily Report exit semantics、D1 V1/V2 状态与剩余
+  VPS blocker。#110/#82/#96 继续独立不动。
 
 ## Constraints
 
@@ -167,6 +165,14 @@ durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTIO
 - 不得用 `entry_ceiling` 预过滤 `entry_trigger` 上方的合法近 T1。
 - 路径 A/B、CN/US 分别报告；不得合并掩盖失败或凑证据下限。
 - Candidate-only、Paper、production state、Sheet、broker 边界不变。
+- CN production price path 只能是 `HITHINK_FINANCIAL_API`，US 只能是 `YAHOO_CHART`；
+  retry 不得换 vendor。HITHINK qfq 必须是 raw + same-vendor corporate actions + internal
+  adjustment engine；无法证明的 symbol 只能 `DATA_ADJUSTMENT_UNVERIFIED`。
+- `DATA_MISSING` / `DATA_STALE` / `DATA_INVALID` / adjustment or symbol provider errors
+  只阻断自身，不得写作 `NO_SIGNAL`，不得以 coverage ratio 作为 market hard gate；provider-wide
+  auth/schema/outage 才是 global failure。
+- 真实 VPS、真实 holdings、production credential 与新 D1 V2 activation 未经用户明确节点
+  批准不得读取、写入或创建；本次不把 generic synthetic shadow 当作真实 holdings validation。
 
 ## Known Pitfalls
 
