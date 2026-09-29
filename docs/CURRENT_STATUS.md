@@ -4,7 +4,8 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-28（D1 durable backend 改为用户自有 Ubuntu VPS；新增 SSH
+> 最后实质更新：2026-09-29（D1 durable backend 已 provision 到用户自有 Ubuntu VPS 并通过
+> 真实 synthetic validation，CN/US activation record 已建立、等待首个自然 session；新增 SSH
 > immutable store、create-only write/read-back、host key pin、磁盘阈值与 export/recovery/
 > migrate；GCS/Drive 降级为 disabled 历史 adapter；public source/observer contract 与
 > natural collector 不变；Cloud Daily Report 保持独立 read-only 内存边界；SETUP_01 H1
@@ -511,10 +512,14 @@
   root-owned helper、私有 key 只经 Secret 注入临时文件、磁盘 free-space 安全/危险阈值
   （危险阈值触发 `D1_STORAGE_LOW_SPACE_FAIL_CLOSED`，绝不自动删除 evidence）、root
   manifest、VPS → 空目录 verified export/recovery 与旧 VPS → export → 新 VPS import →
-  full verify 迁移路径，以及 manual storage-validation / activation / natural-collector
+  full verify 迁移路径，以及 storage-validation / activation / per-market natural-collector
   workflows。合同细节见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`。
-  VPS 尚未在当前环境提供 SSH 凭证/公钥，因此未运行真实 VPS synthetic validation，也未
-  创建 activation record；本地等价验证使用同一 helper 在空目录上执行，不需要真实 secret。
+  VPS 已完成一次性初始化（专用非 root 账户 + root-owned helper + 冻结 storage root 与
+  目录合同），运行期凭证只存在于 GitHub Secrets；真实 VPS synthetic storage validation
+  已 `VERIFIED`（create-only、落盘重算 SHA-256、read-back、幂等重放、同 identity 不同
+  bytes fail-closed、空目录恢复、CN/US 正式 graph 为空），并通过同一 SSH/helper 路径在
+  真实磁盘上重跑确认。10 GB system disk 已投入使用：collector 每次都报告 total/used/free/
+  store bytes/object·session count，危险阈值 fail closed 且不自动删除任何 evidence。
 - 独立公开 source/observer contract 已接入既有 Candidate runtime：保存当日 universe、raw
   Stage-A payload/hash、QFQ exact-T causal prefix/hash、精确 session identity、既有 causal
   Swing/Fibonacci 与双路径 observer 的 signal/touch/no-signal、trigger/ceiling、stop、
@@ -525,9 +530,10 @@
 - 不可变 per-market activation record 已实现，绑定冻结 protocol SHA、VPS backend/version、
   storage identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。
-  但 CN/US 均仍为 `D1_READY_NOT_ACTIVE`，正式 schedule 未启用，正式事件数为 0；首次自然
-  完整 session 必须通过 source/universe/observer/report/hash/pointer/read-back 验收后才可将
-  市场标记为 `D1_COLLECTION_ACTIVE`。
+  当前 CN/US activation record 均已按主线 code SHA 创建，状态为 `D1_ACTIVATION_READY`：
+  US 首个合格 session 为 2026-09-29 ET，CN 为 2026-09-30；两市场正式事件数仍为 0，首次
+  自然完整 session 必须通过 source/universe/observer/report/hash/pointer/read-back 验收后
+  才可将该市场标记为 `D1_COLLECTION_ACTIVE`；不得用人工日期或旧日报补首个 session。
 - 同一 market activation identity 下只允许一个 approved durable backend：activation record
   绑定 backend identity/version 与 storage identity hash，因此保留的 GCS/Drive adapter 无法
   在 VPS activation 生效期间写 formal D1 evidence（运行期 fail closed），不构成 split-brain。
