@@ -1,6 +1,7 @@
 # SETUP_01 D1 VPS Durable Storage Contract
 
-状态：`D1_READY_NOT_ACTIVE`（CN/US 均未 activation；正式 session 数 = 0）
+状态：`D1_ACTIVATION_READY`（CN/US activation record 均已建立；正式 session 数 = 0，
+等待各市场首个自然完整 session 后才进入 `D1_COLLECTION_ACTIVE`）
 
 backend identity：`SETUP01_D1_VPS_SSH_DURABLE_STORAGE`
 

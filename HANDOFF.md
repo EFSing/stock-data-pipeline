@@ -11,11 +11,12 @@ storage，改用用户自有 Ubuntu VPS。Drive 404 与已合并的 GCS adapter 
 disabled/non-production，运行期没有 explicit approval 时拒绝写 formal D1。当前正式 backend
 是 SSH immutable store `SETUP01_D1_VPS_SSH_DURABLE_STORAGE` /
 `VPS_D1_DURABLE_BACKEND_V1`：GitHub Actions 继续做全部计算，VPS 只做 immutable storage、
-activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。实现与工作流已用
-本地等价 helper 执行验证，但尚未使用真实 VPS SSH 凭证，因此没有真实 VPS synthetic
-validation，也没有 activation record。CN/US 仍为 `D1_READY_NOT_ACTIVE`，正式事件数为 0。
-没有运行历史经济验证，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或
-broker 语义。
+activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。VPS 已完成一次性
+初始化（专用非 root 账户 + root-owned helper + 冻结 storage root），GitHub Secrets/Variables
+已就位，真实 VPS synthetic storage validation 为 `VERIFIED`，CN/US 不可变 activation record
+均已创建；当前状态是 `D1_ACTIVATION_READY`，正式事件数仍为 0，等待各市场首个自然完整
+session。没有运行历史经济验证，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet
+或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -25,9 +26,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Current State
 
-- 本次 storage 变更在独立分支 `research/setup01-d1-vps-durable-storage`（PR 标题
-  `research: switch SETUP01 D1 durable storage to VPS`）；merge 授权前保持 OPEN，不改 #110、
-  #82、#96。branch / HEAD / PR / CI 以 GitHub 实时状态为准。
+- storage 变更已随 PR #119 squash merge 进入 main。当前独立分支
+  `research/setup01-d1-vps-natural-schedule` 只做「CN/US 各自 schedule + 治理同步」，不改
+  #110、#82、#96。branch / HEAD / PR / CI 以 GitHub 实时状态为准。
 - GCS durable storage 实现已随 PR #117 squash merge 进入 main；用户随后决定不部署它。
   当前 formal D1 durable backend 是 VPS SSH immutable store，GCS/Drive 仅为 retained
   adapter 与历史证据。
@@ -104,36 +105,26 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`D1_VPS_ACCESS_NOT_PROVISIONED`：当前开发环境没有该 Ubuntu VPS 的 SSH endpoint 或凭证，
-无法自行创建 store root、安装 remote helper 或核对 host key。需要用户一次性完成（约 5
-分钟，详见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`）：
+`D1_FIRST_NATURAL_SESSION_PENDING`：VPS durable storage 已 provision 并通过真实 synthetic
+validation，CN/US activation record 均已创建，因此没有外部 blocker，只剩市场自然时间依赖：
+US 首个合格 session 是 2026-09-29 ET（北京时间 2026-09-30 04:00 收盘），CN 首个合格
+session 是 2026-09-30（北京时间 15:00 收盘）。在对应市场完成首个合法 natural session 的
+durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTION_ACTIVE`。
 
-1. 生成一对专用 SSH key（GitHub Actions 侧用新 private key；不要复用 root key、不要在
-   本地覆盖已有 key），把 public key 交给初始化脚本；
-2. 在 VPS 上以 root 执行一次
-   `sudo D1_VPS_PUBLIC_KEY="ssh-ed25519 ... d1-github-actions" bash scripts/setup01_d1_vps_bootstrap.sh`
-   （创建 `d1store` 非 root 账户、冻结目录布局、安装 root-owned helper，并打印 host key
-   fingerprint 与 storage identity）；
-3. 把脚本输出的 host key entry / fingerprint / storage identity 与 private key 填入
-   GitHub Secrets：`D1_VPS_HOST`、`D1_VPS_SSH_PRIVATE_KEY`、`D1_VPS_KNOWN_HOSTS`、
-   `D1_VPS_HOST_KEY_FINGERPRINT`（非敏感项可用 Variables：`D1_VPS_PORT`、`D1_VPS_USER`、
-   `D1_VPS_STORAGE_ROOT`）。
-
-没有这些外部事实不能合法创建 activation record；不得让 VPS 承担计算，也不得为其部署
-nginx/数据库/Docker/Redis/S3 gateway/FTP/Web API。
-另有 `D1_NATURAL_COLLECTION_NOT_STARTED`：source/observer contract 已完成代码合同和
-synthetic 验收，但 CN/US activation record 尚未创建，manual-only collector workflow
-尚未转为 schedule；正式事件数仍为 0。不得报告 `D1_COLLECTION_ACTIVE`。
+注意：VPS 实例曾被重建，host key 已变更，当前冻结 fingerprint 以 GitHub Secret
+`D1_VPS_HOST_KEY_FINGERPRINT` 与 `D1_VPS_KNOWN_HOSTS` 为准；旧指纹文件已作废。VPS 仍禁止
+部署 nginx/数据库/Docker/Redis/S3 gateway/FTP/Web API，也不承担计算。
 
 ## Next Action
 
-- 用户完成上述 VPS 一次性初始化并提供 Secrets 后：在 main 上运行
-  `setup01-d1-vps-storage-validation`（输入 `vps-identity` 给出的 storage identity SHA-256）；
-  通过后用 `setup01-d1-vps-activation` 按市场以当时主线 code SHA 分别创建 CN/US 不可变
-  activation record，再 manual-run 每个市场首个合法自然 session
-  （`setup01-d1-vps-natural-collector`），universe/raw/QFQ/observer/report/hash/VPS
-  commit/read-back 全链通过并 `vps-verify` 成功后该市场才进入 `D1_COLLECTION_ACTIVE`；
-  不得用人工指定日期或旧日报补为首个合法 session。
+- US：在 2026-09-29 ET session 收盘后运行 `setup01-d1-vps-natural-collector-us`（或
+  workflow_dispatch 等价入口），核对 receipt、event hash、object read-back、
+  `vps-verify --full-objects`；通过后 US 进入 `D1_COLLECTION_ACTIVE`。
+- CN：在 2026-09-30 收盘后运行 `setup01-d1-vps-natural-collector-cn`，同样验收后 CN 进入
+  `D1_COLLECTION_ACTIVE`。
+- 两市场都 ACTIVE 后：本次 `research/setup01-d1-vps-natural-schedule` PR 的 schedule 即为
+  正式自动采集入口；日常只需观察失败与 `D1_STORAGE_LOW_SPACE`，不得人工构造 session。
+- 不得用人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。
 

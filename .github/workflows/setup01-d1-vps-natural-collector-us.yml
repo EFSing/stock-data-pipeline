@@ -1,22 +1,22 @@
-name: SETUP01 D1 VPS Natural Collector
+name: SETUP01 D1 VPS Natural Collector (US)
 
-# This workflow is manual until the per-market immutable activation record
-# exists.  A market schedule is added only after that market has passed
-# activation; the collector itself refuses pre-activation sessions.  A durable
-# commit failure never changes or fails the production daily report path.
+# Scheduled US D1 collection.  The cron fires at 09:40 Beijing (Tue-Sat), one
+# hour after the prior exchange session closed at 16:00 ET and after the 08:30
+# Beijing production market-data run; the collector itself resolves the natural
+# exchange session and refuses pre-activation or incomplete sessions.  A
+# durable commit failure never changes or fails the production daily report
+# path, and repeated runs are idempotent.
 on:
+  schedule:
+    - cron: "40 1 * * 2-6"
   workflow_dispatch:
-    inputs:
-      market:
-        description: "Market with an existing immutable activation record"
-        required: true
-        type: choice
-        options:
-          - CN
-          - US
 
 permissions:
   contents: read
+
+concurrency:
+  group: setup01-d1-vps-natural-collector-us
+  cancel-in-progress: false
 
 jobs:
   collect:
@@ -39,18 +39,18 @@ jobs:
           python-version: "3.11"
       - name: Install runtime dependencies
         run: python -m pip install -r requirements.txt
-      - name: Collect one natural D1 session
+      - name: Collect one natural US D1 session
         run: >
           python scripts/run_setup01_d1_natural_collector.py
           --backend vps
-          --market "${{ inputs.market }}"
+          --market US
           --output "$RUNNER_TEMP/d1-collector-receipt.json"
           --report-output "$RUNNER_TEMP/d1-research-report.md"
       - name: Upload non-authoritative receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: setup01-d1-vps-${{ inputs.market }}-collector-receipt
+          name: setup01-d1-vps-US-collector-receipt
           path: |
             ${{ runner.temp }}/d1-collector-receipt.json
             ${{ runner.temp }}/d1-research-report.md

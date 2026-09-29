@@ -1,6 +1,7 @@
 # SETUP_01 D1 前瞻时间隔离协议 V1
 
-状态：`D1_READY_NOT_ACTIVE`
+状态：`D1_ACTIVATION_READY`（CN/US activation record 已建立；正式 session 数 = 0，
+首个自然完整 session 通过前不得报告 `D1_COLLECTION_ACTIVE`）
 
 协议身份：`SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1`
 
@@ -148,9 +149,9 @@ session identity 不精确或出现 holdings/account/broker 字段时，snapshot
 formal commit。所有 output 仍固定为 research-only，不代表 formal entry、real fill、Paper、
 production Sheet/state 或 broker action；D1 storage failure 不能改变生产日报路径。
 
-在真实 write/read-back/clean recovery、完整 source/observer、不可变 activation record、
-CN/US 正式 schedule 和首次自然完整 session 全部通过前，CN/US 均保持
-`D1_READY_NOT_ACTIVE`。
+真实 write/read-back/clean recovery、完整 source/observer 与不可变 activation record 均已
+完成，因此 CN/US 已进入 `D1_ACTIVATION_READY`；每个市场只有在各自首个自然完整 session 通过
+source/universe/observer/report/hash/pointer/read-back 验收后才进入 `D1_COLLECTION_ACTIVE`。
 
 ## 普通股票绝对收益空间诊断
 
