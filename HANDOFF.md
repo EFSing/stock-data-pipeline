@@ -161,8 +161,9 @@ activation；本轮不创建 V2、不提交 formal evidence、不 merge PR #124�
   指定日期、补 migration window 或把旧日报转成 D1 evidence。
 - 生成 CN/US `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` activation preview/hash，但不写入 VPS
   immutable activation；等待用户最终授权后再进入 V2 activation / first eligible session。
-- PR #124 继续在原 branch 上完成 exact-head CI 与 review，不创建替代小 PR、不 merge；#110/#82/#96
-  继续独立不动。
+- PR #124 已在原 branch 完成实现、exact-head CI 与 PR body 同步，当前保持 OPEN/non-draft，
+  等待用户决定是否 squash merge；merge 后才可按最终 main SHA 重新生成 V2 preview/hash，
+  之后再由用户单独授权正式写入 V2。不得创建替代小 PR、不 merge；#110/#82/#96 继续独立不动。
 
 ## Constraints
 
