@@ -119,13 +119,15 @@ def _component(value: Any) -> dict[str, Any]:
     return {"sha256": content_sha256(value), "payload": value}
 
 
-def _contains_private_key(value: Any) -> bool:
+def contains_private_fields(value: Any) -> bool:
+    """Return whether any nested key carries holdings/account identity."""
+
     forbidden = {"holdings", "holding", "account_id", "broker_account", "broker_account_id"}
     if isinstance(value, Mapping):
-        return any(str(key).lower() in forbidden or _contains_private_key(item)
+        return any(str(key).lower() in forbidden or contains_private_fields(item)
                    for key, item in value.items())
     if isinstance(value, (list, tuple)):
-        return any(_contains_private_key(item) for item in value)
+        return any(contains_private_fields(item) for item in value)
     return False
 
 
@@ -165,7 +167,7 @@ def build_session_snapshot(
         raise ValueError("normalized prefix adjustment convention is required")
     for value in (source_identity, universe_snapshot, raw_source_snapshot,
                   normalized_prefix_snapshot, decision_snapshot, research_observation_report):
-        if _contains_private_key(value):
+        if contains_private_fields(value):
             raise ValueError("private holdings/account data is forbidden in D1 store")
     components = {
         "universe_snapshot": _component(dict(universe_snapshot)),
@@ -201,6 +203,8 @@ def build_session_snapshot(
 def validate_session_snapshot(snapshot: Mapping[str, Any]) -> None:
     if snapshot.get("schema_version") != SCHEMA_VERSION:
         raise D1IntegrityError("snapshot schema mismatch")
+    if contains_private_fields(snapshot):
+        raise D1IntegrityError("private holdings/account data is forbidden in D1 store")
     if snapshot.get("protocol_version") != PROTOCOL_VERSION:
         raise D1IntegrityError("snapshot protocol mismatch")
     market = str(snapshot.get("market") or "")
@@ -443,5 +447,6 @@ def session_event_summary(snapshot: Mapping[str, Any]) -> dict[str, Any]:
 __all__ = [
     "CAPTURE_STATUSES", "CommitResult", "D1IntegrityError", "FilesystemD1Store",
     "PROTOCOL_VERSION", "build_session_snapshot", "canonical_bytes", "content_sha256",
-    "prospective_window", "render_research_report", "session_event_summary", "validate_session_snapshot",
+    "contains_private_fields", "prospective_window", "render_research_report",
+    "session_event_summary", "validate_session_snapshot",
 ]

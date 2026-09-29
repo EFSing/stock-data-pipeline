@@ -39,6 +39,7 @@ from research.setup01_d1_source_contract import D1_SOURCE_CONTRACT_VERSION
 
 GCS_BACKEND_IDENTITY = "SETUP01_D1_GCS_DURABLE_STORAGE"
 GCS_BACKEND_VERSION = "GCS_D1_DURABLE_BACKEND_V1"
+APPROVAL_ENV = "D1_GCS_BACKEND_APPROVED_FOR_FORMAL_D1"
 GCS_SCOPE = "https://www.googleapis.com/auth/devstorage.read_write"
 JSON_MIME = "application/json"
 GCS_META_BACKEND = "d1_backend_identity"
@@ -65,6 +66,21 @@ class GcsNotFound(GcsApiError):
 
 class GcsPreconditionFailed(GcsApiError):
     pass
+
+
+def require_approved_formal_backend() -> None:
+    """Keep GCS a retained adapter instead of a second writable D1 backend.
+
+    The approved D1 durable backend is the dedicated Ubuntu VPS.  Any GCS
+    formal write or activation must be explicitly re-approved first, so two
+    backends can never hold writable formal D1 authority at the same time.
+    """
+
+    if str(os.environ.get(APPROVAL_ENV, "")).strip().lower() not in {"1", "true", "yes"}:
+        raise D1IntegrityError(
+            "D1_BACKEND_NOT_APPROVED:SETUP01_D1_VPS_SSH_DURABLE_STORAGE is the current formal "
+            "D1 durable backend; set " + APPROVAL_ENV + "=true only after a recorded decision"
+        )
 
 
 @dataclass(frozen=True)
@@ -484,6 +500,7 @@ class GoogleCloudStorageD1Store:
     ) -> dict[str, Any]:
         """Create one immutable market activation record after storage validation."""
 
+        require_approved_formal_backend()
         validation = self.validate_durable_storage()
         if validation["status"] != "VERIFIED":
             raise D1IntegrityError("GCS_DURABLE_STORAGE_NOT_VERIFIED")
@@ -492,7 +509,7 @@ class GoogleCloudStorageD1Store:
             activation_timestamp=activation_timestamp,
             backend_identity=GCS_BACKEND_IDENTITY,
             backend_version=GCS_BACKEND_VERSION,
-            bucket_identity_sha256=self.bucket_identity_sha256,
+            storage_identity_sha256=self.bucket_identity_sha256,
             code_sha=code_sha,
             source_contract=source_contract,
             observer_version=observer_version,
@@ -519,7 +536,7 @@ class GoogleCloudStorageD1Store:
             record,
             expected_backend_identity=GCS_BACKEND_IDENTITY,
             expected_backend_version=GCS_BACKEND_VERSION,
-            expected_bucket_identity_sha256=self.bucket_identity_sha256,
+            expected_storage_identity_sha256=self.bucket_identity_sha256,
         )
         expected = self._metadata(
             kind="ACTIVATION_RECORD",
@@ -557,6 +574,7 @@ class GoogleCloudStorageD1Store:
         return f"sessions/{str(market).upper()}/{session_date}.json"
 
     def commit(self, snapshot: Mapping[str, Any]) -> GcsCommitResult:
+        require_approved_formal_backend()
         source = self._validate_formal_snapshot(snapshot)
         market = str(snapshot["market"]).upper()
         session_text = str(snapshot["session_date"])
@@ -767,4 +785,5 @@ __all__ = [
     "GoogleCloudStorageD1Store",
     "GcsCommitResult",
     "bucket_identity_sha256",
+    "require_approved_formal_backend",
 ]

@@ -18,6 +18,7 @@ from research.setup01_d1_source_contract import (
     build_d1_snapshot_from_candidate_runtime,
     source_contract_descriptor,
 )
+from research.setup01_d1_vps_store import VPS_BACKEND_IDENTITY, VpsD1Store
 from trading.production_candidate_runtime import ProductionCandidateRuntime
 from trading.production_prerequisites import ExactExchangeCalendarProvider
 
@@ -36,8 +37,9 @@ def collect_natural_session(
     market: str,
     *,
     now: datetime | None = None,
-    store: GoogleCloudStorageD1Store | None = None,
+    store: object | None = None,
     runtime: ProductionCandidateRuntime | None = None,
+    backend: str = "vps",
 ) -> dict[str, Any]:
     generated_at = now or datetime.now(timezone.utc)
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
@@ -45,7 +47,12 @@ def collect_natural_session(
     normalized_market = str(market).strip().upper()
     if normalized_market not in {"CN", "US"}:
         raise ValueError("D1 market must be CN or US")
-    durable = store or GoogleCloudStorageD1Store.from_env()
+    normalized_backend = str(backend).strip().lower()
+    if normalized_backend not in {"vps", "gcs"}:
+        raise ValueError("D1 durable backend must be vps or gcs")
+    durable = store or (
+        VpsD1Store.from_env() if normalized_backend == "vps" else GoogleCloudStorageD1Store.from_env()
+    )
     calendar = ExactExchangeCalendarProvider()
     # The natural run date is resolved from the exchange-local current date;
     # there is intentionally no --date override for a formal collector.
@@ -69,17 +76,21 @@ def collect_natural_session(
     )
     committed = durable.commit(snapshot)
     report_markdown = render_research_report(snapshot)
-    return {
+    receipt = {
         "status": committed.status,
-        "backend_identity": GCS_BACKEND_IDENTITY,
+        "backend_identity": (
+            VPS_BACKEND_IDENTITY if normalized_backend == "vps" else GCS_BACKEND_IDENTITY
+        ),
         "market": normalized_market,
         "session_date": trade_date.isoformat(),
         "event_id": committed.event_id,
         "event_sha256": committed.event_sha256,
         "object_name": committed.object_name,
-        "object_generation": committed.object_generation,
+        "object_sha256": getattr(committed, "object_sha256", None),
+        "object_generation": getattr(committed, "object_generation", None),
         "commit_name": committed.commit_name,
-        "commit_generation": committed.commit_generation,
+        "commit_generation": getattr(committed, "commit_generation", None),
+        "pointer_sha256": getattr(committed, "pointer_sha256", None),
         "source_contract_version": source_contract_descriptor()["contract_version"],
         "research_only": True,
         "research_only_candidate": True,
@@ -91,15 +102,19 @@ def collect_natural_session(
         "session_counts": durable.verify()["session_counts"],
         "report_markdown": report_markdown,
     }
+    if hasattr(committed, "as_receipt"):
+        receipt["disk"] = dict(committed.as_receipt().get("disk") or {})
+    return receipt
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="SETUP_01 D1 natural GCS collector")
+    parser = argparse.ArgumentParser(description="SETUP_01 D1 natural durable collector")
     parser.add_argument("--market", choices=("CN", "US"), required=True)
+    parser.add_argument("--backend", choices=("vps", "gcs"), default="vps")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--report-output", type=Path, required=True)
     args = parser.parse_args(argv)
-    result = collect_natural_session(args.market)
+    result = collect_natural_session(args.market, backend=args.backend)
     report_markdown = str(result.pop("report_markdown"))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

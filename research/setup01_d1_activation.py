@@ -77,7 +77,7 @@ def build_activation_record(
     activation_timestamp: str,
     backend_identity: str,
     backend_version: str,
-    bucket_identity_sha256: str,
+    storage_identity_sha256: str,
     code_sha: str,
     source_contract: Mapping[str, Any],
     observer_version: str,
@@ -109,7 +109,7 @@ def build_activation_record(
         "protocol_sha256": frozen["protocol_sha256"],
         "backend_identity": str(backend_identity),
         "backend_version": str(backend_version),
-        "bucket_identity_sha256": _sha(bucket_identity_sha256, "bucket_identity_sha256"),
+        "storage_identity_sha256": _sha(storage_identity_sha256, "storage_identity_sha256"),
         "code_sha": _code_sha(code_sha),
         "signal_stop_exit_gate_frozen": frozen["signal_stop_exit_gate"],
         "activation_timestamp": activation,
@@ -137,7 +137,7 @@ def validate_activation_record(
     *,
     expected_backend_identity: str | None = None,
     expected_backend_version: str | None = None,
-    expected_bucket_identity_sha256: str | None = None,
+    expected_storage_identity_sha256: str | None = None,
 ) -> None:
     """Validate an activation record before it can authorize a commit."""
 
@@ -161,9 +161,12 @@ def validate_activation_record(
         raise D1IntegrityError("activation record backend identity mismatch")
     if expected_backend_version is not None and record.get("backend_version") != expected_backend_version:
         raise D1IntegrityError("activation record backend version mismatch")
-    if expected_bucket_identity_sha256 is not None and record.get("bucket_identity_sha256") != expected_bucket_identity_sha256:
-        raise D1IntegrityError("activation record bucket identity mismatch")
-    _sha(record.get("bucket_identity_sha256"), "bucket_identity_sha256")
+    if (
+        expected_storage_identity_sha256 is not None
+        and record.get("storage_identity_sha256") != expected_storage_identity_sha256
+    ):
+        raise D1IntegrityError("activation record storage identity mismatch")
+    _sha(record.get("storage_identity_sha256"), "storage_identity_sha256")
     _code_sha(record.get("code_sha"))
     _aware_iso(str(record.get("activation_timestamp") or ""))
     first_session = _iso_date(

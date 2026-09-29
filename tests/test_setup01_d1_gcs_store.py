@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -107,6 +108,8 @@ def _snapshot(
 
 class GoogleCloudStorageD1StoreTests(unittest.TestCase):
     def setUp(self):
+        os.environ["D1_GCS_BACKEND_APPROVED_FOR_FORMAL_D1"] = "true"
+        self.addCleanup(os.environ.pop, "D1_GCS_BACKEND_APPROVED_FOR_FORMAL_D1", None)
         self.api = MemoryGcsApi()
         self.store = GoogleCloudStorageD1Store(
             self.api, "d1-research-test", project="fixture-project"
@@ -133,7 +136,7 @@ class GoogleCloudStorageD1StoreTests(unittest.TestCase):
             record,
             expected_backend_identity=GCS_BACKEND_IDENTITY,
             expected_backend_version=GCS_BACKEND_VERSION,
-            expected_bucket_identity_sha256=self.store.bucket_identity_sha256,
+            expected_storage_identity_sha256=self.store.bucket_identity_sha256,
         )
         snapshot = _snapshot(
             session_date=date(2026, 9, 2),

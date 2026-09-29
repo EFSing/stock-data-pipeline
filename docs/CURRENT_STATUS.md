@@ -4,9 +4,11 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-28（D1 durable backend 改为 GCS；新增 immutable activation、
-> public source/observer contract 与 natural collector；Cloud Daily Report 保持独立
-> read-only 内存边界；SETUP_01 H1 突破后双路径研究架构与 D1 协议仍冻结）。
+> 最后实质更新：2026-09-28（D1 durable backend 改为用户自有 Ubuntu VPS；新增 SSH
+> immutable store、create-only write/read-back、host key pin、磁盘阈值与 export/recovery/
+> migrate；GCS/Drive 降级为 disabled 历史 adapter；public source/observer contract 与
+> natural collector 不变；Cloud Daily Report 保持独立 read-only 内存边界；SETUP_01 H1
+> 突破后双路径研究架构与 D1 协议仍冻结）。
 
 ## 项目身份
 
@@ -495,14 +497,24 @@
   causal Path A/B observer、next-session OHLC 模型、CN T+1、同日歧义、右删失、五组件
   hash-bound session snapshot、content-addressed immutable reference store、跨日幂等、
   missing/hash/protocol 检测、clean-directory recovery 与独立中文报告/CLI。
-- D1 durable backend 已由用户正式决定改为独立 Google Cloud Storage bucket。代码已实现
-  独立 backend identity/version、`objects/`、`sessions/CN/`、`sessions/US/`、`system/`
-  prefix、GCS generation `ifGenerationMatch=0` create-only 写入、pointer/object
-  generation+SHA-256+metadata 交叉校验、幂等/冲突 fail-closed、空目录 recovery、bucket
-  policy gate（Standard、uniform bucket-level access、Public Access Prevention enforced、
-  本阶段关闭 object versioning、无 retention lock/policy）及 synthetic validation workflow。
-  真实 GCP bucket、location/billing、service-account bucket-scoped IAM 和 GitHub Secrets
-  尚未在当前环境提供，因此未运行真实 GCS write/read-back，也未创建 activation record。
+- D1 durable backend 已由用户正式决定改为用户自有 Ubuntu VPS
+  （`SETUP01_D1_VPS_SSH_DURABLE_STORAGE` / `VPS_D1_DURABLE_BACKEND_V1`）。GitHub Actions
+  继续做全部计算；VPS 只做 immutable storage、activation/pointer 存储、SHA 校验、
+  verify/recovery/export/migrate 与磁盘健康，不主动抓行情、不运行 pipeline、不读取
+  holdings/account/Paper/production Sheet/broker/Final OOS。实现包括单一
+  stdlib-only、repository-owned remote helper（SSH 非交互、流式、低内存）、
+  `objects/`、`sessions/CN/`、`sessions/US/`、`system/activation|validation/`、
+  `manifests/` 目录合同、create-only（`O_CREAT|O_EXCL`）+ fsync + 落盘重算 SHA-256 +
+  read-back、`IDEMPOTENT_REPLAY`/冲突/partial transfer/missing/corrupt fail closed、
+  pointer/object 与 component/event hash 交叉校验、host key pin
+  （`StrictHostKeyChecking=yes` + 冻结 fingerprint，禁止 `no`）、专用非 root 账户、
+  root-owned helper、私有 key 只经 Secret 注入临时文件、磁盘 free-space 安全/危险阈值
+  （危险阈值触发 `D1_STORAGE_LOW_SPACE_FAIL_CLOSED`，绝不自动删除 evidence）、root
+  manifest、VPS → 空目录 verified export/recovery 与旧 VPS → export → 新 VPS import →
+  full verify 迁移路径，以及 manual storage-validation / activation / natural-collector
+  workflows。合同细节见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`。
+  VPS 尚未在当前环境提供 SSH 凭证/公钥，因此未运行真实 VPS synthetic validation，也未
+  创建 activation record；本地等价验证使用同一 helper 在空目录上执行，不需要真实 secret。
 - 独立公开 source/observer contract 已接入既有 Candidate runtime：保存当日 universe、raw
   Stage-A payload/hash、QFQ exact-T causal prefix/hash、精确 session identity、既有 causal
   Swing/Fibonacci 与双路径 observer 的 signal/touch/no-signal、trigger/ceiling、stop、
@@ -510,12 +522,19 @@
   execution/skip、open follow-up set 和中文报告；不从普通 Cloud 日报摘要推导正式 D1 证据，
   不读取 holdings、Paper、production Sheet/state 或 broker。natural collector 与生产日报
   独立，D1 failure 不改变生产日报结果。
-- 不可变 per-market activation record 已实现，绑定冻结 protocol SHA、GCS backend/version、
-  bucket identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
+- 不可变 per-market activation record 已实现，绑定冻结 protocol SHA、VPS backend/version、
+  storage identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。
   但 CN/US 均仍为 `D1_READY_NOT_ACTIVE`，正式 schedule 未启用，正式事件数为 0；首次自然
   完整 session 必须通过 source/universe/observer/report/hash/pointer/read-back 验收后才可将
   市场标记为 `D1_COLLECTION_ACTIVE`。
+- 同一 market activation identity 下只允许一个 approved durable backend：activation record
+  绑定 backend identity/version 与 storage identity hash，因此保留的 GCS/Drive adapter 无法
+  在 VPS activation 生效期间写 formal D1 evidence（运行期 fail closed），不构成 split-brain。
+  GCS adapter 保留为未来可选迁移 backend；其 workflows 已标记
+  `[DISABLED]`/non-production，也不需要 GCS Secrets 或 Google Billing。
+- VPS 为月租实例：到期日不等于 D1 结束日，deletion/reinstall 属外部 durability risk；系统
+  不把它描述为永久存储，也不代用户续费或修改云主机账户。
 - Google Drive 路线仅作为历史失败证据保留：主线上的 service-account `files.get` 对配置
   folder ID 返回 404，未创建 validation object，未发生正式写入/迁移；不扩大 Drive OAuth
   scope，Drive synthetic adapter 仅保留为历史测试资产。未访问历史经济样本、Final OOS、

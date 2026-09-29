@@ -11,6 +11,7 @@ from typing import Any
 from research.setup01_d1_prospective import (
     FilesystemD1Store,
     build_session_snapshot,
+    canonical_bytes,
     render_research_report,
 )
 from research.setup01_d1_drive_store import GoogleDriveApi, GoogleDriveD1Store
@@ -18,6 +19,7 @@ from research.setup01_d1_gcs_store import (
     GoogleCloudStorageApi,
     GoogleCloudStorageD1Store,
 )
+from research.setup01_d1_vps_store import VpsD1Store
 from research.setup01_d1_source_contract import source_contract_descriptor
 
 
@@ -120,6 +122,32 @@ def gcs_collect(input_path: Path, report_output: Path | None = None) -> dict[str
         "production_state_write": False,
     }
 
+
+def vps_collect(input_path: Path, report_output: Path | None = None) -> dict[str, Any]:
+    value = _load(input_path)
+    snapshot = build_session_snapshot(
+        market=value["market"],
+        session_date=date.fromisoformat(value["session_date"]),
+        acquired_at=value["acquired_at"],
+        capture_status=value["capture_status"],
+        diagnostic_backfill=bool(value.get("diagnostic_backfill", False)),
+        source_identity=value["source_identity"],
+        universe_snapshot=value["universe_snapshot"],
+        raw_source_snapshot=value["raw_source_snapshot"],
+        normalized_prefix_snapshot=value["normalized_prefix_snapshot"],
+        decision_snapshot=value["decision_snapshot"],
+        research_observation_report=value["research_observation_report"],
+    )
+    receipt = VpsD1Store.from_env().commit(snapshot).as_receipt()
+    if report_output is not None:
+        report_output.parent.mkdir(parents=True, exist_ok=True)
+        report_output.write_text(render_research_report(snapshot), encoding="utf-8")
+    return {
+        **receipt,
+        "prospective_eligible": snapshot["prospective_eligible"],
+        "research_only": True,
+        "production_state_write": False,
+    }
 
 def daily_report_input(
     report_path: Path, *, diagnostic_backfill: bool = False
@@ -281,6 +309,28 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("gcs-verify")
     gcs_recover_parser = sub.add_parser("gcs-recover")
     gcs_recover_parser.add_argument("--target", type=Path, required=True)
+    sub.add_parser("vps-identity")
+    sub.add_parser("vps-status")
+    vps_validation_parser = sub.add_parser("vps-validate-storage")
+    vps_validation_parser.add_argument("--expected-storage-identity-sha256", required=True)
+    vps_activation_parser = sub.add_parser("vps-create-activation")
+    vps_activation_parser.add_argument("--market", choices=("CN", "US"), required=True)
+    vps_activation_parser.add_argument("--activation-timestamp", required=True)
+    vps_activation_parser.add_argument("--code-sha", required=True)
+    vps_collect_parser = sub.add_parser("vps-collect")
+    vps_collect_parser.add_argument("--input", type=Path, required=True)
+    vps_collect_parser.add_argument("--report-output", type=Path)
+    vps_verify_parser = sub.add_parser("vps-verify")
+    vps_verify_parser.add_argument("--full-objects", action="store_true")
+    vps_export_parser = sub.add_parser("vps-export")
+    vps_export_parser.add_argument("--target", type=Path, required=True)
+    vps_recover_parser = sub.add_parser("vps-recover")
+    vps_recover_parser.add_argument("--target", type=Path, required=True)
+    vps_migrate_parser = sub.add_parser("vps-migrate")
+    vps_migrate_parser.add_argument("--from", dest="source", type=Path, required=True)
+    vps_manifest_parser = sub.add_parser("vps-manifest")
+    vps_manifest_parser.add_argument("--publish", action="store_true")
+    vps_manifest_parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
     if args.command == "collect":
         result = collect(args.input, args.store, args.report_output)
@@ -336,11 +386,61 @@ def main(argv: list[str] | None = None) -> int:
         result = GoogleCloudStorageD1Store.from_env().verify()
     elif args.command == "gcs-recover":
         result = GoogleCloudStorageD1Store.from_env().recover_to(args.target)
+    elif args.command == "vps-identity":
+        store = VpsD1Store.from_env()
+        result = {
+            "status": "IDENTITY_VERIFIED",
+            **store.identity(),
+            "transport_identity": dict(store.transport_identity),
+        }
+    elif args.command == "vps-status":
+        result = VpsD1Store.from_env().status()
+    elif args.command == "vps-validate-storage":
+        result = VpsD1Store.from_env().validate_durable_storage(
+            expected_storage_identity_sha256=args.expected_storage_identity_sha256
+        )
+    elif args.command == "vps-create-activation":
+        store = VpsD1Store.from_env()
+        record = store.create_activation_record(
+            market=args.market,
+            activation_timestamp=args.activation_timestamp,
+            code_sha=args.code_sha,
+            source_contract=source_contract_descriptor(),
+            observer_version=source_contract_descriptor()["observer_version"],
+        )
+        result = {"status": "ACTIVATION_CREATED", "record": record}
+    elif args.command == "vps-collect":
+        result = vps_collect(args.input, args.report_output)
+    elif args.command == "vps-verify":
+        result = VpsD1Store.from_env().verify(full_objects=bool(args.full_objects))
+    elif args.command == "vps-export":
+        result = VpsD1Store.from_env().export_to(args.target)
+    elif args.command == "vps-recover":
+        result = VpsD1Store.from_env().recover_to(args.target)
+    elif args.command == "vps-migrate":
+        result = VpsD1Store.from_env().migrate_from(args.source)
+    elif args.command == "vps-manifest":
+        store = VpsD1Store.from_env()
+        if args.publish:
+            result = store.publish_manifest()
+        else:
+            result = {"status": "MANIFEST_BUILT", "manifest": store.build_manifest()}
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_bytes(canonical_bytes(result["manifest"]))
     else:
         result = GoogleDriveD1Store.from_env().recover_to(args.target)
     print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
     return 0 if result.get("status") in {
-        "ACCESS_VERIFIED", "ACTIVATION_CREATED", "COMMITTED", "IDEMPOTENT_REPLAY", "VERIFIED"
+        "ACCESS_VERIFIED",
+        "ACTIVATION_CREATED",
+        "COMMITTED",
+        "IDENTITY_VERIFIED",
+        "IDEMPOTENT_REPLAY",
+        "MANIFEST_BUILT",
+        "MIGRATED_AND_VERIFIED",
+        "STORAGE_STATUS",
+        "VERIFIED",
     } else 1
 
 
