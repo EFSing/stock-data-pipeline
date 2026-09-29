@@ -1,0 +1,6 @@
+[Unit]
+Description=Stock data pipeline CN market-close GitHub watchdog
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/stock-data-pipeline/infra/vps/market-close-watchdog/market_close_watchdog.py --market CN --config %h/.config/stock-data-pipeline/market-close-watchdog.json

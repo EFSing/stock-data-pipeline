@@ -33,6 +33,7 @@ from trading.ephemeral_market_data import (
     load_ephemeral_market_data,
 )
 from trading.notifications import github_run_url, send_bark, send_optional_email
+from trading.operational_markers import claim_report_notification
 from trading.production_candidate_runtime import ProductionCandidateRuntime
 from trading.production_prerequisites import ExactExchangeCalendarProvider
 from trading.risk import MIN_TARGET_UPSIDE_PCT
@@ -61,11 +62,11 @@ def resolve_cloud_trade_date(
     now: datetime | None = None,
     calendar_provider: ExactExchangeCalendarProvider | None = None,
 ) -> date:
-    """Resolve the report T date without using the runner's bare local date.
+    """Resolve automatic report T from the latest real completed close.
 
-    Explicit dates remain authoritative.  Automatic runs use the exchange
-    calendar's local civil date, after which the existing exact-session gate
-    decides whether that date is a completed session or a safe skip.
+    Explicit dates remain authoritative for diagnostics/manual runs.  Automatic
+    runs use the shared exact exchange-calendar resolver, so a delayed trigger
+    cannot select a new local civil date whose session has not completed.
     """
 
     if explicit_trade_date is not None:
@@ -74,7 +75,9 @@ def resolve_cloud_trade_date(
     if current.tzinfo is None or current.utcoffset() is None:
         raise ValueError("cloud report requires timezone-aware now")
     provider = calendar_provider or ExactExchangeCalendarProvider()
-    return provider.market_local_date(str(market).strip().upper(), now=current)
+    return provider.latest_completed_session(
+        str(market).strip().upper(), now=current
+    ).trade_date
 
 
 def _git_sha(environ: Mapping[str, str] | None = None) -> str | None:
@@ -272,6 +275,65 @@ def _status_from_result(
     return status, quality
 
 
+def _has_report_signal(result: Mapping[str, Any]) -> bool:
+    """Return whether the completed report contains a user-facing signal."""
+
+    for entry in result.get("reports", ()) if isinstance(result.get("reports"), list) else ():
+        report = entry.get("报告") if isinstance(entry, Mapping) else {}
+        for row in report.get("results", ()) if isinstance(report, Mapping) else ():
+            if not isinstance(row, Mapping):
+                continue
+            if str(row.get("primary_action") or "").upper() in {
+                "ENTRY_ALLOWED", "STRATEGY_PROPOSAL"
+            }:
+                return True
+            for decision in row.get("individual_decision_candidates") or ():
+                if isinstance(decision, Mapping) and str(decision.get("action") or "").upper() in {
+                    "ENTRY_ALLOWED", "STRATEGY_PROPOSAL"
+                }:
+                    return True
+    return False
+
+
+def _automatic_scheduler_delay(
+    provider: ExactExchangeCalendarProvider,
+    market: str,
+    trade_date: date,
+    now: datetime,
+) -> bool:
+    """Identify a delayed automatic run that crossed into a new session date."""
+
+    try:
+        local_date = provider.market_local_date(market, now=now)
+        if local_date <= trade_date or not provider.is_session(market, local_date):
+            return False
+        return provider.latest_completed_session(market, now=now).trade_date == trade_date
+    except Exception:
+        return False
+
+
+def _reliability_classification(
+    *,
+    status: str,
+    result: Mapping[str, Any],
+    automatic_scheduler_delay: bool = False,
+    resolution_error: bool = False,
+) -> str:
+    if resolution_error:
+        return "SESSION_RESOLUTION_ERROR"
+    if status == "INCOMPLETE_SESSION":
+        return "INCOMPLETE_SESSION"
+    if status == "PARTIAL_DATA_QUALITY":
+        return "DATA_QUALITY_PARTIAL"
+    if status == "FAILED":
+        return "PROVIDER_FAILURE"
+    if automatic_scheduler_delay:
+        return "SCHEDULER_DELAY"
+    if status in {"SUCCESS", "SKIPPED_NON_SESSION"} and not _has_report_signal(result):
+        return "NO_SIGNAL"
+    return "SUCCESS"
+
+
 def _cloud_metadata(
     *,
     market: str,
@@ -283,6 +345,8 @@ def _cloud_metadata(
     data_quality: Mapping[str, Any],
     result: Mapping[str, Any],
     errors: list[str],
+    reliability_classification: str | None = None,
+    session_resolution: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     candidate_markets = result.get("candidate_markets")
     seed_sources = {}
@@ -358,7 +422,9 @@ def _cloud_metadata(
         "git_sha": _git_sha(),
         "generated_at": generated_at.isoformat(),
         "status": status,
+        "reliability_classification": reliability_classification or status,
         "session_identity": _session_payload(session_identity),
+        "session_resolution": dict(session_resolution or {}),
         "calendar_gate": "EXACT_COMPLETED_SESSION" if session_identity is not None else status,
         "data_quality": dict(data_quality),
         "candidate_seed_source": seed_sources,
@@ -600,6 +666,22 @@ def _notification_attachment_filename(payload: Mapping[str, Any]) -> str:
 def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
     cloud = payload.get("cloud_daily_report", {})
     try:
+        claim = claim_report_notification(payload)
+        cloud["notification_idempotency"] = claim
+        if claim.get("status") == "NOOP_REPORT_ALREADY_SENT":
+            cloud["notifications"] = {
+                "bark": {"status": "NOOP_REPORT_ALREADY_SENT", "configured": True},
+                "email": {"status": "NOOP_REPORT_ALREADY_SENT", "configured": True},
+            }
+            return
+        if claim.get("status") == "IDEMPOTENCY_UNAVAILABLE":
+            # A configured but unavailable durable marker must not turn a
+            # fallback into duplicate normal email/Bark delivery.
+            cloud["notifications"] = {
+                "bark": {"status": "NOT_SENT_IDEMPOTENCY_UNAVAILABLE", "configured": True},
+                "email": {"status": "NOT_SENT_IDEMPOTENCY_UNAVAILABLE", "configured": True},
+            }
+            return
         title, body = _notification_text(payload)
         endpoint = os.environ.get("BARK_ENDPOINT", "")
         bark = send_bark(endpoint, title=title, body=body, url=cloud.get("github_run_url"))
@@ -640,6 +722,7 @@ def run_cloud_daily_report(
     client: Any | None = None,
     calendar_provider: ExactExchangeCalendarProvider | None = None,
     notify: bool = True,
+    automatic_resolution: bool = False,
 ) -> dict[str, Any]:
     """Run and persist exactly one market/T report."""
 
@@ -650,6 +733,8 @@ def run_cloud_daily_report(
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
         raise ValueError("cloud report requires timezone-aware now")
     provider = calendar_provider or ExactExchangeCalendarProvider()
+    scheduler_delay = False
+    session_resolution: dict[str, Any] = {}
 
     try:
         is_session = provider.is_session(normalized_market, as_of_date)
@@ -667,6 +752,7 @@ def run_cloud_daily_report(
                 ephemeral={"provider_status": {}, "input_fingerprint": None},
                 data_quality={"status": "FAILED", "failed_symbols": [], "ephemeral_errors": [error]},
                 result=result, errors=[error],
+                reliability_classification="SESSION_RESOLUTION_ERROR",
             ),
         }
         _write_and_notify(payload, output_dir, notify=notify)
@@ -691,6 +777,7 @@ def run_cloud_daily_report(
                 market=normalized_market, as_of_date=as_of_date, generated_at=generated_at,
                 status="SKIPPED_NON_SESSION", session_identity=None,
                 ephemeral=ephemeral_meta, data_quality=quality, result=result, errors=[],
+                reliability_classification="SKIPPED_NON_SESSION",
             ),
         }
         _write_and_notify(payload, output_dir, notify=notify)
@@ -698,6 +785,12 @@ def run_cloud_daily_report(
 
     try:
         session_identity = provider.completed_session(normalized_market, as_of_date, now=generated_at)
+        session_resolution = provider.completed_session_window(
+            normalized_market, as_of_date, now=generated_at
+        ).as_dict()
+        scheduler_delay = automatic_resolution and _automatic_scheduler_delay(
+            provider, normalized_market, as_of_date, generated_at
+        )
     except Exception as exc:
         error = _error_text(exc)
         session_status = (
@@ -717,6 +810,11 @@ def run_cloud_daily_report(
                 ephemeral={"provider_status": {}, "input_fingerprint": None},
                 data_quality={"status": session_status, "failed_symbols": [], "ephemeral_errors": [error]},
                 result=result, errors=[error],
+                reliability_classification=_reliability_classification(
+                    status=session_status,
+                    result=result,
+                    resolution_error=session_status == "FAILED",
+                ),
             ),
         }
         _write_and_notify(payload, output_dir, notify=notify)
@@ -781,6 +879,12 @@ def run_cloud_daily_report(
             data_quality=quality,
             result=result,
             errors=errors,
+            reliability_classification=_reliability_classification(
+                status=report_status,
+                result=result,
+                automatic_scheduler_delay=scheduler_delay,
+            ),
+            session_resolution=session_resolution,
         ),
     }
     _write_and_notify(payload, output_dir, notify=notify)
@@ -802,12 +906,42 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     generated_at = datetime.now(timezone.utc)
     calendar_provider = ExactExchangeCalendarProvider()
-    trade_date = resolve_cloud_trade_date(
-        args.market,
-        args.trade_date,
-        now=generated_at,
-        calendar_provider=calendar_provider,
-    )
+    try:
+        trade_date = resolve_cloud_trade_date(
+            args.market,
+            args.trade_date,
+            now=generated_at,
+            calendar_provider=calendar_provider,
+        )
+    except Exception as exc:
+        diagnostic_date = args.trade_date or generated_at.date()
+        error = _error_text(exc)
+        result = _empty_result(diagnostic_date, "SESSION_RESOLUTION_ERROR", [error])
+        payload = {
+            **result,
+            "market": str(args.market).upper(),
+            "as_of_date": diagnostic_date.isoformat(),
+            "generated_at": generated_at.isoformat(),
+            "cloud_daily_report": _cloud_metadata(
+                market=str(args.market).upper(),
+                as_of_date=diagnostic_date,
+                generated_at=generated_at,
+                status="SESSION_RESOLUTION_ERROR",
+                session_identity=None,
+                ephemeral={"provider_status": {}, "input_fingerprint": None},
+                data_quality={
+                    "status": "SESSION_RESOLUTION_ERROR",
+                    "failed_symbols": [],
+                    "ephemeral_errors": [error],
+                },
+                result=result,
+                errors=[error],
+                reliability_classification="SESSION_RESOLUTION_ERROR",
+            ),
+        }
+        _write_and_notify(payload, args.output, notify=not args.no_notify)
+        print(json.dumps(payload["cloud_daily_report"], ensure_ascii=False, indent=2, default=str))
+        return 1
     payload = run_cloud_daily_report(
         market=args.market,
         as_of_date=trade_date,
@@ -815,6 +949,7 @@ def main(argv: list[str] | None = None) -> int:
         now=generated_at,
         calendar_provider=calendar_provider,
         notify=not args.no_notify,
+        automatic_resolution=args.trade_date is None,
     )
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))
     status = str(payload.get("cloud_daily_report", {}).get("status") or "FAILED")

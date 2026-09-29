@@ -5,11 +5,11 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-29（D1 durable backend 已 provision 到用户自有 Ubuntu VPS 并通过
-> 真实 synthetic validation，CN/US activation record 已建立、等待首个自然 session；新增 SSH
-> immutable store、create-only write/read-back、host key pin、磁盘阈值与 export/recovery/
-> migrate；GCS/Drive 降级为 disabled 历史 adapter；public source/observer contract 与
-> natural collector 不变；Cloud Daily Report 保持独立 read-only 内存边界；SETUP_01 H1
-> 突破后双路径研究架构与 D1 协议仍冻结）。
+> 真实 synthetic validation，CN/US activation record 已建立、等待首个自然 session；新增
+> shared exact completed-session resolver、close-to-next-open reconciliation、Cloudflare/VPS
+> trigger-only fallback、日报 reliability classification 与独立 notification marker；SSH
+> immutable store、D1 source/observer contract、activation/prospective boundary、Cloud Daily
+> Report read-only 内存边界与 SETUP_01 H1 突破后双路径研究语义仍冻结）。
 
 ## 项目身份
 
@@ -286,13 +286,14 @@
 
 - 运维交付与分析质量分离：默认只读 CLI 在 exact target-session usable data、核心计算及 final JSON/HTML 完成时，`PARTIAL_DATA_QUALITY` 仍可 exit 0；定时 CN/US workflow 使用 `--require-complete`，使该质量状态在产物与通知形成后 exit 2，Actions 不再以绿色表示分析完整。单源仍明确为“单源可用”并保留 actual provider provenance；stale/no exact-session、核心计算异常、artifact 失败继续 non-zero；通知 contract 不变。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
-  `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 分别在 09:30 UTC
-  和周二至周六 01:00 UTC（北京时间 09:00）运行，并使用既有 `exchange_calendars` 的 `XSHG` / `XNYS` 精确
-  completed-session gate。周末或交易所休市返回 `SKIPPED_NON_SESSION`，不使用上一
-  交易日替代；未收盘、provider 失败、latest/QFQ 不完整或校验失败均 fail closed，
-  仍生成异常报告并通知。自动调度的 T 由 timezone-aware 当前时刻转换到目标交易所
-  本地日期后再进入同一 exact-session gate，跨 UTC 午夜不会误取 runner 日期，节假日仍
-  当天安全跳过；显式 `--date/--trade-date` 继续严格使用指定日期。
+  `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 保留既有 primary
+  schedules，并通过共享 `ExactExchangeCalendarProvider.latest_completed_session()` 选择
+  最近一个真实收盘已过去的 `XSHG` / `XNYS` session。跨北京时间午夜、周末、节假日、US
+  DST/EST 和 schedule 延迟都不会把 runner 当前 civil date 当成未完成 T；显式
+  `--date/--trade-date` 继续严格使用指定日期并进入 exact-session gate。日报 metadata
+  额外区分 `SCHEDULER_DELAY`、`SESSION_RESOLUTION_ERROR`、`INCOMPLETE_SESSION`、
+  `DATA_QUALITY_PARTIAL`、`PROVIDER_FAILURE`、`NO_SIGNAL` 与 `SUCCESS`，其中 `NO_SIGNAL`
+  不是 failure。
 - `trading/ephemeral_market_data.py` 只抓取目标市场正式策略池、启用持仓和已有 Paper
   continuation 所需的 provider rows；latest/QFQ 复用既有 provider fallback、
   `latest_snapshot.py` 投影和 exact-T 校验，数据只在本次进程内存中存在，也不读取旧的
@@ -333,7 +334,10 @@
 - Cloud report 的 production state、paper ledger、broker order 与 raw/QFQ persistence
   仍为零，final artifact allowlist 不变。`asia-close` / `us-close` 是独立的 Sheet-backed
   scheduled writer；Cloud Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` /
-  `历史行情_前复权`，也不改变 writer 的事实源边界。Bark/SMTP 仍为可选通知。
+  `历史行情_前复权`，也不改变 writer 的事实源边界。Bark/SMTP 仍为可选通知；配置 D1
+  VPS credentials 后，通知会先在独立 `system/operational/daily-report-notifications/`
+  namespace create-only claim，同一 market/session/protocol 的 fallback 返回
+  `NOOP_REPORT_ALREADY_SENT`，不混入 formal D1 session graph。
 - 自然运行与只读诊断已证实 US provider 尾部可暂时落后 exact T，且相邻任务读取 Sheets
   曾遇到 429。CN 9/23 writer 已完成正式 QFQ 3/3，但 US 同日 latest 待复核、正式 QFQ
   更新 0；Candidate 大规模历史不足和绿色日报掩盖部分质量亦已形成独立修复 PR。
@@ -512,14 +516,19 @@
   root-owned helper、私有 key 只经 Secret 注入临时文件、磁盘 free-space 安全/危险阈值
   （危险阈值触发 `D1_STORAGE_LOW_SPACE_FAIL_CLOSED`，绝不自动删除 evidence）、root
   manifest、VPS → 空目录 verified export/recovery 与旧 VPS → export → 新 VPS import →
-  full verify 迁移路径，以及 storage-validation / activation / per-market natural-collector
-  workflows。合同细节见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`。
+  full verify 迁移路径，以及 storage-validation / activation / per-market market-close
+  reconciliation workflows。合同细节见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`。
   VPS 已完成一次性初始化（专用非 root 账户 + root-owned helper + 冻结 storage root 与
   目录合同），运行期凭证只存在于 GitHub Secrets；真实 VPS synthetic storage validation
   已 `VERIFIED`（create-only、落盘重算 SHA-256、read-back、幂等重放、同 identity 不同
   bytes fail-closed、空目录恢复、CN/US 正式 graph 为空），并通过同一 SSH/helper 路径在
   真实磁盘上重跑确认。10 GB system disk 已投入使用：collector 每次都报告 total/used/free/
   store bytes/object·session count，危险阈值 fail closed 且不自动删除任何 evidence。
+- `scripts/run_market_close_reconcile.py` 是 CN/US D1 primary、Cloudflare fallback 与 VPS
+  watchdog 的共同执行边界：解析最近 exact completed session，检查 VPS session pointer，
+  只在 `session close <= now < next exchange session open` 内运行 natural collector；已提交
+  返回 `NOOP_ALREADY_COMMITTED`，缺失但过了 next-open 返回 `MISSED_PROSPECTIVE_SESSION`
+  且绝不历史 backfill。Daily Report 与 D1 reconciliation 仍是两个独立业务 workflow。
 - 独立公开 source/observer contract 已接入既有 Candidate runtime：保存当日 universe、raw
   Stage-A payload/hash、QFQ exact-T causal prefix/hash、精确 session identity、既有 causal
   Swing/Fibonacci 与双路径 observer 的 signal/touch/no-signal、trigger/ceiling、stop、

@@ -17,3 +17,21 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
+      - name: Compile Python sources
+        run: python -m compileall -q core.py main.py providers.py latest_snapshot.py scripts research trading tests
+      - name: Validate workflow YAML
+        run: |
+          python -m pip install --disable-pip-version-check PyYAML
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          for path in sorted(Path('.github/workflows').glob('*.yml')):
+              with path.open(encoding='utf-8') as handle:
+                  yaml.safe_load(handle)
+              print(f'validated {path}')
+          PY
+      - name: Validate Cloudflare watchdog
+        working-directory: infra/cloudflare/market-close-watchdog
+        run: |
+          node --check src/index.mjs
+          node --test test/index.test.mjs

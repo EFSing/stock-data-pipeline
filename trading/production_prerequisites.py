@@ -135,6 +135,10 @@ class ProductionPrerequisiteError(ValueError):
     """A production fact or contract cannot be accepted safely."""
 
 
+LATEST_ELIGIBLE_COMPLETED_EXCHANGE_SESSION = "LATEST_ELIGIBLE_COMPLETED_EXCHANGE_SESSION"
+RECONCILE_BEFORE_NEXT_SESSION_OPEN = "RECONCILE_BEFORE_NEXT_SESSION_OPEN"
+
+
 class SheetsRecordsClient(Protocol):
     def records(self, sheet_name: str) -> list[dict]: ...
 
@@ -650,6 +654,39 @@ def _data_for_symbol(
     ), status, detail
 
 
+@dataclass(frozen=True)
+class CompletedSessionWindow:
+    """One exact completed session and its prospective collection boundary."""
+
+    identity: CompletedSessionIdentity
+    session_open: datetime
+    session_close: datetime
+    next_session_open: datetime
+    resolved_at: datetime
+
+    @property
+    def collection_window_open(self) -> bool:
+        return self.resolved_at >= self.session_close and self.resolved_at < self.next_session_open
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "resolution": LATEST_ELIGIBLE_COMPLETED_EXCHANGE_SESSION,
+            "collection_window": RECONCILE_BEFORE_NEXT_SESSION_OPEN,
+            "market": self.identity.market,
+            "session_date": self.identity.trade_date.isoformat(),
+            "session_identity": self.identity.identity,
+            "session_open": self.session_open.isoformat(),
+            "session_close": self.session_close.isoformat(),
+            "next_session_date": (
+                self.identity.next_session_date.isoformat()
+                if self.identity.next_session_date is not None else None
+            ),
+            "next_session_open": self.next_session_open.isoformat(),
+            "resolved_at": self.resolved_at.isoformat(),
+            "collection_window_open": self.collection_window_open,
+        }
+
+
 class ExactExchangeCalendarProvider:
     """Exact production session identity backed by ``exchange_calendars``."""
 
@@ -692,6 +729,78 @@ class ExactExchangeCalendarProvider:
                 raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
             calendar = xc.get_calendar(self.calendar_name(market))
             return pd.Timestamp(now).tz_convert(calendar.tz).date()
+        except ProductionPrerequisiteError:
+            raise
+        except (ImportError, KeyError, TypeError, ValueError) as exc:
+            raise ProductionPrerequisiteError(
+                "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
+            ) from exc
+
+    def latest_completed_session(
+        self, market: str, *, now: datetime
+    ) -> CompletedSessionIdentity:
+        """Resolve the latest exchange session whose real close has passed.
+
+        This is the shared scheduler/session boundary for both Daily Report
+        and prospective D1 collection.  It deliberately does not derive T
+        from a market-local civil date: a delayed run can cross midnight,
+        while an in-progress session must remain ineligible.
+        """
+
+        try:
+            import exchange_calendars as xc
+            import pandas as pd
+            if now.tzinfo is None or now.utcoffset() is None:
+                raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
+            calendar = xc.get_calendar(self.calendar_name(market))
+            current = pd.Timestamp(now)
+            local_day = current.tz_convert(calendar.tz).date()
+            # The bounded lookback is only used to locate a prior exact
+            # exchange label; eligibility itself is determined by the real
+            # session close below.  It comfortably spans known CN/US holiday
+            # gaps without walking an unbounded historical schedule.
+            sessions = calendar.sessions_in_range(
+                pd.Timestamp(local_day - timedelta(days=60)),
+                pd.Timestamp(local_day + timedelta(days=1)),
+            )
+            for session in reversed(tuple(sessions)):
+                if current >= calendar.session_close(session):
+                    return self.completed_session(str(market).upper(), session.date())
+            raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
+        except ProductionPrerequisiteError:
+            raise
+        except (ImportError, KeyError, TypeError, ValueError) as exc:
+            raise ProductionPrerequisiteError(
+                "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
+            ) from exc
+
+    def completed_session_window(
+        self, market: str, trade_date: date, *, now: datetime
+    ) -> CompletedSessionWindow:
+        """Return the exact close-to-next-open prospective collection window."""
+
+        try:
+            import exchange_calendars as xc
+            import pandas as pd
+            if now.tzinfo is None or now.utcoffset() is None:
+                raise ProductionPrerequisiteError("COMPLETED_SESSION_REQUIRED")
+            name = self.calendar_name(market)
+            calendar = xc.get_calendar(name)
+            session = pd.Timestamp(trade_date)
+            if not calendar.is_session(session):
+                raise ProductionPrerequisiteError(
+                    "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
+                )
+            next_session = calendar.next_session(session)
+            identity = self.completed_session(str(market).upper(), trade_date)
+            current = pd.Timestamp(now)
+            return CompletedSessionWindow(
+                identity=identity,
+                session_open=calendar.session_open(session).to_pydatetime(),
+                session_close=calendar.session_close(session).to_pydatetime(),
+                next_session_open=calendar.session_open(next_session).to_pydatetime(),
+                resolved_at=current.to_pydatetime(),
+            )
         except ProductionPrerequisiteError:
             raise
         except (ImportError, KeyError, TypeError, ValueError) as exc:

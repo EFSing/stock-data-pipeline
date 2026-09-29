@@ -52,6 +52,15 @@ class D1IntegrityError(RuntimeError):
     """Raised when an immutable identity is reused with different bytes."""
 
 
+class D1ProspectiveWindowError(RuntimeError):
+    """Raised when a natural D1 session is outside its prospective window."""
+
+    def __init__(self, reason: str, *, detail: Mapping[str, Any] | None = None):
+        super().__init__(reason)
+        self.reason = str(reason)
+        self.detail = dict(detail or {})
+
+
 def prospective_window(market: str, activation_timestamp: datetime) -> dict[str, str]:
     """Resolve the fixed 12-calendar-month half-open window for one market."""
     if activation_timestamp.tzinfo is None or activation_timestamp.utcoffset() is None:
@@ -445,7 +454,7 @@ def session_event_summary(snapshot: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
-    "CAPTURE_STATUSES", "CommitResult", "D1IntegrityError", "FilesystemD1Store",
+    "CAPTURE_STATUSES", "CommitResult", "D1IntegrityError", "D1ProspectiveWindowError", "FilesystemD1Store",
     "PROTOCOL_VERSION", "build_session_snapshot", "canonical_bytes", "content_sha256",
     "contains_private_fields", "prospective_window", "render_research_report",
     "session_event_summary", "validate_session_snapshot",

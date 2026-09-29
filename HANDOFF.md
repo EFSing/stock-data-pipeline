@@ -4,6 +4,14 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
+当前逻辑任务是增强 CN/US 定时任务可靠性：保留 GitHub native schedule 作为 primary，新增
+共享 `LATEST_ELIGIBLE_COMPLETED_EXCHANGE_SESSION` resolver、D1 close-to-next-open
+reconciliation、Cloudflare Worker Cron 第一备用、Ubuntu VPS trigger-only watchdog 第二备用，
+并为 Daily Report 增加可靠性分类与独立 notification idempotency marker。所有入口最终复用
+同一 `market + session_date` resolution/commit 语义，不改变冻结交易策略、D1 source/observer
+研究语义或 activation prospective boundary。代码正在独立 `ops/market-close-trigger-resilience-v1`
+分支实现，尚未创建/报告 PR。
+
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
 `D1_PROSPECTIVE_TIME_ISOLATED`，并已依次放弃 Google Drive 与 Google Cloud Storage durable
 storage，改用用户自有 Ubuntu VPS。Drive 404 与已合并的 GCS adapter 都保留为历史实现/测试
@@ -53,6 +61,12 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - Drive 专用 folder 路线已停止：正确 folder ID 的 service-account API `files.get` 仍返回 404，
   未创建对象；不扩大 Drive scope。GCS 路线已实现（`SETUP01_D1_GCS_DURABLE_STORAGE` /
   `GCS_D1_DURABLE_BACKEND_V1`）但未部署，现降级为 disabled/future adapter。
+- 当前 reliability implementation 已加入共享 exact resolver、reconciliation CLI、日报
+  `SCHEDULER_DELAY`/`SESSION_RESOLUTION_ERROR`/`INCOMPLETE_SESSION`/
+  `DATA_QUALITY_PARTIAL`/`PROVIDER_FAILURE`/`NO_SIGNAL`/`SUCCESS` 分类、独立日报通知
+  claim、Cloudflare Worker 源码/config、VPS watchdog 源码/systemd units、Actions step
+  summary 诊断与 focused tests；本地全量 unittest、静态检查、workflow YAML、Node 检查和
+  docs closeout 已通过，仍需提交并核对真实远端 PR/CI。
 
 ## Completed
 
@@ -103,11 +117,17 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - 用户普通股票收益偏好已登记为独立只读诊断：报告分别呈现最近合法 T1 gross headroom、
   后续结构目标及不确定性、止损距离/1R/RR/成本，以及仅在合法最终结果存在时呈现 net
   return/net R/持有期/资金占用；不新增绝对收益硬阈值，不改变 D1/5%/2R/T1 全退或准入。
+- 已审计 activation `code_sha`：当前实现校验其 Git SHA 格式并将 activation hash 绑定到
+  snapshot source contract，但不把每次运行的 `GITHUB_SHA` 当作硬门槛。本次仅是 scheduler/
+  reconciliation operational hardening，保留既有 CN/US activation timestamp、window 与
+  code_sha，不重建 activation、不选择性补历史 evidence。
 
 ## Blocker / Decision
 
 `D1_FIRST_NATURAL_SESSION_PENDING`：VPS durable storage 已 provision 并通过真实 synthetic
-validation，CN/US activation record 均已创建，因此没有外部 blocker，只剩市场自然时间依赖：
+validation，CN/US activation record 均已创建，因此 D1 首个 formal session 仍只剩市场自然
+时间依赖。可靠性代码本身当前没有生产 blocker；Cloudflare/VPS deployment token 只在用户
+决定实际启用 fallback 时需要，不能阻止代码 PR：
 US 首个合格 session 是 2026-09-29 ET（北京时间 2026-09-30 04:00 收盘），CN 首个合格
 session 是 2026-09-30（北京时间 15:00 收盘）。在对应市场完成首个合法 natural session 的
 durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTION_ACTIVE`。
@@ -118,13 +138,16 @@ durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTIO
 
 ## Next Action
 
-- US：2026-09-29 ET session 收盘后由 `setup01-d1-vps-natural-collector-us` 自动采集
-  （也可 workflow_dispatch 手动补跑），核对 receipt、event hash、object read-back、
-  `vps-verify --full-objects`；通过后 US 进入 `D1_COLLECTION_ACTIVE`。
-- CN：在 2026-09-30 收盘后运行 `setup01-d1-vps-natural-collector-cn`，同样验收后 CN 进入
-  `D1_COLLECTION_ACTIVE`。
-- 两市场都 ACTIVE 后：本次 `research/setup01-d1-vps-natural-schedule` PR 的 schedule 即为
-  正式自动采集入口；日常只需观察失败与 `D1_STORAGE_LOW_SPACE`，不得人工构造 session。
+- 提交 `ops/market-close-trigger-resilience-v1` 并推送后，创建聚焦 reliability PR；复核该
+  PR 的真实 exact head、Actions/CI 与 mergeability，再报告 `READY_FOR_REVIEW`/
+  `PR_FULLY_READY`，不把本地 refs 当远端状态。
+- 用户若要启用外部 fallback，再按 runbook 在 Cloudflare Free Worker 写入独立 GitHub
+  Actions token、在 VPS 用户配置写入独立 `0600` token；不得把 token 发到聊天。
+- US：首个合格 session 收盘后由 market-close reconciliation 自动采集，核对 receipt、event
+  hash、object read-back、`vps-verify --full-objects`；通过后 US 进入 `D1_COLLECTION_ACTIVE`。
+- CN：首个合格 session 收盘后同样验收；不得用人工指定日期或旧日报补首个合法 session。
+- 两市场都 ACTIVE 后，继续观察 primary/fallback `NOOP`、missed-window、日报重复通知与
+  `D1_STORAGE_LOW_SPACE` diagnostics；不得人工构造 session。
 - 不得用人工指定日期或旧日报补为首个合法 session。
 - #110 保持 OPEN，不自动合并；不得用其已暴露结果选择本草案的 signal/stop/exit/gate。
 - US production acceptance 仍按既有自然 schedule 边界独立进行，不与本研究绑定。

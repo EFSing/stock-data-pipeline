@@ -1,0 +1,11 @@
+[Unit]
+Description=Run US market-close watchdog before the next US session
+
+[Timer]
+OnCalendar=Tue..Sat *-*-* 11:05:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=600
+Unit=market-close-watchdog-us.service
+
+[Install]
+WantedBy=timers.target
