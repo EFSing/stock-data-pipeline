@@ -9,7 +9,7 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 `YAHOO_CHART`，同 provider bounded retry，内部 adjustment/provenance 合同，symbol-level
 fault isolation，`RUN_STATUS`/`DATA_STATUS` 分离，以及 D1
 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` migration gate。代码在独立
-`refactor/single-source-market-data-v1` 分支；本分支当前尚未创建新 PR，branch/HEAD/CI
+`refactor/single-source-market-data-v1` 分支；PR #124 已创建并保持 OPEN，branch/HEAD/CI
 动态事实以 GitHub 实时核对为准。不得改变冻结交易策略、Paper、broker、Final OOS 或
 整体 Wave/Setup 路线。
 此前已合并的 CN/US schedule、close reconciliation、Cloudflare Worker Cron 与 Ubuntu VPS
@@ -151,9 +151,9 @@ activation；natural collector 的 migration gate 会在远端核对完成前 fa
   activation，等待用户最终批准后再创建新的 V2 immutable activation。
 - V2 activation 创建前不得运行会提交 formal evidence 的 production collector；不得人工
   指定日期、补 migration window 或把旧日报转成 D1 evidence。
-- 代码验证已完成；可创建本分支 PR。PR 需说明唯一 provider、删除的 production fallback、
+- 代码验证已完成；PR #124 已创建。PR 说明了唯一 provider、删除的 production fallback、
   minimum contract、symbol isolation、Daily Report exit semantics、D1 V1/V2 状态与剩余
-  VPS blocker。#110/#82/#96 继续独立不动。
+  VPS blocker。后续以 GitHub 实时 review/CI 状态为准；#110/#82/#96 继续独立不动。
 
 ## Constraints
 
