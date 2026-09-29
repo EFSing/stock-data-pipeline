@@ -23,11 +23,12 @@ disabled/non-production，运行期没有 explicit approval 时拒绝写 formal 
 是 SSH immutable store `SETUP01_D1_VPS_SSH_DURABLE_STORAGE` /
 `VPS_D1_DURABLE_BACKEND_V1`：GitHub Actions 继续做全部计算，VPS 只做 immutable storage、
 activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。远端治理记录描述 VPS
-已完成 provision、synthetic validation 与历史 activation 准备；但这些属于 GitHub/远端动态
-事实。本次本地 `vps-status` 因缺少 `D1_VPS_HOST` 未能实际核对 CN/US formal session count，
-不能把 0/0 或 activation version 当作本地已验证事实；本次没有创建或覆盖 V2 activation。
-migration gate 已先于 natural collector 运行，formal evidence 非零时停止。没有运行历史经济
-验证，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet 或 broker 语义。
+已完成 provision、synthetic validation 与历史 activation 准备；本轮通过受控 VPS 管理入口实时
+核对 durable state：CN/US formal session count 均为 0，当前 V1 backend identity/version
+保持有效，未发现 formal D1 evidence。因此已记录
+`D1_SINGLE_SOURCE_MIGRATION_PRE_OUTCOME_CONFIRMED`，没有运行 natural collector、没有创建或
+覆盖 V2 activation。没有运行历史经济验证，也没有修改正式 SETUP、Risk、Daily Decision、
+Paper、Sheet 或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -69,14 +70,17 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - 本分支新增 `SINGLE_SOURCE_MARKET_DATA_V1` provider adapters、内部 CN adjustment
   engine/provenance、single-source contract QC、symbol-level isolation、日报
   `RUN_STATUS`/`DATA_STATUS`、scheduled partial tolerance 与 D1 V2 source contract/gate；
-  交易策略核心未改，真实 credential/VPS migration 仍未宣称完成。
+  HITHINK live acceptance、asset-aware ETF routing、VPS migration pre-outcome 核对均已完成，
+  交易策略核心未改。
 
 ## Completed
 
-- 本分支已实现 `SINGLE_SOURCE_MARKET_DATA_V1`：CN `HITHINK_FINANCIAL_API`、US
-  `YAHOO_CHART`，CN raw+corporate-actions internal qfq，统一单源合同校验、provenance、
-  symbol status、partial Daily Report 语义和 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 代码路径；
-  交易策略核心未改。真实 credential / VPS migration 仍未宣称完成。
+- 本分支已实现并完成真实验收的 `SINGLE_SOURCE_MARKET_DATA_V1`：CN
+  `HITHINK_FINANCIAL_API`、US `YAHOO_CHART`，CN stock raw+corporate-actions internal qfq，
+  HITHINK metadata 驱动的 fund/ETF endpoint，统一单源合同校验、provenance、symbol status、
+  partial Daily Report 语义和 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 代码路径；交易策略
+  核心未改。当前状态为 `SINGLE_SOURCE_PRODUCTION_CUTOVER_READY`，但 V2 immutable activation
+  和 production cutover 仍等待用户最终授权。
 
 - 完成 Wave/Swing/Fibonacci/SETUP_01/Decision/Risk/Position Management/Exit、冻结数据、
   #104 exact-T、关闭回踩研究及 #110 research-only exit/cost 边界审计。
@@ -133,11 +137,11 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`D1_SOURCE_MIGRATION_STATE_UNVERIFIED`：本地尝试执行 `vps-status` 在建立 SSH 前因缺少
-`D1_VPS_HOST` 失败，因此 CN/US formal session count、现有 activation version 与 VPS
-durable verification 尚未取得实时证据。本次没有读取/改写 activation，也没有创建 V2
-activation；natural collector 的 migration gate 会在远端核对完成前 fail closed。该 blocker
-只阻止 D1 migration/cutover，不阻止离线代码、fixture、Daily Report 或文档验证。
+`D1_SINGLE_SOURCE_MIGRATION_PRE_OUTCOME_CONFIRMED`：通过受控 VPS 管理入口实时确认 CN/US
+formal session count 均为 0，未发现任何 formal D1 evidence；当前 V1 activation 保持不变，
+且本轮未运行 natural collector。因此 migration 没有不可绕过的技术 blocker。当前只停在
+用户最终授权节点：先查看 activation preview/hash，再由用户明确批准后创建 V2 immutable
+activation；本轮不创建 V2、不提交 formal evidence、不 merge PR #124。
 
 注意：VPS 实例曾被重建，host key 已变更，当前冻结 fingerprint 以 GitHub Secret
 `D1_VPS_HOST_KEY_FINGERPRINT` 与 `D1_VPS_KNOWN_HOSTS` 为准；旧指纹文件已作废。VPS 仍禁止
@@ -145,15 +149,12 @@ activation；natural collector 的 migration gate 会在远端核对完成前 fa
 
 ## Next Action
 
-- 通过用户提供的 VPS credential 或 GitHub Actions 受控环境实时核对 durable `verify` 与
-  CN/US formal counts。若 count 非零，立即停止 migration 并返回
-  `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE`；若为 0/0 且旧 activation 为 V1，保留旧
-  activation，等待用户最终批准后再创建新的 V2 immutable activation。
-- V2 activation 创建前不得运行会提交 formal evidence 的 production collector；不得人工
+- 维持 CN/US formal count=0，不运行会提交 formal evidence 的 natural collector；不得人工
   指定日期、补 migration window 或把旧日报转成 D1 evidence。
-- 代码验证已完成；PR #124 已创建。PR 说明了唯一 provider、删除的 production fallback、
-  minimum contract、symbol isolation、Daily Report exit semantics、D1 V1/V2 状态与剩余
-  VPS blocker。后续以 GitHub 实时 review/CI 状态为准；#110/#82/#96 继续独立不动。
+- 生成 CN/US `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` activation preview/hash，但不写入 VPS
+  immutable activation；等待用户最终授权后再进入 V2 activation / first eligible session。
+- PR #124 继续在原 branch 上完成 exact-head CI 与 review，不创建替代小 PR、不 merge；#110/#82/#96
+  继续独立不动。
 
 ## Constraints
 
@@ -166,8 +167,10 @@ activation；natural collector 的 migration gate 会在远端核对完成前 fa
 - 路径 A/B、CN/US 分别报告；不得合并掩盖失败或凑证据下限。
 - Candidate-only、Paper、production state、Sheet、broker 边界不变。
 - CN production price path 只能是 `HITHINK_FINANCIAL_API`，US 只能是 `YAHOO_CHART`；
-  retry 不得换 vendor。HITHINK qfq 必须是 raw + same-vendor corporate actions + internal
-  adjustment engine；无法证明的 symbol 只能 `DATA_ADJUSTMENT_UNVERIFIED`。
+  retry 不得换 vendor。CN stock qfq 必须是 HITHINK raw + same-vendor corporate actions +
+  internal adjustment engine；HITHINK metadata 明确为 `fund-etf` 的样本使用同一 vendor 的
+  fund historical endpoint，并记录 provider-forward-adjusted provenance；任一 adjustment
+  contract 无法证明时只能 `DATA_ADJUSTMENT_UNVERIFIED`。
 - `DATA_MISSING` / `DATA_STALE` / `DATA_INVALID` / adjustment or symbol provider errors
   只阻断自身，不得写作 `NO_SIGNAL`，不得以 coverage ratio 作为 market hard gate；provider-wide
   auth/schema/outage 才是 global failure。

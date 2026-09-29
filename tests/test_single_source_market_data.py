@@ -9,6 +9,8 @@ from unittest.mock import patch
 from core import Quote
 from market_data_contract import (
     CN_ADJUSTMENT_ENGINE_VERSION,
+    CN_ETF_ADJUSTMENT_ENGINE_VERSION,
+    DATA_ADJUSTMENT_UNVERIFIED,
     CN_SINGLE_SOURCE_PROVIDER,
     DATA_OK,
     DATA_INVALID,
@@ -25,7 +27,11 @@ from market_data_contract import (
     source_provenance,
     validate_single_source_quotes,
 )
-from providers import SingleSourceFetchResult, fetch_hithink_with_provenance
+from providers import (
+    SingleSourceFetchResult,
+    fetch_hithink_with_provenance,
+    fetch_yahoo_chart_with_provenance,
+)
 from trading.ephemeral_market_data import load_ephemeral_market_data
 
 
@@ -123,6 +129,7 @@ class SingleSourceMarketDataTests(TestCase):
         watch = {
             "统一代码": "600000.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",
             "HITHINK代码": "600000.SH",
+            "HITHINK资产类型": "a-share",
         }
         with patch.dict(os.environ, {"HITHINK_FINANCE_API_KEY": "fixture"}, clear=False), \
              patch("providers.urlopen", side_effect=urlopen):
@@ -171,18 +178,192 @@ class SingleSourceMarketDataTests(TestCase):
         self.assertIn("DATE_MISSING", invalid_errors)
         self.assertIn("TARGET_SESSION_MISSING", invalid_errors)
 
-    def test_etf_adjustment_isolated_without_vendor_fallback(self):
+    def test_etf_routes_to_same_vendor_fund_endpoint(self):
+        calls = []
+
+        def hithink_json(path, params):
+            calls.append((path, dict(params)))
+            if path == "/api/meta/tickers/search":
+                return {"code": 0, "data": {"item": [{
+                    "thscode": params["q"], "asset_type": "fund-etf",
+                }]}}
+            if path == "/api/fund/market/historical":
+                return {"code": 0, "data": {"item": [{
+                    "date": "2026-09-28", "open_price": 10, "high_price": 11,
+                    "low_price": 9, "close_price": 10, "volume": 100,
+                }]}}
+            self.fail(f"unexpected endpoint: {path}")
+
+        for symbol in ("512400.SH", "159866.SZ"):
+            with self.subTest(symbol=symbol):
+                calls.clear()
+                watch = {
+                    "统一代码": symbol, "名称": "fixture ETF", "市场": "CN", "币种": "CNY",
+                    "HITHINK代码": symbol,
+                }
+                with patch("providers._hithink_json", side_effect=hithink_json):
+                    result = fetch_hithink_with_provenance(
+                        watch, "qfq", date(2026, 9, 25), T_DAY
+                    )
+                self.assertEqual(result.provider, CN_SINGLE_SOURCE_PROVIDER)
+                self.assertEqual(
+                    result.provenance["adjustment_engine_version"],
+                    CN_ETF_ADJUSTMENT_ENGINE_VERSION,
+                )
+                self.assertEqual(result.provenance["asset_type"], "fund-etf")
+                self.assertEqual(
+                    [path for path, _params in calls],
+                    ["/api/meta/tickers/search", "/api/fund/market/historical"],
+                )
+
+    def test_asset_type_metadata_not_code_prefix_selects_stock_endpoint(self):
+        calls = []
+
+        def hithink_json(path, params):
+            calls.append(path)
+            if path == "/api/meta/tickers/search":
+                return {"code": 0, "data": {"item": [{
+                    "thscode": "500001.SH", "asset_type": "a-share",
+                }]}}
+            if path == "/api/a-share/prices/historical":
+                return {"code": 0, "data": {"item": [{
+                    "date": "2026-09-28", "open_price": 10, "high_price": 11,
+                    "low_price": 9, "close_price": 10, "volume": 100,
+                }]}}
+            self.fail(f"unexpected endpoint: {path}")
+
         watch = {
-            "统一代码": "512400.SH", "名称": "fixture ETF", "市场": "CN", "币种": "CNY",
-            "HITHINK代码": "512400.SH",
+            "统一代码": "500001.SH", "名称": "fixture stock", "市场": "CN", "币种": "CNY",
+            "HITHINK代码": "500001.SH",
         }
-        payload = {"code": 0, "data": {"item": [{
-            "date": "2026-09-26", "open_price": 10, "high_price": 11,
+        with patch("providers._hithink_json", side_effect=hithink_json):
+            result = fetch_hithink_with_provenance(
+                watch, "raw", date(2026, 9, 25), T_DAY
+            )
+        self.assertEqual(result.provenance["asset_type"], "a-share")
+        self.assertIn("/api/a-share/prices/historical", calls)
+        self.assertNotIn("/api/fund/market/historical", calls)
+
+    def test_hithink_schema_break_is_provider_global(self):
+        watch = {
+            "统一代码": "600000.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",
+            "HITHINK代码": "600000.SH", "HITHINK资产类型": "a-share",
+        }
+        with patch(
+            "providers._hithink_json",
+            return_value={"code": 0, "data": {"item": "not-a-list"}},
+        ):
+            with self.assertRaises(ProviderGlobalFailure):
+                fetch_hithink_with_provenance(
+                    watch, "raw", date(2026, 9, 25), T_DAY
+                )
+
+    def test_hithink_action_dataset_not_ready_is_adjustment_unverified(self):
+        watch = {
+            "统一代码": "688981.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",
+            "HITHINK代码": "688981.SH", "HITHINK资产类型": "a-share",
+        }
+        raw_payload = {"code": 0, "data": {"item": [{
+            "date": "2026-09-28", "open_price": 10, "high_price": 11,
             "low_price": 9, "close_price": 10, "volume": 100,
         }]}}
-        with patch("providers._hithink_json", return_value=payload):
+
+        def hithink_json(path, _params):
+            if path == "/api/a-share/prices/historical":
+                return raw_payload
+            raise ProviderSymbolError("HITHINK_SYMBOL_ERROR:3002")
+
+        with patch("providers._hithink_json", side_effect=hithink_json):
             with self.assertRaises(AdjustmentUnverifiedError):
-                fetch_hithink_with_provenance(watch, "qfq", date(2026, 9, 25), T_DAY)
+                fetch_hithink_with_provenance(
+                    watch, "qfq", date(2026, 9, 25), T_DAY
+                )
+
+    def test_hithink_invalid_key_business_code_is_provider_global(self):
+        with patch(
+            "providers._hithink_json",
+            side_effect=ProviderGlobalFailure("HITHINK_PROVIDER_ERROR:2003"),
+        ):
+            with self.assertRaises(ProviderGlobalFailure):
+                fetch_hithink_with_provenance(
+                    {
+                        "统一代码": "600000.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",
+                        "HITHINK代码": "600000.SH", "HITHINK资产类型": "a-share",
+                    },
+                    "raw",
+                    date(2026, 9, 25),
+                    T_DAY,
+                )
+
+    def test_yahoo_chart_symbol_error_isolated_and_qfq_provenance_is_explicit(self):
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps(self.payload).encode("utf-8")
+
+        symbol_watch = {
+            "统一代码": "BAD.US", "名称": "fixture", "市场": "US", "币种": "USD",
+            "yfinance代码": "BAD.US",
+        }
+        not_found = {
+            "chart": {"result": [], "error": {"code": "Not Found", "description": "No data found"}}
+        }
+        with patch("providers.urlopen", return_value=Response(not_found)):
+            with self.assertRaises(ProviderSymbolError):
+                fetch_yahoo_chart_with_provenance(
+                    symbol_watch, "raw", date(2026, 9, 25), T_DAY
+                )
+
+        timestamp = int(datetime(2026, 9, 28, 13, tzinfo=timezone.utc).timestamp())
+        good = {
+            "chart": {
+                "error": None,
+                "result": [{
+                    "timestamp": [timestamp],
+                    "meta": {"exchangeTimezoneName": "America/New_York"},
+                    "indicators": {
+                        "quote": [{
+                            "open": [10.0], "high": [11.0], "low": [9.0],
+                            "close": [10.0], "volume": [100.0],
+                        }],
+                        "adjclose": [{"adjclose": [9.0]}],
+                    },
+                }],
+            }
+        }
+        with patch("providers.urlopen", return_value=Response(good)):
+            result = fetch_yahoo_chart_with_provenance(
+                {
+                    "统一代码": "AAPL", "名称": "fixture", "市场": "US", "币种": "USD",
+                    "yfinance代码": "AAPL",
+                },
+                "qfq",
+                date(2026, 9, 25),
+                T_DAY,
+            )
+        self.assertEqual(result.quotes[0].open, 9.0)
+        self.assertIn("adjclose", result.provenance["adjusted_ohlcv_source"])
+
+    def test_yahoo_chart_network_failure_is_provider_global(self):
+        with patch("providers.urlopen", side_effect=RuntimeError("outage")):
+            with self.assertRaises(ProviderGlobalFailure):
+                fetch_yahoo_chart_with_provenance(
+                    {
+                        "统一代码": "AAPL", "名称": "fixture", "市场": "US", "币种": "USD",
+                        "yfinance代码": "AAPL",
+                    },
+                    "raw",
+                    date(2026, 9, 25),
+                    T_DAY,
+                )
 
     def test_one_stale_symbol_is_blocked_without_blocking_peer(self):
         client = _FakeSheets(("512400.SH", "600000.SH"))
@@ -228,12 +409,29 @@ class SingleSourceMarketDataTests(TestCase):
         self.assertTrue(snapshot.to_dict()["provider_global_failure"])
         self.assertNotIn("NO_SIGNAL", DATA_UNAVAILABLE_FOR_DECISION)
 
+    def test_provider_global_failure_does_not_fan_out_to_every_symbol(self):
+        client = _FakeSheets(tuple(f"600{index:03d}.SH" for index in range(50)))
+        with patch(
+            "trading.ephemeral_market_data.fetch_single_source_with_retry",
+            side_effect=ProviderGlobalFailure("auth"),
+        ):
+            snapshot = load_ephemeral_market_data(
+                client, market="CN", as_of_date=T_DAY, now=AFTER_CLOSE
+            )
+        self.assertTrue(snapshot.to_dict()["provider_global_failure"])
+        self.assertEqual(len(snapshot.provider_status), 1)
+        self.assertEqual(len(snapshot.errors), 1)
+
     def test_missing_data_maps_to_decision_block_not_no_signal(self):
         self.assertEqual(
             unavailable_reason(DATA_MISSING),
             f"{DATA_UNAVAILABLE_FOR_DECISION}:{DATA_MISSING}",
         )
         self.assertNotEqual(DATA_MISSING, "NO_SIGNAL")
+        self.assertNotEqual(
+            unavailable_reason(DATA_ADJUSTMENT_UNVERIFIED),
+            "NO_SIGNAL",
+        )
 
     def test_us_symbol_failure_isolated(self):
         client = _FakeSheets(("AAPL", "BAD.US"), market="US")

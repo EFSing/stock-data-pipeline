@@ -20,7 +20,7 @@ module never replaces that data.
 """
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 import math
@@ -107,6 +107,7 @@ class HistoryLoadResult:
     rows: int = 0
     errors: tuple[str, ...] = ()
     provenance: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    provider_global_failure: str | None = None
 
     def __post_init__(self) -> None:
         normalized = {
@@ -117,6 +118,13 @@ class HistoryLoadResult:
         object.__setattr__(self, "api_requests", int(self.api_requests))
         object.__setattr__(self, "rows", int(self.rows))
         object.__setattr__(self, "errors", tuple(str(error) for error in self.errors))
+        object.__setattr__(
+            self,
+            "provider_global_failure",
+            str(self.provider_global_failure).strip()
+            if self.provider_global_failure
+            else None,
+        )
         object.__setattr__(
             self,
             "provenance",
@@ -157,6 +165,7 @@ class CandidateMarketRuntimeResult:
     # ordinary Candidate report deliberately continues to omit raw bars.
     short_histories: Mapping[str, tuple[Quote, ...]] = field(default_factory=dict)
     source_provenance: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    provider_global_failure: str | None = None
 
     @property
     def seed_count(self) -> int:
@@ -293,6 +302,8 @@ class CandidateMarketRuntimeResult:
             "candidate_selection_outcome": (
                 "NO_CANDIDATES"
                 if self.status == "NO_CANDIDATES"
+                else "NO_USABLE_SYMBOLS"
+                if self.status == "COMPLETED_NO_USABLE_SYMBOLS"
                 else "CANDIDATES_INCLUDED"
                 if self.included_records
                 else "DISCOVERY_FAILED"
@@ -315,6 +326,7 @@ class CandidateMarketRuntimeResult:
             },
             "errors": list(self.errors),
             "status": self.status,
+            "provider_global_failure": self.provider_global_failure,
             "qfq_contract": dict(self.qfq_contract),
             "source_provenance": {
                 symbol: dict(value)
@@ -564,7 +576,7 @@ def _provider_watch(seed: Any) -> dict[str, str]:
     ticker = _yfinance_ticker(seed)
     source_symbol = str(getattr(seed, "source_symbol", "") or "").strip()
     market = str(seed.market).strip().upper()
-    return {
+    watch = {
         "统一代码": str(seed.symbol).strip().upper(),
         "名称": str(getattr(seed, "name", "") or seed.symbol),
         "市场": market,
@@ -576,6 +588,13 @@ def _provider_watch(seed: Any) -> dict[str, str]:
         "历史数据源": canonical_provider_for_market(market),
         "时区": "America/New_York" if market == "US" else "Asia/Shanghai",
     }
+    asset_class = str(getattr(seed, "asset_class", "") or "").strip()
+    if asset_class:
+        # This is explicit seed metadata, not a code-prefix classifier.  If a
+        # CN watch does not carry an asset class, the HITHINK adapter resolves
+        # it through HITHINK's metadata directory before choosing an endpoint.
+        watch["asset_class"] = asset_class
+    return watch
 
 
 def _empty_frame_like(frame: Any) -> Any:
@@ -828,25 +847,62 @@ def _default_single_source_history_loader(
             if errors:
                 return symbol, (), result.api_requests, f"{symbol}:DATA_INVALID:{','.join(errors)}", dict(result.provenance)
             return symbol, result.quotes, result.api_requests, None, dict(result.provenance)
-        except ProviderGlobalFailure as exc:
-            return symbol, (), 1, f"{symbol}:PROVIDER_GLOBAL_FAILURE:{exc}", {}
+        except ProviderGlobalFailure:
+            # Preserve the provider-wide boundary for the coordinator.  The
+            # caller collapses this into one stage/run failure instead of
+            # manufacturing one error for every scheduled symbol.
+            raise
         except ProviderSymbolError as exc:
             return symbol, (), 1, f"{symbol}:PROVIDER_SYMBOL_ERROR:{exc}", {}
         except Exception as exc:
             return symbol, (), 1, f"{symbol}:{type(exc).__name__}:{exc}", {}
 
+    completed: list[tuple[str, tuple[Quote, ...], int, str | None, Mapping[str, Any]] | None] = [
+        None
+    ] * len(seeds)
+    provider_global_failure: str | None = None
     with ThreadPoolExecutor(
         max_workers=YFINANCE_DEEP_HISTORY_WORKERS,
         thread_name_prefix="candidate-single-source",
     ) as executor:
-        completed = tuple(executor.map(load_one, seeds))
+        futures = {
+            executor.submit(load_one, seed): index
+            for index, seed in enumerate(seeds)
+        }
+        for future in as_completed(futures):
+            index = futures[future]
+            try:
+                completed[index] = future.result()
+            except ProviderGlobalFailure as exc:
+                provider_global_failure = f"{type(exc).__name__}:{exc}"
+                for pending in futures:
+                    if pending is not future:
+                        pending.cancel()
+                break
+
+    requests = sum(
+        int(item[2])
+        for item in completed
+        if item is not None
+    )
+    if provider_global_failure is not None:
+        return HistoryLoadResult(
+            {},
+            requests,
+            0,
+            (),
+            {},
+            provider_global_failure,
+        )
 
     histories: dict[str, tuple[Quote, ...]] = {}
     errors: list[str] = []
     provenance: dict[str, Mapping[str, Any]] = {}
     requests = 0
     rows = 0
-    for symbol, quotes, api_requests, error, item_provenance in completed:
+    for item in completed:
+        assert item is not None
+        symbol, quotes, api_requests, error, item_provenance = item
         requests += api_requests
         if error is not None:
             errors.append(error)
@@ -930,9 +986,21 @@ class ProductionCandidateRuntime:
         "CN": {
             "seed": "BaoStock HS300 ∪ CSI500 + basic/industry metadata",
             "market_data_provider": "HITHINK_FINANCIAL_API",
-            "candidate_short_history": "HITHINK raw daily OHLCV",
-            "strategy_deep_history": "HITHINK raw OHLCV + corporate actions",
-            "qfq": "CN_FORWARD_ADJUSTMENT_ENGINE_V1; exact completed session T",
+            "asset_routing": (
+                "HITHINK metadata asset_type: a-share -> "
+                "/api/a-share/prices/historical; fund-etf -> "
+                "/api/fund/market/historical"
+            ),
+            "candidate_short_history": "HITHINK daily OHLCV; asset-aware endpoint",
+            "strategy_deep_history": (
+                "HITHINK stock raw OHLCV + HITHINK corporate actions; "
+                "ETF provider-forward-adjusted fund OHLCV"
+            ),
+            "qfq": (
+                "CN_FORWARD_ADJUSTMENT_ENGINE_V1 for stocks; "
+                "HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1 for ETFs; "
+                "exact completed session T"
+            ),
         },
         "US": {
             "seed": "official iShares IWB holdings",
@@ -998,6 +1066,7 @@ class ProductionCandidateRuntime:
         errors: list[str] = []
         qfq_contract = dict(self.SOURCE_CONTRACT[normalized_market])
         source_provenance: dict[str, Mapping[str, Any]] = {}
+        provider_global_failure: str | None = None
         paper_symbols = tuple(
             dict.fromkeys(
                 str(symbol).strip().upper()
@@ -1054,6 +1123,7 @@ class ProductionCandidateRuntime:
             for symbol in paper_symbols
         )
         short_started = time.perf_counter()
+        short_result = HistoryLoadResult({})
         try:
             if not seeds:
                 short_result = HistoryLoadResult({})
@@ -1067,6 +1137,11 @@ class ProductionCandidateRuntime:
                     self.short_history_loader(seeds, short_sessions[0], as_of_date)
                 )
             errors.extend(short_result.errors)
+            if short_result.provider_global_failure:
+                provider_global_failure = short_result.provider_global_failure
+                errors.append(
+                    f"PROVIDER_GLOBAL_FAILURE:{short_result.provider_global_failure}"
+                )
             source_provenance.update(short_result.provenance)
             short_histories = short_result.histories
             short_rows = short_result.rows or sum(
@@ -1077,10 +1152,15 @@ class ProductionCandidateRuntime:
                 and short_histories[symbol][-1].trade_date == as_of_date
                 for symbol in symbols
             )
-            short_incomplete = bool(seeds) and short_usable == 0
+            short_incomplete = (
+                bool(seeds)
+                and short_usable == 0
+                and not short_result.provider_global_failure
+            )
             short_coverage_low = (
                 len(seeds) >= 20
                 and short_usable / len(seeds) < STAGE_A_MIN_COVERAGE_RATIO
+                and not short_result.provider_global_failure
             )
             if short_coverage_low:
                 errors.append(
@@ -1111,6 +1191,8 @@ class ProductionCandidateRuntime:
                 status=(
                     "NOT_RUN"
                     if not seeds
+                    else "PROVIDER_GLOBAL_FAILURE"
+                    if short_result.provider_global_failure
                     else "SUCCESS"
                     if not short_result.errors and not short_incomplete
                     and not short_coverage_low
@@ -1122,6 +1204,21 @@ class ProductionCandidateRuntime:
                 batch_chunk_size=YFINANCE_BATCH_CHUNK,
                 batch_threads=YFINANCE_BATCH_THREADS,
                 missing_or_short_count=max(len(seeds) - short_usable, 0),
+            )
+        except ProviderGlobalFailure as exc:
+            provider_global_failure = f"{type(exc).__name__}:{exc}"
+            error = f"PROVIDER_GLOBAL_FAILURE:{provider_global_failure}"
+            errors.append(error)
+            short_histories = {}
+            short_usable = 0
+            _record_stage(
+                timings,
+                "candidate_short_history",
+                started=short_started,
+                symbols=len(seeds),
+                failed_count=0,
+                status="PROVIDER_GLOBAL_FAILURE",
+                error_code=error,
             )
         except Exception as exc:
             error = f"CANDIDATE_SHORT_HISTORY_{type(exc).__name__}:{exc}"
@@ -1245,29 +1342,38 @@ class ProductionCandidateRuntime:
                 deep_histories.update(deep_result.histories)
                 source_provenance.update(deep_result.provenance)
                 errors.extend(deep_result.errors)
-                for seed in deep_targets:
-                    symbol = str(seed.symbol).strip().upper()
-                    if symbol not in deep_histories:
-                        deep_errors[symbol] = (
-                            "DEEP_HISTORY_UNAVAILABLE",
-                        )
-                    else:
-                        quality = _deep_data_status(
-                            deep_histories[symbol],
-                            as_of_date=as_of_date,
-                            expected_market=normalized_market,
-                            expected_symbol=symbol,
-                            expected_currency=getattr(seed, "currency", None),
-                        )
-                        if quality != DATA_OK:
+                if deep_result.provider_global_failure:
+                    provider_global_failure = deep_result.provider_global_failure
+                    errors.append(
+                        f"PROVIDER_GLOBAL_FAILURE:{deep_result.provider_global_failure}"
+                    )
+                    deep_histories = {}
+                    deep_errors = {}
+                    deep_status = "PROVIDER_GLOBAL_FAILURE"
+                else:
+                    for seed in deep_targets:
+                        symbol = str(seed.symbol).strip().upper()
+                        if symbol not in deep_histories:
                             deep_errors[symbol] = (
-                                f"DEEP_HISTORY_{quality}",
+                                "DEEP_HISTORY_UNAVAILABLE",
                             )
-                deep_status = (
-                    "SUCCESS"
-                    if not deep_result.errors and not deep_errors
-                    else "PARTIAL_DATA_QUALITY"
-                )
+                        else:
+                            quality = _deep_data_status(
+                                deep_histories[symbol],
+                                as_of_date=as_of_date,
+                                expected_market=normalized_market,
+                                expected_symbol=symbol,
+                                expected_currency=getattr(seed, "currency", None),
+                            )
+                            if quality != DATA_OK:
+                                deep_errors[symbol] = (
+                                    f"DEEP_HISTORY_{quality}",
+                                )
+                    deep_status = (
+                        "SUCCESS"
+                        if not deep_result.errors and not deep_errors
+                        else "PARTIAL_DATA_QUALITY"
+                    )
                 _record_stage(
                     timings,
                     "deep_history",
@@ -1295,6 +1401,20 @@ class ProductionCandidateRuntime:
                     minimum_bars=MIN_HISTORY_BARS,
                     worker_count=YFINANCE_DEEP_HISTORY_WORKERS,
                     qfq_as_of_gate="SUCCESS" if normalized_market != "US" else "SUCCESS",
+                )
+            except ProviderGlobalFailure as exc:
+                provider_global_failure = f"{type(exc).__name__}:{exc}"
+                error = f"PROVIDER_GLOBAL_FAILURE:{provider_global_failure}"
+                errors.append(error)
+                deep_errors = {}
+                _record_stage(
+                    timings,
+                    "deep_history",
+                    started=deep_started,
+                    symbols=len(deep_targets),
+                    failed_count=0,
+                    status="PROVIDER_GLOBAL_FAILURE",
+                    error_code=error,
                 )
             except Exception as exc:
                 error = f"DEEP_HISTORY_{type(exc).__name__}:{exc}"
@@ -1335,7 +1455,30 @@ class ProductionCandidateRuntime:
         )
         short_status = timings["candidate_short_history"]["status"]
         selector_status = timings["candidate_selector"]["status"]
-        if not seeds or timings["seed_metadata"]["status"] == "FAILED":
+        all_stage_a_symbols_unavailable = (
+            bool(seeds)
+            and short_usable == 0
+            and bool(short_result.errors)
+            and not provider_global_failure
+            and all(
+                any(
+                    marker in str(error).upper()
+                    for marker in (
+                        "PROVIDER_SYMBOL_ERROR",
+                        "DATA_MISSING",
+                        "DATA_STALE",
+                        "DATA_INVALID",
+                        "ADJUSTMENT_UNVERIFIED",
+                    )
+                )
+                for error in short_result.errors
+            )
+        )
+        if provider_global_failure:
+            status = "PROVIDER_GLOBAL_FAILURE"
+        elif all_stage_a_symbols_unavailable:
+            status = "COMPLETED_NO_USABLE_SYMBOLS"
+        elif not seeds or timings["seed_metadata"]["status"] == "FAILED":
             status = "FAILED"
         elif short_status not in {"SUCCESS", "NOT_RUN"}:
             status = "PARTIAL_DATA_QUALITY" if universe.included else "FAILED"
@@ -1398,6 +1541,7 @@ class ProductionCandidateRuntime:
             paper_seeds,
             {str(symbol).upper(): tuple(values) for symbol, values in short_histories.items()},
             source_provenance,
+            provider_global_failure,
         )
 
 

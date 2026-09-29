@@ -4,9 +4,11 @@
 > Codex 会话在读完本文件后快速建立整个系统的能力画面。
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
-> 最后实质更新：2026-09-29（生产 CN/US 已收敛到 `SINGLE_SOURCE_MARKET_DATA_V1`，D1
+> 最后实质更新：2026-09-29（生产 CN/US 已收敛到 `SINGLE_SOURCE_MARKET_DATA_V1`，真实
+> HITHINK/Yahoo acceptance 已完成，状态为 `SINGLE_SOURCE_PRODUCTION_CUTOVER_READY`；D1
 > V2 migration gate 已加入；D1 durable backend 已 provision 到用户自有 Ubuntu VPS 并通过
-> 真实 synthetic validation，CN/US activation record 已建立、等待首个自然 session；新增
+> 真实 synthetic validation，CN/US activation record 已建立、formal count 核对为 0/0、等待
+> 用户授权 V2 后的首个自然 session；新增
 > shared exact completed-session resolver、close-to-next-open reconciliation、Cloudflare/VPS
 > trigger-only fallback、日报 reliability classification 与独立 notification marker；
 > Cloudflare Worker 与 VPS watchdog 已按该架构完成部署和 trigger-only smoke；SSH immutable
@@ -37,10 +39,13 @@
   provider retry 只重试同一 provider，不切换 vendor；Tencent/Sina/BaoStock/yfinance
   仅保留 legacy/research/universe metadata 职责，不进入 CN/US production decision path。
 - 单源合同由 `market_data_contract.py` 统一验证 exact-T、严格递增且无重复日期、未来
-  bar、OHLC sanity、非负 volume、schema 与 required history。CN qfq 使用 HITHINK raw
+  bar、OHLC sanity、非负 volume、schema 与 required history。CN asset type 由明确 metadata
+  或 HITHINK 同源 metadata directory 的 exact symbol match 决定：股票使用 HITHINK raw
   `adjust=none` + 同一 vendor corporate actions，由 `CN_FORWARD_ADJUSTMENT_ENGINE_V1`
-  在仓库内生成并记录 adjustment-chain provenance；无法证明的 ETF 等 symbol 标为
-  `DATA_ADJUSTMENT_UNVERIFIED`，不回退其他 vendor。
+  在仓库内生成并记录 adjustment-chain provenance；fund/ETF 使用同一 HITHINK fund
+  historical endpoint，并记录 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1` provider-adjusted
+  provenance；无法证明的 adjustment contract 标为 `DATA_ADJUSTMENT_UNVERIFIED`，不回退
+  其他 vendor。
 - symbol-level `DATA_MISSING`、`DATA_STALE`、`DATA_INVALID`、
   `DATA_ADJUSTMENT_UNVERIFIED`、`PROVIDER_SYMBOL_ERROR` 只阻断自身并映射为
   `DATA_UNAVAILABLE_FOR_DECISION`，不生成 `NO_SIGNAL`，其余正式池/持仓/Candidate 继续。
@@ -58,11 +63,10 @@
 - 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
   策略股票刷新 exact latest date 的前复权历史；HK/JP/SE 不被猜测扩展为 QFQ 范围，
   `full` 仍只可由 workflow_dispatch 手动触发。
-- `PRODUCTION_ACCEPTANCE_PENDING`：Sheet-backed schedule 已有自然运行。9/23 CN writer
-  正式 QFQ 更新 3/3，CN 日报 516 只 `DATA_OK`；同日 US writer 4 只 latest 均待复核、
-  正式 QFQ 更新 0，US 日报 BABA/RKLB 仅有 T-1 QFQ，动态 Candidate 覆盖 1/1023。
-  US 修复仍须在合并后的自然运行只读验收 exact-T、正式 QFQ 与 Candidate 覆盖；
-  这些结果不代表历史补抓或 US 生产验收完成。
+- `SINGLE_SOURCE_PRODUCTION_CUTOVER_READY`：真实 HITHINK 最新完成 CN session 与
+  `YAHOO_CHART` 最新完成 US session 已按 exact-T、OHLCV、chronology、stale、adjustment
+  provenance、same-provider retry 与 reproducibility 验收；D1 V2 activation 和生产切换
+  仍需用户最终授权，不把该状态写成已提交 formal evidence。
 - 单 symbol 行情失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
   和显式禁止复用旧行情的备注，同时隔离该 symbol；只有 provider-wide failure、
   session/calendar 或 orchestrator failure 才使 scheduled job 非零退出。下游
@@ -418,11 +422,12 @@
   `策略决策状态`、`策略股票池`、`策略持仓`，也不触发 Portfolio allocation、broker order
   或 scheduled execution；holdings 行情路径（上表）是已运行的例外。
 
-- `HITHINK_FINANCIAL_API` 已接入 `SINGLE_SOURCE_MARKET_DATA_V1` 的 CN price path：
-  raw `adjust=none` 与 corporate-action events 在仓库内由统一 adjustment engine 生成
-  qfq；财务报表字段仍不属于当前 minimum market-data contract，也不作为 Wave/Fib/PA
-  依赖。ETF 等无法证明 adjustment chain 的 symbol 保持
-  `DATA_ADJUSTMENT_UNVERIFIED`，不换 vendor。
+- `HITHINK_FINANCIAL_API` 已接入并完成真实 acceptance 的 `SINGLE_SOURCE_MARKET_DATA_V1`
+  CN price path：明确 `a-share` 使用 raw `adjust=none` 与 corporate-action events，在仓库
+  内由统一 adjustment engine 生成 qfq；明确 `fund-etf` 使用同一 vendor 的 fund historical
+  endpoint，并保留 provider-forward-adjusted provenance。财务报表字段仍不属于当前
+  minimum market-data contract，也不作为 Wave/Fib/PA 依赖；任何未验证 adjustment contract
+  都 fail closed 为 `DATA_ADJUSTMENT_UNVERIFIED`，不换 vendor。
 
 ### Broker execution
 
@@ -576,10 +581,10 @@
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。
   远端治理记录描述当前 CN/US activation record 已按主线 code SHA 创建，状态为
   `D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION`；本任务未创建/覆盖 V2 activation，也未
-  改写旧 activation。由于本地核对因缺少 `D1_VPS_HOST` 未能建立 VPS 真实状态，不把 formal
-  session count 或 activation version 当作本地已验证事实；新 V2 activation 必须在真实 VPS
-  formal session count 核对、V2 source contract 验证和用户最终批准后创建。不得用人工日期或旧
-  日报补 session。
+  改写旧 activation。受控 VPS 管理入口已核对 CN/US formal session count 为 0/0，未发现
+  formal D1 evidence，记录 `D1_SINGLE_SOURCE_MIGRATION_PRE_OUTCOME_CONFIRMED`；新 V2
+  activation 仍必须在 source contract 验证和用户最终批准后创建。不得用人工日期或旧日报补
+  session。
 - 同一 market activation identity 下只允许一个 approved durable backend：activation record
   绑定 backend identity/version 与 storage identity hash，因此保留的 GCS/Drive adapter 无法
   在 VPS activation 生效期间写 formal D1 evidence（运行期 fail closed），不构成 split-brain。

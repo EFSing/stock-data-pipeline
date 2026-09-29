@@ -259,6 +259,25 @@ def _status_from_result(
     provider_global_failure = any(
         bool(item.get("global_failure")) for item in ephemeral.provider_status.values()
     )
+    # Candidate history loading is another canonical-provider boundary.  A
+    # provider-wide auth/schema/outage error must remain one run-level failure,
+    # not degrade into hundreds of candidate-quality symbol warnings.
+    candidate_global_values = (
+        list(candidate_errors.values())
+        if isinstance(candidate_errors, Mapping)
+        else []
+    )
+    candidate_global_values.extend(candidate_quality_errors)
+    provider_global_failure = provider_global_failure or any(
+        "PROVIDER_GLOBAL_FAILURE" in str(value).upper()
+        for value in candidate_global_values
+    )
+    if isinstance(candidate_markets, Mapping):
+        provider_global_failure = provider_global_failure or any(
+            isinstance(candidate, Mapping)
+            and bool(candidate.get("provider_global_failure"))
+            for candidate in candidate_markets.values()
+        )
     data_status = (
         "NO_USABLE_SYMBOLS"
         if attempted and data_ok == 0

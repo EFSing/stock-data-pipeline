@@ -970,6 +970,23 @@ multiple price vendors increases the failure surface and turns local data defect
 failures without adding a required strategy input. This decision changes only the data plane and
 does not alter strategy formulas, setup rules, target/stop/RR, risk, Paper, broker or OOS semantics.
 
+## 2026-09-29 — HITHINK asset-aware routing is part of the single-source contract
+
+**Decision:** CN production routing must use explicit asset metadata, either the watch's persisted
+`HITHINK资产类型` (or equivalent explicit field) or an exact-symbol match from HITHINK's own
+metadata directory. Symbol-code prefixes are not an asset classifier. `a-share` uses HITHINK
+`/api/a-share/prices/historical?adjust=none` plus HITHINK corporate actions and the repository's
+`CN_FORWARD_ADJUSTMENT_ENGINE_V1`. `fund-etf` uses HITHINK's same-vendor
+`/api/fund/market/historical`, whose provider-documented OHLC is forward-adjusted, and records the
+separate `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1` provenance. An unavailable or unverifiable
+adjustment contract is `DATA_ADJUSTMENT_UNVERIFIED`; it must not be guessed or routed to another
+vendor.
+
+**Reason:** ETFs and stocks have different vendor contracts. Treating a code prefix as an ETF
+classifier can send a valid stock to the wrong endpoint or an ETF to a stock endpoint, while
+switching vendor would violate `ONE MARKET = ONE MARKET-DATA VENDOR`. Explicit metadata preserves
+the single-vendor boundary and makes the adjustment semantics auditable per asset type.
+
 ## 2026-09-29 — `SYMBOL_FAILURE_ISOLATED_FROM_MARKET_RUN`
 
 **Decision:** `DATA_MISSING`, `DATA_STALE`, `DATA_INVALID`, `DATA_ADJUSTMENT_UNVERIFIED` and

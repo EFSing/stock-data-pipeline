@@ -568,6 +568,18 @@ def _load_single_source_symbol(
         detail["latest_error"] = _safe_error(exc)
         detail["global_failure"] = detail.get("global_failure", False) or isinstance(exc, ProviderGlobalFailure)
         errors.append(f"latest {provider} {status['latest']}: {_safe_error(exc)}")
+        if isinstance(exc, ProviderGlobalFailure):
+            # There is no value in issuing a second qfq request after the
+            # canonical provider has already failed globally.  Return one
+            # run-level provider failure to the coordinator so a large
+            # universe is not rendered as one duplicate failure per symbol.
+            status["qfq"] = PROVIDER_GLOBAL_FAILURE
+            status["status"] = PROVIDER_GLOBAL_FAILURE
+            status["decision_status"] = unavailable_reason(PROVIDER_GLOBAL_FAILURE)
+            detail["qfq_error_type"] = type(exc).__name__
+            detail["qfq_error"] = _safe_error(exc)
+            detail["source_contract"] = SINGLE_SOURCE_MARKET_DATA_VERSION
+            return latest_rows, qfq_rows, status, detail, list(dict.fromkeys(errors))
 
     try:
         qfq_result = fetch_single_source_with_retry(
@@ -700,6 +712,10 @@ def load_ephemeral_market_data(
                 errors.extend(f"{key}: {item}" for item in symbol_errors)
             symbol_status[symbol] = {**status, "errors": symbol_errors}
             provider_status[symbol] = provider_detail
+            if provider_detail.get("global_failure"):
+                # Provider-global state is terminal for this market run.  Do
+                # not fan the same auth/outage error out to every symbol.
+                break
             continue
         if watch is None:
             symbol_errors.append(f"EPHEMERAL_PROVIDER_CONFIG_REQUIRED:{key}")

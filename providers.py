@@ -17,6 +17,7 @@ from core import Quote
 from market_data_contract import (
     AdjustmentUnverifiedError,
     CN_ADJUSTMENT_ENGINE_VERSION,
+    CN_ETF_ADJUSTMENT_ENGINE_VERSION,
     CN_SINGLE_SOURCE_PROVIDER,
     ProviderGlobalFailure,
     ProviderSymbolError,
@@ -153,6 +154,74 @@ class SingleSourceFetchResult:
 
 HITHINK_BASE_URL = "https://fuyao.aicubes.cn"
 HITHINK_API_KEY_ENV = "HITHINK_FINANCE_API_KEY"
+HITHINK_ASSET_TYPE_FIELD = "HITHINK资产类型"
+HITHINK_ASSET_TYPE_SOURCE = (
+    "HITHINK_FINANCIAL_API:/api/meta/tickers/search"
+)
+HITHINK_STOCK_ASSET_TYPE = "a-share"
+HITHINK_ETF_ASSET_TYPE = "fund-etf"
+
+
+def _normalise_hithink_asset_type(value: object) -> str:
+    """Map explicit asset metadata to HiThink's canonical enum."""
+
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "a-share": HITHINK_STOCK_ASSET_TYPE,
+        "stock": HITHINK_STOCK_ASSET_TYPE,
+        "equity": HITHINK_STOCK_ASSET_TYPE,
+        "股票": HITHINK_STOCK_ASSET_TYPE,
+        "fund-etf": HITHINK_ETF_ASSET_TYPE,
+        "etf": HITHINK_ETF_ASSET_TYPE,
+        "基金": HITHINK_ETF_ASSET_TYPE,
+        "基金/ETF": HITHINK_ETF_ASSET_TYPE,
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _hithink_asset_type(watch: dict) -> tuple[str, int]:
+    """Resolve asset type from explicit metadata or the same-vendor directory.
+
+    The symbol code is never used as an asset classifier.  A caller may carry
+    a previously resolved ``HITHINK资产类型`` value; otherwise the provider's
+    metadata endpoint is queried and the exact thscode match is required.
+    """
+
+    explicit_values = (
+        watch.get(HITHINK_ASSET_TYPE_FIELD),
+        watch.get("asset_type"),
+        watch.get("资产类型"),
+        watch.get("证券类型"),
+        watch.get("asset_class"),
+    )
+    for value in explicit_values:
+        normalized = _normalise_hithink_asset_type(value)
+        if normalized:
+            if normalized not in {HITHINK_STOCK_ASSET_TYPE, HITHINK_ETF_ASSET_TYPE}:
+                raise ProviderSymbolError(
+                    f"HITHINK_ASSET_TYPE_UNSUPPORTED:{normalized}"
+                )
+            return normalized, 0
+
+    symbol = _hithink_symbol(watch)
+    payload = _hithink_json(
+        "/api/meta/tickers/search",
+        {"q": symbol, "limit": 50},
+    )
+    items = _hithink_items(payload)
+    exact = [
+        item
+        for item in items
+        if str(item.get("thscode") or "").strip().upper() == symbol
+    ]
+    if not exact:
+        raise ProviderSymbolError("HITHINK_SYMBOL_METADATA_NOT_FOUND")
+    asset_type = _normalise_hithink_asset_type(exact[0].get("asset_type"))
+    if asset_type not in {HITHINK_STOCK_ASSET_TYPE, HITHINK_ETF_ASSET_TYPE}:
+        raise ProviderSymbolError(f"HITHINK_ASSET_TYPE_UNSUPPORTED:{asset_type or 'missing'}")
+    watch[HITHINK_ASSET_TYPE_FIELD] = asset_type
+    watch["HITHINK资产类型来源"] = HITHINK_ASSET_TYPE_SOURCE
+    return asset_type, 1
 
 
 def _hithink_symbol(watch: dict) -> str:
@@ -199,7 +268,7 @@ def _hithink_json(path: str, params: dict[str, object]) -> dict:
         raise ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INVALID")
     code = payload.get("code")
     if code not in (None, 0, "0", "200", 200):
-        if str(code) in {"2001", "401", "403"}:
+        if str(code) in {"2001", "2003", "4001", "401", "403"}:
             raise ProviderGlobalFailure(f"HITHINK_PROVIDER_ERROR:{code}")
         raise ProviderSymbolError(f"HITHINK_SYMBOL_ERROR:{code}")
     return payload
@@ -246,7 +315,10 @@ def _hithink_raw_quotes(items: Iterable[dict], watch: dict) -> list[Quote]:
         close = _hithink_item_number(item, "close_price", "close")
         volume = _hithink_item_number(item, "volume")
         if any(value is None for value in (opening, high, low, close, volume)):
-            raise ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INCOMPLETE")
+            # The response envelope has already passed provider-schema
+            # validation.  An incomplete bar belongs to this symbol and must
+            # not turn a market-wide run into a provider outage.
+            raise ProviderSymbolError("HITHINK_SYMBOL_SCHEMA_INCOMPLETE")
         trade_date = _hithink_item_date(item)
         preclose = _hithink_item_number(item, "preclose", "pre_close")
         if preclose is None:
@@ -361,6 +433,42 @@ def fetch_hithink_with_provenance(
     if str(watch.get("市场")) != "CN":
         raise ProviderSymbolError("HITHINK_MARKET_UNSUPPORTED")
     symbol = _hithink_symbol(watch)
+    asset_type, metadata_requests = _hithink_asset_type(watch)
+    if asset_type == HITHINK_ETF_ASSET_TYPE:
+        payload = _hithink_json(
+            "/api/fund/market/historical",
+            {
+                "thscode": symbol,
+                "interval": "1d",
+                "start": _hithink_epoch_ms(start),
+                "end": _hithink_epoch_ms(end),
+            },
+        )
+        raw_quotes = _hithink_raw_quotes(_hithink_items(payload), watch)
+        if not raw_quotes:
+            raise ProviderSymbolError("HITHINK_ETF_SYMBOL_NO_HISTORY")
+        # The fund endpoint is explicitly documented by HiThink as an ETF
+        # historical endpoint whose OHLC is already forward-adjusted.  Keep
+        # this same-vendor contract visible instead of pretending it is the
+        # stock raw+corporate-action formula or sending the ETF to the stock
+        # endpoint.
+        provenance = source_provenance(
+            market="CN",
+            provider=CN_SINGLE_SOURCE_PROVIDER,
+            adjustment=adjust,
+            adjustment_engine_version=CN_ETF_ADJUSTMENT_ENGINE_VERSION,
+            raw_source="HITHINK_FINANCIAL_API:/api/fund/market/historical",
+            asset_type=asset_type,
+            adjustment_source="HITHINK_PROVIDER_FORWARD_ADJUSTED",
+        )
+        provenance["provider_adjustment_policy"] = "FORWARD_ADJUSTED"
+        provenance["requested_adjustment"] = adjust
+        return SingleSourceFetchResult(
+            tuple(raw_quotes),
+            CN_SINGLE_SOURCE_PROVIDER,
+            provenance,
+            metadata_requests + 1,
+        )
     payload = _hithink_json(
         "/api/a-share/prices/historical",
         {
@@ -380,25 +488,32 @@ def fetch_hithink_with_provenance(
         adjustment=adjust,
         adjustment_engine_version=CN_ADJUSTMENT_ENGINE_VERSION,
         raw_source="HITHINK_FINANCIAL_API:/api/a-share/prices/historical?adjust=none",
+        asset_type=asset_type,
     )
-    requests = 1
+    requests = metadata_requests + 1
     if adjust == "raw":
         return SingleSourceFetchResult(tuple(raw_quotes), CN_SINGLE_SOURCE_PROVIDER, provenance, requests)
     if adjust != "qfq":
         raise ValueError(f"unsupported HITHINK adjustment: {adjust}")
-    # The current corporate-action contract does not prove ETF/fund
-    # distributions and split semantics well enough for a production qfq
-    # chain.  Keep the identity visible but block this symbol only.
-    if _hithink_symbol(watch).split(".", 1)[0].startswith("5"):
-        raise AdjustmentUnverifiedError("HITHINK_ETF_ADJUSTMENT_UNVERIFIED")
-    actions = _hithink_json(
-        "/api/a-share/corporate-actions/adjustment-factors",
-        {
-            "thscode": symbol,
-            "from": start.isoformat(),
-            "to": end.isoformat(),
-        },
-    )
+    try:
+        actions = _hithink_json(
+            "/api/a-share/corporate-actions/adjustment-factors",
+            {
+                "thscode": symbol,
+                "from": start.isoformat(),
+                "to": end.isoformat(),
+            },
+        )
+    except ProviderSymbolError as exc:
+        # HiThink code 3002 means the action dataset is not prepared.  It is
+        # not evidence that the symbol has no actions; fail closed instead of
+        # silently treating an unobservable corporate-action stream as an
+        # identity adjustment chain.
+        if "3002" in str(exc):
+            raise AdjustmentUnverifiedError(
+                "HITHINK_CORPORATE_ACTIONS_NOT_READY"
+            ) from exc
+        raise
     adjusted, chain_sha = _adjust_hithink_quotes(raw_quotes, _hithink_adjustment_items(actions))
     provenance = source_provenance(
         market="CN",
@@ -408,6 +523,8 @@ def fetch_hithink_with_provenance(
         raw_source="HITHINK_FINANCIAL_API:/api/a-share/prices/historical?adjust=none",
         corporate_action_source="HITHINK_FINANCIAL_API:/api/a-share/corporate-actions/adjustment-factors",
         adjustment_chain_sha256=chain_sha,
+        asset_type=asset_type,
+        adjustment_source="HITHINK_RAW_PLUS_HITHINK_CORPORATE_ACTIONS",
     )
     return SingleSourceFetchResult(tuple(adjusted), CN_SINGLE_SOURCE_PROVIDER, provenance, requests + 1)
 
@@ -432,6 +549,8 @@ def fetch_yahoo_chart_with_provenance(
         quotes = _fetch_yahoo_chart(watch, adjust, start, end)
     except ProviderGlobalFailure:
         raise
+    except ProviderSymbolError:
+        raise
     except Exception as exc:
         raise ProviderGlobalFailure(f"YAHOO_CHART_PROVIDER_FAILURE:{type(exc).__name__}") from exc
     if not quotes:
@@ -442,6 +561,18 @@ def fetch_yahoo_chart_with_provenance(
         adjustment=adjust,
         adjustment_engine_version=US_ADJUSTMENT_ENGINE_VERSION,
         raw_source="YAHOO_CHART:/v8/finance/chart",
+        asset_type="equity",
+        adjustment_source=(
+            "YAHOO_CHART:/v8/finance/chart.result.indicators.adjclose"
+            if adjust == "qfq"
+            else "YAHOO_CHART:/v8/finance/chart.result.indicators.quote"
+        ),
+    )
+    provenance["exact_completed_session_required"] = True
+    provenance["adjusted_ohlcv_source"] = (
+        "YAHOO_CHART:/v8/finance/chart.result.indicators.adjclose"
+        if adjust == "qfq"
+        else None
     )
     return SingleSourceFetchResult(tuple(quotes), US_SINGLE_SOURCE_PROVIDER, provenance, 1)
 
@@ -853,7 +984,8 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
     symbol = str(watch["yfinance代码"])
     period1 = int(datetime.combine(start, datetime_time.min, timezone.utc).timestamp())
     period2 = int(datetime.combine(end + timedelta(days=1), datetime_time.min, timezone.utc).timestamp())
-    errors: list[str] = []
+    symbol_errors: list[str] = []
+    global_errors: list[str] = []
     payload = None
     for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
         url = (
@@ -864,23 +996,82 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
         try:
             with urlopen(request, timeout=30) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-            chart_error = payload.get("chart", {}).get("error")
+            if not isinstance(payload, dict) or not isinstance(payload.get("chart"), dict):
+                raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+            chart_error = payload["chart"].get("error")
             if chart_error:
-                raise RuntimeError(str(chart_error))
+                error_text = str(chart_error)
+                lowered = error_text.lower()
+                if any(
+                    marker in lowered
+                    for marker in ("not found", "no data found", "delisted", "bad request")
+                ):
+                    symbol_errors.append(f"{host}:{error_text}")
+                else:
+                    global_errors.append(f"{host}:{error_text}")
+                payload = None
+                continue
             break
+        except ProviderGlobalFailure as exc:
+            global_errors.append(f"{host}:{exc}")
+            payload = None
+        except HTTPError as exc:
+            code = int(getattr(exc, "code", 0) or 0)
+            error_text = f"HTTP_{code or 'UNKNOWN'}"
+            if code in {401, 403, 429} or code >= 500:
+                global_errors.append(f"{host}:{error_text}")
+            elif 400 <= code < 500:
+                symbol_errors.append(f"{host}:{error_text}")
+            else:
+                global_errors.append(f"{host}:{error_text}")
+            payload = None
+        except (URLError, TimeoutError, OSError) as exc:
+            global_errors.append(f"{host}:{type(exc).__name__}")
+            payload = None
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            global_errors.append(f"{host}:YAHOO_CHART_PROVIDER_SCHEMA_INVALID:{type(exc).__name__}")
+            payload = None
         except Exception as exc:
-            errors.append(f"{host}: {exc}")
+            global_errors.append(f"{host}:{type(exc).__name__}:{exc}")
+            payload = None
     if payload is None:
-        raise RuntimeError("；".join(errors))
+        if global_errors:
+            raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_FAILURE:" + "；".join(global_errors))
+        if symbol_errors:
+            raise ProviderSymbolError("YAHOO_CHART_SYMBOL_ERROR:" + "；".join(symbol_errors))
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_FAILURE")
 
-    results = payload.get("chart", {}).get("result") or []
+    chart = payload.get("chart")
+    if not isinstance(chart, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+    results = chart.get("result") or []
+    if not isinstance(results, list):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
     if not results:
         return []
     result = results[0]
+    if not isinstance(result, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
     timestamps = result.get("timestamp") or []
     indicators = result.get("indicators") or {}
+    if not isinstance(timestamps, list) or not isinstance(indicators, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
     price = (indicators.get("quote") or [{}])[0]
-    adjusted = (indicators.get("adjclose") or [{}])[0].get("adjclose") or []
+    if not isinstance(price, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+    adjusted_block = indicators.get("adjclose") or []
+    if adjust == "qfq" and (
+        not isinstance(adjusted_block, list)
+        or not adjusted_block
+        or not isinstance(adjusted_block[0], dict)
+        or not isinstance(adjusted_block[0].get("adjclose"), list)
+    ):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID_ADJCLOSE")
+    adjusted = (
+        adjusted_block[0].get("adjclose")
+        if adjusted_block and isinstance(adjusted_block[0], dict)
+        else []
+    ) or []
     timezone_name = (result.get("meta") or {}).get("exchangeTimezoneName") or "UTC"
     try:
         exchange_timezone = ZoneInfo(timezone_name)

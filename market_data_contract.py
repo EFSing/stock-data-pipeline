@@ -18,6 +18,10 @@ CN_SINGLE_SOURCE_PROVIDER = "HITHINK_FINANCIAL_API"
 US_SINGLE_SOURCE_PROVIDER = "YAHOO_CHART"
 
 CN_ADJUSTMENT_ENGINE_VERSION = "CN_FORWARD_ADJUSTMENT_ENGINE_V1"
+# HiThink's fund-market historical endpoint is a separate, same-vendor
+# contract.  It returns ETF prices in the provider-documented forward-adjusted
+# form and must not be represented as the stock raw+corporate-action chain.
+CN_ETF_ADJUSTMENT_ENGINE_VERSION = "HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1"
 US_ADJUSTMENT_ENGINE_VERSION = "YAHOO_CHART_ADJCLOSE_ENGINE_V1"
 
 DATA_OK = "DATA_OK"
@@ -171,6 +175,8 @@ def source_provenance(
     raw_source: str | None = None,
     corporate_action_source: str | None = None,
     adjustment_chain_sha256: str | None = None,
+    asset_type: str | None = None,
+    adjustment_source: str | None = None,
 ) -> dict[str, Any]:
     """Build the compact provenance block attached to each symbol result."""
 
@@ -182,6 +188,8 @@ def source_provenance(
         "adjustment": str(adjustment),
         "adjustment_engine_version": str(adjustment_engine_version),
         "adjustment_chain_sha256": adjustment_chain_sha256,
+        "asset_type": asset_type,
+        "adjustment_source": adjustment_source,
         "session_identity": session_identity,
         "acquired_at": acquired_at,
     }
@@ -190,6 +198,7 @@ def source_provenance(
 __all__ = [
     "AdjustmentUnverifiedError",
     "CN_ADJUSTMENT_ENGINE_VERSION",
+    "CN_ETF_ADJUSTMENT_ENGINE_VERSION",
     "CN_SINGLE_SOURCE_PROVIDER",
     "DATA_ADJUSTMENT_UNVERIFIED",
     "DATA_INVALID",

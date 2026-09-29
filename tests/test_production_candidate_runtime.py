@@ -7,6 +7,12 @@ from unittest.mock import patch
 import pandas as pd
 
 from core import Quote
+from market_data_contract import (
+    ProviderGlobalFailure,
+    ProviderSymbolError,
+    source_provenance,
+)
+from providers import SingleSourceFetchResult
 from scripts.run_production_daily_decision import (
     _candidate_review_rows,
     _merge_candidate_inputs,
@@ -40,6 +46,7 @@ from trading.production_candidate_runtime import (
     YFINANCE_DEEP_HISTORY_WORKERS,
     STAGE_A_HISTORY_BUFFER_SESSIONS,
     _default_deep_qfq_history_loader,
+    _default_single_source_history_loader,
     _default_short_history_loader,
 )
 
@@ -639,6 +646,119 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
             payload["candidate_exclusion_reason_counts"],
             {"HISTORY_INSUFFICIENT": 1},
         )
+
+    def test_single_source_symbol_failures_remain_isolated_at_1_50_and_300(self):
+        for failure_count in (1, 50, 300):
+            with self.subTest(failure_count=failure_count):
+                seeds = tuple(
+                    _seed("US", f"BAD{index:03d}")
+                    for index in range(failure_count)
+                ) + (_seed("US", "AAPL"),)
+
+                def fetch(market, watch, adjustment, start, end, *args, **kwargs):
+                    del adjustment, start, args, kwargs
+                    symbol = watch["统一代码"]
+                    if symbol.startswith("BAD"):
+                        raise ProviderSymbolError("fixture symbol unavailable")
+                    return SingleSourceFetchResult(
+                        _history(symbol, market, "USD", bars=60),
+                        "YAHOO_CHART",
+                        source_provenance(
+                            market=market,
+                            provider="YAHOO_CHART",
+                            adjustment="qfq",
+                            adjustment_engine_version="YAHOO_CHART_ADJCLOSE_ENGINE_V1",
+                        ),
+                    )
+
+                runtime = ProductionCandidateRuntime(
+                    seed_loaders={"US": lambda _as_of, values=seeds: (T_DAY, values)},
+                    session_window_loader=lambda _market, end, _bars: (end, end),
+                    enforce_us_latest_qfq_asof=False,
+                )
+                with patch(
+                    "providers.fetch_single_source_with_retry",
+                    side_effect=fetch,
+                ):
+                    result = runtime.run(
+                        market="US",
+                        as_of_date=T_DAY,
+                        completed_session_identity=_identity("US"),
+                    )
+                self.assertNotEqual(result.status, "PROVIDER_GLOBAL_FAILURE")
+                self.assertIn("AAPL", result.to_dict()["deep_history_ready_symbols"])
+                self.assertEqual(result.provider_global_failure, None)
+                self.assertEqual(
+                    len([error for error in result.errors if "PROVIDER_SYMBOL_ERROR" in error]),
+                    failure_count,
+                )
+
+    def test_all_individual_single_source_failures_complete_without_usable_symbols(self):
+        seeds = tuple(_seed("CN", f"BAD{index:03d}.SH") for index in range(3))
+
+        def unavailable(*_args, **_kwargs):
+            raise ProviderSymbolError("fixture symbol unavailable")
+
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"CN": lambda _as_of: (T_DAY, seeds)},
+            session_window_loader=lambda _market, end, _bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+        with patch(
+            "providers.fetch_single_source_with_retry",
+            side_effect=unavailable,
+        ):
+            result = runtime.run(
+                market="CN",
+                as_of_date=T_DAY,
+                completed_session_identity=_identity("CN"),
+            )
+        self.assertEqual(result.status, "COMPLETED_NO_USABLE_SYMBOLS")
+        self.assertIsNone(result.provider_global_failure)
+        self.assertEqual(result.to_dict()["candidate_selection_outcome"], "NO_USABLE_SYMBOLS")
+
+    def test_single_source_auth_failure_is_one_provider_global_failure(self):
+        seeds = tuple(_seed("CN", f"60000{index}.SH") for index in range(3))
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"CN": lambda _as_of: (T_DAY, seeds)},
+            session_window_loader=lambda _market, end, _bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+        with patch(
+            "providers.fetch_single_source_with_retry",
+            side_effect=ProviderGlobalFailure("HITHINK_PROVIDER_HTTP_401"),
+        ):
+            result = runtime.run(
+                market="CN",
+                as_of_date=T_DAY,
+                completed_session_identity=_identity("CN"),
+            )
+        self.assertEqual(result.status, "PROVIDER_GLOBAL_FAILURE")
+        self.assertIn("HITHINK_PROVIDER_HTTP_401", result.provider_global_failure)
+        self.assertEqual(
+            sum("PROVIDER_GLOBAL_FAILURE" in error for error in result.errors),
+            1,
+        )
+
+    def test_single_source_schema_break_is_one_provider_global_failure(self):
+        seed = _seed("CN", "600000.SH")
+        runtime = ProductionCandidateRuntime(
+            seed_loaders={"CN": lambda _as_of: (T_DAY, (seed,))},
+            session_window_loader=lambda _market, end, _bars: (end, end),
+            enforce_us_latest_qfq_asof=False,
+        )
+        with patch(
+            "providers.fetch_single_source_with_retry",
+            side_effect=ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INVALID"),
+        ):
+            result = runtime.run(
+                market="CN",
+                as_of_date=T_DAY,
+                completed_session_identity=_identity("CN"),
+            )
+        self.assertEqual(result.status, "PROVIDER_GLOBAL_FAILURE")
+        self.assertEqual(result.to_dict()["provider_global_failure"], result.provider_global_failure)
+        self.assertEqual(len(result.to_dict()["errors"]), 1)
 
     def test_stage_a_buffer_preserves_sixty_bar_gate_and_exact_t(self):
         seeds = tuple(_seed("US", f"S{i:02d}") for i in range(20))

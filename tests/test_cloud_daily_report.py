@@ -699,6 +699,30 @@ class CloudDailyReportTests(unittest.TestCase):
         self.assertEqual(quality["strategy_analyzed_count"], 1)
         self.assertIn("BAD", quality["failed_by_reason"]["DATA_STALE"])
 
+    def test_scheduled_completed_partial_run_exits_zero(self):
+        payload = {
+            "cloud_daily_report": {
+                "status": "PARTIAL_DATA_QUALITY",
+                "run_status": "COMPLETED",
+                "RUN_STATUS": "COMPLETED",
+                "data_status": "PARTIAL",
+                "DATA_STATUS": "PARTIAL",
+            }
+        }
+        with patch(
+            "scripts.run_cloud_daily_report.resolve_cloud_trade_date",
+            return_value=US_T_DAY,
+        ), patch(
+            "scripts.run_cloud_daily_report.run_cloud_daily_report",
+            return_value=payload,
+        ):
+            self.assertEqual(
+                cloud_report_main([
+                    "--market", "US", "--output", "unused-output",
+                ]),
+                0,
+            )
+
     def test_legacy_success_zero_candidate_without_outcome_is_not_reported_as_success(self):
         snapshot = EphemeralMarketDataSnapshot(
             market="CN", as_of_date=T_DAY, fetched_at=US_AFTER_CLOSE,
