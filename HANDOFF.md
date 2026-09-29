@@ -26,9 +26,10 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Current State
 
-- storage 变更已随 PR #119 squash merge 进入 main。当前独立分支
-  `research/setup01-d1-vps-natural-schedule` 只做「CN/US 各自 schedule + 治理同步」，不改
-  #110、#82、#96。branch / HEAD / PR / CI 以 GitHub 实时状态为准。
+- storage 变更已随 PR #119 squash merge 进入 main；CN/US 各自 schedule 已随 PR #120 合并
+  （CN 周一至周五 18:40 北京、US 周二至周六 09:40 北京，均保留 workflow_dispatch），正式
+  采集入口是 GitHub 原生 schedule，不再需要人工触发；#110、#82、#96 未受影响。branch /
+  HEAD / PR / CI 以 GitHub 实时状态为准。
 - GCS durable storage 实现已随 PR #117 squash merge 进入 main；用户随后决定不部署它。
   当前 formal D1 durable backend 是 VPS SSH immutable store，GCS/Drive 仅为 retained
   adapter 与历史证据。
@@ -117,8 +118,8 @@ durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTIO
 
 ## Next Action
 
-- US：在 2026-09-29 ET session 收盘后运行 `setup01-d1-vps-natural-collector-us`（或
-  workflow_dispatch 等价入口），核对 receipt、event hash、object read-back、
+- US：2026-09-29 ET session 收盘后由 `setup01-d1-vps-natural-collector-us` 自动采集
+  （也可 workflow_dispatch 手动补跑），核对 receipt、event hash、object read-back、
   `vps-verify --full-objects`；通过后 US 进入 `D1_COLLECTION_ACTIVE`。
 - CN：在 2026-09-30 收盘后运行 `setup01-d1-vps-natural-collector-cn`，同样验收后 CN 进入
   `D1_COLLECTION_ACTIVE`。
