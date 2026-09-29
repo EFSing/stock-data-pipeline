@@ -900,3 +900,50 @@ storage identity 冻结的是 storage root 与 backend version，而不是 IP/po
 合同；这避免为一个 research-only prospective collector 引入新的云计费依赖。该决定只改变
 durable storage backend、SSH 传输与迁移路径，不改变 D1 协议中的 signal/stop/target/exit/G1/G0
 语义、前瞻窗口、source/observer 证据合同、正式交易策略、#110 结论或任何 production 边界。
+
+## 2026-09-29 — CN/US market-close trigger resilience and completed-session resolution
+
+**Decision:** CN/US scheduled paths use the following fixed operational semantics:
+
+```text
+Trigger: AT_LEAST_ONCE
+Session resolution: LATEST_ELIGIBLE_COMPLETED_EXCHANGE_SESSION
+Formal D1 storage: EXACTLY_ONCE_PER_MARKET_SESSION
+Duplicate handling: IDEMPOTENT / NOOP
+Missing formal session recovery: RECONCILE_BEFORE_NEXT_SESSION_OPEN
+After prospective deadline: MISSED_PROSPECTIVE_SESSION / NO_BACKFILL
+```
+
+`ExactExchangeCalendarProvider.latest_completed_session()` is the shared session resolver for
+Cloud Daily Report, D1 natural collection and reconciliation. It uses the exact `exchange_calendars`
+session close and next session open for CN=`XSHG` and US=`XNYS`; it must not derive formal T from
+`market_local_date(now)`. Thus a delayed CN trigger crossing Beijing midnight still resolves the
+last real completed CN session, while a missing D1 session discovered after the next exchange
+session opens is recorded as `MISSED_PROSPECTIVE_SESSION` and never backfilled as prospective data.
+
+The GitHub native CN/US schedules remain primary. Cloudflare Worker Cron and an independent
+user-level Ubuntu VPS watchdog only inspect/dispatch the repository-owned Daily Report or D1
+reconciliation workflows; neither runs market computation or duplicates business logic. GitHub
+Actions concurrency plus the immutable VPS pointer/object contract provide the final idempotent
+boundary. Daily Report notification claims use a separate operational namespace keyed by
+`market + session_date + report_protocol_version`; an existing claim is
+`NOOP_REPORT_ALREADY_SENT` and is never formal D1 evidence.
+
+Daily Report reliability is reported separately from its existing quality status through
+`SCHEDULER_DELAY`, `SESSION_RESOLUTION_ERROR`, `INCOMPLETE_SESSION`, `DATA_QUALITY_PARTIAL`,
+`PROVIDER_FAILURE`, `NO_SIGNAL`, and `SUCCESS`. `NO_SIGNAL` is not a failure, and the existing
+exact-T/provider/data-quality gates remain unchanged.
+
+**Activation boundary:** the existing CN/US activation records remain valid. Their `code_sha` is
+immutable creation-time provenance and current implementation validates the SHA field and binds the
+activation hash to the snapshot source contract; it is not a per-run current-`GITHUB_SHA` gate.
+This change is operational scheduler/reconciliation hardening only: frozen research protocol,
+source/observer bytes, signal/stop/target/exit/gate semantics, activation timestamps and
+prospective boundaries are unchanged, so no new activation epoch is created. A future frozen
+research/source-contract change requires an explicit new protocol/freeze/activation decision.
+
+**Reason:** GitHub Actions schedules are at-least-once and can be delayed across local midnight.
+Treating the runner's current civil date as T can select an uncompleted session or lose a legitimate
+prospective collection window. A shared exact resolver, two trigger-only fallbacks, an explicit
+close-to-next-open deadline, and independent notification claims improve delivery reliability while
+preserving research time isolation, D1 exactly-once identity, and the existing trading system.

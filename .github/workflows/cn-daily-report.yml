@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cn-daily-report
+  cancel-in-progress: false
+
 jobs:
   daily-report:
     runs-on: ubuntu-latest
@@ -28,6 +32,17 @@ jobs:
       SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      # Optional durable operational namespace only; formal D1 evidence and
+      # Daily Report business data remain separate.
+      D1_VPS_HOST: ${{ secrets.D1_VPS_HOST }}
+      D1_VPS_PORT: ${{ vars.D1_VPS_PORT }}
+      D1_VPS_USER: ${{ vars.D1_VPS_USER }}
+      D1_VPS_STORAGE_ROOT: ${{ vars.D1_VPS_STORAGE_ROOT }}
+      D1_VPS_SSH_PRIVATE_KEY: ${{ secrets.D1_VPS_SSH_PRIVATE_KEY }}
+      D1_VPS_KNOWN_HOSTS: ${{ secrets.D1_VPS_KNOWN_HOSTS }}
+      D1_VPS_HOST_KEY_FINGERPRINT: ${{ secrets.D1_VPS_HOST_KEY_FINGERPRINT }}
+      D1_VPS_MIN_FREE_BYTES: ${{ vars.D1_VPS_MIN_FREE_BYTES }}
+      D1_VPS_DANGER_FREE_BYTES: ${{ vars.D1_VPS_DANGER_FREE_BYTES }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

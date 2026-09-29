@@ -210,27 +210,13 @@ class CloudDailyReportTests(unittest.TestCase):
             explicit,
         )
 
-    def test_automatic_market_holiday_keeps_local_non_session_date_and_skips(self):
+    def test_automatic_market_holiday_resolves_previous_completed_session(self):
         provider = ExactExchangeCalendarProvider()
         now = datetime(2026, 7, 4, 0, 46, tzinfo=timezone.utc)
         resolved = resolve_cloud_trade_date("US", now=now, calendar_provider=provider)
-        self.assertEqual(resolved, date(2026, 7, 3))
-
-        class ExplodingClient:
-            def records(self, sheet_name):
-                raise AssertionError("non-session must not read Sheets")
-
-        with TemporaryDirectory() as directory:
-            payload = run_cloud_daily_report(
-                market="US",
-                as_of_date=resolved,
-                output_dir=directory,
-                now=now,
-                client=ExplodingClient(),
-                calendar_provider=provider,
-                notify=False,
-            )
-        self.assertEqual(payload["cloud_daily_report"]["status"], "SKIPPED_NON_SESSION")
+        self.assertEqual(resolved, date(2026, 7, 2))
+        identity = provider.completed_session("US", resolved, now=now)
+        self.assertEqual(identity.next_session_date, date(2026, 7, 6))
 
     def test_market_scope_ignores_malformed_other_market_rows(self):
         client = _rows()

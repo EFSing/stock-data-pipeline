@@ -1,0 +1,9 @@
+{
+  "name": "stock-data-pipeline-market-close-watchdog",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/index.mjs",
+    "test": "node --test test/index.test.mjs"
+  }
+}

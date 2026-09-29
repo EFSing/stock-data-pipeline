@@ -13,7 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from research.setup01_d1_gcs_store import GCS_BACKEND_IDENTITY, GoogleCloudStorageD1Store
-from research.setup01_d1_prospective import render_research_report
+from research.setup01_d1_activation import session_is_in_activation_window
+from research.setup01_d1_prospective import (
+    D1ProspectiveWindowError,
+    render_research_report,
+)
 from research.setup01_d1_source_contract import (
     build_d1_snapshot_from_candidate_runtime,
     source_contract_descriptor,
@@ -40,6 +44,7 @@ def collect_natural_session(
     store: object | None = None,
     runtime: ProductionCandidateRuntime | None = None,
     backend: str = "vps",
+    calendar_provider: ExactExchangeCalendarProvider | None = None,
 ) -> dict[str, Any]:
     generated_at = now or datetime.now(timezone.utc)
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
@@ -53,12 +58,31 @@ def collect_natural_session(
     durable = store or (
         VpsD1Store.from_env() if normalized_backend == "vps" else GoogleCloudStorageD1Store.from_env()
     )
-    calendar = ExactExchangeCalendarProvider()
-    # The natural run date is resolved from the exchange-local current date;
-    # there is intentionally no --date override for a formal collector.
-    trade_date = calendar.market_local_date(normalized_market, now=generated_at)
-    identity = calendar.completed_session(normalized_market, trade_date, now=generated_at)
+    calendar = calendar_provider or ExactExchangeCalendarProvider()
+    # Formal natural collection always resolves the latest real exchange
+    # close.  There is intentionally no --date override: a delayed trigger
+    # must never turn the runner's current civil date into an incomplete T.
+    identity = calendar.latest_completed_session(normalized_market, now=generated_at)
+    trade_date = identity.trade_date
     activation = durable.load_activation_record(normalized_market)
+    if not session_is_in_activation_window(activation, trade_date.isoformat()):
+        raise D1ProspectiveWindowError(
+            "D1_PRE_ACTIVATION_OR_POST_WINDOW_SESSION",
+            detail={
+                "market": normalized_market,
+                "session_date": trade_date.isoformat(),
+                "first_eligible_session": activation.get("first_eligible_full_exchange_session"),
+                "end_boundary": activation.get("end_boundary_local_date"),
+            },
+        )
+    window = calendar.completed_session_window(
+        normalized_market, trade_date, now=generated_at
+    )
+    if not window.collection_window_open:
+        raise D1ProspectiveWindowError(
+            "MISSED_PROSPECTIVE_SESSION",
+            detail=window.as_dict(),
+        )
     candidate_runtime = runtime or ProductionCandidateRuntime()
     result = candidate_runtime.run(
         market=normalized_market,
@@ -100,6 +124,7 @@ def collect_natural_session(
         "paper_write": False,
         "broker_order": False,
         "session_counts": durable.verify()["session_counts"],
+        "session_resolution": window.as_dict(),
         "report_markdown": report_markdown,
     }
     if hasattr(committed, "as_receipt"):

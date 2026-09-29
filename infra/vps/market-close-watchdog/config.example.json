@@ -1,0 +1,15 @@
+{
+  "repository": "EFSing/stock-data-pipeline",
+  "ref": "main",
+  "github_token": "SET_THIS_ONLY_IN_A_0600_LOCAL_FILE",
+  "workflow_overrides": {
+    "CN": {
+      "DAILY_REPORT": "cn-daily-report.yml",
+      "D1_PROSPECTIVE": "setup01-d1-vps-natural-collector-cn.yml"
+    },
+    "US": {
+      "DAILY_REPORT": "us-daily-report.yml",
+      "D1_PROSPECTIVE": "setup01-d1-vps-natural-collector-us.yml"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+name = "stock-data-pipeline-market-close-watchdog"
+main = "src/index.mjs"
+compatibility_date = "2026-09-29"
+
+[vars]
+GITHUB_REPOSITORY = "EFSing/stock-data-pipeline"
+GITHUB_REF = "main"
+
+[triggers]
+# Cloudflare Cron uses UTC.  Daily-report fallbacks are +15 minutes after the
+# current GitHub primary; D1 fallbacks are +15 minutes after 18:40/09:40 BJT.
+crons = ["45 9 * * 1-5", "55 10 * * 1-5", "15 1 * * 2-6", "55 1 * * 2-6"]

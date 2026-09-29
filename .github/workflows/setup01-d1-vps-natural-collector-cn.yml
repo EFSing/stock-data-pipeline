@@ -1,10 +1,11 @@
-name: SETUP01 D1 VPS Natural Collector (CN)
+name: SETUP01 Market Close Reconciliation (CN)
 
-# Scheduled CN D1 collection.  The cron fires after the 15:00 Beijing close and
-# after the 17:30 Beijing production market-data run; the collector itself
-# resolves the natural exchange session and refuses pre-activation or
-# incomplete sessions.  A durable commit failure never changes or fails the
-# production daily report path, and repeated runs are idempotent.
+# Primary CN trigger.  The cron fires after the 15:00 Beijing close and after
+# the 17:30 Beijing production market-data run.  The shared reconciliation
+# resolver selects the latest real completed session, enforces the
+# close-to-next-open prospective window, and makes duplicate triggers
+# idempotent.  This workflow remains the primary trigger; Cloudflare and VPS
+# watchdogs dispatch the same workflow as independent fallbacks.
 on:
   schedule:
     - cron: "40 10 * * 1-5"
@@ -38,10 +39,9 @@ jobs:
           python-version: "3.11"
       - name: Install runtime dependencies
         run: python -m pip install -r requirements.txt
-      - name: Collect one natural CN D1 session
+      - name: Reconcile CN market close
         run: >
-          python scripts/run_setup01_d1_natural_collector.py
-          --backend vps
+          python scripts/run_market_close_reconcile.py
           --market CN
           --output "$RUNNER_TEMP/d1-collector-receipt.json"
           --report-output "$RUNNER_TEMP/d1-research-report.md"
