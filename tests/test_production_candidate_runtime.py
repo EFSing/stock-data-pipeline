@@ -27,6 +27,10 @@ from tests.test_production_prerequisites import (
     _rows,
 )
 from trading.candidate_universe import SeedSecurity, select_candidate_universe
+from trading.candidate_universe_sources import (
+    BaoStockCandidateSeedAdapter,
+    HithinkCandidateSeedAdapter,
+)
 from trading.daily_decision_chain import (
     CompletedSessionIdentity,
     DATA_OK,
@@ -311,6 +315,24 @@ def _review_rows_for_seed(seed: SeedSecurity, *, setup_state: str = "ARMED"):
 
 
 class ProductionCandidateRuntimeTests(unittest.TestCase):
+    def test_cn_production_seed_loader_never_calls_baostock(self):
+        seed = _seed("CN", "600001.SH")
+        with patch.object(
+            HithinkCandidateSeedAdapter,
+            "load",
+            return_value=(seed,),
+        ) as hithink_load, patch.object(
+            BaoStockCandidateSeedAdapter,
+            "load",
+            side_effect=AssertionError("BaoStock is not a production CN seed source"),
+        ) as baostock_load:
+            source_as_of, seeds = ProductionCandidateRuntime._load_cn_seeds(T_DAY)
+
+        self.assertEqual(source_as_of, T_DAY)
+        self.assertEqual(seeds, (seed,))
+        hithink_load.assert_called_once_with(as_of=T_DAY)
+        baostock_load.assert_not_called()
+
     def test_candidate_review_projects_cn_existing_name_and_sector(self):
         rows = _review_rows_for_seed(
             _seed(
