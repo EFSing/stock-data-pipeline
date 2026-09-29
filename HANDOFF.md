@@ -67,8 +67,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `DATA_QUALITY_PARTIAL`/`PROVIDER_FAILURE`/`NO_SIGNAL`/`SUCCESS` 分类、独立日报通知
   claim、Cloudflare Worker 源码/config、VPS watchdog 源码/systemd units、Actions step
   summary 诊断与 focused tests；本地全量 unittest、静态检查、workflow YAML、Node 检查和
-  docs closeout 已通过，代码已提交并推送，PR #121 已创建；仍需核对真实远端 exact head、
-  CI 与 mergeability。
+  docs closeout 已通过，代码已提交并推送，PR #121 已创建并达到 `PR_FULLY_READY`：真实
+  远端 exact head、CI 与 mergeability 已核对；PR 保持 OPEN，未启用 auto-merge。
 
 ## Completed
 
@@ -140,9 +140,8 @@ durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTIO
 
 ## Next Action
 
-- 复核 PR #121 的真实 exact head、Actions/CI 与 mergeability，再报告
-  `READY_FOR_REVIEW`/`PR_FULLY_READY`，不把本地 refs 当远端状态；保持 OPEN，不启用
-  auto-merge。
+- PR #121 保持 OPEN、等待用户 review/merge 决策；不启用 auto-merge。若用户之后决定启用
+  fallback，再按 runbook 配置独立 Cloudflare/VPS credential；此前不做外部部署。
 - 用户若要启用外部 fallback，再按 runbook 在 Cloudflare Free Worker 写入独立 GitHub
   Actions token、在 VPS 用户配置写入独立 `0600` token；不得把 token 发到聊天。
 - US：首个合格 session 收盘后由 market-close reconciliation 自动采集，核对 receipt、event
