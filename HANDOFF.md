@@ -10,7 +10,8 @@ reconciliation、Cloudflare Worker Cron 第一备用、Ubuntu VPS trigger-only w
 并为 Daily Report 增加可靠性分类与独立 notification idempotency marker。所有入口最终复用
 同一 `market + session_date` resolution/commit 语义，不改变冻结交易策略、D1 source/observer
 研究语义或 activation prospective boundary。代码已在独立 `ops/market-close-trigger-resilience-v1`
-分支完成、提交并推送，尚未创建/报告 PR。
+分支完成、提交并推送，聚焦 PR #121 已创建并保持 OPEN，未启用 auto-merge；exact head 与
+CI 以 GitHub 实时状态为准。
 
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
 `D1_PROSPECTIVE_TIME_ISOLATED`，并已依次放弃 Google Drive 与 Google Cloud Storage durable
@@ -66,7 +67,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `DATA_QUALITY_PARTIAL`/`PROVIDER_FAILURE`/`NO_SIGNAL`/`SUCCESS` 分类、独立日报通知
   claim、Cloudflare Worker 源码/config、VPS watchdog 源码/systemd units、Actions step
   summary 诊断与 focused tests；本地全量 unittest、静态检查、workflow YAML、Node 检查和
-  docs closeout 已通过，代码已提交并推送，仍需创建并核对真实远端 PR/CI。
+  docs closeout 已通过，代码已提交并推送，PR #121 已创建；仍需核对真实远端 exact head、
+  CI 与 mergeability。
 
 ## Completed
 
@@ -138,8 +140,9 @@ durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTIO
 
 ## Next Action
 
-- 在 GitHub 创建聚焦 reliability PR；复核该 PR 的真实 exact head、Actions/CI 与
-  mergeability，再报告 `READY_FOR_REVIEW`/`PR_FULLY_READY`，不把本地 refs 当远端状态。
+- 复核 PR #121 的真实 exact head、Actions/CI 与 mergeability，再报告
+  `READY_FOR_REVIEW`/`PR_FULLY_READY`，不把本地 refs 当远端状态；保持 OPEN，不启用
+  auto-merge。
 - 用户若要启用外部 fallback，再按 runbook 在 Cloudflare Free Worker 写入独立 GitHub
   Actions token、在 VPS 用户配置写入独立 `0600` token；不得把 token 发到聊天。
 - US：首个合格 session 收盘后由 market-close reconciliation 自动采集，核对 receipt、event
