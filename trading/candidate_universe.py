@@ -1,4 +1,4 @@
-"""Bounded sector candidate-universe domain model and selector.
+"""Candidate-universe domain model and deterministic selector.
 
 This module is deliberately upstream of the Strategy Engine.  It only decides
 whether a security is a sufficiently tradable candidate for deeper analysis;
@@ -67,6 +67,8 @@ class SeedSecurity:
     metadata_status: str = "OK"
     source_symbol: str | None = None
     provenance: tuple[str, ...] = ()
+    index_memberships: tuple[str, ...] = ()
+    source_snapshot_timestamps: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,9 @@ class CandidateRecord:
     source: str
     inclusion_reason: str | None
     exclusion_reason: str | None
+    source_as_of: date | None = None
+    index_memberships: tuple[str, ...] = ()
+    provenance: tuple[str, ...] = ()
 
     def to_row(self) -> dict[str, object]:
         """Return a lightweight, serializable audit row."""
@@ -124,6 +129,11 @@ class CandidateRecord:
                 else None
             ),
             "source": self.source,
+            "source_as_of": (
+                self.source_as_of.isoformat() if self.source_as_of else None
+            ),
+            "index_memberships": list(self.index_memberships),
+            "provenance": list(self.provenance),
             "inclusion_reason": self.inclusion_reason,
             "exclusion_reason": self.exclusion_reason,
         }
@@ -132,7 +142,7 @@ class CandidateRecord:
 @dataclass(frozen=True)
 class CandidateUniverse:
     as_of_date: date
-    top_n_per_sector: int
+    top_n_per_sector: int | None
     records: tuple[CandidateRecord, ...]
 
     @property
@@ -234,6 +244,9 @@ def _base_record(seed: SeedSecurity, reason: str) -> CandidateRecord:
         source=seed.source,
         inclusion_reason=None,
         exclusion_reason=reason,
+        source_as_of=seed.source_as_of,
+        index_memberships=seed.index_memberships,
+        provenance=seed.provenance,
     )
 
 
@@ -251,9 +264,6 @@ def _evaluate_seed(
         return _base_record(seed, f"METADATA_{seed.metadata_status}")
     if seed.asset_class.upper() != "EQUITY":
         return _base_record(seed, "ASSET_CLASS_NOT_EQUITY")
-    if not str(seed.sector or "").strip():
-        return _base_record(seed, "SECTOR_MISSING")
-
     metrics, history_reason = _history_metrics(
         history,
         as_of_date,
@@ -308,6 +318,9 @@ def _evaluate_seed(
                 source=seed.source,
                 inclusion_reason=None,
                 exclusion_reason="CN_MINIMUM_NOTIONAL_OVER_20000",
+                source_as_of=seed.source_as_of,
+                index_memberships=seed.index_memberships,
+                provenance=seed.provenance,
             )
         inclusion_reason = (
             "CN_PREFERRED_AFFORDABILITY"
@@ -337,6 +350,9 @@ def _evaluate_seed(
                 source=seed.source,
                 inclusion_reason=None,
                 exclusion_reason="US_ONE_SHARE_NOTIONAL_OVER_1000",
+                source_as_of=seed.source_as_of,
+                index_memberships=seed.index_memberships,
+                provenance=seed.provenance,
             )
         tier = AffordabilityTier.US_CANDIDATE_ALLOWED
         minimum_quantity = 1
@@ -362,6 +378,9 @@ def _evaluate_seed(
         source=seed.source,
         inclusion_reason=inclusion_reason,
         exclusion_reason=None,
+        source_as_of=seed.source_as_of,
+        index_memberships=seed.index_memberships,
+        provenance=seed.provenance,
     )
 
 
@@ -370,18 +389,18 @@ def select_candidate_universe(
     histories: Mapping[str, Sequence[Quote]],
     as_of_date: date,
     *,
-    top_n_per_sector: int = TOP_N_PER_SECTOR,
+    top_n_per_sector: int | None = None,
     min_history_bars: int = MIN_HISTORY_BARS,
     max_staleness_days: int = MAX_HISTORY_STALENESS_DAYS,
 ) -> CandidateUniverse:
-    """Apply bounded affordability, history, liquidity and sector ranking.
+    """Apply affordability, history and deterministic liquidity ranking.
 
     Liquidity is only a ranking proxy: 20D/60D traded notional, using the
     provider amount when available and otherwise ``close * volume``.  There is
     intentionally no new absolute cross-market liquidity threshold.
     """
 
-    if top_n_per_sector <= 0:
+    if top_n_per_sector is not None and top_n_per_sector <= 0:
         raise ValueError("top_n_per_sector must be positive")
     if min_history_bars < 60:
         raise ValueError("min_history_bars must support the 60D liquidity proxy")
@@ -396,38 +415,53 @@ def select_candidate_universe(
         )
         for seed in seeds
     ]
-    by_sector: dict[tuple[str, str], list[CandidateRecord]] = {}
-    for record in evaluated:
-        if record.included and record.sector:
-            by_sector.setdefault((record.market, record.sector), []).append(record)
-
     affordability_priority = {
         AffordabilityTier.CN_PREFERRED: 0,
         AffordabilityTier.US_CANDIDATE_ALLOWED: 0,
         AffordabilityTier.CN_EXTENDED_LOWER_PRIORITY: 1,
     }
     replacements: dict[str, CandidateRecord] = {}
-    for records in by_sector.values():
+    if top_n_per_sector is None:
         ranked = sorted(
-            records,
+            (record for record in evaluated if record.included),
             key=lambda record: (
                 affordability_priority[record.affordability_tier],
                 -float(record.average_traded_notional_20d or 0),
                 -float(record.average_traded_notional_60d or 0),
+                record.market,
                 record.symbol,
-            ),
+            )
         )
         for rank, record in enumerate(ranked, start=1):
-            if rank > top_n_per_sector:
-                replacements[record.symbol] = replace(
-                    record,
-                    included=False,
-                    rank=rank,
-                    inclusion_reason=None,
-                    exclusion_reason="SECTOR_TOP_N_EXCEEDED",
-                )
-            else:
-                replacements[record.symbol] = replace(record, rank=rank)
+            replacements[record.symbol] = replace(record, rank=rank)
+    else:
+        # Compatibility mode for older research callers.  Production uses
+        # the default ``None`` and has no sector cap or sector dependency.
+        by_sector: dict[tuple[str, str], list[CandidateRecord]] = {}
+        for record in evaluated:
+            if record.included and record.sector:
+                by_sector.setdefault((record.market, record.sector), []).append(record)
+        for records in by_sector.values():
+            ranked = sorted(
+                records,
+                key=lambda record: (
+                    affordability_priority[record.affordability_tier],
+                    -float(record.average_traded_notional_20d or 0),
+                    -float(record.average_traded_notional_60d or 0),
+                    record.symbol,
+                ),
+            )
+            for rank, record in enumerate(ranked, start=1):
+                if rank > top_n_per_sector:
+                    replacements[record.symbol] = replace(
+                        record,
+                        included=False,
+                        rank=rank,
+                        inclusion_reason=None,
+                        exclusion_reason="SECTOR_TOP_N_EXCEEDED",
+                    )
+                else:
+                    replacements[record.symbol] = replace(record, rank=rank)
 
     final_records = []
     for record in evaluated:
@@ -435,7 +469,6 @@ def select_candidate_universe(
     final_records.sort(
         key=lambda record: (
             record.market,
-            record.sector or "",
             0 if record.included else 1,
             record.rank if record.rank is not None else 10**9,
             record.symbol,

@@ -24,9 +24,14 @@ ACTIVATION_SCHEMA_VERSION = "setup01-d1-activation-record-v1"
 ACTIVATION_SCHEMA_VERSION_V2 = "setup01-d1-activation-record-v2"
 SOURCE_CONTRACT_V1 = "SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1"
 SOURCE_CONTRACT_V2 = "SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2"
+ACTIVATION_LEGACY_PREFIX = "system/activation"
+ACTIVATION_EPOCH_PREFIX = "system/activation_epochs"
 ACTIVATION_STATUS = "D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{7,64}$", re.IGNORECASE)
+SOURCE_CONTRACT_VERSION_RE = re.compile(
+    r"^SETUP01_D1_[A-Z0-9]+(?:_[A-Z0-9]+)*_V[0-9]+$"
+)
 
 
 def _aware_iso(value: str) -> str:
@@ -48,6 +53,65 @@ def _code_sha(value: Any) -> str:
     if not GIT_SHA_RE.fullmatch(text):
         raise ValueError("code_sha must be a Git commit SHA")
     return text
+
+
+def normalize_source_contract_version(value: Any) -> str:
+    """Normalize the explicit source-contract identity used by D1 epochs."""
+
+    text = str(value or "").strip()
+    if not SOURCE_CONTRACT_VERSION_RE.fullmatch(text):
+        raise ValueError("source_contract_version must be a versioned SETUP01_D1 contract")
+    return text
+
+
+def activation_path(market: str, source_contract_version: str) -> str:
+    """Return the immutable storage path for one market/contract epoch.
+
+    V1 keeps its historical path byte-for-byte.  Every later contract gets a
+    separate append-only epoch path; there is intentionally no ``current`` or
+    mtime selector.
+    """
+
+    normalized_market = str(market or "").strip().upper()
+    if normalized_market not in {"CN", "US"}:
+        raise ValueError("activation market must be CN or US")
+    version = normalize_source_contract_version(source_contract_version)
+    if version == SOURCE_CONTRACT_V1:
+        return f"{ACTIVATION_LEGACY_PREFIX}/{normalized_market}.json"
+    return f"{ACTIVATION_EPOCH_PREFIX}/{normalized_market}/{version}.json"
+
+
+def parse_activation_path(name: str) -> tuple[str, str]:
+    """Parse a canonical activation path, rejecting ambiguous layouts."""
+
+    # Storage names are relative canonical keys.  Do not normalize away a
+    # leading/trailing slash: accepting it would make malformed external
+    # names indistinguishable from the immutable layout.
+    text = str(name or "").strip()
+    legacy = re.fullmatch(rf"{re.escape(ACTIVATION_LEGACY_PREFIX)}/(CN|US)\.json", text)
+    if legacy:
+        return legacy.group(1), SOURCE_CONTRACT_V1
+    epoch = re.fullmatch(
+        rf"{re.escape(ACTIVATION_EPOCH_PREFIX)}/(CN|US)/([^/]+)\.json",
+        text,
+    )
+    if epoch:
+        version = normalize_source_contract_version(epoch.group(2))
+        if version == SOURCE_CONTRACT_V1:
+            raise D1IntegrityError("V1 activation must use the legacy activation path")
+        return epoch.group(1), version
+    raise D1IntegrityError("activation path is outside the immutable activation layout")
+
+
+def activation_path_for_record(record: Mapping[str, Any]) -> str:
+    """Return the only canonical path authorized by a validated record."""
+
+    market = str(record.get("market") or "").strip().upper()
+    source = record.get("source_contract")
+    source_version = record.get("source_contract_version")
+    if source_version is None and isinstance(source, Mapping):
+        source_version = source.get("contract_version")
+    return activation_path(market, normalize_source_contract_version(source_version))
 
 
 def _iso_date(value: Any, field: str) -> str:
@@ -84,7 +148,7 @@ def build_activation_record(
     code_sha: str,
     source_contract: Mapping[str, Any],
     observer_version: str,
-    source_contract_version: str | None = None,
+    source_contract_version: str,
 ) -> dict[str, Any]:
     """Build an activation record without performing any storage write."""
 
@@ -101,9 +165,7 @@ def build_activation_record(
         raise D1IntegrityError("D1_SOURCE_ACTIVATION_CONTRACT_PENDING")
     if not source_contract.get("contract_version"):
         raise ValueError("source contract version is required")
-    selected_contract_version = str(
-        source_contract_version or source_contract.get("contract_version")
-    ).strip()
+    selected_contract_version = normalize_source_contract_version(source_contract_version)
     if selected_contract_version not in {SOURCE_CONTRACT_V1, SOURCE_CONTRACT_V2}:
         raise ValueError("unsupported D1 source contract version")
     if source_contract.get("contract_version") != selected_contract_version:
@@ -134,7 +196,6 @@ def build_activation_record(
         "final_cutoff_bjt": window["final_cutoff_bjt"],
         "calendar_horizon_status": window["calendar_horizon_status"],
         "source_contract": dict(source_contract),
-        "source_contract_version": selected_contract_version,
         "cost_scenario": dict(source_contract.get("cost_scenario") or {}),
         "observer_version": str(observer_version),
         "research_only": True,
@@ -144,6 +205,10 @@ def build_activation_record(
         "paper_write": False,
         "broker_order": False,
     }
+    # The V1 record shape is frozen.  Only the new epoch schema carries the
+    # explicit version field; old V1 activation bytes and hashes remain valid.
+    if selected_contract_version == SOURCE_CONTRACT_V2:
+        record["source_contract_version"] = selected_contract_version
     record["record_sha256"] = content_sha256(record)
     return record
 
@@ -201,7 +266,12 @@ def validate_activation_record(
         if schema_version == ACTIVATION_SCHEMA_VERSION_V2
         else SOURCE_CONTRACT_V1
     )
-    if record.get("source_contract_version", source.get("contract_version")) != expected_contract_version:
+    record_version = record.get("source_contract_version", source.get("contract_version"))
+    try:
+        normalized_record_version = normalize_source_contract_version(record_version)
+    except ValueError as exc:
+        raise D1IntegrityError("activation record source contract version is invalid") from exc
+    if normalized_record_version != expected_contract_version:
         raise D1IntegrityError("activation record source contract version mismatch")
     if source.get("contract_version") != expected_contract_version:
         raise D1IntegrityError("activation source contract version mismatch")
@@ -225,10 +295,16 @@ def session_is_in_activation_window(record: Mapping[str, Any], session_date: str
 __all__ = [
     "ACTIVATION_SCHEMA_VERSION",
     "ACTIVATION_SCHEMA_VERSION_V2",
+    "ACTIVATION_EPOCH_PREFIX",
+    "ACTIVATION_LEGACY_PREFIX",
     "ACTIVATION_STATUS",
     "SOURCE_CONTRACT_V1",
     "SOURCE_CONTRACT_V2",
+    "activation_path",
+    "activation_path_for_record",
     "build_activation_record",
+    "normalize_source_contract_version",
+    "parse_activation_path",
     "session_is_in_activation_window",
     "validate_activation_record",
 ]

@@ -192,6 +192,10 @@ def _seed_row(seed: Any) -> dict[str, Any]:
         "metadata_status": getattr(seed, "metadata_status", None),
         "source_symbol": getattr(seed, "source_symbol", None),
         "provenance": list(getattr(seed, "provenance", ()) or ()),
+        "index_memberships": list(getattr(seed, "index_memberships", ()) or ()),
+        "source_snapshot_timestamps": list(
+            getattr(seed, "source_snapshot_timestamps", ()) or ()
+        ),
         "board_rule": None if board_rule is None else {
             "board": getattr(board_rule, "board", None),
             "minimum_quantity": getattr(board_rule, "minimum_quantity", None),
@@ -473,6 +477,11 @@ def build_d1_source_contract(
             "sector": getattr(seed, "sector", None),
             "tradable": symbol in included_symbols and symbol in deep_ready,
             "candidate_record": _safe(candidate),
+            "index_memberships": list(getattr(seed, "index_memberships", ()) or ()),
+            "source_snapshot_timestamps": list(
+                getattr(seed, "source_snapshot_timestamps", ()) or ()
+            ),
+            "provenance": list(getattr(seed, "provenance", ()) or ()),
         })
 
     runtime_errors = [str(value) for value in (getattr(runtime, "errors", ()) or ()) if value]
@@ -493,6 +502,11 @@ def build_d1_source_contract(
             if str(getattr(seed, "symbol", "")).strip()
         }
     )
+    universe_snapshot_status = "AVAILABLE" if attempted_symbols else "UNAVAILABLE"
+    candidate_status = str(
+        getattr(runtime, "candidate_status", "")
+        or getattr(runtime, "status", "NOT_RUN")
+    ).upper()
     deep_errors = getattr(runtime, "deep_errors", {}) or {}
     provider_contract = _safe(getattr(runtime, "qfq_contract", {}))
     per_symbol_provenance = _safe(getattr(runtime, "source_provenance", {}) or {})
@@ -577,6 +591,9 @@ def build_d1_source_contract(
             or value.startswith("COMPLETED_SESSION_")
         ]
         blocking_errors.extend(v2_contract_errors)
+        if universe_snapshot_status == "UNAVAILABLE":
+            blocking_errors.append("UNIVERSE_SNAPSHOT_UNAVAILABLE")
+            incomplete.append("UNIVERSE_SNAPSHOT_UNAVAILABLE")
         status = (
             "VERIFIED"
             if attempted_symbols and not provider_global_failure and not blocking_errors
@@ -617,6 +634,8 @@ def build_d1_source_contract(
         "raw_prefix_by_symbol": raw_by_symbol,
         "raw_prefix_sha256": content_sha256(raw_by_symbol),
         "provider_contract": _safe(getattr(runtime, "qfq_contract", {})),
+        "universe_snapshot_status": universe_snapshot_status,
+        "candidate_status": candidate_status,
     }
     normalized = {
         "contract_version": contract_version,
@@ -640,6 +659,8 @@ def build_d1_source_contract(
         "usable_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == "DATA_OK"),
         "missing_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == DATA_MISSING),
         "invalid_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value != DATA_OK and value != DATA_MISSING),
+        "universe_snapshot_status": universe_snapshot_status,
+        "candidate_status": candidate_status,
     }
     decision_rows = []
     decision_symbols = set(included_symbols) | set(qfq_by_symbol)
@@ -664,6 +685,8 @@ def build_d1_source_contract(
         "runtime_status": getattr(runtime, "status", None),
         "runtime_protocol": _safe(getattr(runtime, "qfq_contract", {})),
         "per_symbol_source_status": dict(sorted(per_symbol_source_status.items())),
+        "universe_snapshot_status": universe_snapshot_status,
+        "candidate_status": candidate_status,
     }
     research = {
         "contract_version": contract_version,
@@ -680,6 +703,8 @@ def build_d1_source_contract(
         "usable_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == "DATA_OK"),
         "missing_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value == DATA_MISSING),
         "invalid_symbols": sorted(symbol for symbol, value in per_symbol_source_status.items() if value != DATA_OK and value != DATA_MISSING),
+        "universe_snapshot_status": universe_snapshot_status,
+        "candidate_status": candidate_status,
         "formal_entry_allowed": False,
         "real_fill_evidence": False,
     }
@@ -703,8 +728,10 @@ def build_d1_source_contract(
             **({"activation_record_sha256": activation_record.get("record_sha256")} if activation_record else {}),
         },
         "universe_snapshot": {
+            "status": universe_snapshot_status,
             "source": str(getattr(runtime, "qfq_contract", {}).get("seed") or "UNKNOWN"),
             "source_as_of": _safe(getattr(runtime, "seed_source_as_of", None)),
+            "membership_as_of_semantics": "CURRENT_ONLY_SNAPSHOT_NOT_RETROACTIVE",
             "members": members,
         },
         "raw_source_snapshot": raw_source,

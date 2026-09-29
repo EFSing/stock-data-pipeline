@@ -21,6 +21,8 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from research.setup01_d1_activation import (
+    activation_path,
+    activation_path_for_record,
     build_activation_record,
     session_is_in_activation_window,
     validate_activation_record,
@@ -487,11 +489,8 @@ class GoogleCloudStorageD1Store:
             **frozen,
         }
 
-    def _activation_name(self, market: str) -> str:
-        normalized = str(market).upper()
-        if normalized not in {"CN", "US"}:
-            raise ValueError("market must be CN or US")
-        return f"system/activation/{normalized}.json"
+    def _activation_name(self, market: str, source_contract_version: str) -> str:
+        return activation_path(market, source_contract_version)
 
     def create_activation_record(
         self,
@@ -501,6 +500,7 @@ class GoogleCloudStorageD1Store:
         code_sha: str,
         source_contract: Mapping[str, Any],
         observer_version: str,
+        source_contract_version: str,
     ) -> dict[str, Any]:
         """Create one immutable market activation record after storage validation."""
 
@@ -517,8 +517,9 @@ class GoogleCloudStorageD1Store:
             code_sha=code_sha,
             source_contract=source_contract,
             observer_version=observer_version,
+            source_contract_version=source_contract_version,
         )
-        name = self._activation_name(market)
+        name = self._activation_name(market, source_contract_version)
         payload = canonical_bytes(record)
         metadata = self._metadata(
             kind="ACTIVATION_RECORD",
@@ -532,8 +533,10 @@ class GoogleCloudStorageD1Store:
             raise D1IntegrityError("activation record generation changed")
         return record
 
-    def load_activation_record(self, market: str) -> dict[str, Any]:
-        name = self._activation_name(market)
+    def load_activation_record(
+        self, market: str, *, source_contract_version: str
+    ) -> dict[str, Any]:
+        name = self._activation_name(market, source_contract_version)
         value = self.api.get_object(self.bucket, name)
         record = json.loads(value.payload)
         validate_activation_record(
@@ -542,6 +545,8 @@ class GoogleCloudStorageD1Store:
             expected_backend_version=GCS_BACKEND_VERSION,
             expected_storage_identity_sha256=self.bucket_identity_sha256,
         )
+        if activation_path_for_record(record) != name:
+            raise D1IntegrityError("GCS activation record path/version mismatch")
         expected = self._metadata(
             kind="ACTIVATION_RECORD",
             digest=sha256(value.payload).hexdigest(),
@@ -584,7 +589,10 @@ class GoogleCloudStorageD1Store:
         market = str(snapshot["market"]).upper()
         session_text = str(snapshot["session_date"])
         try:
-            activation = self.load_activation_record(market)
+            activation = self.load_activation_record(
+                market,
+                source_contract_version=str(source.get("source_contract_version") or ""),
+            )
         except GcsNotFound as exc:
             raise D1IntegrityError("D1 activation record is missing") from exc
         if source.get("activation_record_sha256") != activation.get("record_sha256"):

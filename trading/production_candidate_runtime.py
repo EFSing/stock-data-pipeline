@@ -42,11 +42,10 @@ from trading.candidate_universe import (
     CandidateUniverse,
     MIN_HISTORY_BARS,
     SeedSecurity,
-    TOP_N_PER_SECTOR,
     select_candidate_universe,
 )
 from trading.candidate_universe_sources import (
-    BaoStockCandidateSeedAdapter,
+    HithinkCandidateSeedAdapter,
     IwbOfficialHoldingsAdapter,
 )
 from trading.daily_decision_chain import (
@@ -217,6 +216,22 @@ class CandidateMarketRuntimeResult:
             == DATA_OK
         )
 
+    @property
+    def candidate_status(self) -> str:
+        """Expose Candidate component state independently of report signals."""
+
+        if self.status in {"FAILED", "PROVIDER_GLOBAL_FAILURE"}:
+            return "UNAVAILABLE"
+        if self.status == "COMPLETED_NO_USABLE_SYMBOLS":
+            return "NO_USABLE_SYMBOLS"
+        if self.status == "NO_CANDIDATES":
+            return "NO_CANDIDATES"
+        if self.status == "PARTIAL_DATA_QUALITY":
+            return "PARTIAL"
+        if self.status == "SUCCESS":
+            return "SUCCESS"
+        return "NOT_RUN"
+
     def daily_inputs(
         self, session_identity: CompletedSessionIdentity
     ) -> tuple[DailySymbolInput, ...]:
@@ -309,6 +324,13 @@ class CandidateMarketRuntimeResult:
                 else "DISCOVERY_FAILED"
                 if self.status in {"FAILED", "PARTIAL_DATA_QUALITY"}
                 else "NOT_RUN"
+            ),
+            "candidate_status": self.candidate_status,
+            "universe_snapshot_status": (
+                "AVAILABLE"
+                if self.seeds
+                and self.stage_timings.get("seed_metadata", {}).get("status") != "FAILED"
+                else "UNAVAILABLE"
             ),
             "deep_history_requested_count": len(self.deep_requested_symbols),
             "deep_history_requested_symbols": list(self.deep_requested_symbols),
@@ -574,7 +596,6 @@ def _yfinance_ticker(seed: Any) -> str:
 
 def _provider_watch(seed: Any) -> dict[str, str]:
     ticker = _yfinance_ticker(seed)
-    source_symbol = str(getattr(seed, "source_symbol", "") or "").strip()
     market = str(seed.market).strip().upper()
     watch = {
         "统一代码": str(seed.symbol).strip().upper(),
@@ -582,7 +603,6 @@ def _provider_watch(seed: Any) -> dict[str, str]:
         "市场": market,
         "币种": str(seed.currency).strip().upper(),
         "yfinance代码": ticker,
-        "BaoStock代码": source_symbol or ticker,
         "HITHINK代码": str(seed.symbol).strip().upper(),
         "主数据源": canonical_provider_for_market(market),
         "历史数据源": canonical_provider_for_market(market),
@@ -984,7 +1004,10 @@ class ProductionCandidateRuntime:
 
     SOURCE_CONTRACT = {
         "CN": {
-            "seed": "BaoStock HS300 ∪ CSI500 + basic/industry metadata",
+            "seed": (
+                "HITHINK official HS300 (000300.SH) ∪ CSI500 (000905.SH) "
+                "index constituents"
+            ),
             "market_data_provider": "HITHINK_FINANCIAL_API",
             "asset_routing": (
                 "HITHINK metadata asset_type: a-share -> "
@@ -1035,7 +1058,9 @@ class ProductionCandidateRuntime:
 
     @staticmethod
     def _load_cn_seeds(as_of_date: date) -> tuple[Any, ...]:
-        return BaoStockCandidateSeedAdapter().load(as_of=as_of_date)
+        seeds = HithinkCandidateSeedAdapter().load(as_of=as_of_date)
+        source_dates = [seed.source_as_of for seed in seeds if seed.source_as_of]
+        return (max(source_dates) if source_dates else None, seeds)
 
     @staticmethod
     def _load_us_seeds(as_of_date: date) -> tuple[date | None, tuple[Any, ...]]:
@@ -1096,7 +1121,7 @@ class ProductionCandidateRuntime:
                 timings,
                 "seed_metadata",
                 started=seed_started,
-                api_requests=4 if normalized_market == "CN" else 1,
+                api_requests=2 if normalized_market == "CN" else 1,
                 symbols=len(seeds),
                 rows=len(seeds),
                 usable_count=len(seeds),
@@ -1106,7 +1131,11 @@ class ProductionCandidateRuntime:
         except Exception as exc:
             source_as_of = None
             seeds = ()
-            error = f"SEED_METADATA_{type(exc).__name__}:{exc}"
+            if isinstance(exc, ProviderGlobalFailure):
+                provider_global_failure = f"{type(exc).__name__}:{exc}"
+                error = f"PROVIDER_GLOBAL_FAILURE:{provider_global_failure}"
+            else:
+                error = f"SEED_METADATA_{type(exc).__name__}:{exc}"
             errors.append(error)
             _record_stage(
                 timings,
@@ -1241,7 +1270,7 @@ class ProductionCandidateRuntime:
                 seeds,
                 short_histories,
                 as_of_date,
-                top_n_per_sector=TOP_N_PER_SECTOR,
+                top_n_per_sector=None,
                 min_history_bars=MIN_HISTORY_BARS,
                 max_staleness_days=0,
             )
@@ -1262,12 +1291,12 @@ class ProductionCandidateRuntime:
                     else "SUCCESS"
                 ),
                 included=len(universe.included),
-                top_n_per_sector=TOP_N_PER_SECTOR,
+                top_n_per_sector=None,
             )
         except Exception as exc:
             error = f"CANDIDATE_SELECTOR_{type(exc).__name__}:{exc}"
             errors.append(error)
-            universe = CandidateUniverse(as_of_date, TOP_N_PER_SECTOR, ())
+            universe = CandidateUniverse(as_of_date, None, ())
             _record_stage(
                 timings,
                 "candidate_selector",

@@ -33,9 +33,16 @@ STORAGE_IDENTITY_SCHEMA = "setup01-d1-vps-storage-identity-v1"
 DEFAULT_STORAGE_ROOT = "/srv/d1-research"
 
 # Only derived, non-evidence artifacts may be replaced.  Formal evidence
-# (objects/, sessions/, system/activation/) is create-only for ever.
+# (objects/, sessions/, system/activation/, system/activation_epochs/) is
+# create-only for ever.
 DERIVED_REPLACE_PREFIXES = ("manifests/",)
-EVIDENCE_PREFIXES = ("objects/", "sessions/", "system/activation/", "system/validation/")
+EVIDENCE_PREFIXES = (
+    "objects/",
+    "sessions/",
+    "system/activation/",
+    "system/activation_epochs/",
+    "system/validation/",
+)
 TMP_PREFIX = "system/tmp/"
 STALE_PART_SECONDS = 6 * 3600
 
@@ -152,7 +159,14 @@ def _cleanup_stale_parts(tmp_dir: Path) -> None:
 
 
 def _iter_store_files(root: Path):
-    for directory in ("objects", "sessions", "system/activation", "system/validation", "manifests"):
+    for directory in (
+        "objects",
+        "sessions",
+        "system/activation",
+        "system/activation_epochs",
+        "system/validation",
+        "manifests",
+    ):
         base = root / directory
         if not base.exists():
             continue
@@ -182,6 +196,8 @@ def _store_stats(root: Path) -> dict:
         elif relative.startswith("sessions/US/"):
             session_counts["US"] += 1
         elif relative.startswith("system/activation/"):
+            activations.append(relative)
+        elif relative.startswith("system/activation_epochs/"):
             activations.append(relative)
     return {
         "store_bytes": store_bytes,

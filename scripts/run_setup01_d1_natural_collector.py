@@ -41,7 +41,7 @@ def _session_payload(identity: Any) -> dict[str, Any]:
 
 
 def _migration_gate(durable: Any, market: str) -> dict[str, Any]:
-    """Prevent the immutable V1 activation from producing first evidence."""
+    """Require an explicit V1-preserved -> V2 epoch migration state."""
 
     verification = durable.verify()
     counts = {
@@ -55,17 +55,27 @@ def _migration_gate(durable: Any, market: str) -> dict[str, Any]:
             "D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE:"
             + json.dumps(counts, ensure_ascii=False, sort_keys=True)
         )
-    activation = durable.load_activation_record(market)
-    version = str(
-        activation.get("source_contract_version")
-        or (activation.get("source_contract") or {}).get("contract_version")
-        or ""
-    )
-    if version == D1_SOURCE_CONTRACT_V1:
+    def load(version: str) -> dict[str, Any] | None:
+        try:
+            return durable.load_activation_record(
+                market, source_contract_version=version
+            )
+        except Exception as exc:  # noqa: BLE001 - adapters expose different missing types
+            if type(exc).__name__ in {"VpsObjectMissing", "GcsNotFound", "FileNotFoundError"}:
+                return None
+            raise
+
+    legacy = load(D1_SOURCE_CONTRACT_V1)
+    if legacy is None:
+        raise D1IntegrityError("D1_SOURCE_MIGRATION_LEGACY_ACTIVATION_MISSING")
+    versioned = load(D1_SOURCE_CONTRACT_V2)
+    if versioned is None:
         raise D1IntegrityError("D1_SOURCE_MIGRATION_PENDING")
-    if version != D1_SOURCE_CONTRACT_V2:
-        raise D1IntegrityError("D1_SOURCE_MIGRATION_ACTIVATION_VERSION_UNKNOWN")
-    return {"session_counts": counts, "activation_source_contract_version": version}
+    return {
+        "session_counts": counts,
+        "legacy_activation_source_contract_version": D1_SOURCE_CONTRACT_V1,
+        "activation_source_contract_version": D1_SOURCE_CONTRACT_V2,
+    }
 
 
 def collect_natural_session(
@@ -96,7 +106,9 @@ def collect_natural_session(
     # must never turn the runner's current civil date into an incomplete T.
     identity = calendar.latest_completed_session(normalized_market, now=generated_at)
     trade_date = identity.trade_date
-    activation = durable.load_activation_record(normalized_market)
+    activation = durable.load_activation_record(
+        normalized_market, source_contract_version=D1_SOURCE_CONTRACT_V2
+    )
     if not session_is_in_activation_window(activation, trade_date.isoformat()):
         raise D1ProspectiveWindowError(
             "D1_PRE_ACTIVATION_OR_POST_WINDOW_SESSION",

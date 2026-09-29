@@ -16,7 +16,11 @@ from research.setup01_d1_gcs_store import (
     GoogleCloudStorageD1Store,
 )
 from research.setup01_d1_prospective import D1IntegrityError, build_session_snapshot
-from research.setup01_d1_source_contract import D1_SOURCE_CONTRACT_VERSION, source_contract_descriptor
+from research.setup01_d1_source_contract import (
+    D1_SOURCE_CONTRACT_V1,
+    D1_SOURCE_CONTRACT_VERSION,
+    source_contract_descriptor,
+)
 
 
 class MemoryGcsApi:
@@ -131,6 +135,7 @@ class GoogleCloudStorageD1StoreTests(unittest.TestCase):
             code_sha="a" * 40,
             source_contract=source_contract_descriptor(),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=D1_SOURCE_CONTRACT_V1,
         )
         validate_activation_record(
             record,
@@ -167,6 +172,7 @@ class GoogleCloudStorageD1StoreTests(unittest.TestCase):
             code_sha="d" * 40,
             source_contract=source_contract_descriptor(),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=D1_SOURCE_CONTRACT_V1,
         )
         us_record = self.store.create_activation_record(
             market="US",
@@ -174,6 +180,7 @@ class GoogleCloudStorageD1StoreTests(unittest.TestCase):
             code_sha="e" * 40,
             source_contract=source_contract_descriptor(),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=D1_SOURCE_CONTRACT_V1,
         )
         self.store.commit(_snapshot(
             market="CN", session_date=date(2026, 9, 2),
@@ -192,6 +199,7 @@ class GoogleCloudStorageD1StoreTests(unittest.TestCase):
             code_sha="b" * 40,
             source_contract=source_contract_descriptor(),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=D1_SOURCE_CONTRACT_V1,
         )
         before = _snapshot(session_date=date(2026, 8, 31), activation_hash=record["record_sha256"])
         with self.assertRaisesRegex(D1IntegrityError, "PRE_ACTIVATION"):
@@ -211,6 +219,7 @@ class GoogleCloudStorageD1StoreTests(unittest.TestCase):
             code_sha="c" * 40,
             source_contract=source_contract_descriptor(),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=D1_SOURCE_CONTRACT_V1,
         )
         snapshot = _snapshot(session_date=date(2026, 9, 2), activation_hash=record["record_sha256"])
         committed = self.store.commit(snapshot)
@@ -234,6 +243,7 @@ class GoogleCloudStorageD1StoreTests(unittest.TestCase):
             code_sha="f" * 40,
             source_contract=source_contract_descriptor(),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=D1_SOURCE_CONTRACT_V1,
         )
         snapshot = _snapshot(session_date=date(2026, 9, 2), activation_hash=record["record_sha256"])
         committed = self.store.commit(snapshot)

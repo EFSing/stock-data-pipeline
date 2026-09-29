@@ -661,6 +661,9 @@ class CloudDailyReportTests(unittest.TestCase):
         status, quality = _status_from_result(result, snapshot)
 
         self.assertEqual(status, "PARTIAL_DATA_QUALITY")
+        self.assertEqual(quality["candidate_status"], "UNAVAILABLE")
+        self.assertNotEqual(quality["candidate_status"], "NO_SIGNAL")
+        self.assertEqual(quality["run_status"], "COMPLETED")
         self.assertTrue(quality["candidate_runtime_failed"])
         self.assertTrue(any("DISCOVERY_FAILED" in error for error in quality["candidate_quality_errors"]))
 

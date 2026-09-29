@@ -63,14 +63,14 @@ def _action_value(decision) -> str | None:
 
 
 def _candidate_not_run_result(market: str, as_of_date: date) -> CandidateMarketRuntimeResult:
-    from trading.candidate_universe import CandidateUniverse, TOP_N_PER_SECTOR
+    from trading.candidate_universe import CandidateUniverse
 
     return CandidateMarketRuntimeResult(
         market=market,
         as_of_date=as_of_date,
         seed_source_as_of=None,
         seeds=(),
-        universe=CandidateUniverse(as_of_date, TOP_N_PER_SECTOR, ()),
+        universe=CandidateUniverse(as_of_date, None, ()),
         deep_histories={},
         deep_errors={},
         stage_timings={},
@@ -83,7 +83,7 @@ def _candidate_not_run_result(market: str, as_of_date: date) -> CandidateMarketR
 def _candidate_failure_result(
     market: str, as_of_date: date, error: BaseException
 ) -> CandidateMarketRuntimeResult:
-    from trading.candidate_universe import CandidateUniverse, TOP_N_PER_SECTOR
+    from trading.candidate_universe import CandidateUniverse
 
     message = f"{type(error).__name__}:{error}"
     return CandidateMarketRuntimeResult(
@@ -91,7 +91,7 @@ def _candidate_failure_result(
         as_of_date=as_of_date,
         seed_source_as_of=None,
         seeds=(),
-        universe=CandidateUniverse(as_of_date, TOP_N_PER_SECTOR, ()),
+        universe=CandidateUniverse(as_of_date, None, ()),
         deep_histories={},
         deep_errors={},
         stage_timings={

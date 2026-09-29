@@ -176,18 +176,41 @@ def _status_from_result(
     preflight_errors = tuple(str(value) for value in (preflight.get("errors") or ()) if value)
     candidate_errors = result.get("candidate_runtime_errors")
     candidate_quality_errors: list[str] = []
+    candidate_component_status = "NOT_RUN"
     candidate_markets = result.get("candidate_markets")
     if isinstance(candidate_markets, Mapping):
         candidate = candidate_markets.get(ephemeral.market)
         if not isinstance(candidate, Mapping):
+            candidate_component_status = "UNAVAILABLE"
             candidate_quality_errors.append(
                 f"{ephemeral.market} Candidate status: NOT_REPORTED"
             )
         else:
+            raw_candidate_status = str(candidate.get("candidate_status") or "").upper()
             candidate_status = str(candidate.get("status") or "").upper()
+            if raw_candidate_status:
+                candidate_component_status = raw_candidate_status
+            elif candidate_status in {"FAILED", "PROVIDER_GLOBAL_FAILURE"}:
+                candidate_component_status = "UNAVAILABLE"
+            elif candidate_status == "PARTIAL_DATA_QUALITY":
+                candidate_component_status = "PARTIAL"
+            elif candidate_status == "NO_CANDIDATES":
+                candidate_component_status = "NO_CANDIDATES"
+            elif candidate_status == "SUCCESS":
+                candidate_component_status = "SUCCESS"
+            elif candidate_status == "NOT_RUN":
+                candidate_component_status = "NOT_RUN"
+            else:
+                candidate_component_status = "UNAVAILABLE"
             if candidate_status not in {"", "SUCCESS", "NO_CANDIDATES", "NOT_RUN"}:
                 candidate_quality_errors.append(
                     f"{ephemeral.market} Candidate status: {candidate_status}"
+                )
+            elif candidate_component_status in {"UNAVAILABLE", "PARTIAL"}:
+                # Prefer the explicit component status when an older or
+                # malformed payload claims SUCCESS for the Candidate stage.
+                candidate_quality_errors.append(
+                    f"{ephemeral.market} Candidate status: {candidate_component_status}"
                 )
             elif candidate_status == "NOT_RUN" and report_values:
                 candidate_quality_errors.append(
@@ -247,6 +270,7 @@ def _status_from_result(
                     if value
                 )
     elif result.get("reports"):
+        candidate_component_status = "UNAVAILABLE"
         candidate_quality_errors.append(
             f"{ephemeral.market} Candidate status: NOT_REPORTED"
         )
@@ -290,6 +314,11 @@ def _status_from_result(
     exact_rows = [row for row in rows if row.get("market") == ephemeral.market
                   and row.get("as_of_date") == ephemeral.as_of_date.isoformat()
                   and row.get("data_status") == "DATA_OK"]
+    if data_status == "NO_USABLE_SYMBOLS" and exact_rows:
+        # A formal pool row is already exact-T usable evidence.  Candidate
+        # discovery failure must not relabel that normal formal coverage as a
+        # market-wide no-usable-symbols run.
+        data_status = "PARTIAL"
     latest_symbols = {str(row.get("统一代码")) for row in ephemeral.latest_rows
                       if str(row.get("交易日期")) == ephemeral.as_of_date.isoformat()
                       and str(row.get("市场")) == ephemeral.market
@@ -374,6 +403,8 @@ def _status_from_result(
         "candidate_quality_errors": list(dict.fromkeys(candidate_quality_errors)),
         "preflight_ready": preflight_ready,
         "candidate_runtime_failed": candidate_failed,
+        "candidate_status": candidate_component_status,
+        "CANDIDATE_STATUS": candidate_component_status,
         "provider_global_failure": provider_global_failure,
     }
     return status, quality
@@ -428,6 +459,17 @@ def _reliability_classification(
     if status == "INCOMPLETE_SESSION":
         return "INCOMPLETE_SESSION"
     if status == "PARTIAL_DATA_QUALITY":
+        candidate_values = (
+            (result.get("candidate_markets") or {}).values()
+            if isinstance(result.get("candidate_markets"), Mapping)
+            else ()
+        )
+        if any(
+            isinstance(candidate, Mapping)
+            and str(candidate.get("candidate_status") or "").upper() == "UNAVAILABLE"
+            for candidate in candidate_values
+        ):
+            return "CANDIDATE_COMPONENT_UNAVAILABLE"
         return "DATA_QUALITY_PARTIAL"
     if status in {"FAILED", "PROVIDER_GLOBAL_FAILURE"}:
         return "PROVIDER_FAILURE"
@@ -480,6 +522,8 @@ def _cloud_metadata(
                     "strategy_analysis_count",
                     "deep_analysis_blocked_symbols",
                     "candidate_selection_outcome",
+                    "candidate_status",
+                    "universe_snapshot_status",
                     "candidate_exclusion_reason_counts",
                     "deep_history_errors",
                     "stage_timings",
@@ -528,8 +572,10 @@ def _cloud_metadata(
         "status": status,
         "RUN_STATUS": data_quality.get("run_status", status),
         "DATA_STATUS": data_quality.get("data_status", data_quality.get("status", "UNKNOWN")),
+        "CANDIDATE_STATUS": data_quality.get("candidate_status", "NOT_RUN"),
         "run_status": data_quality.get("run_status", status),
         "data_status": data_quality.get("data_status", data_quality.get("status", "UNKNOWN")),
+        "candidate_status": data_quality.get("candidate_status", "NOT_RUN"),
         "reliability_classification": reliability_classification or status,
         "session_identity": _session_payload(session_identity),
         "session_resolution": dict(session_resolution or {}),
@@ -713,6 +759,9 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     status = str(cloud.get("status") or "FAILED")
     run_status = str(cloud.get("run_status") or cloud.get("RUN_STATUS") or status)
     data_status = str(cloud.get("data_status") or cloud.get("DATA_STATUS") or "UNKNOWN")
+    candidate_status = str(
+        cloud.get("candidate_status") or cloud.get("CANDIDATE_STATUS") or "NOT_RUN"
+    )
     projection = build_dashboard_projection(payload)
     summary = projection.get("summary", {})
     freshness = projection.get("freshness_funnel", {})
@@ -738,6 +787,7 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
             f"数据日期：{projection.get('as_of_date', '—')}\n"
             f"RUN_STATUS：{run_status}\n"
             f"DATA_STATUS：{data_status}\n"
+            f"CANDIDATE_STATUS：{candidate_status}\n"
             f"尝试标的：{attempted}；DATA_OK：{data_ok}；失败：{failed_count}\n"
             f"覆盖率：{(cloud.get('data_quality') or {}).get('coverage_pct', '—')}%\n"
             f"策略分析：{analyzed}；数据阻断：{blocked}\n"
@@ -745,7 +795,11 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
             f"异常标的：{', '.join(failed[:20]) or '无'}\n"
             f"新确认：{summary.get('new_confirmed_count', 0)}\n"
             f"交易方案：{plan_count}\n"
-            "有效数据标的继续完成策略分析；异常标的仅本标的阻断。"
+            + (
+                "候选发现组件本轮不可用；已有正式标的仍正常完成分析。"
+                if candidate_status == "UNAVAILABLE"
+                else "有效数据标的继续完成策略分析；异常标的仅本标的阻断。"
+            )
         )
     elif status in {"SUCCESS", "SKIPPED_NON_SESSION"}:
         title = f"{label}日报完成"

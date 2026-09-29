@@ -10,8 +10,12 @@ from trading.candidate_universe import (
     SeedSecurity,
     select_candidate_universe,
 )
-from trading.candidate_universe_sources import parse_iwb_holdings_csv
-from trading.candidate_universe_sources import BaoStockCandidateSeedAdapter
+from trading.candidate_universe_sources import (
+    BaoStockCandidateSeedAdapter,
+    CandidateSeedDataError,
+    HithinkCandidateSeedAdapter,
+    parse_iwb_holdings_csv,
+)
 
 
 AS_OF = date(2026, 9, 4)
@@ -175,6 +179,19 @@ class CandidateUniverseTests(unittest.TestCase):
         payload = json.dumps(universe.rows(), ensure_ascii=False)
         self.assertNotIn("ENTRY_ALLOWED", payload)
 
+    def test_production_default_does_not_require_sector_or_apply_sector_cap(self):
+        seeds = [
+            _seed("600001.SH", sector=None),
+            _seed("600002.SH", sector=None),
+        ]
+        histories = {seed.symbol: _history(seed.symbol, 10.0) for seed in seeds}
+        universe = select_candidate_universe(seeds, histories, AS_OF)
+        self.assertEqual([record.symbol for record in universe.included], [
+            "600001.SH", "600002.SH",
+        ])
+        self.assertEqual([record.rank for record in universe.included], [1, 2])
+        self.assertIsNone(universe.top_n_per_sector)
+
 
 class IwbContractTests(unittest.TestCase):
     def test_parser_uses_official_preamble_and_equity_fields(self):
@@ -267,6 +284,55 @@ class BaoStockContractTests(unittest.TestCase):
         self.assertEqual(fake.calls[2], ("zz500", {"date": "2026-09-04"}))
         self.assertEqual(fake.calls[3], ("basic", {}))
         self.assertEqual(fake.calls[4], ("industry", {}))
+
+
+class HithinkIndexContractTests(unittest.TestCase):
+    @staticmethod
+    def _payload(rows):
+        return {
+            "code": 0,
+            "data": {
+                "timestamp": "2026-09-04T15:00:00+08:00",
+                "item": rows,
+            },
+        }
+
+    def test_adapter_unions_official_indexes_and_keeps_membership_provenance(self):
+        payloads = {
+            "000300.SH": self._payload([
+                {"thscode": "600001.SH", "ticker": "600001", "name": "A"},
+                {"thscode": "300001.SZ", "ticker": "300001", "name": "B"},
+            ]),
+            "000905.SH": self._payload([
+                {"thscode": "600001.SH", "ticker": "600001", "name": "A"},
+                {"thscode": "000001.SZ", "ticker": "000001", "name": "C"},
+            ]),
+        }
+        calls = []
+
+        def request(path, params):
+            calls.append((path, params))
+            return payloads[params["thscode"]]
+
+        seeds = HithinkCandidateSeedAdapter(request).load(as_of=AS_OF)
+        by_symbol = {seed.symbol: seed for seed in seeds}
+        self.assertEqual(set(by_symbol), {"600001.SH", "300001.SZ", "000001.SZ"})
+        self.assertEqual(by_symbol["600001.SH"].index_memberships, ("000300.SH", "000905.SH"))
+        self.assertEqual(by_symbol["600001.SH"].source_snapshot_timestamps, ("2026-09-04T15:00:00+08:00",))
+        self.assertIsNone(by_symbol["600001.SH"].sector)
+        self.assertTrue(any("index_code:000905.SH" in item for item in by_symbol["600001.SH"].provenance))
+        self.assertEqual(calls[0][1], {"thscode": "000300.SH"})
+        self.assertEqual(calls[1][1], {"thscode": "000905.SH"})
+
+    def test_current_only_snapshot_cannot_be_applied_to_a_future_as_of_date(self):
+        payload = self._payload([
+            {"thscode": "600001.SH", "name": "A"},
+        ])
+        adapter = HithinkCandidateSeedAdapter(
+            lambda _path, _params: payload
+        )
+        with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF"):
+            adapter.load(as_of=date(2026, 9, 3))
 
 
 if __name__ == "__main__":

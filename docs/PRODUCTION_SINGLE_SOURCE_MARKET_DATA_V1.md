@@ -17,8 +17,18 @@ Fibonacci、Setup、Entry、Target、Stop、RR、Risk、Paper、broker 或 Final
 但不能从 CN/US production runtime 作为隐式 fallback、交叉校验或 qfq provider。Yahoo
 的 query1/query2 只是同一个 Chart implementation 的 bounded transport retry，不是第二
 vendor。CN asset type 只能来自明确的 watch metadata 或同一 HITHINK metadata directory
-的 exact symbol match；不得使用代码前缀猜测 ETF。候选 universe seed（例如 CN 的 BaoStock 指数成分、US 的 IWB holdings）是
-universe metadata，不是 price-data vendor。
+的 exact symbol match；不得使用代码前缀猜测 ETF。CN production Candidate universe 只能使用
+HITHINK 官方指数成分 endpoint
+`/api/a-share-index/constituents/ths-stock-list` 的 HS300 `000300.SH` 与 CSI500
+`000905.SH` 当前快照，US 使用官方 IWB holdings。Candidate membership、snapshot timestamp
+和 endpoint/index provenance 必须随 seed 保存；这属于 universe metadata，不改变 price-data
+vendor 合同。BaoStock Candidate adapter 仅保留 legacy/research compatibility，不进入
+production runtime。
+
+CN 两个指数先按 canonical symbol 做确定性 union/dedupe，再按既有 affordability、流动性和
+历史质量规则排序；production 不依赖 sector metadata，也不使用 `TOP_N_PER_SECTOR` 限额。
+HITHINK 指数接口的当前快照不是 point-in-time 历史 membership：snapshot timestamp 晚于
+requested `as_of` 时 fail closed，不能把后来的 membership 追溯到更早日期。
 
 ## Minimum sufficient normalized contract
 
@@ -74,7 +84,10 @@ production data plane 的 symbol 状态为：
 `DECISION_BLOCKED_DATA_UNAVAILABLE`），不产生 `NO_SIGNAL`，也不阻断其他 symbol。
 formal strategy pool、active/position symbols 和 dynamic Candidate 分别记录状态；
 Candidate deep-history 或 discovery 局部失败只撤销对应 Candidate 的当日资格，不能
-让已有正式池停止。
+让已有正式池停止。Candidate component failure is reported independently as
+`CANDIDATE_STATUS=UNAVAILABLE`; when formal rows remain usable, the scheduled report is
+`RUN_STATUS=COMPLETED`, `DATA_STATUS=PARTIAL`, not `NO_SIGNAL`. Provider-global HITHINK
+auth/schema/outage remains `PROVIDER_GLOBAL_FAILURE`.
 
 provider authentication、全局 schema 变化、全局 outage、exact exchange session 无法
 建立、配置/协议 hash 损坏或 orchestrator 无法形成 artifact 才可产生
@@ -99,9 +112,12 @@ artifact。provider-wide failure 仍先生成 artifact/notification，再返回�
 
 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 保存 attempted universe、usable/missing/invalid
 symbols、per-symbol source status、provider identity、adjustment engine version、exact
-session identity 与 per-symbol provenance。局部 symbol failure 可以在 session identity、
-provider contract、raw prefix 和 snapshot integrity 有效时提交 formal research session；
-缺失 symbol 永远写作 `DATA_MISSING` / `DATA_INVALID`，不得写成 `NO_SIGNAL`。
+session identity 与 per-symbol provenance。CN Candidate seed 的 index membership 与
+current-only snapshot timestamp 也进入 universe snapshot。局部 symbol failure 可以在
+session identity、provider contract、raw prefix 和 snapshot integrity 有效时提交 formal
+research session；缺失 symbol 永远写作 `DATA_MISSING` / `DATA_INVALID`，不得写成
+`NO_SIGNAL`。若整个 attempted universe snapshot 无法形成，则 V2 不得 formal commit；
+若 attempted universe 已知而仅部分 symbol 失败，则保留 symbol-level partial evidence。
 
 旧 V1 activation 不被覆盖。当前受控 VPS 核对结果为 CN/US formal session count `0/0`，
 未发现 formal D1 evidence，已记录 `D1_SINGLE_SOURCE_MIGRATION_PRE_OUTCOME_CONFIRMED`。
@@ -110,7 +126,10 @@ store verification 和 CN/US formal session count：formal evidence 非零时直
 `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE`；V1 activation 返回
 `D1_SOURCE_MIGRATION_PENDING`。新的 V2 immutable activation epoch 必须在真实 VPS
 session count 核对、source contract 验证和用户最终批准后创建，首个 eligible session
-之前不 backfill migration window。
+之前不 backfill migration window。V1 继续固定在
+`system/activation/{CN,US}.json`；V2 只能写入
+`system/activation_epochs/{CN,US}/SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`，提交时
+按 snapshot source contract 精确绑定版本，不读取 `current`/`latest` fallback。
 
 ## Production acceptance boundary
 

@@ -8,14 +8,15 @@
 Weekly bounded seed refresh (read-only, no Sheet write)
         ↓
 trading/candidate_universe_sources.py
-        → BaoStock HS300 ∪ CSI500 + basic/industry metadata (CN)
+        → HITHINK official HS300 (000300.SH) ∪ CSI500 (000905.SH) constituents (CN)
+          with membership and current-snapshot provenance
         → official iShares IWB latest-holdings.csv (US)
         ↓
 trading/candidate_universe.py
         → security/sector normalization
         → documented board-rule affordability gate
         → 20D/60D traded-notional proxy and history/data-quality gate
-        → sector-aware TOP_N_PER_SECTOR selection
+        → deterministic global selection; sector metadata is diagnostic only
         ↓
 lightweight candidate rows / fixture (no production state, no Sheets)
 
@@ -44,7 +45,8 @@ ProductionInputAdapter
         → formal 策略股票池 + active 策略持仓 + account-scoped state reads
         ↓
 trading/production_candidate_runtime.py (one independent market runtime)
-        → CN: BaoStock HS300 ∪ CSI500 seed; US: official IWB seed
+        → CN: HITHINK official HS300 (000300.SH) ∪ CSI500 (000905.SH) seed;
+          US: official IWB seed
         → Stage A: HITHINK raw (CN) or Yahoo Chart raw (US) for 60-bar Candidate screening
         → existing Candidate selector only
         → Stage B: canonical-provider deep QFQ only for included Candidates not already in the
@@ -167,10 +169,13 @@ market-scoped Cloud Daily Report. It is invoked by `scripts/run_production_daily
 runtime. CN and US are run independently and a market with multiple enabled strategy accounts
 is rejected as
 `READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING` rather than guessed. Stage A uses HITHINK
-raw history for CN and direct Yahoo Chart raw history for US; Stage B uses the matching
-canonical-provider QFQ path only for included symbols. Formal/position inputs are reused
-and the final union is analyzed once. Candidate
-data failures become ordinary DATA_* fail-closed Daily Chain rows. The union is analyzed once,
+raw history for CN and direct Yahoo Chart raw history for US; CN Candidate membership comes
+from the HITHINK official index-constituent endpoints and records the current snapshot
+timestamp; Stage B uses the matching canonical-provider QFQ path only for included symbols.
+Formal/position inputs are reused and the final union is analyzed once. Candidate data failures
+are exposed as a separate Candidate component status and never become `NO_SIGNAL`; with usable
+formal rows the run may be `RUN_STATUS=COMPLETED`, `DATA_STATUS=PARTIAL`, and
+`CANDIDATE_STATUS=UNAVAILABLE`. The union is analyzed once,
 then the runner evaluates the formal strategy-pool group with the existing account-scoped
 state store and evaluates non-formal Candidate/position inputs with an empty read-only state
 view before merging the report. Candidate-only inputs cannot publish events, create/settle
@@ -200,10 +205,12 @@ scripts/run_cloud_daily_report.py
 
 - Production `--run` obtains the formal strategy pool, account-scoped state and
   active positions from `ProductionInputAdapter`, then runs one Candidate runtime
-  per market/account. CN uses `BaoStockCandidateSeedAdapter` (HS300 ∪ CSI500), US
-  uses `IwbOfficialHoldingsAdapter` (official IWB holdings).
+  per market/account. CN uses `HithinkCandidateSeedAdapter` against the official
+  `000300.SH` and `000905.SH` constituent endpoints; US uses
+  `IwbOfficialHoldingsAdapter` (official IWB holdings).
 - Stage A requests only a 60-session raw-history window through HITHINK (CN) or Yahoo
-  Chart (US), then calls the existing `select_candidate_universe()` unchanged. Stage B
+  Chart (US), then calls the existing `select_candidate_universe()` with no production
+  sector cap or sector-data hard dependency. Stage B
   requests the matching canonical QFQ path only for included Candidate symbols not already
   present in the formal/position input; the deep history must contain at least the existing
   60-bar minimum and end exactly at completed T.
@@ -214,8 +221,10 @@ scripts/run_cloud_daily_report.py
   Formal-pool rows keep the existing stateful lifecycle; Candidate-only rows use
   `READ_ONLY_DISCOVERY`, so even an approval, budget, or `--write-state` flag cannot
   publish/persist/allocate them. Active-only rows remain read-only Position Management.
-  Candidate data failures become DATA_* fail-closed rows. No Candidate row is written
-  to `策略股票池` or any other Sheet, and no broker order is submitted automatically.
+  Candidate data failures are reported separately as `CANDIDATE_STATUS=UNAVAILABLE` and
+  cannot be rendered as `NO_SIGNAL`; with usable formal rows the run remains
+  `RUN_STATUS=COMPLETED`, `DATA_STATUS=PARTIAL`. No Candidate row is written to
+  `策略股票池` or any other Sheet, and no broker order is submitted automatically.
 
 - `run_production_daily_decision.py --market CN|US` scopes the existing runner to one market;
   omitting the flag preserves the legacy all-market manual behavior. Cloud calls this runner

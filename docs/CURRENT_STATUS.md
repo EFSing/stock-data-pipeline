@@ -106,12 +106,19 @@
 ### Candidate Universe（已接入 Production Daily Decision Chain V1）
 
 - `trading/candidate_universe_sources.py` + `candidate_universe.py`：
-  CN seed = `HS300 ∪ CSI500`（BaoStock basic/industry）；US seed = iShares
-  Russell 1000（IWB）official holdings。
+  CN seed = HITHINK official `000300.SH`（HS300）∪ `000905.SH`（CSI500）constituents；
+  US seed = iShares Russell 1000（IWB）official holdings。CN seed 保留 index membership、
+  current snapshot timestamp 与 endpoint/index provenance；BaoStock 仅保留
+  legacy/research adapter，不进入 production Candidate runtime。
 - 输出 affordability tier（CN `<=10,000` preferred / `<=20,000` retained；
   US 一股 `>1,000 USD` 排除）、20D/60D traded-notional 流动性 proxy、
-  history/data-quality gate、sector-aware `TOP_N_PER_SECTOR=20` 与
-  included/excluded 审计行。
+  history/data-quality gate、确定性 global rank 与 included/excluded 审计行；production
+  不依赖 sector metadata，也不使用 `TOP_N_PER_SECTOR` 限额。
+- Candidate component failure 与 formal data quality 分离：formal rows 仍可形成
+  `RUN_STATUS=COMPLETED`、`DATA_STATUS=PARTIAL`，同时明确
+  `CANDIDATE_STATUS=UNAVAILABLE`；不得把 Candidate failure 渲染为 `NO_SIGNAL`。若整个
+  attempted universe snapshot 无法形成，则 D1 V2 不得 formal commit；已知 universe 下的
+  symbol-level partial 仍保留逐标的 provenance。
 - Candidate selector 仍不产生 `ENTRY_ALLOWED`、`STRATEGY_PROPOSAL` 或买入信号；
   `scripts/run_production_daily_decision.py --run` 在真实 `SheetsClient` 上按 CN/US
   独立运行两阶段输入：Stage A 使用 canonical HITHINK（CN）或 direct Yahoo Chart（US）
@@ -572,10 +579,14 @@
   独立，D1 failure 不改变生产日报结果。
 - 数据合同迁移已新增 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2`：保存 attempted/usable/
   missing/invalid universe、per-symbol source status、provider identity、adjustment engine
-  version、session identity 与 per-symbol provenance；symbol-level partiality 不再被写成
-  `NO_SIGNAL`。natural collector 在 durable verify、formal session count 与 activation
-  version 通过前 fail closed：V1 返回 `D1_SOURCE_MIGRATION_PENDING`，formal evidence 已
-  存在则返回 `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE`。
+  version、session identity、index membership/current snapshot metadata 与 per-symbol
+  provenance；symbol-level partiality 不再被写成 `NO_SIGNAL`。V1 legacy activation
+  继续位于 `system/activation/{CN,US}.json`，V2 使用 append-only
+  `system/activation_epochs/{CN,US}/SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`，按
+  source-contract version 精确绑定，无 `current`/`latest` fallback。natural collector 在
+  durable verify、formal session count 与 activation version 通过前 fail closed：V1 返回
+  `D1_SOURCE_MIGRATION_PENDING`，formal evidence 已存在则返回
+  `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE`。
 - 不可变 per-market activation record 仍绑定冻结 protocol SHA、VPS backend/version、
   storage identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。

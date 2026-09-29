@@ -635,6 +635,8 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
         payload = result.to_dict()
 
         self.assertEqual(result.status, "FAILED")
+        self.assertEqual(payload["candidate_status"], "UNAVAILABLE")
+        self.assertEqual(payload["universe_snapshot_status"], "AVAILABLE")
         self.assertEqual(payload["candidate_included_count"], 0)
         self.assertEqual(payload["candidate_selection_outcome"], "DISCOVERY_FAILED")
         self.assertEqual(

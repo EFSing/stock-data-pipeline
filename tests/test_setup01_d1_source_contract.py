@@ -31,6 +31,8 @@ class FakeSeed:
     metadata_status: str = "OK"
     source_symbol: str = "TEST"
     provenance: tuple[str, ...] = ()
+    index_memberships: tuple[str, ...] = ()
+    source_snapshot_timestamps: tuple[str, ...] = ()
 
 
 @dataclass
@@ -203,6 +205,32 @@ class D1SourceContractTests(unittest.TestCase):
             "NO_SIGNAL",
             str(contract["decision_snapshot"]["rows"][0]),
         )
+
+    def test_v2_rejects_an_unavailable_entire_universe_snapshot(self):
+        self.runtime.seeds = ()
+        self.runtime.universe = FakeUniverse(())
+        self.runtime.deep_histories = {}
+        self.runtime.short_histories = {}
+        self.runtime.errors = ("SEED_METADATA_CandidateSeedDataError:index unavailable",)
+        self.runtime.status = "FAILED"
+        self.runtime.qfq_contract = {
+            "seed": "HITHINK official index constituents",
+            "market_data_provider": "YAHOO_CHART",
+            "qfq": "YAHOO_CHART_ADJCLOSE_ENGINE_V1",
+        }
+        contract = build_d1_source_contract(
+            self.runtime,
+            session_identity={
+                "market": "US", "trade_date": "2026-09-25",
+                "identity": "exchange_calendars:XNYS:2026-09-25",
+                "exact_exchange_calendar": True,
+            },
+            acquired_at="2026-09-26T05:00:00+08:00",
+            contract_version=D1_SOURCE_CONTRACT_V2,
+        )
+        self.assertEqual(contract["status"], "INCOMPLETE")
+        self.assertEqual(contract["universe_snapshot"]["status"], "UNAVAILABLE")
+        self.assertIn("UNIVERSE_SNAPSHOT_UNAVAILABLE", contract["research_observation_report"]["errors"])
 
 
 if __name__ == "__main__":

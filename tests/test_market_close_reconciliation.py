@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 import unittest
 
 from research.setup01_d1_activation import build_activation_record
-from research.setup01_d1_source_contract import source_contract_descriptor
+from research.setup01_d1_source_contract import D1_SOURCE_CONTRACT_V1, source_contract_descriptor
 from research.setup01_d1_vps_store import VpsObjectMissing
 from scripts.run_market_close_reconcile import reconcile_market
 from trading.production_prerequisites import ExactExchangeCalendarProvider
@@ -15,7 +15,8 @@ class _Store:
         self.activation = activation
         self.sessions = {}
 
-    def load_activation_record(self, market):
+    def load_activation_record(self, market, *, source_contract_version=None):
+        del market, source_contract_version
         return self.activation
 
     def load(self, market, session_date):
@@ -35,6 +36,7 @@ def _activation(market="CN"):
         code_sha="b" * 40,
         source_contract=source_contract_descriptor(),
         observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+        source_contract_version=D1_SOURCE_CONTRACT_V1,
     )
 
 
@@ -113,6 +115,7 @@ class MarketCloseReconciliationTests(unittest.TestCase):
             code_sha="b" * 40,
             source_contract=source_contract_descriptor(),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=D1_SOURCE_CONTRACT_V1,
         )
         store = _Store(activation)
         calls, collector = self._collector(store)

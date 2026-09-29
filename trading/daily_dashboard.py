@@ -1499,6 +1499,10 @@ def _candidate_diagnostics(
             "no_trade_count": sum(row.get("stage_key") == "NO_TRADE" for row in market_rows),
         }
         candidate_status = _text(candidate.get("status"))
+        candidate_component_status = _text(
+            candidate.get("candidate_status"),
+            "UNAVAILABLE" if candidate_status in {"FAILED", "PROVIDER_GLOBAL_FAILURE"} else candidate_status,
+        )
         selection_outcome = _text(candidate.get("candidate_selection_outcome"))
         if not selection_outcome:
             if candidate_status == "NO_CANDIDATES":
@@ -1518,6 +1522,7 @@ def _candidate_diagnostics(
                 candidate_status,
                 "NOT_REPORTED" if market_rows and not candidate else "NOT_RUN",
             ),
+            "candidate_status": candidate_component_status,
             "selection_outcome": selection_outcome,
             "stage_a_status": _text(
                 _mapping(_mapping(candidate.get("stage_timings")).get("candidate_short_history")).get("status"),
@@ -1568,6 +1573,7 @@ def _candidate_diagnostics(
         values["coverage_status"] = (
             "DATA_ISSUE"
             if values["status"] in {"FAILED", "PARTIAL_DATA_QUALITY", "NOT_REPORTED"}
+            or values["candidate_status"] == "UNAVAILABLE"
             or values["selection_outcome"] in {"DISCOVERY_FAILED", "NOT_REPORTED"}
             or values["candidate_errors"]
             or values["stage_a_status"] in {"FAILED", "PARTIAL_DATA_QUALITY", "NOT_REPORTED"}
@@ -2606,6 +2612,7 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
         market_html.append(
             '<div class="diagnostic-market">'
             f'<strong>{_escape(item.get("label"))}</strong>'
+            f'<span>CANDIDATE_STATUS：{_escape(item.get("candidate_status"))}</span>'
             f'<span>候选结论：{_escape(outcome_labels.get(outcome, outcome))}</span>'
             f'<span>Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}</span>'
             f'<span>{scope_line}</span>'

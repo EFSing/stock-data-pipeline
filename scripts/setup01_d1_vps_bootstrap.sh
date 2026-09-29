@@ -34,7 +34,7 @@ if ! id -u "${SERVICE_USER}" >/dev/null 2>&1; then
 fi
 
 install -d -m 0750 -o "${SERVICE_USER}" -g "${SERVICE_USER}" "${STORAGE_ROOT}"
-for directory in objects sessions sessions/CN sessions/US system system/activation system/validation manifests; do
+for directory in objects sessions sessions/CN sessions/US system system/activation system/activation_epochs system/activation_epochs/CN system/activation_epochs/US system/validation manifests; do
   install -d -m 0750 -o "${SERVICE_USER}" -g "${SERVICE_USER}" "${STORAGE_ROOT}/${directory}"
 done
 install -d -m 0700 -o "${SERVICE_USER}" -g "${SERVICE_USER}" "${STORAGE_ROOT}/system/tmp"

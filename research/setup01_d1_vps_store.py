@@ -27,7 +27,10 @@ import tempfile
 from typing import Any, BinaryIO, Mapping, Protocol, Sequence
 
 from research.setup01_d1_activation import (
+    activation_path,
+    activation_path_for_record,
     build_activation_record,
+    parse_activation_path,
     session_is_in_activation_window,
     validate_activation_record,
 )
@@ -517,11 +520,8 @@ class VpsD1Store:
         return f"sessions/{str(market).upper()}/{session_date}.json"
 
     @staticmethod
-    def _activation_name(market: str) -> str:
-        normalized = str(market).upper()
-        if normalized not in {"CN", "US"}:
-            raise ValueError("market must be CN or US")
-        return f"system/activation/{normalized}.json"
+    def _activation_name(market: str, source_contract_version: str) -> str:
+        return activation_path(market, source_contract_version)
 
     def put_bytes(
         self,
@@ -671,9 +671,10 @@ class VpsD1Store:
         self,
         market: str,
         *,
+        source_contract_version: str,
         require_current_storage_identity: bool = True,
     ) -> dict[str, Any]:
-        name = self._activation_name(market)
+        name = self._activation_name(market, source_contract_version)
         payload, _ = self.read_bytes(name)
         try:
             record = json.loads(payload.decode("utf-8"))
@@ -687,6 +688,8 @@ class VpsD1Store:
                 self.storage_identity if require_current_storage_identity else None
             ),
         )
+        if activation_path_for_record(record) != name:
+            raise D1IntegrityError("D1 VPS activation record path/version mismatch")
         return dict(record)
 
     def create_activation_record(
@@ -697,6 +700,7 @@ class VpsD1Store:
         code_sha: str,
         source_contract: Mapping[str, Any],
         observer_version: str,
+        source_contract_version: str,
     ) -> dict[str, Any]:
         """Create one immutable per-market activation record after validation."""
 
@@ -712,15 +716,19 @@ class VpsD1Store:
             code_sha=code_sha,
             source_contract=source_contract,
             observer_version=observer_version,
+            source_contract_version=source_contract_version,
         )
+        name = self._activation_name(market, source_contract_version)
         self.put_bytes(
-            self._activation_name(market),
+            name,
             canonical_bytes(record),
             role="ACTIVATION_RECORD",
             market=market,
             protocol=PROTOCOL_VERSION,
         )
-        loaded = self.load_activation_record(market)
+        loaded = self.load_activation_record(
+            market, source_contract_version=source_contract_version
+        )
         if loaded.get("record_sha256") != record.get("record_sha256"):
             raise D1IntegrityError("D1 VPS activation record read-back mismatch")
         return record
@@ -759,7 +767,10 @@ class VpsD1Store:
         market = str(snapshot["market"]).upper()
         session_text = str(snapshot["session_date"])
         try:
-            activation = self.load_activation_record(market)
+            activation = self.load_activation_record(
+                market,
+                source_contract_version=str(source.get("source_contract_version") or ""),
+            )
         except VpsObjectMissing as exc:
             raise D1IntegrityError("D1 activation record is missing") from exc
         if source.get("activation_record_sha256") != activation.get("record_sha256"):
@@ -899,17 +910,31 @@ class VpsD1Store:
         present_objects = {name for name in sizes if name.startswith("objects/")}
         unreferenced = sorted(present_objects - referenced)
         activations: list[dict[str, Any]] = []
-        for market in ("CN", "US"):
-            name = self._activation_name(market)
-            if name not in sizes:
-                continue
+        activation_names = sorted(
+            name
+            for name in sizes
+            if name.startswith("system/activation/")
+            or name.startswith("system/activation_epochs/")
+        )
+        seen_activation_keys: set[tuple[str, str]] = set()
+        for name in activation_names:
             try:
+                market, source_version = parse_activation_path(name)
+                key = (market, source_version)
+                if key in seen_activation_keys:
+                    raise D1IntegrityError("duplicate activation epoch")
+                seen_activation_keys.add(key)
                 record = self.load_activation_record(
-                    market, require_current_storage_identity=False
+                    market,
+                    source_contract_version=source_version,
+                    require_current_storage_identity=False,
                 )
+                if activation_path_for_record(record) != name:
+                    raise D1IntegrityError("activation record path/version mismatch")
                 activations.append({
                     "market": market,
                     "name": name,
+                    "source_contract_version": source_version,
                     "record_sha256": str(record.get("record_sha256") or ""),
                     "code_sha": str(record.get("code_sha") or ""),
                     "first_eligible_full_exchange_session": str(
@@ -922,7 +947,7 @@ class VpsD1Store:
                     ),
                 })
             except Exception as exc:  # noqa: BLE001
-                errors.append(f"INVALID_ACTIVATION:{market}:{exc}")
+                errors.append(f"INVALID_ACTIVATION:{name}:{exc}")
         continuation_ready = all(item["storage_identity_matches_current"] for item in activations)
         return {
             "status": "VERIFIED" if not errors else "FAILED",
@@ -959,6 +984,12 @@ class VpsD1Store:
                 item["session_date"] for item in graph["sessions"] if item["market"] == market
             ):
                 filesystem.commit(self.load(market, session_text))
+        for activation in graph["activation_records"]:
+            name = str(activation["name"])
+            payload, _ = self.read_bytes(name)
+            target = destination / Path(name)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
         recovered = filesystem.verify()
         if (
             recovered["status"] != "VERIFIED"
@@ -977,14 +1008,6 @@ class VpsD1Store:
 
         recovered = self._copy_graph_to(target)
         destination = Path(target)
-        activation_dir = destination / "system" / "activation"
-        for market in ("CN", "US"):
-            name = self._activation_name(market)
-            if not self.stat_object(name).get("exists"):
-                continue
-            payload, _ = self.read_bytes(name)
-            activation_dir.mkdir(parents=True, exist_ok=True)
-            (activation_dir / f"{market}.json").write_bytes(payload)
         manifest = self.build_manifest()
         manifest_path = destination / VPS_MANIFEST_NAME
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1043,12 +1066,23 @@ class VpsD1Store:
         graph_before = self.verify()
         if graph_before["session_counts"] != {"CN": 0, "US": 0}:
             raise D1IntegrityError("migration target must be an empty formal D1 store")
-        for market in ("CN", "US"):
-            path = source_path / "system" / "activation" / f"{market}.json"
-            if not path.exists():
-                continue
+        activation_paths: list[Path] = []
+        for root in (
+            source_path / "system" / "activation",
+            source_path / "system" / "activation_epochs",
+        ):
+            if root.exists():
+                activation_paths.extend(
+                    path for path in sorted(root.rglob("*")) if path.is_file()
+                )
+        seen_activation_keys: set[tuple[str, str]] = set()
+        for path in activation_paths:
             payload = path.read_bytes()
             record = json.loads(payload.decode("utf-8"))
+            market, source_version = parse_activation_path(path.relative_to(source_path).as_posix())
+            if (market, source_version) in seen_activation_keys:
+                raise D1IntegrityError("D1 migration contains duplicate activation epoch")
+            seen_activation_keys.add((market, source_version))
             validate_activation_record(
                 record,
                 expected_backend_identity=VPS_BACKEND_IDENTITY,
@@ -1058,8 +1092,10 @@ class VpsD1Store:
                 raise D1IntegrityError(
                     "D1_VPS_MIGRATION_STORAGE_IDENTITY_MISMATCH_ACTIVATION_REQUIRES_DECISION"
                 )
+            if activation_path_for_record(record) != path.relative_to(source_path).as_posix():
+                raise D1IntegrityError("D1 migration activation path/version mismatch")
             self.put_bytes(
-                self._activation_name(market),
+                activation_path(market, source_version),
                 payload,
                 role="ACTIVATION_RECORD",
                 market=market,

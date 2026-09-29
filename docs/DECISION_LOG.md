@@ -1026,3 +1026,48 @@ never backfilled.
 **Reason:** silently changing the source contract would make D1 evidence incomparable and could
 pollute prospective time isolation. Explicit V2 identity keeps old fixtures/evidence immutable,
 while the symbol-level snapshot preserves valid observations without rewriting missing history.
+
+## 2026-09-29 — CN production Candidate universe uses HITHINK official index snapshots
+
+**Decision:** CN production Candidate discovery uses HITHINK's official
+`/api/a-share-index/constituents/ths-stock-list` endpoint for HS300 `000300.SH` and CSI500
+`000905.SH`. The two responses are deterministically unioned and deduplicated by canonical
+symbol; each seed preserves index membership, snapshot timestamp, endpoint/index provenance,
+and current-only as-of semantics. Production Candidate selection does not require sector
+metadata and does not apply `TOP_N_PER_SECTOR`; BaoStock Candidate adapters remain only for
+legacy/research compatibility.
+
+The HITHINK index response is a current snapshot, not a historical point-in-time membership
+source. A snapshot later than the requested `as_of` is rejected, and later membership is never
+retroactively assigned to an earlier Candidate date.
+
+**Reason:** production CN price data and the production Candidate universe must have one
+auditable HITHINK source boundary, while explicit membership/timestamp provenance prevents a
+current index list from being mistaken for historical membership.
+
+## 2026-09-29 — Candidate component status is separate from formal data status
+
+**Decision:** Candidate discovery/deep-history failure is exposed as
+`CANDIDATE_STATUS=UNAVAILABLE` and never rendered as `NO_SIGNAL`. If formal or position rows
+remain usable, the run may complete with `RUN_STATUS=COMPLETED` and `DATA_STATUS=PARTIAL`;
+provider-wide HITHINK auth/schema/outage remains `PROVIDER_GLOBAL_FAILURE`. If the entire
+attempted Candidate universe snapshot cannot be formed, the D1 V2 source contract is not
+formally committed. Once the attempted universe is known, symbol-level partiality remains
+eligible for explicit per-symbol evidence and provenance.
+
+**Reason:** Candidate discovery is an input component, not a strategy conclusion. Keeping its
+availability visible without suppressing valid formal rows preserves honest coverage and avoids
+turning missing data into an analytical `NO_SIGNAL`.
+
+## 2026-09-29 — D1 activation epochs are append-only and version-bound
+
+**Decision:** The historical V1 activation path and bytes remain immutable at
+`system/activation/{CN,US}.json`. The V2 source contract uses a separate immutable epoch path:
+`system/activation_epochs/{CN,US}/SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`. Store commit/load
+must receive the explicit source-contract version and bind it to the exact canonical path;
+`current`, `latest`, mtime, or cross-version fallback selection is forbidden. The V2 epoch is
+code-ready but must not be written to the real VPS before the approved activation node.
+
+**Reason:** a source-contract migration must not overwrite or silently reinterpret existing V1
+activation bytes. Explicit epoch identity keeps activation hashes, backend identity, and
+prospective eligibility boundaries auditable across versions.

@@ -577,6 +577,7 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
         market_lines.append(
             '<div style="margin:7px 0;padding:8px 9px;background:#f8fafc;border-radius:6px;">'
             f'<strong>{_escape(item.get("label"))}</strong><br>'
+            f'CANDIDATE_STATUS：{_escape(item.get("candidate_status"))}<br>'
             f'候选结论：{_escape(outcome_labels.get(_text(item.get("selection_outcome")), _text(item.get("selection_outcome"), "未报告")))}<br>'
             f'Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}<br>'
             f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}；动态候选 {_escape(item.get("dynamic_candidate_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_count"))}）；动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_analysis_count"))}）<br>'
@@ -636,6 +637,12 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     quality = _mapping(cloud.get("data_quality"))
     run_status = _escape(cloud.get("run_status") or quality.get("run_status") or "UNKNOWN")
     data_status = _escape(cloud.get("data_status") or quality.get("data_status") or "UNKNOWN")
+    candidate_status = _escape(
+        cloud.get("candidate_status")
+        or cloud.get("CANDIDATE_STATUS")
+        or quality.get("candidate_status")
+        or "NOT_RUN"
+    )
     coverage = _escape(quality.get("coverage_pct"), "—")
     attempted = _escape(quality.get("attempted_universe"), "—")
     data_ok = _escape(quality.get("data_ok_count"), "—")
@@ -696,6 +703,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>数据状态</strong>：{status}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>RUN_STATUS</strong>：{run_status}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>DATA_STATUS</strong>：{data_status}；覆盖率：{coverage}%</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>CANDIDATE_STATUS</strong>：{candidate_status}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>尝试标的</strong>：{attempted}；DATA_OK：{data_ok}；失败：{failed_count}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>策略分析</strong>：{analyzed}；数据阻断：{blocked}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>失败原因</strong>：{reason_text}</div>'

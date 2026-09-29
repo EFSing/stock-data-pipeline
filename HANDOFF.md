@@ -8,7 +8,9 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 `SINGLE_SOURCE_MARKET_DATA_V1`：CN 唯一 `HITHINK_FINANCIAL_API`、US 唯一
 `YAHOO_CHART`，同 provider bounded retry，内部 adjustment/provenance 合同，symbol-level
 fault isolation，`RUN_STATUS`/`DATA_STATUS` 分离，以及 D1
-`SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` migration gate。代码在独立
+`SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` migration gate；CN production Candidate seed 已收敛到
+HITHINK 官方 `000300.SH`/`000905.SH` 成分并保存 membership/current-snapshot provenance，
+Candidate component status 与 formal data status 分离。代码在独立
 `refactor/single-source-market-data-v1` 分支；PR #124 已创建并保持 OPEN，branch/HEAD/CI
 动态事实以 GitHub 实时核对为准。不得改变冻结交易策略、Paper、broker、Final OOS 或
 整体 Wave/Setup 路线。
@@ -106,7 +108,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   D1 首个自然 session 仍未形成。
 - 新增 VPS durable backend：通过 SSH 公钥运行单一 repository-owned、stdlib-only、流式 remote
   helper（不使用 nginx/数据库/Docker/Redis/S3 gateway/FTP/常驻 Web API）。目录固定为
-  `objects/`、`sessions/CN/`、`sessions/US/`、`system/activation|validation/`、`manifests/`；
+  `objects/`、`sessions/CN/`、`sessions/US/`、`system/activation/`、
+  `system/activation_epochs/{CN,US}/`、`system/validation/`、`manifests/`；
   写入为 create-only（`O_CREAT|O_EXCL`）+ fsync + 落盘后重算 SHA-256 + pointer/object
   read-back 交叉校验；相同 bytes 返回 `IDEMPOTENT_REPLAY`，同一 identity 不同 bytes、partial/
   interrupted transfer、missing/corrupt object、pointer 篡改、duplicate session 一律 fail
@@ -127,6 +130,11 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   causal SETUP_01 replay + dual-path observer；不读取真实 holdings、Paper 或生产 Sheet state。
   observer 输出包含 signal/touch/no-signal、trigger/ceiling/stop/T1-T3、G1/G0 与 5%/2R/
   `ECONOMIC_ATTRACTIVENESS` diagnostics、next-session model boundary、follow-up set 和中文报告。
+- D1 V1 activation bytes/hash 继续绑定 legacy `system/activation/{CN,US}.json`；V2
+  activation 只能使用 append-only `system/activation_epochs/{CN,US}/
+  SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`，commit 按 snapshot source-contract version
+  精确绑定，不使用 `current`/`latest` fallback。当前代码已准备该路径，但本轮未创建真实
+  V2 activation。
 - 用户普通股票收益偏好已登记为独立只读诊断：报告分别呈现最近合法 T1 gross headroom、
   后续结构目标及不确定性、止损距离/1R/RR/成本，以及仅在合法最终结果存在时呈现 net
   return/net R/持有期/资金占用；不新增绝对收益硬阈值，不改变 D1/5%/2R/T1 全退或准入。
@@ -171,6 +179,11 @@ activation；本轮不创建 V2、不提交 formal evidence、不 merge PR #124�
   internal adjustment engine；HITHINK metadata 明确为 `fund-etf` 的样本使用同一 vendor 的
   fund historical endpoint，并记录 provider-forward-adjusted provenance；任一 adjustment
   contract 无法证明时只能 `DATA_ADJUSTMENT_UNVERIFIED`。
+- CN production Candidate 不使用 BaoStock、sector hard dependency 或 `TOP_N_PER_SECTOR`；
+  HITHINK current-only index snapshot 晚于 requested `as_of` 时 fail closed。Candidate
+  component failure 不得变成 `NO_SIGNAL`；formal rows 可完成为 `RUN_STATUS=COMPLETED`、
+  `DATA_STATUS=PARTIAL`、`CANDIDATE_STATUS=UNAVAILABLE`。整个 universe snapshot 不可用时，
+  D1 V2 不得 formal commit；已知 universe 下的 symbol-level partial 可以保留。
 - `DATA_MISSING` / `DATA_STALE` / `DATA_INVALID` / adjustment or symbol provider errors
   只阻断自身，不得写作 `NO_SIGNAL`，不得以 coverage ratio 作为 market hard gate；provider-wide
   auth/schema/outage 才是 global failure。
