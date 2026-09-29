@@ -10,8 +10,10 @@ reconciliation、Cloudflare Worker Cron 第一备用、Ubuntu VPS trigger-only w
 并为 Daily Report 增加可靠性分类与独立 notification idempotency marker。所有入口最终复用
 同一 `market + session_date` resolution/commit 语义，不改变冻结交易策略、D1 source/observer
 研究语义或 activation prospective boundary。代码已在独立 `ops/market-close-trigger-resilience-v1`
-分支完成、提交并推送，聚焦 PR #121 已创建并保持 OPEN，未启用 auto-merge；exact head 与
-CI 以 GitHub 实时状态为准。
+分支完成、提交并推送，PR #121 已 squash merge；其公开 smoke endpoint 安全修正 PR #122
+也已 squash merge，均未启用 auto-merge。合并后的 main 已完成 Cloudflare Worker Cron 第一
+备用与 Ubuntu VPS trigger-only watchdog 第二备用的实际部署；CN/US timers 与受保护 smoke
+均已核对通过，动态 merge commit、main head 与 CI 仍以 GitHub 实时状态为准。
 
 用户已正式批准把 SETUP_01 H1 突破后双路径独立数据设计从受阻的 D2 改为
 `D1_PROSPECTIVE_TIME_ISOLATED`，并已依次放弃 Google Drive 与 Google Cloud Storage durable
@@ -23,7 +25,8 @@ disabled/non-production，运行期没有 explicit approval 时拒绝写 formal 
 activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。VPS 已完成一次性
 初始化（专用非 root 账户 + root-owned helper + 冻结 storage root），GitHub Secrets/Variables
 已就位，真实 VPS synthetic storage validation 为 `VERIFIED`，CN/US 不可变 activation record
-均已创建；当前状态是 `D1_ACTIVATION_READY`，正式事件数仍为 0，等待各市场首个自然完整
+均已创建；当前状态是 `D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION`，正式事件数仍为 0，
+等待各市场首个自然完整
 session。没有运行历史经济验证，也没有修改正式 SETUP、Risk、Daily Decision、Paper、Sheet
 或 broker 语义。
 
@@ -67,8 +70,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `DATA_QUALITY_PARTIAL`/`PROVIDER_FAILURE`/`NO_SIGNAL`/`SUCCESS` 分类、独立日报通知
   claim、Cloudflare Worker 源码/config、VPS watchdog 源码/systemd units、Actions step
   summary 诊断与 focused tests；本地全量 unittest、静态检查、workflow YAML、Node 检查和
-  docs closeout 已通过，代码已提交并推送，PR #121 已创建并达到 `PR_FULLY_READY`：真实
-  远端 exact head、CI 与 mergeability 已核对；PR 保持 OPEN，未启用 auto-merge。
+  docs closeout 已通过，可靠性实现及其 smoke endpoint 安全修正已分别随 PR #121/#122
+  合并进入 main。Cloudflare Worker 已部署并完成 CN/US 受保护 smoke；VPS 已部署 main
+  版本，独立非 root runtime user 的 CN/US timers 已 enable/active 并完成 trigger-only smoke。
 
 ## Completed
 
@@ -92,7 +96,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   支持最小 writer capability 检查、write/read-back probe、immutable create-if-absent、冲突
   fail-closed、全图 verify 与 clean-directory 跨设备恢复；独立 synthetic validation workflow
   已在 main 上执行，但受 folder `files.get` 404 阻断。原 CN/US 诊断 workflow 会调用可能
-  读取真实持仓的生产日报，已移除；正式 schedule 尚未启用。
+  读取真实持仓的生产日报，已移除；正式自动 schedule 由 GitHub native schedule 承担，
+  D1 首个自然 session 仍未形成。
 - 新增 VPS durable backend：通过 SSH 公钥运行单一 repository-owned、stdlib-only、流式 remote
   helper（不使用 nginx/数据库/Docker/Redis/S3 gateway/FTP/常驻 Web API）。目录固定为
   `objects/`、`sessions/CN/`、`sessions/US/`、`system/activation|validation/`、`manifests/`；
@@ -128,8 +133,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 `D1_FIRST_NATURAL_SESSION_PENDING`：VPS durable storage 已 provision 并通过真实 synthetic
 validation，CN/US activation record 均已创建，因此 D1 首个 formal session 仍只剩市场自然
-时间依赖。可靠性代码本身当前没有生产 blocker；Cloudflare/VPS deployment token 只在用户
-决定实际启用 fallback 时需要，不能阻止代码 PR：
+时间依赖。可靠性实现、Cloudflare Worker 与 VPS watchdog 均已部署并完成 trigger-only smoke，
+当前没有外部 fallback blocker：
 US 首个合格 session 是 2026-09-29 ET（北京时间 2026-09-30 04:00 收盘），CN 首个合格
 session 是 2026-09-30（北京时间 15:00 收盘）。在对应市场完成首个合法 natural session 的
 durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTION_ACTIVE`。
@@ -140,10 +145,9 @@ durable commit + read-back + verify 之前，该市场不得报告 `D1_COLLECTIO
 
 ## Next Action
 
-- PR #121 保持 OPEN、等待用户 review/merge 决策；不启用 auto-merge。若用户之后决定启用
-  fallback，再按 runbook 配置独立 Cloudflare/VPS credential；此前不做外部部署。
-- 用户若要启用外部 fallback，再按 runbook 在 Cloudflare Free Worker 写入独立 GitHub
-  Actions token、在 VPS 用户配置写入独立 `0600` token；不得把 token 发到聊天。
+- 继续观察 GitHub native primary 与 Cloudflare/VPS fallback 的 `NOOP`、missed-window、
+  日报重复通知和 `D1_STORAGE_LOW_SPACE` diagnostics；不构造正式 D1 session，不修改
+  activation。
 - US：首个合格 session 收盘后由 market-close reconciliation 自动采集，核对 receipt、event
   hash、object read-back、`vps-verify --full-objects`；通过后 US 进入 `D1_COLLECTION_ACTIVE`。
 - CN：首个合格 session 收盘后同样验收；不得用人工指定日期或旧日报补首个合法 session。
