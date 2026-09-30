@@ -12,13 +12,22 @@ import sys
 from tempfile import TemporaryDirectory
 import unittest
 
-from research.setup01_d1_activation import validate_activation_record
+from research.setup01_d1_activation import (
+    ACTIVATION_SCHEMA_VERSION,
+    ACTIVATION_SCHEMA_VERSION_V2,
+    validate_activation_record,
+)
 from research.setup01_d1_prospective import (
     D1IntegrityError,
     build_session_snapshot,
     content_sha256,
 )
-from research.setup01_d1_source_contract import D1_SOURCE_CONTRACT_VERSION, source_contract_descriptor
+from research.setup01_d1_source_contract import (
+    D1_SOURCE_CONTRACT_V1,
+    D1_SOURCE_CONTRACT_V2,
+    D1_SOURCE_CONTRACT_VERSION,
+    source_contract_descriptor,
+)
 from research.setup01_d1_vps_store import (
     VPS_BACKEND_IDENTITY,
     VPS_BACKEND_VERSION,
@@ -76,6 +85,7 @@ def _snapshot(
     activation_hash: str,
     market: str = "CN",
     acquired_at: str = "2026-09-02T18:00:00+08:00",
+    source_contract_version: str = D1_SOURCE_CONTRACT_VERSION,
 ):
     normalized_market = str(market).upper()
     calendar = "XSHG" if normalized_market == "CN" else "XNYS"
@@ -89,11 +99,11 @@ def _snapshot(
             "identity": f"exchange_calendars:{calendar}:{session_date.isoformat()}",
             "exact_exchange_calendar": True,
         },
-        "source_contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "source_contract_version": source_contract_version,
         "activation_record_sha256": activation_hash,
     }
     verified = {
-        "contract_version": D1_SOURCE_CONTRACT_VERSION,
+        "contract_version": source_contract_version,
         "status": "VERIFIED",
     }
     report = {
@@ -131,14 +141,22 @@ class VpsStoreTestCase(unittest.TestCase):
         runner = LocalHelperRunner(target)
         return VpsD1Store(runner, storage_root=str(target), **kwargs), runner
 
-    def _activate(self, market: str = "CN", *, store: VpsD1Store | None = None, code_sha: str = "a" * 40):
+    def _activate(
+        self,
+        market: str = "CN",
+        *,
+        store: VpsD1Store | None = None,
+        code_sha: str = "a" * 40,
+        source_contract_version: str = D1_SOURCE_CONTRACT_V1,
+    ):
         target = store or self.store
         return target.create_activation_record(
             market=market,
             activation_timestamp="2026-09-01T08:00:00+08:00",
             code_sha=code_sha,
-            source_contract=source_contract_descriptor(),
+            source_contract=source_contract_descriptor(source_contract_version),
             observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            source_contract_version=source_contract_version,
         )
 
 
@@ -276,6 +294,48 @@ class VpsDurableStoreTests(VpsStoreTestCase):
         self.assertEqual(loaded["event_sha256"], snapshot["event_sha256"])
         self.assertEqual(self.store.verify()["session_counts"], {"CN": 1, "US": 0})
 
+    def test_v1_and_v2_activation_epochs_coexist_and_bind_exact_version(self):
+        v1 = self._activate("CN", code_sha="a" * 40)
+        v2 = self._activate(
+            "CN",
+            code_sha="b" * 40,
+            source_contract_version=D1_SOURCE_CONTRACT_V2,
+        )
+        self.assertNotEqual(v1["record_sha256"], v2["record_sha256"])
+        self.assertEqual(v1["schema_version"], ACTIVATION_SCHEMA_VERSION)
+        self.assertNotIn("source_contract_version", v1)
+        self.assertEqual(v2["schema_version"], ACTIVATION_SCHEMA_VERSION_V2)
+        self.assertEqual(v2["source_contract_version"], D1_SOURCE_CONTRACT_V2)
+        self.assertTrue((self.root / "system" / "activation" / "CN.json").exists())
+        self.assertTrue(
+            (
+                self.root
+                / "system"
+                / "activation_epochs"
+                / "CN"
+                / f"{D1_SOURCE_CONTRACT_V2}.json"
+            ).exists()
+        )
+        v2_snapshot = _snapshot(
+            session_date=date(2026, 9, 2),
+            activation_hash=v2["record_sha256"],
+            source_contract_version=D1_SOURCE_CONTRACT_V2,
+        )
+        self.store.commit(v2_snapshot)
+        with self.assertRaisesRegex(D1IntegrityError, "hash mismatch"):
+            self.store.commit(
+                _snapshot(
+                    session_date=date(2026, 9, 3),
+                    activation_hash=v1["record_sha256"],
+                    source_contract_version=D1_SOURCE_CONTRACT_V2,
+                )
+            )
+        graph = self.store.verify()
+        self.assertEqual(
+            {(item["market"], item["source_contract_version"]) for item in graph["activation_records"]},
+            {("CN", D1_SOURCE_CONTRACT_V1), ("CN", D1_SOURCE_CONTRACT_V2)},
+        )
+
     def test_activation_is_required_and_markets_stay_independent(self):
         with self.assertRaisesRegex(D1IntegrityError, "activation record"):
             self.store.commit(
@@ -311,7 +371,9 @@ class VpsDurableStoreTests(VpsStoreTestCase):
             (json.dumps(foreign, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode()
         )
         with self.assertRaisesRegex(D1IntegrityError, "storage identity"):
-            self.store.load_activation_record("CN")
+            self.store.load_activation_record(
+                "CN", source_contract_version=D1_SOURCE_CONTRACT_V1
+            )
         graph = self.store.verify()
         self.assertEqual(graph["status"], "VERIFIED")
         self.assertFalse(graph["continuation_ready"])
@@ -518,6 +580,7 @@ class GcsBackendApprovalTests(unittest.TestCase):
                 code_sha="a" * 40,
                 source_contract=source_contract_descriptor(),
                 observer_version="SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+                source_contract_version="SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1",
             )
         os.environ["D1_GCS_BACKEND_APPROVED_FOR_FORMAL_D1"] = "true"
         try:

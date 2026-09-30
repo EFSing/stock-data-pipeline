@@ -32,6 +32,7 @@ jobs:
       SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
       # Optional durable operational namespace only; formal D1 evidence and
       # Daily Report business data remain separate.
       D1_VPS_HOST: ${{ secrets.D1_VPS_HOST }}
@@ -52,10 +53,14 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Generate CN report
         run: |
+          STRICT_FLAG=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            STRICT_FLAG="--require-complete"
+          fi
           if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" --require-complete
+            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" $STRICT_FLAG
           else
-            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" --require-complete
+            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" $STRICT_FLAG
           fi
       - name: Upload final CN artifacts
         if: always()

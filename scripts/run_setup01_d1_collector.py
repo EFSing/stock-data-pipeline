@@ -20,7 +20,11 @@ from research.setup01_d1_gcs_store import (
     GoogleCloudStorageD1Store,
 )
 from research.setup01_d1_vps_store import VpsD1Store
-from research.setup01_d1_source_contract import source_contract_descriptor
+from research.setup01_d1_source_contract import (
+    D1_SOURCE_CONTRACT_V1,
+    D1_SOURCE_CONTRACT_V2,
+    source_contract_descriptor,
+)
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -303,6 +307,11 @@ def main(argv: list[str] | None = None) -> int:
     gcs_activation_parser.add_argument("--market", choices=("CN", "US"), required=True)
     gcs_activation_parser.add_argument("--activation-timestamp", required=True)
     gcs_activation_parser.add_argument("--code-sha", required=True)
+    gcs_activation_parser.add_argument(
+        "--source-contract-version",
+        choices=(D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2),
+        required=True,
+    )
     gcs_collect_parser = sub.add_parser("gcs-collect")
     gcs_collect_parser.add_argument("--input", type=Path, required=True)
     gcs_collect_parser.add_argument("--report-output", type=Path)
@@ -317,6 +326,11 @@ def main(argv: list[str] | None = None) -> int:
     vps_activation_parser.add_argument("--market", choices=("CN", "US"), required=True)
     vps_activation_parser.add_argument("--activation-timestamp", required=True)
     vps_activation_parser.add_argument("--code-sha", required=True)
+    vps_activation_parser.add_argument(
+        "--source-contract-version",
+        choices=(D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2),
+        required=True,
+    )
     vps_collect_parser = sub.add_parser("vps-collect")
     vps_collect_parser.add_argument("--input", type=Path, required=True)
     vps_collect_parser.add_argument("--report-output", type=Path)
@@ -372,12 +386,14 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "gcs-create-activation":
         store = GoogleCloudStorageD1Store.from_env()
+        contract = source_contract_descriptor(args.source_contract_version)
         record = store.create_activation_record(
             market=args.market,
             activation_timestamp=args.activation_timestamp,
             code_sha=args.code_sha,
-            source_contract=source_contract_descriptor(),
-            observer_version=source_contract_descriptor()["observer_version"],
+            source_contract=contract,
+            observer_version=contract["observer_version"],
+            source_contract_version=args.source_contract_version,
         )
         result = {"status": "ACTIVATION_CREATED", "record": record}
     elif args.command == "gcs-collect":
@@ -401,12 +417,14 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "vps-create-activation":
         store = VpsD1Store.from_env()
+        contract = source_contract_descriptor(args.source_contract_version)
         record = store.create_activation_record(
             market=args.market,
             activation_timestamp=args.activation_timestamp,
             code_sha=args.code_sha,
-            source_contract=source_contract_descriptor(),
-            observer_version=source_contract_descriptor()["observer_version"],
+            source_contract=contract,
+            observer_version=contract["observer_version"],
+            source_contract_version=args.source_contract_version,
         )
         result = {"status": "ACTIVATION_CREATED", "record": record}
     elif args.command == "vps-collect":

@@ -8,7 +8,7 @@ provider orchestration and lifecycle writes remain owned by their callers.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Iterable
 from zoneinfo import ZoneInfo
@@ -280,6 +280,56 @@ def evaluate_latest_snapshot(
     )
 
 
+def evaluate_single_source_snapshot(
+    quotes: Iterable[Quote],
+    *,
+    fetched_at: datetime,
+    timezone_name: str,
+    close_time_text: str,
+    expected_symbol: str | None = None,
+    expected_market: str | None = None,
+    apply_calendar_freshness: bool = False,
+) -> LatestSnapshot:
+    """Evaluate one canonical provider result without two-source semantics."""
+
+    payload = list(quotes)
+    snapshot = evaluate_latest_snapshot(
+        payload,
+        (),
+        fetched_at=fetched_at,
+        timezone_name=timezone_name,
+        close_time_text=close_time_text,
+        close_tolerance=0.0,
+        volume_tolerance=0.0,
+        primary_source=str(getattr(payload[0] if payload else None, "source", "") or ""),
+        verifier_source="",
+        expected_symbol=expected_symbol,
+        expected_market=expected_market,
+        apply_calendar_freshness=apply_calendar_freshness,
+    )
+    if (
+        snapshot.chosen is not None
+        and snapshot.completed_trade_date is not None
+        and snapshot.chosen.trade_date == snapshot.completed_trade_date
+        and not snapshot.identity_errors
+        and not snapshot.sanity_note
+        and not snapshot.future_note
+        and not snapshot.calendar_stale_note
+    ):
+        return replace(
+            snapshot,
+            displayed_status="DATA_OK",
+            confirmed=market_close_confirmed(
+                snapshot.chosen.trade_date,
+                timezone_name,
+                close_time_text,
+                fetched_at,
+            ),
+            actual_verifier_source="",
+        )
+    return replace(snapshot, displayed_status="DATA_INVALID")
+
+
 def quote_row(quote: Quote, fetched_at: datetime, adjustment: str) -> dict:
     """Project a quote into the existing raw/qfq history schema."""
     return {
@@ -392,7 +442,7 @@ def latest_row_is_monitorable(
     if not isinstance(expected_trade_date, date):
         return False
     status = str(row.get("校验状态") or "").strip()
-    accepted_statuses = {"已验证"} if require_verified else {"已验证", "单源可用"}
+    accepted_statuses = {"已验证", "DATA_OK"} if require_verified else {"已验证", "单源可用", "DATA_OK"}
     if status not in accepted_statuses:
         return False
     if not _sheet_bool(row.get("正式收盘")):

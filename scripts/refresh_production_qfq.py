@@ -144,9 +144,12 @@ def _default_paper_watch(plan: dict[str, Any]) -> dict[str, Any]:
         "统一代码": symbol,
         "名称": str(plan.get("name") or symbol),
         "市场": market,
-        "历史数据源": "yfinance",
+        "主数据源": "HITHINK_FINANCIAL_API" if market == "CN" else "YAHOO_CHART",
+        "校验数据源": "",
+        "历史数据源": "HITHINK_FINANCIAL_API" if market == "CN" else "YAHOO_CHART",
         "yfinance代码": yfinance_symbol,
         "BaoStock代码": baostock_symbol,
+        "HITHINK代码": symbol,
         "币种": currency,
         "时区": timezone_name,
     }
@@ -246,6 +249,177 @@ def _fail(
     raise ProductionQfqRefreshError("；".join(errors))
 
 
+def _is_single_source_runtime(client: Any, requested_rows: list[dict[str, Any]]) -> bool:
+    try:
+        from sheets_client import SheetsClient
+
+        if isinstance(client, SheetsClient):
+            return True
+    except Exception:
+        pass
+    return any(
+        str(row.get("主数据源") or row.get("历史数据源") or "").strip()
+        in {"HITHINK_FINANCIAL_API", "YAHOO_CHART"}
+        for row in requested_rows
+    )
+
+
+def _refresh_single_source_qfq(
+    group: str,
+    *,
+    client: Any,
+    requested_rows: list[dict[str, Any]],
+    paper_identities: set[tuple[str, str]],
+    fetched_at: datetime | None,
+) -> dict[str, Any]:
+    """Tolerant V1 refresh: one failed symbol is isolated from the write."""
+
+    from market_data_contract import (
+        AdjustmentUnverifiedError,
+        DATA_ADJUSTMENT_UNVERIFIED,
+        DATA_INVALID,
+        DATA_MISSING,
+        DATA_STALE,
+        ProviderGlobalFailure,
+        ProviderSymbolError,
+        canonical_provider_for_market,
+        status_from_contract_errors,
+        validate_single_source_quotes,
+    )
+    from providers import fetch_single_source_with_retry
+
+    watchlist = client.records("自选清单")
+    latest_rows = client.records("最新行情")
+    try:
+        config = client.config()
+        history_days = int(float(config.get("history_days", 1000)))
+        retry_count = int(float(config.get("retry_count", 3)))
+        retry_wait = float(config.get("retry_wait_seconds", 5))
+        if history_days <= 0:
+            raise ValueError("history_days必须为正数")
+    except Exception as exc:
+        raise ProductionQfqRefreshError(f"PRODUCTION_QFQ_CONFIG_INVALID:{exc}") from exc
+
+    identities = [_identity(row) for row in requested_rows]
+    plans: list[tuple[dict[str, Any], date, tuple[str, str]]] = []
+    failed: list[str] = []
+    failed_by_reason: dict[str, list[str]] = {}
+
+    def fail_symbol(market: str, symbol: str, reason: str) -> None:
+        failed.append(symbol)
+        failed_by_reason.setdefault(reason, []).append(symbol)
+
+    for requested in requested_rows:
+        market, symbol = _identity(requested)
+        try:
+            configured = [row for row in watchlist if _identity(row) == (market, symbol)]
+            if len(configured) > 1:
+                raise ProductionQfqRefreshError("SOURCE_CONFIG_DUPLICATE")
+            if (market, symbol) in paper_identities:
+                watch = configured[0] if configured else _default_paper_watch(requested)
+                matching_latest = [row for row in latest_rows if _identity(row) == (market, symbol)]
+                if len(matching_latest) > 1:
+                    raise ProductionQfqRefreshError("LATEST_DUPLICATE")
+                target = (
+                    _parse_trade_date(matching_latest[0].get("交易日期"))
+                    if matching_latest
+                    else _latest_market_target(latest_rows, market)
+                )
+            else:
+                if not configured:
+                    raise ProductionQfqRefreshError("SOURCE_CONFIG_REQUIRED")
+                watch = configured[0]
+                latest = _single_match(latest_rows, (market, symbol), sheet_name="LATEST")
+                target = _parse_trade_date(latest.get("交易日期"))
+                _require_verified_latest_row(
+                    latest, market=market, symbol=symbol, target_trade_date=target
+                )
+            effective = dict(watch)
+            provider = canonical_provider_for_market(market)
+            effective["主数据源"] = provider
+            effective["校验数据源"] = ""
+            effective["历史数据源"] = provider
+            effective.setdefault("HITHINK代码", symbol)
+            plans.append((effective, target, (market, symbol)))
+        except Exception as exc:
+            reason = str(exc).split(":", 1)[0] or type(exc).__name__
+            fail_symbol(market, symbol, reason)
+
+    existing_history = client.records("历史行情_前复权")
+    now = fetched_at or beijing_now()
+    rows_to_write: list[dict[str, Any]] = []
+    successful_identities: list[tuple[str, str]] = []
+    global_errors: list[str] = []
+    for watch, target, identity in plans:
+        market, symbol = identity
+        start = target - timedelta(days=max(history_days * 2, 365))
+        try:
+            result = fetch_single_source_with_retry(
+                market,
+                watch,
+                "qfq",
+                start,
+                target,
+                max(retry_count, EXACT_QFQ_MIN_RETRY_ATTEMPTS),
+                retry_wait,
+                target_trade_date=target,
+            )
+            contract_errors = validate_single_source_quotes(
+                result.quotes,
+                expected_symbol=symbol,
+                expected_market=market,
+                target_trade_date=target,
+                max_trade_date=target,
+                minimum_bars=min(60, history_days),
+            )
+            if contract_errors:
+                status = status_from_contract_errors(contract_errors)
+                fail_symbol(market, symbol, status)
+                continue
+            rows_to_write.extend(
+                quote_row(quote, now, "前复权")
+                for quote in result.quotes[-history_days:]
+            )
+            successful_identities.append(identity)
+        except ProviderGlobalFailure as exc:
+            global_errors.append(f"{market}|{symbol}:PROVIDER_GLOBAL_FAILURE:{exc}")
+        except (AdjustmentUnverifiedError, ProviderSymbolError) as exc:
+            status = DATA_ADJUSTMENT_UNVERIFIED if isinstance(exc, AdjustmentUnverifiedError) else "PROVIDER_SYMBOL_ERROR"
+            fail_symbol(market, symbol, status)
+        except LookupError:
+            fail_symbol(market, symbol, DATA_STALE)
+        except Exception as exc:
+            fail_symbol(market, symbol, DATA_INVALID)
+
+    if global_errors:
+        _fail(group, len(requested_rows), sorted(set(failed + [symbol for _, symbol in identities])), global_errors)
+
+    rows_written = 0
+    if rows_to_write and successful_identities:
+        result = client.replace_history_series(
+            rows_to_write,
+            successful_identities,
+            existing=existing_history,
+        )
+        rows_written = result if isinstance(result, int) else len(rows_to_write)
+    symbols_updated = len(successful_identities)
+    data_status = "OK" if not failed else "NO_USABLE_SYMBOLS" if symbols_updated == 0 else "PARTIAL"
+    status = "SUCCESS" if data_status == "OK" else "COMPLETED_NO_USABLE_SYMBOLS" if data_status == "NO_USABLE_SYMBOLS" else "COMPLETED_WITH_DATA_ERRORS"
+    summary = {
+        "group": group,
+        "symbols_requested": len(requested_rows),
+        "symbols_updated": symbols_updated,
+        "rows_written": rows_written,
+        "stale_or_failed_symbols": sorted(set(failed)),
+        "failed_by_reason": {key: sorted(set(values)) for key, values in sorted(failed_by_reason.items())},
+        "coverage_pct": round(symbols_updated / len(requested_rows) * 100, 2) if requested_rows else 100.0,
+        "data_status": data_status,
+        "status": status,
+    }
+    print("PRODUCTION_QFQ_SUMMARY " + json.dumps(summary, ensure_ascii=False))
+    return summary
+
+
 def refresh_production_qfq(
     group: str = "all",
     *,
@@ -256,9 +430,14 @@ def refresh_production_qfq(
     """Refresh the formal CN/US universe through each row's exact target date."""
     if group not in PRODUCTION_MARKETS:
         raise ValueError(f"未知生产刷新组：{group}")
-    from providers import QFQ_HISTORY_SOURCES, fetch_with_retry
+    from providers import (
+        QFQ_HISTORY_SOURCES,
+        SINGLE_SOURCE_QFQ_SOURCES,
+        fetch_with_retry,
+    )
     from sheets_client import SheetsClient
 
+    custom_fetch = fetch_history is not None
     if client is None:
         client = SheetsClient()
     if fetch_history is None:
@@ -273,6 +452,21 @@ def refresh_production_qfq(
         for plan in paper_plans
         if _identity(plan) not in formal_identities
     ]
+    # An injected fetcher is the compatibility seam used by tests and manual
+    # callers.  Generated paper rows carry the production source identity, but
+    # they must not silently opt that seam into the canonical branch when the
+    # formal universe itself is still legacy-configured.
+    canonical_requested = any(
+        str(row.get("主数据源") or row.get("历史数据源") or "").strip()
+        in SINGLE_SOURCE_QFQ_SOURCES
+        for row in (formal_rows if custom_fetch else (*formal_rows, *paper_rows))
+    )
+    if custom_fetch and not canonical_requested:
+        # Preserve the injectable legacy test/manual fetch contract.  The
+        # unattended Sheets path below never supplies this override and uses
+        # the canonical provider identity.
+        for row in paper_rows:
+            row["历史数据源"] = "yfinance"
     requested_rows = formal_rows + paper_rows
     paper_identities = {_identity(row) for row in paper_rows}
     symbols_requested = len(requested_rows)
@@ -289,6 +483,14 @@ def refresh_production_qfq(
                 f"PRODUCTION_QFQ_STRATEGY_DUPLICATE:{market}|{symbol}"
                 for market, symbol in duplicate_universe
             ],
+        )
+    if _is_single_source_runtime(client, requested_rows) and not custom_fetch:
+        return _refresh_single_source_qfq(
+            group,
+            client=client,
+            requested_rows=requested_rows,
+            paper_identities=paper_identities,
+            fetched_at=fetched_at,
         )
     if not requested_rows:
         summary = _summary(group, 0, 0, 0, [], "SUCCESS")
@@ -351,7 +553,7 @@ def refresh_production_qfq(
                 raise ProductionQfqRefreshError(
                     f"PRODUCTION_QFQ_SOURCE_CONFIG_REQUIRED:{market}|{symbol}"
                 )
-            if source not in QFQ_HISTORY_SOURCES:
+            if source not in QFQ_HISTORY_SOURCES and source not in SINGLE_SOURCE_QFQ_SOURCES:
                 raise ProductionQfqRefreshError(
                     f"PRODUCTION_QFQ_SOURCE_UNSUPPORTED:{market}|{symbol}:{source}"
                 )

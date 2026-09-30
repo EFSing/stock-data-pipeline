@@ -11,7 +11,10 @@ import io
 from datetime import date, datetime
 from typing import Any, Callable
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
+from market_data_contract import ProviderGlobalFailure
+from providers import _hithink_items, _hithink_json
 from trading.candidate_universe import SeedSecurity
 
 
@@ -23,6 +26,15 @@ IWB_OFFICIAL_HOLDINGS_URL = (
 
 class CandidateSeedDataError(RuntimeError):
     pass
+
+
+HITHINK_INDEX_CONSTITUENT_ENDPOINT = (
+    "/api/a-share-index/constituents/ths-stock-list"
+)
+HITHINK_CN_INDEXES = (
+    ("HS300", "000300.SH"),
+    ("CSI500", "000905.SH"),
+)
 
 
 def _result_rows(result: Any, endpoint: str) -> list[dict[str, str]]:
@@ -56,9 +68,13 @@ def _as_date(value: str | None) -> date | None:
 def _canonical_cn(code: str) -> tuple[str, str] | None:
     raw = str(code or "").strip().lower()
     prefix, separator, digits = raw.partition(".")
-    if not separator or prefix not in {"sh", "sz"} or len(digits) != 6 or not digits.isdigit():
+    if not separator:
         return None
-    return f"{digits}.{prefix.upper()}", prefix.upper()
+    if prefix in {"sh", "sz"} and len(digits) == 6 and digits.isdigit():
+        return f"{digits}.{prefix.upper()}", prefix.upper()
+    if len(prefix) == 6 and prefix.isdigit() and digits in {"sh", "sz"}:
+        return f"{prefix}.{digits.upper()}", digits.upper()
+    return None
 
 
 class BaoStockCandidateSeedAdapter:
@@ -142,6 +158,124 @@ class BaoStockCandidateSeedAdapter:
     ) -> list[dict[str, str]]:
         result = query(date=as_of.isoformat()) if as_of is not None else query()
         return _result_rows(result, endpoint)
+
+
+def _hithink_snapshot_timestamp(payload: dict[str, Any]) -> tuple[str, date | None]:
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INVALID")
+    raw = data.get("timestamp") or payload.get("timestamp")
+    if raw is None or not str(raw).strip():
+        raise ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INVALID")
+    text = str(raw).strip()
+    try:
+        if isinstance(raw, (int, float)) or text.isdigit():
+            return text, datetime.fromtimestamp(
+                float(raw) / 1000, ZoneInfo("Asia/Shanghai")
+            ).date()
+        return text, date.fromisoformat(text[:10])
+    except (TypeError, ValueError, OSError) as exc:
+        raise ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INVALID") from exc
+
+
+def parse_hithink_index_constituents(
+    payload: dict[str, Any],
+    *,
+    index_name: str,
+    index_code: str,
+) -> tuple[date | None, str, tuple[SeedSecurity, ...]]:
+    """Parse one official HiThink HS300/CSI500 membership snapshot."""
+
+    source_timestamp, source_as_of = _hithink_snapshot_timestamp(payload)
+    rows = _hithink_items(payload)
+    output: list[SeedSecurity] = []
+    for row in rows:
+        source_symbol = str(row.get("thscode") or row.get("ticker") or "").strip()
+        canonical = _canonical_cn(source_symbol)
+        if canonical is None:
+            continue
+        symbol, exchange = canonical
+        output.append(
+            SeedSecurity(
+                market="CN",
+                symbol=symbol,
+                source_symbol=source_symbol,
+                name=str(row.get("name") or symbol).strip(),
+                # Industry/sector metadata is presentation-only.  Official
+                # index membership is the bounded seed contract.
+                sector=None,
+                asset_class="Equity",
+                exchange=exchange,
+                currency="CNY",
+                source="HITHINK_FINANCIAL_API",
+                source_as_of=source_as_of,
+                metadata_status="OK",
+                provenance=(
+                    f"HITHINK_FINANCIAL_API:{HITHINK_INDEX_CONSTITUENT_ENDPOINT}",
+                    f"index_name:{index_name}",
+                    f"index_code:{index_code}",
+                    f"snapshot_timestamp:{source_timestamp}",
+                    "snapshot_mode:CURRENT_ONLY",
+                ),
+                index_memberships=(index_code,),
+                source_snapshot_timestamps=(source_timestamp,),
+            )
+        )
+    if not output:
+        raise CandidateSeedDataError(
+            f"HITHINK index {index_code} returned no canonical constituents"
+        )
+    return source_as_of, source_timestamp, tuple(output)
+
+
+class HithinkCandidateSeedAdapter:
+    """Build the CN seed union from HiThink's official index endpoint.
+
+    HiThink currently exposes a current membership snapshot rather than a
+    historical constituent selector.  The snapshot timestamp is retained on
+    every seed and a future snapshot is rejected for an as-of run, so current
+    membership cannot be silently applied retroactively.
+    """
+
+    def __init__(self, request_json: Callable[[str, dict[str, object]], dict] | None = None):
+        self._request_json = request_json or _hithink_json
+
+    def load(self, as_of: date | None = None) -> tuple[SeedSecurity, ...]:
+        merged: dict[str, SeedSecurity] = {}
+        for index_name, index_code in HITHINK_CN_INDEXES:
+            payload = self._request_json(
+                HITHINK_INDEX_CONSTITUENT_ENDPOINT,
+                {"thscode": index_code},
+            )
+            source_as_of, _timestamp, seeds = parse_hithink_index_constituents(
+                payload,
+                index_name=index_name,
+                index_code=index_code,
+            )
+            if as_of is not None and source_as_of is not None and source_as_of > as_of:
+                raise CandidateSeedDataError(
+                    f"HITHINK_INDEX_SNAPSHOT_AFTER_AS_OF:{index_code}:{source_as_of.isoformat()}"
+                )
+            for seed in seeds:
+                existing = merged.get(seed.symbol)
+                if existing is None:
+                    merged[seed.symbol] = seed
+                    continue
+                merged[seed.symbol] = SeedSecurity(
+                    **{
+                        **existing.__dict__,
+                        "index_memberships": tuple(sorted(set(existing.index_memberships) | set(seed.index_memberships))),
+                        "source_snapshot_timestamps": tuple(sorted(set(existing.source_snapshot_timestamps) | set(seed.source_snapshot_timestamps))),
+                        "provenance": tuple(sorted(set(existing.provenance) | set(seed.provenance))),
+                        "source_as_of": max(
+                            value for value in (existing.source_as_of, seed.source_as_of)
+                            if value is not None
+                        ) if existing.source_as_of is not None or seed.source_as_of is not None else None,
+                    }
+                )
+        if not merged:
+            raise CandidateSeedDataError("HITHINK_INDEX_UNION_EMPTY")
+        return tuple(sorted(merged.values(), key=lambda item: item.symbol))
 
 
 def _parse_float(value: str | None) -> float | None:
@@ -237,7 +371,11 @@ class IwbOfficialHoldingsAdapter:
 __all__ = [
     "BaoStockCandidateSeedAdapter",
     "CandidateSeedDataError",
+    "HITHINK_CN_INDEXES",
+    "HITHINK_INDEX_CONSTITUENT_ENDPOINT",
+    "HithinkCandidateSeedAdapter",
     "IWB_OFFICIAL_HOLDINGS_URL",
     "IwbOfficialHoldingsAdapter",
     "parse_iwb_holdings_csv",
+    "parse_hithink_index_constituents",
 ]

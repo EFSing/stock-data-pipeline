@@ -16,6 +16,7 @@ from typing import Any, Callable, Mapping, Protocol
 
 from research.setup01_d1_activation import session_is_in_activation_window
 from research.setup01_d1_prospective import D1ProspectiveWindowError
+from research.setup01_d1_source_contract import D1_SOURCE_CONTRACT_V2
 from research.setup01_d1_vps_store import VpsD1Store, VpsObjectMissing
 from scripts.run_setup01_d1_natural_collector import collect_natural_session
 from trading.production_prerequisites import (
@@ -42,7 +43,9 @@ RECONCILIATION_STATUSES = {
 
 
 class ReconciliationStore(Protocol):
-    def load_activation_record(self, market: str) -> Mapping[str, Any]: ...
+    def load_activation_record(
+        self, market: str, *, source_contract_version: str
+    ) -> Mapping[str, Any]: ...
 
     def load(self, market: str, session_date: date | str) -> Mapping[str, Any]: ...
 
@@ -161,7 +164,10 @@ def reconcile_market(
         return receipt
 
     try:
-        activation = durable.load_activation_record(normalized_market)
+        activation = durable.load_activation_record(
+            normalized_market,
+            source_contract_version=D1_SOURCE_CONTRACT_V2,
+        )
     except Exception as exc:  # noqa: BLE001 - activation absence is fail closed
         receipt.update({
             "status": "D1_ACTIVATION_REQUIRED" if _is_missing(exc) else "READBACK_FAILED",

@@ -661,8 +661,70 @@ class CloudDailyReportTests(unittest.TestCase):
         status, quality = _status_from_result(result, snapshot)
 
         self.assertEqual(status, "PARTIAL_DATA_QUALITY")
+        self.assertEqual(quality["candidate_status"], "UNAVAILABLE")
+        self.assertNotEqual(quality["candidate_status"], "NO_SIGNAL")
+        self.assertEqual(quality["run_status"], "COMPLETED")
         self.assertTrue(quality["candidate_runtime_failed"])
         self.assertTrue(any("DISCOVERY_FAILED" in error for error in quality["candidate_quality_errors"]))
+
+    def test_single_source_partial_data_is_completed_with_explicit_coverage(self):
+        snapshot = EphemeralMarketDataSnapshot(
+            market="CN", as_of_date=T_DAY, fetched_at=US_AFTER_CLOSE,
+            required_symbols=("GOOD", "BAD"), active_paper_symbols=(),
+            latest_rows=(
+                {"统一代码": "GOOD", "市场": "CN", "交易日期": T_DAY.isoformat(), "校验状态": "DATA_OK"},
+            ),
+            qfq_rows=(
+                {"统一代码": "GOOD", "市场": "CN", "交易日期": T_DAY.isoformat()},
+            ),
+            symbol_status={
+                "GOOD": {"status": "DATA_OK", "errors": []},
+                "BAD": {"status": "DATA_STALE", "errors": ["stale"]},
+            },
+            provider_status={"BAD": {"global_failure": False}},
+            errors=("CN|BAD: stale",), input_fingerprint="test", retry_count=1, history_days=1000,
+        )
+        result = {
+            "preflight": {"production readiness": "READY"},
+            "candidate_markets": {"CN": {"status": "NOT_RUN", "candidate_selection_outcome": "NOT_RUN"}},
+            "reports": [{"报告": {"results": [{
+                "market": "CN", "as_of_date": T_DAY.isoformat(),
+                "data_status": "DATA_OK", "symbol": "GOOD",
+            }]}}],
+        }
+        status, quality = _status_from_result(result, snapshot)
+        self.assertEqual(status, "PARTIAL_DATA_QUALITY")
+        self.assertEqual(quality["run_status"], "COMPLETED")
+        self.assertEqual(quality["data_status"], "PARTIAL")
+        self.assertEqual(quality["attempted_universe"], 2)
+        self.assertEqual(quality["data_ok_count"], 1)
+        self.assertEqual(quality["coverage_pct"], 50.0)
+        self.assertEqual(quality["strategy_analyzed_count"], 1)
+        self.assertIn("BAD", quality["failed_by_reason"]["DATA_STALE"])
+
+    def test_scheduled_completed_partial_run_exits_zero(self):
+        payload = {
+            "cloud_daily_report": {
+                "status": "PARTIAL_DATA_QUALITY",
+                "run_status": "COMPLETED",
+                "RUN_STATUS": "COMPLETED",
+                "data_status": "PARTIAL",
+                "DATA_STATUS": "PARTIAL",
+            }
+        }
+        with patch(
+            "scripts.run_cloud_daily_report.resolve_cloud_trade_date",
+            return_value=US_T_DAY,
+        ), patch(
+            "scripts.run_cloud_daily_report.run_cloud_daily_report",
+            return_value=payload,
+        ):
+            self.assertEqual(
+                cloud_report_main([
+                    "--market", "US", "--output", "unused-output",
+                ]),
+                0,
+            )
 
     def test_legacy_success_zero_candidate_without_outcome_is_not_reported_as_success(self):
         snapshot = EphemeralMarketDataSnapshot(

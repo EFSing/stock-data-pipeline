@@ -34,6 +34,7 @@ jobs:
           DISPATCH_MODE: ${{ inputs.mode }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
         run: |
           set -o pipefail
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then

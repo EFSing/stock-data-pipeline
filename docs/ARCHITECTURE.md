@@ -8,14 +8,15 @@
 Weekly bounded seed refresh (read-only, no Sheet write)
         ↓
 trading/candidate_universe_sources.py
-        → BaoStock HS300 ∪ CSI500 + basic/industry metadata (CN)
+        → HITHINK official HS300 (000300.SH) ∪ CSI500 (000905.SH) constituents (CN)
+          with membership and current-snapshot provenance
         → official iShares IWB latest-holdings.csv (US)
         ↓
 trading/candidate_universe.py
         → security/sector normalization
         → documented board-rule affordability gate
         → 20D/60D traded-notional proxy and history/data-quality gate
-        → sector-aware TOP_N_PER_SECTOR selection
+        → deterministic global selection; sector metadata is diagnostic only
         ↓
 lightweight candidate rows / fixture (no production state, no Sheets)
 
@@ -27,7 +28,7 @@ Exact exchange-calendars gate (CN=XSHG, US=XNYS)
         ↓
 trading/ephemeral_market_data.py
         → formal strategy pool ∪ active positions ∪ active Paper continuation
-        → existing provider fallback + latest_snapshot evaluator/projections
+        → CN: HITHINK_FINANCIAL_API; US: YAHOO_CHART; single-source contract + latest_snapshot evaluator/projections
         → exact T latest/QFQ rows kept in process memory only
         ↓
 ProductionInputAdapter(market=CN|US, ephemeral latest/QFQ)
@@ -44,11 +45,12 @@ ProductionInputAdapter
         → formal 策略股票池 + active 策略持仓 + account-scoped state reads
         ↓
 trading/production_candidate_runtime.py (one independent market runtime)
-        → CN: BaoStock HS300 ∪ CSI500 seed; US: official IWB seed
-        → Stage A: batched yfinance raw history for 60-bar Candidate screening
+        → CN: HITHINK official HS300 (000300.SH) ∪ CSI500 (000905.SH) seed;
+          US: official IWB seed
+        → Stage A: HITHINK raw (CN) or Yahoo Chart raw (US) for 60-bar Candidate screening
         → existing Candidate selector only
-        → Stage B: deep QFQ only for included Candidates not already in the
-          formal/position input (existing formal yfinance QFQ path)
+        → Stage B: canonical-provider deep QFQ only for included Candidates not already in the
+          formal/position input
         ↓
 formal strategy pool ∪ active strategy positions ∪ dynamic Candidate Set
         → de-duplicated in-memory DailySymbolInput values with provenance
@@ -88,11 +90,11 @@ main.py  (CLI 入口: --group asia|us|all, --mode latest|full, --fixture)
 SheetsClient.config() / records("自选清单")          ← Google Sheets
         ↓
 对每个自选标的 (启用=True 且市场∈目标组):
-    fetch_latest_with_retry(主数据源)                [providers: latest mode]
-    fetch_latest_with_retry(校验数据源)              [providers: latest mode]
-        → yfinance → YahooChart 回退
-        → BaoStock (仅 A股)
-        → Tencent / Sina 快照回退 (CN/HK/US)
+    CN/US: fetch_single_source_with_retry(市场)      [providers: canonical latest mode]
+        → HITHINK_FINANCIAL_API (CN)
+        → YAHOO_CHART (US)
+        → same-provider bounded retry only; no vendor fallback/cross-check
+    HK/JP/SE: legacy fetch_latest_with_retry(...)     [compatibility path]
         ↓
     evaluate_latest_snapshot()                      [latest_snapshot: shared contract]
         → latest_completed_market_session / ordinary freshness guard
@@ -105,22 +107,22 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     SheetsClient.append_rows("运行日志")
 
     # Scheduled writer safety boundary:
-    # hard provider/date failures exit non-zero and do not run QFQ; a pending
-    # or single-source row remains explicitly non-verified. Downstream Sheet
-    # readers require exact T, 正式收盘=True, 校验状态=已验证 and exact QFQ tail.
+    # CN/US symbol failures are isolated and do not stop other symbols. Provider-wide,
+    # calendar, configuration or orchestrator failures exit non-zero. Downstream Sheet
+    # readers require exact T, 正式收盘=True, validated single-source status and exact QFQ tail.
 
     # scheduled latest companion only:
     scripts/refresh_production_qfq.py --group asia|us
         → formal 策略账户 + 策略股票池 (CN/US only)
         → latest row must be exact, formally closed and 已验证
-        → fetch exact-T QFQ via yfinance/BaoStock only
-        → all requested identities succeed before replace_history_series()
-        → target identity/date is replaced idempotently; other markets/rows persist
+        → fetch exact-T QFQ via HITHINK (CN) or YAHOO_CHART (US) only
+        → symbol failures are isolated; successful identities are replaced idempotently
+        → provider-wide failure remains non-zero; other markets/rows persist
 
     # --mode full only:
     select_history_series(...)                      [main]
-    fetch_with_retry(历史数据源, "qfq")             [providers]
-        → 仅 yfinance / BaoStock；不使用快照源
+        fetch_single_source_with_retry(市场, "qfq")    [CN/US canonical providers]
+        → legacy fetch_with_retry only for non-CN/US compatibility/research
     confirmed close + qfq末日一致                    [main gate]
         → evaluate_setup03_event()                   [trading.events]
             → detect_platform_breakout_with_diagnostics() [trading.setup]
@@ -166,10 +168,14 @@ market-scoped Cloud Daily Report. It is invoked by `scripts/run_production_daily
 --run` when the real `SheetsClient` is used; injected test clients can supply a deterministic
 runtime. CN and US are run independently and a market with multiple enabled strategy accounts
 is rejected as
-`READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING` rather than guessed. Stage A uses fixed
-yfinance batches and Stage B calls the existing yfinance QFQ provider only for included
-symbols; formal/position inputs are reused and the final union is analyzed once. Candidate
-data failures become ordinary DATA_* fail-closed Daily Chain rows. The union is analyzed once,
+`READY_FOR_DECISION_CANDIDATE_ACCOUNT_ROUTING` rather than guessed. Stage A uses HITHINK
+raw history for CN and direct Yahoo Chart raw history for US; CN Candidate membership comes
+from the HITHINK official index-constituent endpoints and records the current snapshot
+timestamp; Stage B uses the matching canonical-provider QFQ path only for included symbols.
+Formal/position inputs are reused and the final union is analyzed once. Candidate data failures
+are exposed as a separate Candidate component status and never become `NO_SIGNAL`; with usable
+formal rows the run may be `RUN_STATUS=COMPLETED`, `DATA_STATUS=PARTIAL`, and
+`CANDIDATE_STATUS=UNAVAILABLE`. The union is analyzed once,
 then the runner evaluates the formal strategy-pool group with the existing account-scoped
 state store and evaluates non-formal Candidate/position inputs with an empty read-only state
 view before merging the report. Candidate-only inputs cannot publish events, create/settle
@@ -179,7 +185,7 @@ worksheets, or submit orders.
 
 When explicit Paper Tracking is enabled, the runner opens only the system-owned
 `策略模拟账本` append-only store. Active Paper symbols are passed to the same bounded
-runtime and existing yfinance QFQ provider even when they have dropped out of the current
+runtime and matching canonical-provider QFQ path even when they have dropped out of the current
 Candidate universe; a valid current completed-session QFQ input replaces only a paper-only
 missing/stale Sheet input. Missing or stale history stays DATA_* / fail-closed. Paper plans
 are prospective and are never created from a historical Candidate snapshot.
@@ -199,13 +205,15 @@ scripts/run_cloud_daily_report.py
 
 - Production `--run` obtains the formal strategy pool, account-scoped state and
   active positions from `ProductionInputAdapter`, then runs one Candidate runtime
-  per market/account. CN uses `BaoStockCandidateSeedAdapter` (HS300 ∪ CSI500), US
-  uses `IwbOfficialHoldingsAdapter` (official IWB holdings).
-- Stage A requests only a 60-session raw-history window in fixed yfinance batches,
-  then calls the existing `select_candidate_universe()` unchanged. Stage B requests
-  the existing yfinance QFQ path only for included Candidate symbols not already
-  present in the formal/position input; the deep history must contain at least the
-  existing 60-bar minimum and end exactly at completed T.
+  per market/account. CN uses `HithinkCandidateSeedAdapter` against the official
+  `000300.SH` and `000905.SH` constituent endpoints; US uses
+  `IwbOfficialHoldingsAdapter` (official IWB holdings).
+- Stage A requests only a 60-session raw-history window through HITHINK (CN) or Yahoo
+  Chart (US), then calls the existing `select_candidate_universe()` with no production
+  sector cap or sector-data hard dependency. Stage B
+  requests the matching canonical QFQ path only for included Candidate symbols not already
+  present in the formal/position input; the deep history must contain at least the existing
+  60-bar minimum and end exactly at completed T.
 - The runner forms the in-memory union
   `formal_strategy_pool ∪ active_strategy_positions ∪ dynamic_candidate_set`,
   de-duplicates by one shared market-aware canonical identity, preserves per-symbol
@@ -213,8 +221,10 @@ scripts/run_cloud_daily_report.py
   Formal-pool rows keep the existing stateful lifecycle; Candidate-only rows use
   `READ_ONLY_DISCOVERY`, so even an approval, budget, or `--write-state` flag cannot
   publish/persist/allocate them. Active-only rows remain read-only Position Management.
-  Candidate data failures become DATA_* fail-closed rows. No Candidate row is written
-  to `策略股票池` or any other Sheet, and no broker order is submitted automatically.
+  Candidate data failures are reported separately as `CANDIDATE_STATUS=UNAVAILABLE` and
+  cannot be rendered as `NO_SIGNAL`; with usable formal rows the run remains
+  `RUN_STATUS=COMPLETED`, `DATA_STATUS=PARTIAL`. No Candidate row is written to
+  `策略股票池` or any other Sheet, and no broker order is submitted automatically.
 
 - `run_production_daily_decision.py --market CN|US` scopes the existing runner to one market;
   omitting the flag preserves the legacy all-market manual behavior. Cloud calls this runner
@@ -306,9 +316,9 @@ Cloud path 不读写这些行情表；两条链路都不写同一策略状态。
 `30 9 * * 1-5`（北京时间 17:30），US cron 为 `30 0 * * 2-6`（北京时间 08:30），每条 workflow
 通过独立 concurrency 串行 schedule/dispatch，schedule 强制 latest，full 仍仅手动。
 
-`--mode latest` 是 Sheet-backed 亚洲/欧美 scheduled writer：只读取自选清单，使用短窗口
-latest quote provider，分别执行 source-date evidence、ordinary-calendar freshness guard、
-双源校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar
+`--mode latest` 是 Sheet-backed 亚洲/欧美 scheduled writer：只读取自选清单，CN/US 使用
+各自 canonical provider，HK/JP/SE 保留 legacy latest path；执行 source-date evidence、
+ordinary-calendar freshness guard、单源合同校验和最新行情写入，并追加校验记录/运行日志。source date 早于 ordinary-calendar
 guard 时仍可显示该行情，但必须 `待复核/PARTIAL_DATA_QUALITY`；该 guard 不声明交易所开市，
 因此不以 weekday 冒充 holiday session。完全无有效来源时会更新对应 latest row 的
 `数据不可用` 标记并以非零退出，避免监控静默复用旧行情。该模式不读取 `交易决策`，不抓取
@@ -428,11 +438,15 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 
 ### providers.py
 
-- `PROVIDERS` 注册表：`BaoStock`、`Tencent`、`Sina`、`yfinance`
-- `fetch_with_retry()`：按回退链抓取并重试，支持 `target_trade_date` 过期判断
+- canonical production adapters：`HITHINK_FINANCIAL_API`（CN）与 `YAHOO_CHART`（US），
+  由 `fetch_single_source_with_retry()` 做同 provider bounded retry；内部合同和
+  adjustment provenance 由 `market_data_contract.py` 统一定义
+- legacy `PROVIDERS` 注册表仍包含 `BaoStock`、`Tencent`、`Sina`、`yfinance`，供
+  HK/JP/SE compatibility、旧 fixture 与 research replay 使用，不进入 CN/US production
+- `fetch_with_retry()`：legacy 回退链抓取并重试，支持 `target_trade_date` 过期判断
 - `fetch_latest_with_retry()`：独立的短窗口 latest quote 路径；scheduled latest 不调用 full-history fetch
 - `_configured_source_candidates()`：数据源回退链 + AKShare 遗留别名路由
-- `fetch_yfinance()`：yfinance，失败回退 `_fetch_yahoo_chart()`（无 cookie 的 chart 端点）
+- `fetch_yfinance()`：legacy/research yfinance path；CN/US production 不调用该 fallback path
 - `fetch_tencent()` / `fetch_sina()`：实时快照解析（含美股常规交易时段字段处理）
 - `fetch_baostock()`：A股历史（仅 CN）
 - 依赖：标准库；baostock / pandas / yfinance 均按需惰性导入
@@ -678,6 +692,22 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 
 ## Google Sheets 各表（真实存在）
 
+### Production market-data contract
+
+CN/US production price data follows `SINGLE_SOURCE_MARKET_DATA_V1`, documented in
+`docs/PRODUCTION_SINGLE_SOURCE_MARKET_DATA_V1.md`. CN uses only
+`HITHINK_FINANCIAL_API`; US uses only the direct `YAHOO_CHART` implementation. A
+provider retry repeats the same provider and never switches vendor. Legacy dual-source
+helpers remain available only for HK/JP/SE compatibility, old fixtures and research
+replay; they are not a CN/US production decision path.
+
+The normalized production minimum is `symbol/market/session_date/open/high/low/close/volume`
+plus source identity, acquisition time and adjustment provenance. Internal contract QC
+checks exact-T, increasing unique dates, no future bar, OHLC sanity, non-negative volume,
+required history and schema completeness. `DATA_MISSING`, `DATA_STALE`, `DATA_INVALID`,
+`DATA_ADJUSTMENT_UNVERIFIED` and `PROVIDER_SYMBOL_ERROR` block only that identity and are
+never converted into `NO_SIGNAL`.
+
 | Sheet | 用途 | 读取/写入 |
 |---|---|---|
 | `自选清单` | 标的代码与数据源映射 | 读（启用、市场、主/校验数据源、时区、收盘时间、代码字段） |
@@ -689,12 +719,12 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 | `运行日志` | 任务时间、状态、错误 | 追加 |
 | `参数设置` | 容差、历史长度、Setup/Decision 显式参数 | 读 |
 
-`main.py --mode latest` 只写 `最新行情`、`校验记录`、`运行日志`；`历史行情_*` 与 `交易决策` 只属于 `full` 模式。定时 workflow 随后调用独立的 `refresh_production_qfq.py`，只替换正式 CN/US 策略股票的 `历史行情_前复权`，不运行 SETUP_03/Decision。运行 stdout 和 GitHub Step Summary 输出 `symbols_requested`、freshness/validation 分布、拒绝的 stale/future sources、失败标的及 `history_rows_written`；数据不完整时为 `PARTIAL_DATA_QUALITY`，完全失败以非零退出。
+`main.py --mode latest` 只写 `最新行情`、`校验记录`、`运行日志`；`历史行情_*` 与 `交易决策` 只属于 `full` 模式。定时 workflow 随后调用独立的 `refresh_production_qfq.py`，只替换正式 CN/US 策略股票的 `历史行情_前复权`，不运行 SETUP_03/Decision。CN/US 通过各自 canonical provider 完成单源合同校验；单标的失败隔离并继续其余标的，provider-wide failure 或 orchestrator failure 才非零退出。运行 stdout 和 GitHub Step Summary 输出 attempted、usable、failed-by-reason、coverage 与 `history_rows_written`。
 
 下游 Sheet 监控的最小新鲜度合同是：`最新行情` 必须是目标交易所 exact T、
 `正式收盘=True` 且 `校验状态=已验证`；`历史行情_前复权` 必须有同一身份且唯一的 exact-T
 末行。`数据不可用`、`待复核`、缺行、重复日期、T-1/T+1 或任一生产日历前置条件失败，
-均映射为 DATA_BAD / DATA_STALE / DATA_UNAVAILABLE 并阻断策略读取；保留的旧 OHLCV 只作审计，
+均映射为 DATA_BAD / DATA_STALE / DATA_UNAVAILABLE / DATA_UNAVAILABLE_FOR_DECISION 并阻断该标的策略读取；保留的旧 OHLCV 只作审计，
 不得作为当前新鲜行情。`trading/production_prerequisites.py` 是该生产读取 gate 的 Single
 Source of Truth；Cloud path 注入内存 rows 后沿用同一 gate，但不读取旧行情表。
 
@@ -714,14 +744,14 @@ Source of Truth；Cloud path 注入内存 rows 后沿用同一 gate，但不读�
 | 市场 | main.py `watch.get("市场")` |
 | 主数据源 | main.py / providers.py |
 | 校验数据源 | main.py / providers.py |
-| 历史数据源 | main.py qfq 历史与 Decision；仅允许 yfinance / BaoStock |
+| 历史数据源 | CN/US production canonical provider；legacy HK/JP/SE 与 research 另行保留 |
 | 时区 | main.py `watch["时区"]` |
 | 收盘时间 | main.py `watch["收盘时间"]` |
 | 统一代码 | providers.py 符号转换基准 |
 | 名称 | providers.py `Quote.name` |
 | 币种 | providers.py `Quote.currency` |
-| BaoStock代码 | providers.py `fetch_baostock` |
-| yfinance代码 | providers.py `fetch_yfinance` |
+| HITHINK代码 | providers.py `fetch_hithink`（CN production） |
+| yfinance代码 | providers.py `fetch_yahoo_chart_single`（US Chart symbol identity；不调用 yfinance production path） |
 | AKShare代码 | providers.py（仅遗留符号回退，不触发网络请求） |
 
 > `历史数据源` 是新增的显式列，不得复用或猜测 A:O 中未核实列的含义。`交易决策` worksheet 与固定表头需在生产启用前预先创建。代码中仍无 `总览` 表读写逻辑。
@@ -730,7 +760,7 @@ Source of Truth；Cloud path 注入内存 rows 后沿用同一 gate，但不读�
 
 - `asia-close.yml`：`cron "30 9 * * 1-5"`（UTC）= 北京 17:30；覆盖 CN/HK/JP，schedule 强制运行 `python main.py --group asia --mode latest`，随后仅刷新正式 CN QFQ；workflow_dispatch 可选 full
 - `us-close.yml`：`cron "30 0 * * 2-6"`（UTC，北京时间 08:30）；覆盖 US/SE，schedule 强制运行 `python main.py --group us --mode latest`，随后仅刷新正式 US QFQ；workflow_dispatch 可选 full
-- `cn-daily-report.yml` / `us-daily-report.yml`：Cloud Daily Report 独立 read-only workflow；只从 provider 将目标市场行情放入进程内存，不读取/写入 `最新行情` 或 `历史行情_前复权`，不替代上述 Sheet-backed writer
+- `cn-daily-report.yml` / `us-daily-report.yml`：Cloud Daily Report 独立 read-only workflow；CN/US 只从各自 canonical provider 将目标市场行情放入进程内存，不读取/写入 `最新行情` 或 `历史行情_前复权`，scheduled run 使用 `RUN_STATUS`/`DATA_STATUS` 的 partial-symbol-tolerant 语义；不替代上述 Sheet-backed writer
 - `setup03-replay.yml`：仅 `workflow_dispatch`；默认抓取 live qfq 后输出 Phase 5A~5D 只读 artifact；可传 `frozen_input_run_id` 下载此前同名 artifact，使用其 canonical frozen input 重放并自动输出 manifest comparison；固定 run `32826696259` 额外启用 Phase 5E 生产参数描述性报告，绝不抓取 live history；失败时仍上传诊断文件
 - `wave-shadow.yml`：已移除；不通过 GitHub Actions 读取或输出真实持仓派生信息。`scripts/run_wave_shadow.py` 仅保留 private/local capability，本轮不调用
 - `setup01-generic-operational-shadow.yml`：PR/手动运行 synthetic-only generic operational shadow，不需要 Secrets，不读取账户 holdings
@@ -750,9 +780,9 @@ Source of Truth；Cloud path 注入内存 rows 后沿用同一 gate，但不读�
 
 | 市场 | 主源 | 校验源 | 快照回退 |
 |---|---|---|---|
-| A股 (CN) | yfinance | Tencent | Tencent / Sina |
+| A股 (CN) | HITHINK_FINANCIAL_API | 无（单源合同 QC） | 无 vendor fallback |
 | 港股 (HK) | yfinance | Tencent / Sina | Tencent / Sina |
-| 美股 (US) | yfinance | Tencent / Sina | Tencent / Sina |
+| 美股 (US) | YAHOO_CHART | 无（单源合同 QC） | 无 vendor fallback |
 | 日股 (JP) | yfinance | 无 | 无 |
 | 瑞典股 (SE) | yfinance | 无 | 无 |
 

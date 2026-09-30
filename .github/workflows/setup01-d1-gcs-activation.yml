@@ -19,6 +19,13 @@ on:
         options:
           - CN
           - US
+      source_contract_version:
+        description: "Immutable source contract epoch to activate"
+        required: true
+        type: choice
+        options:
+          - SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1
+          - SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2
 
 permissions:
   contents: read
@@ -49,3 +56,4 @@ jobs:
           --market "${{ inputs.market }}"
           --activation-timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           --code-sha "$GITHUB_SHA"
+          --source-contract-version "${{ inputs.source_contract_version }}"

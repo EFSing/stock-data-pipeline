@@ -15,10 +15,13 @@ from typing import Any
 from research.setup01_d1_gcs_store import GCS_BACKEND_IDENTITY, GoogleCloudStorageD1Store
 from research.setup01_d1_activation import session_is_in_activation_window
 from research.setup01_d1_prospective import (
+    D1IntegrityError,
     D1ProspectiveWindowError,
     render_research_report,
 )
 from research.setup01_d1_source_contract import (
+    D1_SOURCE_CONTRACT_V1,
+    D1_SOURCE_CONTRACT_V2,
     build_d1_snapshot_from_candidate_runtime,
     source_contract_descriptor,
 )
@@ -34,6 +37,44 @@ def _session_payload(identity: Any) -> dict[str, Any]:
         "identity": str(identity.identity),
         "exact_exchange_calendar": bool(identity.exact_exchange_calendar),
         "next_session_date": identity.next_session_date.isoformat(),
+    }
+
+
+def _migration_gate(durable: Any, market: str) -> dict[str, Any]:
+    """Require an explicit V1-preserved -> V2 epoch migration state."""
+
+    verification = durable.verify()
+    counts = {
+        str(key).upper(): int(value)
+        for key, value in (verification.get("session_counts") or {}).items()
+    }
+    if verification.get("status") != "VERIFIED":
+        raise D1IntegrityError("D1_SOURCE_MIGRATION_STATE_UNVERIFIED")
+    if any(value > 0 for value in counts.values()):
+        raise D1IntegrityError(
+            "D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE:"
+            + json.dumps(counts, ensure_ascii=False, sort_keys=True)
+        )
+    def load(version: str) -> dict[str, Any] | None:
+        try:
+            return durable.load_activation_record(
+                market, source_contract_version=version
+            )
+        except Exception as exc:  # noqa: BLE001 - adapters expose different missing types
+            if type(exc).__name__ in {"VpsObjectMissing", "GcsNotFound", "FileNotFoundError"}:
+                return None
+            raise
+
+    legacy = load(D1_SOURCE_CONTRACT_V1)
+    if legacy is None:
+        raise D1IntegrityError("D1_SOURCE_MIGRATION_LEGACY_ACTIVATION_MISSING")
+    versioned = load(D1_SOURCE_CONTRACT_V2)
+    if versioned is None:
+        raise D1IntegrityError("D1_SOURCE_MIGRATION_PENDING")
+    return {
+        "session_counts": counts,
+        "legacy_activation_source_contract_version": D1_SOURCE_CONTRACT_V1,
+        "activation_source_contract_version": D1_SOURCE_CONTRACT_V2,
     }
 
 
@@ -58,13 +99,16 @@ def collect_natural_session(
     durable = store or (
         VpsD1Store.from_env() if normalized_backend == "vps" else GoogleCloudStorageD1Store.from_env()
     )
+    migration_state = _migration_gate(durable, normalized_market)
     calendar = calendar_provider or ExactExchangeCalendarProvider()
     # Formal natural collection always resolves the latest real exchange
     # close.  There is intentionally no --date override: a delayed trigger
     # must never turn the runner's current civil date into an incomplete T.
     identity = calendar.latest_completed_session(normalized_market, now=generated_at)
     trade_date = identity.trade_date
-    activation = durable.load_activation_record(normalized_market)
+    activation = durable.load_activation_record(
+        normalized_market, source_contract_version=D1_SOURCE_CONTRACT_V2
+    )
     if not session_is_in_activation_window(activation, trade_date.isoformat()):
         raise D1ProspectiveWindowError(
             "D1_PRE_ACTIVATION_OR_POST_WINDOW_SESSION",
@@ -97,6 +141,7 @@ def collect_natural_session(
         session_identity=_session_payload(identity),
         acquired_at=generated_at.isoformat(),
         activation_record=activation,
+        contract_version=D1_SOURCE_CONTRACT_V2,
     )
     committed = durable.commit(snapshot)
     report_markdown = render_research_report(snapshot)
@@ -115,7 +160,9 @@ def collect_natural_session(
         "commit_name": committed.commit_name,
         "commit_generation": getattr(committed, "commit_generation", None),
         "pointer_sha256": getattr(committed, "pointer_sha256", None),
-        "source_contract_version": source_contract_descriptor()["contract_version"],
+        "source_contract_version": source_contract_descriptor(D1_SOURCE_CONTRACT_V2)["contract_version"],
+        "source_migration_status": source_contract_descriptor(D1_SOURCE_CONTRACT_V2)["migration_status"],
+        "source_migration_reason": source_contract_descriptor(D1_SOURCE_CONTRACT_V2)["migration_reason"],
         "research_only": True,
         "research_only_candidate": True,
         "formal_entry_allowed": False,
@@ -124,6 +171,7 @@ def collect_natural_session(
         "paper_write": False,
         "broker_order": False,
         "session_counts": durable.verify()["session_counts"],
+        "migration_state": migration_state,
         "session_resolution": window.as_dict(),
         "report_markdown": report_markdown,
     }

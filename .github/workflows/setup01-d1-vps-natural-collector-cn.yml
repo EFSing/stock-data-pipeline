@@ -32,6 +32,7 @@ jobs:
       D1_VPS_HOST_KEY_FINGERPRINT: ${{ secrets.D1_VPS_HOST_KEY_FINGERPRINT }}
       D1_VPS_MIN_FREE_BYTES: ${{ vars.D1_VPS_MIN_FREE_BYTES }}
       D1_VPS_DANGER_FREE_BYTES: ${{ vars.D1_VPS_DANGER_FREE_BYTES }}
+      HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

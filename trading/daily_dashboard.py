@@ -136,7 +136,12 @@ _DATA_BLOCKED_FINAL_STATUSES = {
     "DATA_BLOCKED",
     "DATA_OR_PRODUCTION_PREREQUISITE_BLOCKED",
 }
-_DATA_BLOCKED_STATUSES = {"DATA_BAD", "DATA_STALE", "DATA_UNAVAILABLE", "DATA_BLOCKED"}
+_DATA_BLOCKED_STATUSES = {
+    "DATA_BAD", "DATA_STALE", "DATA_UNAVAILABLE", "DATA_BLOCKED",
+    "DATA_MISSING", "DATA_INVALID", "DATA_ADJUSTMENT_UNVERIFIED",
+    "PROVIDER_SYMBOL_ERROR", "PROVIDER_GLOBAL_FAILURE",
+    "DATA_UNAVAILABLE_FOR_DECISION",
+}
 _DATA_BLOCKING_REASONS = {
     "DUAL_CONFIRMED_UPSTREAM_INVARIANT_VIOLATION",
     "T1_EXECUTION_DATA_REQUIRED",
@@ -1494,6 +1499,10 @@ def _candidate_diagnostics(
             "no_trade_count": sum(row.get("stage_key") == "NO_TRADE" for row in market_rows),
         }
         candidate_status = _text(candidate.get("status"))
+        candidate_component_status = _text(
+            candidate.get("candidate_status"),
+            "UNAVAILABLE" if candidate_status in {"FAILED", "PROVIDER_GLOBAL_FAILURE"} else candidate_status,
+        )
         selection_outcome = _text(candidate.get("candidate_selection_outcome"))
         if not selection_outcome:
             if candidate_status == "NO_CANDIDATES":
@@ -1513,6 +1522,7 @@ def _candidate_diagnostics(
                 candidate_status,
                 "NOT_REPORTED" if market_rows and not candidate else "NOT_RUN",
             ),
+            "candidate_status": candidate_component_status,
             "selection_outcome": selection_outcome,
             "stage_a_status": _text(
                 _mapping(_mapping(candidate.get("stage_timings")).get("candidate_short_history")).get("status"),
@@ -1563,6 +1573,7 @@ def _candidate_diagnostics(
         values["coverage_status"] = (
             "DATA_ISSUE"
             if values["status"] in {"FAILED", "PARTIAL_DATA_QUALITY", "NOT_REPORTED"}
+            or values["candidate_status"] == "UNAVAILABLE"
             or values["selection_outcome"] in {"DISCOVERY_FAILED", "NOT_REPORTED"}
             or values["candidate_errors"]
             or values["stage_a_status"] in {"FAILED", "PARTIAL_DATA_QUALITY", "NOT_REPORTED"}
@@ -1673,7 +1684,10 @@ def _diagnostic_data_issues(
         for reason in reasons:
             add(row.get("market"), row.get("symbol"), reason)
     cloud_status = _text(cloud.get("status")).upper()
-    if cloud_status in {"FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY"} and not issues:
+    if cloud_status in {
+        "FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY",
+        "PROVIDER_GLOBAL_FAILURE", "COMPLETED_NO_USABLE_SYMBOLS",
+    } and not issues:
         add(market, "系统", f"日报状态：{cloud_status}")
     return [
         {"market": market, "symbol": symbol, "reason": reason}
@@ -1736,7 +1750,10 @@ def _market_status(
         cloud_status = _text(cloud_daily.get("status"))
         if cloud_status == "SKIPPED_NON_SESSION":
             return {"status_key": "SKIPPED_NON_SESSION", "status_label": "非交易日，已跳过"}
-        if cloud_status in {"FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY"}:
+        if cloud_status in {
+            "FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY",
+            "PROVIDER_GLOBAL_FAILURE", "COMPLETED_NO_USABLE_SYMBOLS",
+        }:
             return {"status_key": "DATA_BLOCKED", "status_label": "数据异常"}
     candidate_markets = _mapping(payload.get("candidate_markets"))
     candidate = _mapping(candidate_markets.get(market))
@@ -2595,6 +2612,7 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
         market_html.append(
             '<div class="diagnostic-market">'
             f'<strong>{_escape(item.get("label"))}</strong>'
+            f'<span>CANDIDATE_STATUS：{_escape(item.get("candidate_status"))}</span>'
             f'<span>候选结论：{_escape(outcome_labels.get(outcome, outcome))}</span>'
             f'<span>Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}</span>'
             f'<span>{scope_line}</span>'
