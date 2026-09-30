@@ -74,6 +74,7 @@ jobs:
               "repository_main_helper_sha256": None,
               "remote_old_helper_sha256": None,
               "remote_helper_post_update_sha256": None,
+              "failure_detail": None,
               "known_stale_repository_version": False,
               "old_helper_scans_activation_epochs": None,
               "update_performed": False,
@@ -89,13 +90,29 @@ jobs:
                   encoding="utf-8",
               )
 
-          def stop(reason: str) -> "None":
+          def stop(reason: str, *, detail: str | None = None) -> "None":
               summary["status"] = reason
+              summary["failure_detail"] = detail
               write_summary()
               raise SystemExit(reason)
 
           def digest(payload: bytes) -> str:
               return hashlib.sha256(payload).hexdigest()
+
+          def sanitized_remote_reason(payload: bytes) -> str | None:
+              try:
+                  lines = payload.decode("utf-8", errors="replace").splitlines()
+              except Exception:
+                  return None
+              for line in reversed(lines):
+                  try:
+                      value = json.loads(line)
+                  except (TypeError, ValueError):
+                      continue
+                  reason = value.get("reason") if isinstance(value, dict) else None
+                  if isinstance(reason, str) and reason.startswith("D1_VPS_REMOTE_HELPER_"):
+                      return reason
+              return None
 
           try:
               branch = os.environ.get("GITHUB_REF_NAME")
@@ -363,15 +380,27 @@ jobs:
                   timeout=120,
               )
               if completed.returncode != 0:
-                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+                  stop(
+                      "D1_VPS_REMOTE_HELPER_UPDATE_FAILED",
+                      detail=sanitized_remote_reason(completed.stderr),
+                  )
               try:
                   update_receipt = json.loads(completed.stdout.decode("utf-8"))
               except (UnicodeDecodeError, json.JSONDecodeError):
-                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+                  stop(
+                      "D1_VPS_REMOTE_HELPER_UPDATE_FAILED",
+                      detail="D1_VPS_REMOTE_HELPER_UPDATE_RECEIPT_INVALID",
+                  )
               if update_receipt.get("status") != "D1_VPS_REMOTE_HELPER_UPDATED":
-                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+                  stop(
+                      "D1_VPS_REMOTE_HELPER_UPDATE_FAILED",
+                      detail="D1_VPS_REMOTE_HELPER_UPDATE_RECEIPT_STATUS_INVALID",
+                  )
               if update_receipt.get("new_sha256") != repository_helper_sha:
-                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+                  stop(
+                      "D1_VPS_REMOTE_HELPER_UPDATE_FAILED",
+                      detail="D1_VPS_REMOTE_HELPER_UPDATE_RECEIPT_HASH_MISMATCH",
+                  )
 
               status, readback_bytes, _readback_stderr = runner(
                   ["read", "--name", REMOTE_HELPER_NAME]
@@ -390,7 +419,10 @@ jobs:
                   or summary["temporary_part_residue"]
                   or summary["backup_residue"]
               ):
-                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+                  stop(
+                      "D1_VPS_REMOTE_HELPER_UPDATE_FAILED",
+                      detail="D1_VPS_REMOTE_HELPER_POST_UPDATE_AUDIT_FAILED",
+                  )
               summary["status"] = "D1_VPS_REMOTE_HELPER_UPDATE_VERIFIED"
               write_summary()
           except SystemExit:
@@ -428,6 +460,7 @@ jobs:
               f"- Old helper scans activation epochs: `{str(summary.get('old_helper_scans_activation_epochs')).lower()}`",
               f"- Update performed: `{str(bool(summary.get('update_performed'))).lower()}`",
               f"- Remote helper post-update SHA: `{summary.get('remote_helper_post_update_sha256')}`",
+              f"- Sanitized failure detail: `{summary.get('failure_detail') or 'NONE'}`",
               f"- Temporary `.part` residue: `{str(summary.get('temporary_part_residue')).lower()}`",
               f"- Backup residue: `{str(summary.get('backup_residue')).lower()}`",
               f"- Strict host-key checking: `{summary.get('strict_host_key_checking')}`",
