@@ -4,14 +4,16 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-当前逻辑任务已完成：已解决 PR #125 merge 后的
-`POST_MERGE_VPS_STATE_NOT_REVERIFIED`，证明并修复 VPS helper 的已知旧版本，完成 CN/US
-V2 activation，并通过最终 main 只读校验。当前交接状态为
-`D1_V2_ACTIVATION_COMPLETE`、`D1_V2_GOVERNANCE_PR_FULLY_READY`、
-`D1_V2_WAITING_FOR_FIRST_NATURAL_ELIGIBLE_SESSION`；部署身份硬化仍为
-`D1_VPS_HELPER_DEPLOYMENT_IDENTITY_HARDENING_PENDING`。治理 PR 只允许 docs-only、等待
-exact-head CI，明确不自动 merge。不得改变冻结交易策略、Paper、broker、Final OOS 或整体
-Wave/Setup 路线；本轮不运行 natural collector、不回填、不修改 production state。
+当前逻辑任务是收敛 PR #127 的 docs-only governance closeout：D1 V2 activation 已全部完成，
+helper visibility blocker 已关闭，branch/full、独立 main/full 与最终 main 只读校验均已通过，
+CN/US V2 均已正式 activation，formal session 仍为 `0/0`。PR #127
+（`docs: record D1 V2 activation completion`）已创建并保持 OPEN/mergeable，changed files
+仅为 `HANDOFF.md` 与 `docs/CURRENT_STATUS.md`，exact-head CI 已通过。当前唯一用户决策是
+是否 squash merge PR #127；不自动 merge。当前 operational 状态为
+`D1_V2_ACTIVATION_COMPLETE`、`D1_V2_WAITING_FOR_FIRST_NATURAL_ELIGIBLE_SESSION`；部署身份
+硬化仍为 `D1_VPS_HELPER_DEPLOYMENT_IDENTITY_HARDENING_PENDING`。不得改变冻结交易策略、
+Paper、broker、Final OOS 或整体 Wave/Setup 路线；本轮不运行 natural collector、不回填、
+不修改 production state。
 
 当前 main 的生产数据架构为：CN 唯一 `HITHINK_FINANCIAL_API`，US 唯一 `YAHOO_CHART`；
 CN Candidate 为 HITHINK 官方 `000300.SH`/`000905.SH` 成分的确定性 union/dedupe；BaoStock
@@ -79,6 +81,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   session 为 `0/0`，V1 hash 保持 `01d339d52732966d50a33245321b1dc873a7f200f801e887e166d290ea83cb81`
   与 `a1a97dabfa01adeaab964c4ebecc6f686497c1ac1fafa5c399a937d8fb35f85e`，CN/US V2 均为
   present，unreferenced object 与 errors 均为 `0`，`continuation_ready=true`。
+- US scheduled reconciliation run `36683686702` 针对 session `2026-09-29` 返回
+  `NOOP_BEFORE_ACTIVATION`；没有新增 formal session，CN/US formal counts 仍为 `0/0`，
+  不影响 US first eligible session `2026-09-30`。CN first eligible session 为 `2026-10-08`。
 - 既有 CN/US schedule、exact resolver、reconciliation、日报 reliability/notification marker、
   Cloudflare/VPS trigger-only fallback 保持不变；#110、#82、#96 继续独立不动。
 
@@ -160,8 +165,9 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 `D1_V2_ACTIVATION_COMPLETE`：helper stale diagnosis/update、branch/main/final read-only
 verify 与 CN/US V2 activation 均已完成；V1 activation 保持不变，formal session 仍为 `0/0`。
-`D1_V2_GOVERNANCE_PR_FULLY_READY`：只保留 HANDOFF/CURRENT_STATUS 的最小 governance
-closeout，等待该 docs-only PR 的 exact-head CI；不自动 merge。
+`D1_V2_GOVERNANCE_PR_READY_FOR_MERGE`：PR #127 已 OPEN/mergeable，changed files 仅为
+`HANDOFF.md` 与 `docs/CURRENT_STATUS.md`，exact-head CI 已通过；不自动 merge，等待用户明确
+squash merge 授权。
 `D1_V2_WAITING_FOR_FIRST_NATURAL_ELIGIBLE_SESSION`：下一步只能等待 activation record
 规定的首个自然 eligible session；不得人工指定日期、collector/backfill 或补写 formal evidence。
 `D1_VPS_HELPER_DEPLOYMENT_IDENTITY_HARDENING_PENDING`：后续另行加强 deployed helper 与
@@ -173,13 +179,14 @@ closeout，等待该 docs-only PR 的 exact-head CI；不自动 merge。
 
 ## Next Action
 
-1. 从最新 main 创建最小 docs-only governance PR，PR body 保留 `What Changed`、`Why`、
-   `Tests`、`Risks`；等待 exact-head CI，不自动 merge。
-2. 保持 V1/V2 activation 与 VPS helper 不再改写；不运行 natural collector、不 backfill、
-   不提交 formal D1 session。
-3. 等待 CN/US activation 各自规定的首个自然 eligible session，再按既有窗口验收首个
-   新单源 natural run；任何缺失、迟到或 contract failure 都按 fail-closed 处理。
-4. 将 helper deployment identity hardening 作为独立后续任务，不在本 docs-only closeout 中扩 scope。
+1. 用户决定是否 squash merge PR #127（`USER_DECISION_REQUIRED_FOR_PR_127_MERGE`）。
+2. 若授权，squash merge，并核对 post-merge main SHA / main CI。
+3. 不运行人工 collector，不 backfill。
+4. 等待各市场自然 eligible session：US first eligible = `2026-09-30`；CN first eligible =
+   `2026-10-08`。
+5. 首次自然 session 后再验收 formal evidence。
+6. helper deployment identity hardening 保持独立后续：
+   `D1_VPS_HELPER_DEPLOYMENT_IDENTITY_HARDENING_PENDING`。
 
 #110/#82/#96 继续独立不动。
 
