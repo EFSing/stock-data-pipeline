@@ -1,9 +1,9 @@
 name: SETUP01 D1 VPS Read-Only Verify
 
 # READ ONLY — MUST NOT CREATE OBJECTS, ACTIVATIONS, MANIFESTS OR FORMAL SESSIONS
-# This workflow only runs the existing vps-verify --full-objects path.  The raw
-# receipt stays in the runner temp directory; only the sanitized summary is
-# uploaded and written to the job summary.
+# This branch-only maintenance variant may atomically
+# replace only the deployed repository helper, then runs the existing
+# vps-verify --full-objects path.  It must never be merged to main.
 on:
   workflow_dispatch:
 
@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -22,6 +24,421 @@ jobs:
 
       - name: Install runtime dependencies
         run: python -m pip install -r requirements.txt
+
+      - name: Preflight and atomically update remote helper (maintenance branch only)
+        id: helper_maintenance
+        env:
+          PYTHONPATH: .
+          D1_VPS_HOST: ${{ secrets.D1_VPS_HOST }}
+          D1_VPS_PORT: ${{ vars.D1_VPS_PORT }}
+          D1_VPS_USER: ${{ vars.D1_VPS_USER }}
+          D1_VPS_STORAGE_ROOT: ${{ vars.D1_VPS_STORAGE_ROOT }}
+          D1_VPS_SSH_PRIVATE_KEY: ${{ secrets.D1_VPS_SSH_PRIVATE_KEY }}
+          D1_VPS_KNOWN_HOSTS: ${{ secrets.D1_VPS_KNOWN_HOSTS }}
+          D1_VPS_HOST_KEY_FINGERPRINT: ${{ secrets.D1_VPS_HOST_KEY_FINGERPRINT }}
+          MAINTENANCE_SUMMARY: ${{ runner.temp }}/d1-vps-helper-maintenance-summary.json
+        run: |
+          python - <<'PY'
+          import ast
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shlex
+          import stat
+          import subprocess
+          import sys
+          import textwrap
+
+          AUTHORIZED_MAIN_SHA = "0633e80a81302d0da8d5592c404bf80275a3c8cf"
+          AUTHORIZED_MAIN_HELPER_SHA = "e2d57ce4e011825a2eee3f2005216d0ff12032e7d2a0140aaf8dd043c6d46334"
+          OLD_BASELINE_COMMIT = "34c3f8790f371e9efc928fc673cd160d50383daf"
+          OLD_BASELINE_HELPER_SHA = "cee43b1314a18cb1cd9ff4352e35fd991aa69b1b6fb252a8c0f598cc02aa9690"
+          OTHER_KNOWN_HELPER_COMMITS = (
+              "01705f4",
+              "c7c969f",
+              AUTHORIZED_MAIN_SHA,
+          )
+          EXPECTED_BRANCH = "diag/d1-vps-helper-maintenance-20260930"
+          HELPER_PATH = Path("research/d1_vps_store_helper.py")
+          REMOTE_HELPER_NAME = "system/d1_vps_store_helper.py"
+          REMOTE_TARGET = "/srv/d1-research/system/d1_vps_store_helper.py"
+          REMOTE_TMP_DIR = "/srv/d1-research/system/tmp"
+          summary_path = Path(os.environ["MAINTENANCE_SUMMARY"])
+          summary = {
+              "status": "D1_VPS_REMOTE_HELPER_UPDATE_NOT_RUN",
+              "maintenance_branch": os.environ.get("GITHUB_REF_NAME"),
+              "maintenance_branch_head": os.environ.get("GITHUB_SHA"),
+              "authorized_main_sha": AUTHORIZED_MAIN_SHA,
+              "remote_main_sha": None,
+              "repository_main_helper_sha256": None,
+              "remote_old_helper_sha256": None,
+              "remote_helper_post_update_sha256": None,
+              "known_stale_repository_version": False,
+              "old_helper_scans_activation_epochs": None,
+              "update_performed": False,
+              "temporary_part_residue": None,
+              "backup_residue": None,
+              "strict_host_key_checking": "yes",
+              "pinned_host_fingerprint_checked": False,
+          }
+
+          def write_summary() -> None:
+              summary_path.write_text(
+                  json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+
+          def stop(reason: str) -> "None":
+              summary["status"] = reason
+              write_summary()
+              raise SystemExit(reason)
+
+          def digest(payload: bytes) -> str:
+              return hashlib.sha256(payload).hexdigest()
+
+          try:
+              branch = os.environ.get("GITHUB_REF_NAME")
+              if branch != EXPECTED_BRANCH or os.environ.get("GITHUB_REF_TYPE") != "branch":
+                  stop("D1_HELPER_UPDATE_BRANCH_INVALID")
+
+              main_ref = subprocess.run(
+                  ["git", "ls-remote", "origin", "refs/heads/main"],
+                  check=False,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.DEVNULL,
+                  text=True,
+              )
+              if main_ref.returncode != 0:
+                  stop("D1_HELPER_UPDATE_MAIN_SHA_UNAVAILABLE")
+              remote_main_sha = main_ref.stdout.strip().split()[0] if main_ref.stdout.strip() else ""
+              summary["remote_main_sha"] = remote_main_sha
+              if remote_main_sha != AUTHORIZED_MAIN_SHA:
+                  stop("D1_HELPER_UPDATE_MAIN_SHA_DRIFT")
+
+              helper_bytes = HELPER_PATH.read_bytes()
+              repository_helper_sha = digest(helper_bytes)
+              summary["repository_main_helper_sha256"] = repository_helper_sha
+              if repository_helper_sha != AUTHORIZED_MAIN_HELPER_SHA:
+                  stop("D1_HELPER_UPDATE_REPOSITORY_HELPER_MISMATCH")
+
+              old_source = subprocess.check_output(
+                  ["git", "show", f"{OLD_BASELINE_COMMIT}:research/d1_vps_store_helper.py"]
+              )
+              old_tree = ast.parse(old_source.decode("utf-8"))
+              iter_function = next(
+                  node
+                  for node in ast.walk(old_tree)
+                  if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                  and node.name == "_iter_store_files"
+              )
+              old_iter_strings = {
+                  node.value
+                  for node in ast.walk(iter_function)
+                  if isinstance(node, ast.Constant) and isinstance(node.value, str)
+              }
+              old_scans_epochs = "system/activation_epochs" in old_iter_strings
+              summary["old_helper_scans_activation_epochs"] = old_scans_epochs
+              if digest(old_source) != OLD_BASELINE_HELPER_SHA or old_scans_epochs:
+                  stop("D1_HELPER_UPDATE_STALE_BASELINE_UNPROVEN")
+
+              known_helper_hashes = {
+                  OLD_BASELINE_HELPER_SHA,
+                  AUTHORIZED_MAIN_HELPER_SHA,
+              }
+              for commit in OTHER_KNOWN_HELPER_COMMITS:
+                  content = subprocess.check_output(
+                      ["git", "show", f"{commit}:research/d1_vps_store_helper.py"]
+                  )
+                  known_helper_hashes.add(digest(content))
+
+              from research.setup01_d1_vps_store import SshVpsRunner, hop_from_env
+
+              hop = hop_from_env()
+              if hop.storage_root != "/srv/d1-research":
+                  stop("D1_VPS_REMOTE_HELPER_UPDATE_TARGET_MISMATCH")
+              runner = SshVpsRunner(hop)
+              status, remote_bytes, _remote_stderr = runner(
+                  ["read", "--name", REMOTE_HELPER_NAME]
+              )
+              if status != 0:
+                  stop("D1_VPS_REMOTE_HELPER_PREFLIGHT_FAILED")
+              remote_sha = digest(remote_bytes)
+              summary["remote_old_helper_sha256"] = remote_sha
+              if remote_sha not in known_helper_hashes:
+                  stop("D1_VPS_REMOTE_HELPER_UNKNOWN_DRIFT")
+              if remote_sha == AUTHORIZED_MAIN_HELPER_SHA:
+                  audit_script = textwrap.dedent(
+                      r'''
+                      import json
+                      from pathlib import Path
+
+                      target = Path("/srv/d1-research/system/d1_vps_store_helper.py")
+                      tmp_dir = Path("/srv/d1-research/system/tmp")
+                      parts = list(tmp_dir.glob("*.part")) if tmp_dir.is_dir() else [tmp_dir]
+                      backups = [
+                          path for path in target.parent.iterdir()
+                          if path.name != target.name
+                          and (
+                              path.name in {target.name + ".bak", target.name + ".old"}
+                              or path.name.startswith(target.name + ".")
+                          )
+                      ]
+                      print(json.dumps({
+                          "status": "D1_VPS_REMOTE_HELPER_RESIDUE_AUDITED",
+                          "temporary_part_residue": bool(parts),
+                          "backup_residue": bool(backups),
+                      }))
+                      ''',
+                  ).strip()
+                  audit = subprocess.run(
+                      hop.ssh_argv("python3 -c " + shlex.quote(audit_script)),
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                      check=False,
+                      timeout=60,
+                  )
+                  if audit.returncode != 0:
+                      stop("D1_VPS_REMOTE_HELPER_PREFLIGHT_FAILED")
+                  try:
+                      audit_receipt = json.loads(audit.stdout.decode("utf-8"))
+                  except (UnicodeDecodeError, json.JSONDecodeError):
+                      stop("D1_VPS_REMOTE_HELPER_PREFLIGHT_FAILED")
+                  if audit_receipt.get("status") != "D1_VPS_REMOTE_HELPER_RESIDUE_AUDITED":
+                      stop("D1_VPS_REMOTE_HELPER_PREFLIGHT_FAILED")
+                  summary["status"] = "D1_VPS_REMOTE_HELPER_ALREADY_CURRENT"
+                  summary["remote_helper_post_update_sha256"] = remote_sha
+                  summary["temporary_part_residue"] = bool(
+                      audit_receipt.get("temporary_part_residue")
+                  )
+                  summary["backup_residue"] = bool(audit_receipt.get("backup_residue"))
+                  summary["pinned_host_fingerprint_checked"] = True
+                  if summary["temporary_part_residue"] or summary["backup_residue"]:
+                      stop("D1_VPS_REMOTE_HELPER_RESIDUE_DETECTED")
+                  write_summary()
+                  raise SystemExit(0)
+              if remote_sha != OLD_BASELINE_HELPER_SHA:
+                  stop("D1_VPS_REMOTE_HELPER_UNKNOWN_DRIFT")
+              summary["known_stale_repository_version"] = True
+              hop.verify_known_hosts()
+              summary["pinned_host_fingerprint_checked"] = True
+
+              updater = textwrap.dedent(
+                  r'''
+                  import hashlib
+                  import json
+                  import os
+                  from pathlib import Path
+                  import stat
+                  import sys
+
+                  TARGET = Path("/srv/d1-research/system/d1_vps_store_helper.py")
+                  TMP_DIR = Path("/srv/d1-research/system/tmp")
+
+                  def file_sha256(payload):
+                      return hashlib.sha256(payload).hexdigest()
+
+                  def fsync_directory(path):
+                      fd = os.open(str(path), os.O_RDONLY)
+                      try:
+                          os.fsync(fd)
+                      finally:
+                          os.close(fd)
+
+                  def residue():
+                      parts = list(TMP_DIR.glob("*.part"))
+                      backups = [
+                          p for p in TARGET.parent.iterdir()
+                          if p.name != TARGET.name
+                          and (
+                              p.name in {TARGET.name + ".bak", TARGET.name + ".old"}
+                              or p.name.startswith(TARGET.name + ".")
+                          )
+                      ]
+                      return parts, backups
+
+                  def fail(reason):
+                      print(json.dumps({"status": "FAIL_CLOSED", "reason": reason}), file=sys.stderr)
+                      raise SystemExit(1)
+
+                  if len(sys.argv) != 3:
+                      fail("D1_VPS_REMOTE_HELPER_UPDATE_ARGUMENTS_INVALID")
+                  expected_old, expected_new = sys.argv[1:]
+                  if not TARGET.is_file() or TARGET.is_symlink():
+                      fail("D1_VPS_REMOTE_HELPER_TARGET_INVALID")
+                  if not TMP_DIR.is_dir() or TMP_DIR.is_symlink():
+                      fail("D1_VPS_REMOTE_HELPER_TEMP_DIR_INVALID")
+                  parts, backups = residue()
+                  if parts:
+                      fail("D1_VPS_REMOTE_HELPER_TEMP_PREEXISTING")
+                  if backups:
+                      fail("D1_VPS_REMOTE_HELPER_BACKUP_PREEXISTING")
+
+                  old_bytes = TARGET.read_bytes()
+                  if file_sha256(old_bytes) != expected_old:
+                      fail("D1_VPS_REMOTE_HELPER_OLD_HASH_CHANGED")
+                  incoming = sys.stdin.buffer.read()
+                  if file_sha256(incoming) != expected_new:
+                      fail("D1_VPS_REMOTE_HELPER_TRANSFER_HASH_MISMATCH")
+                  try:
+                      compile(incoming, str(TARGET), "exec")
+                  except Exception:
+                      fail("D1_VPS_REMOTE_HELPER_COMPILE_FAILED")
+
+                  mode = stat.S_IMODE(TARGET.stat().st_mode)
+                  part = TMP_DIR / ".d1-vps-helper-update.part"
+                  replaced = False
+                  try:
+                      fd = os.open(str(part), os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+                      try:
+                          with os.fdopen(fd, "wb") as handle:
+                              handle.write(incoming)
+                              handle.flush()
+                              os.fsync(handle.fileno())
+                      except Exception:
+                          try:
+                              os.close(fd)
+                          except OSError:
+                              pass
+                          raise
+                      os.chmod(part, mode)
+                      if file_sha256(part.read_bytes()) != expected_new:
+                          fail("D1_VPS_REMOTE_HELPER_TEMP_HASH_MISMATCH")
+                      os.replace(str(part), str(TARGET))
+                      replaced = True
+                      fsync_directory(TARGET.parent)
+                      readback = TARGET.read_bytes()
+                      if file_sha256(readback) != expected_new:
+                          fail("D1_VPS_REMOTE_HELPER_READBACK_HASH_MISMATCH")
+                      if stat.S_IMODE(TARGET.stat().st_mode) != mode:
+                          fail("D1_VPS_REMOTE_HELPER_MODE_CHANGED")
+                  except BaseException:
+                      if replaced:
+                          restore = TMP_DIR / ".d1-vps-helper-update.part"
+                          try:
+                              fd = os.open(str(restore), os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+                              with os.fdopen(fd, "wb") as handle:
+                                  handle.write(old_bytes)
+                                  handle.flush()
+                                  os.fsync(handle.fileno())
+                              os.chmod(restore, mode)
+                              os.replace(str(restore), str(TARGET))
+                              fsync_directory(TARGET.parent)
+                          except BaseException:
+                              pass
+                      raise
+                  finally:
+                      try:
+                          part.unlink()
+                      except FileNotFoundError:
+                          pass
+
+                  parts, backups = residue()
+                  if parts or backups:
+                      fail("D1_VPS_REMOTE_HELPER_RESIDUE_DETECTED")
+                  print(json.dumps({
+                      "status": "D1_VPS_REMOTE_HELPER_UPDATED",
+                      "old_sha256": expected_old,
+                      "new_sha256": expected_new,
+                      "mode": oct(mode),
+                      "temporary_part_residue": False,
+                      "backup_residue": False,
+                  }))
+                  ''',
+              ).strip()
+              remote_command = (
+                  "python3 -c "
+                  + shlex.quote(updater)
+                  + " -- "
+                  + shlex.quote(remote_sha)
+                  + " "
+                  + shlex.quote(repository_helper_sha)
+              )
+              completed = subprocess.run(
+                  hop.ssh_argv(remote_command),
+                  input=helper_bytes,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  check=False,
+                  timeout=120,
+              )
+              if completed.returncode != 0:
+                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+              try:
+                  update_receipt = json.loads(completed.stdout.decode("utf-8"))
+              except (UnicodeDecodeError, json.JSONDecodeError):
+                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+              if update_receipt.get("status") != "D1_VPS_REMOTE_HELPER_UPDATED":
+                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+              if update_receipt.get("new_sha256") != repository_helper_sha:
+                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+
+              status, readback_bytes, _readback_stderr = runner(
+                  ["read", "--name", REMOTE_HELPER_NAME]
+              )
+              if status != 0:
+                  stop("D1_VPS_REMOTE_HELPER_READBACK_FAILED")
+              readback_sha = digest(readback_bytes)
+              summary["remote_helper_post_update_sha256"] = readback_sha
+              summary["update_performed"] = True
+              summary["temporary_part_residue"] = bool(
+                  update_receipt.get("temporary_part_residue")
+              )
+              summary["backup_residue"] = bool(update_receipt.get("backup_residue"))
+              if (
+                  readback_sha != repository_helper_sha
+                  or summary["temporary_part_residue"]
+                  or summary["backup_residue"]
+              ):
+                  stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+              summary["status"] = "D1_VPS_REMOTE_HELPER_UPDATE_VERIFIED"
+              write_summary()
+          except SystemExit:
+              raise
+          except Exception:
+              stop("D1_VPS_REMOTE_HELPER_UPDATE_FAILED")
+          PY
+
+      - name: Publish helper maintenance receipt
+        if: always()
+        env:
+          MAINTENANCE_SUMMARY: ${{ runner.temp }}/d1-vps-helper-maintenance-summary.json
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["MAINTENANCE_SUMMARY"])
+          if path.exists():
+              summary = json.loads(path.read_text(encoding="utf-8"))
+          else:
+              summary = {"status": "D1_VPS_REMOTE_HELPER_UPDATE_RECEIPT_UNAVAILABLE"}
+          lines = [
+              "# D1 VPS Helper Maintenance Receipt",
+              "",
+              f"- Status: `{summary.get('status')}`",
+              f"- Maintenance branch: `{summary.get('maintenance_branch')}`",
+              f"- Maintenance branch head: `{summary.get('maintenance_branch_head')}`",
+              f"- Authorized main SHA: `{summary.get('authorized_main_sha')}`",
+              f"- Remote main SHA observed: `{summary.get('remote_main_sha')}`",
+              f"- Remote old helper SHA: `{summary.get('remote_old_helper_sha256')}`",
+              f"- Repository main helper SHA: `{summary.get('repository_main_helper_sha256')}`",
+              f"- Known stale repository version: `{str(bool(summary.get('known_stale_repository_version'))).lower()}`",
+              f"- Old helper scans activation epochs: `{str(summary.get('old_helper_scans_activation_epochs')).lower()}`",
+              f"- Update performed: `{str(bool(summary.get('update_performed'))).lower()}`",
+              f"- Remote helper post-update SHA: `{summary.get('remote_helper_post_update_sha256')}`",
+              f"- Temporary `.part` residue: `{str(summary.get('temporary_part_residue')).lower()}`",
+              f"- Backup residue: `{str(summary.get('backup_residue')).lower()}`",
+              f"- Strict host-key checking: `{summary.get('strict_host_key_checking')}`",
+              f"- Pinned host fingerprint checked: `{str(bool(summary.get('pinned_host_fingerprint_checked'))).lower()}`",
+              "",
+              "Only the single deployed helper path is in scope; D1 evidence and activation paths are not written.",
+              "",
+          ]
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines))
+          PY
 
       - name: Run read-only VPS verification
         id: verify
