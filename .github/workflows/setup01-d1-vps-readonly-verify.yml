@@ -366,7 +366,7 @@ jobs:
               remote_command = (
                   "python3 -c "
                   + shlex.quote(updater)
-                  + " -- "
+                  + " "
                   + shlex.quote(remote_sha)
                   + " "
                   + shlex.quote(repository_helper_sha)
