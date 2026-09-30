@@ -131,6 +131,67 @@ class GovernanceTests(unittest.TestCase):
         self.assertIn('"交易日期": chosen.trade_date', main_source)
         self.assertIn('"抓取时间": fetched_at', main_source)
 
+    def test_setup01_d1_vps_readonly_verify_workflow_is_read_only(self):
+        source = (ROOT / ".github" / "workflows" / "setup01-d1-vps-readonly-verify.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "READ ONLY — MUST NOT CREATE OBJECTS, ACTIVATIONS, MANIFESTS OR FORMAL SESSIONS",
+            source,
+        )
+        self.assertIn("workflow_dispatch:", source)
+        self.assertNotIn("schedule:", source)
+        self.assertIn("permissions:\n  contents: read", source)
+        self.assertIn(
+            "python scripts/run_setup01_d1_collector.py vps-verify --full-objects",
+            source,
+        )
+        for forbidden in (
+            "vps-validate-storage",
+            "vps-create-activation",
+            "vps-collect",
+            "run_market_close_reconcile",
+            "vps-manifest --publish",
+            "vps-migrate",
+            "vps-recover",
+        ):
+            self.assertNotIn(forbidden, source)
+        self.assertNotRegex(source, r"(?m)^\s*put(?:\s|$)")
+        for forbidden_permission in (
+            "contents: write",
+            "actions: write",
+            "issues: write",
+            "packages: write",
+        ):
+            self.assertNotIn(forbidden_permission, source)
+        for name in (
+            "D1_VPS_HOST",
+            "D1_VPS_SSH_PRIVATE_KEY",
+            "D1_VPS_KNOWN_HOSTS",
+            "D1_VPS_HOST_KEY_FINGERPRINT",
+            "D1_VPS_PORT",
+            "D1_VPS_USER",
+            "D1_VPS_STORAGE_ROOT",
+        ):
+            self.assertIn(name, source)
+        for forbidden_secret in (
+            "HITHINK_FINANCE_API_KEY",
+            "GOOGLE_SERVICE_ACCOUNT_JSON",
+            "HOLDINGS",
+            "BROKER",
+            "CLOUDFLARE",
+        ):
+            self.assertNotIn(forbidden_secret, source.upper())
+        self.assertIn("d1-vps-verify-raw.json", source)
+        self.assertIn("d1-vps-verify-summary.json", source)
+        self.assertIn("GITHUB_STEP_SUMMARY", source)
+        self.assertIn("actions/upload-artifact@v4", source)
+        self.assertIn("setup01-d1-vps-readonly-verify-summary", source)
+        self.assertNotIn(
+            "path: ${{ runner.temp }}/d1-vps-verify-raw.json",
+            source,
+        )
+
     def test_registry_records_verified_recovery_gates(self):
         self.assertEqual(self.registry["schema_version"], "repository-frozen-artifact-registry-v1")
         self.assertEqual(self.entry["status"], "FULLY_RECOVERABLE")

@@ -1,0 +1,225 @@
+name: SETUP01 D1 VPS Read-Only Verify
+
+# READ ONLY — MUST NOT CREATE OBJECTS, ACTIVATIONS, MANIFESTS OR FORMAL SESSIONS
+# This workflow only runs the existing vps-verify --full-objects path.  The raw
+# receipt stays in the runner temp directory; only the sanitized summary is
+# uploaded and written to the job summary.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run read-only VPS verification
+        id: verify
+        env:
+          PYTHONPATH: .
+          D1_VPS_HOST: ${{ secrets.D1_VPS_HOST }}
+          D1_VPS_PORT: ${{ vars.D1_VPS_PORT }}
+          D1_VPS_USER: ${{ vars.D1_VPS_USER }}
+          D1_VPS_STORAGE_ROOT: ${{ vars.D1_VPS_STORAGE_ROOT }}
+          D1_VPS_SSH_PRIVATE_KEY: ${{ secrets.D1_VPS_SSH_PRIVATE_KEY }}
+          D1_VPS_KNOWN_HOSTS: ${{ secrets.D1_VPS_KNOWN_HOSTS }}
+          D1_VPS_HOST_KEY_FINGERPRINT: ${{ secrets.D1_VPS_HOST_KEY_FINGERPRINT }}
+          VERIFY_RAW: ${{ runner.temp }}/d1-vps-verify-raw.json
+        run: python scripts/run_setup01_d1_collector.py vps-verify --full-objects > "$VERIFY_RAW"
+
+      - name: Sanitize read-only verification receipt
+        if: always()
+        env:
+          VERIFY_RAW: ${{ runner.temp }}/d1-vps-verify-raw.json
+          VERIFY_SUMMARY: ${{ runner.temp }}/d1-vps-verify-summary.json
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          raw_path = Path(os.environ["VERIFY_RAW"])
+          summary_path = Path(os.environ["VERIFY_SUMMARY"])
+          data = {}
+          parse_failed = False
+          try:
+              data = json.loads(raw_path.read_text(encoding="utf-8"))
+              if not isinstance(data, dict):
+                  raise ValueError("verification receipt is not an object")
+          except (OSError, ValueError, json.JSONDecodeError):
+              parse_failed = True
+
+          root = str(data.get("storage_root") or "")
+          errors = []
+          for value in data.get("errors") or ():
+              message = str(value)
+              if root:
+                  message = message.replace(root, "<redacted-storage-root>")
+              errors.append(message)
+          if parse_failed:
+              errors.append("VERIFY_RECEIPT_UNREADABLE")
+
+          activation_records = []
+          for value in data.get("activation_records") or ():
+              if not isinstance(value, dict):
+                  continue
+              activation_records.append({
+                  "market": value.get("market"),
+                  "source_contract_version": value.get("source_contract_version"),
+                  "record_sha256": value.get("record_sha256"),
+                  "code_sha": value.get("code_sha"),
+                  "first_eligible_full_exchange_session": value.get(
+                      "first_eligible_full_exchange_session"
+                  ),
+                  "end_boundary_local_date": value.get("end_boundary_local_date"),
+                  "storage_identity_sha256": value.get("storage_identity_sha256"),
+                  "storage_identity_matches_current": bool(
+                      value.get("storage_identity_matches_current")
+                  ),
+              })
+
+          def activation(market, source_version):
+              return next(
+                  (
+                      item
+                      for item in activation_records
+                      if item["market"] == market
+                      and item["source_contract_version"] == source_version
+                  ),
+                  None,
+              )
+
+          v1_version = "SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1"
+          v2_version = "SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2"
+          unreferenced = [
+              str(value) for value in data.get("unreferenced_objects") or ()
+          ]
+          summary = {
+              "status": (
+                  "VERIFY_RECEIPT_UNREADABLE"
+                  if parse_failed
+                  else data.get("status")
+              ),
+              "backend_identity": data.get("backend_identity"),
+              "backend_version": data.get("backend_version"),
+              "protocol_version": data.get("protocol_version"),
+              "storage_identity_sha256": data.get("storage_identity_sha256"),
+              "full_object_hashes": bool(data.get("full_object_hashes")),
+              "session_counts": {
+                  "CN": int((data.get("session_counts") or {}).get("CN") or 0),
+                  "US": int((data.get("session_counts") or {}).get("US") or 0),
+              },
+              "errors": errors,
+              "error_count": len(errors),
+              "object_count": int(data.get("object_count") or 0),
+              "referenced_object_count": int(
+                  data.get("referenced_object_count") or 0
+              ),
+              "unreferenced_object_count": len(unreferenced),
+              "continuation_ready": bool(data.get("continuation_ready"))
+              if not parse_failed
+              else False,
+              "v1_activation_hashes": {
+                  "CN": (activation("CN", v1_version) or {}).get("record_sha256"),
+                  "US": (activation("US", v1_version) or {}).get("record_sha256"),
+              },
+              "v2_activation_present": {
+                  "CN": activation("CN", v2_version) is not None,
+                  "US": activation("US", v2_version) is not None,
+              },
+              "activation_records": activation_records,
+          }
+          if unreferenced:
+              summary["unreferenced_object_ids"] = [
+                  value.rsplit("/", 1)[-1] for value in unreferenced
+              ]
+
+          summary_path.write_text(
+              json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Publish sanitized verification summary
+        if: always()
+        env:
+          VERIFY_SUMMARY: ${{ runner.temp }}/d1-vps-verify-summary.json
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = json.loads(Path(os.environ["VERIFY_SUMMARY"]).read_text(encoding="utf-8"))
+          session_counts = summary.get("session_counts") or {}
+          v1 = summary.get("v1_activation_hashes") or {}
+          v2 = summary.get("v2_activation_present") or {}
+          lines = [
+              "# D1 VPS Read-Only Verify",
+              "",
+              f"- Verify status: `{summary.get('status')}`",
+              f"- Backend identity/version: `{summary.get('backend_identity')}` / `{summary.get('backend_version')}`",
+              f"- Storage identity SHA: `{summary.get('storage_identity_sha256')}`",
+              f"- CN formal session count: `{session_counts.get('CN', 0)}`",
+              f"- US formal session count: `{session_counts.get('US', 0)}`",
+              f"- CN V1 activation hash: `{v1.get('CN') or 'NOT_PRESENT'}`",
+              f"- US V1 activation hash: `{v1.get('US') or 'NOT_PRESENT'}`",
+              f"- CN V2 activation present: `{str(bool(v2.get('CN'))).lower()}`",
+              f"- US V2 activation present: `{str(bool(v2.get('US'))).lower()}`",
+              f"- Unreferenced object count: `{summary.get('unreferenced_object_count', 0)}`",
+              f"- Errors count: `{summary.get('error_count', 0)}`",
+              f"- Continuation ready: `{str(bool(summary.get('continuation_ready'))).lower()}`",
+          ]
+          identifiers = summary.get("unreferenced_object_ids") or []
+          if identifiers:
+              lines.append("- Unreferenced object IDs: " + ", ".join(f"`{value}`" for value in identifiers))
+          lines.extend([
+              "",
+              "This is a sanitized, non-authoritative receipt. The raw verification JSON was retained only in the runner temp directory.",
+              "",
+          ])
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines))
+          PY
+
+      - name: Enforce read-only verification integrity status
+        if: always()
+        env:
+          VERIFY_SUMMARY: ${{ runner.temp }}/d1-vps-verify-summary.json
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = json.loads(Path(os.environ["VERIFY_SUMMARY"]).read_text(encoding="utf-8"))
+          activation_mismatch = any(
+              not bool(item.get("storage_identity_matches_current"))
+              for item in summary.get("activation_records") or ()
+          )
+          if (
+              summary.get("status") != "VERIFIED"
+              or summary.get("errors")
+              or not bool(summary.get("continuation_ready"))
+              or activation_mismatch
+          ):
+              raise SystemExit("D1 VPS read-only verification failed closed")
+          PY
+
+      - name: Upload sanitized verification receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup01-d1-vps-readonly-verify-summary
+          path: ${{ runner.temp }}/d1-vps-verify-summary.json
+          if-no-files-found: warn
