@@ -12,7 +12,9 @@
 > trigger-only fallback、日报 reliability classification 与独立 notification marker；
 > Cloudflare Worker 与 VPS watchdog 已按该架构完成部署和 trigger-only smoke；SSH immutable
 > store、D1 source/observer contract、activation/prospective boundary、Cloud Daily Report
-> read-only 内存边界与 SETUP_01 H1 突破后双路径研究语义仍冻结）。
+> read-only 内存边界与 SETUP_01 H1 突破后双路径研究语义仍冻结）；新增专用 manual
+> `SETUP01 D1 VPS Read-Only Verify` workflow，使用既有只读 verify CLI、least-privilege
+> permissions 与 sanitized summary，尚未在 merge 后真实运行。
 
 ## 项目身份
 
@@ -552,7 +554,10 @@
   （危险阈值触发 `D1_STORAGE_LOW_SPACE_FAIL_CLOSED`，绝不自动删除 evidence）、root
   manifest、VPS → 空目录 verified export/recovery 与旧 VPS → export → 新 VPS import →
   full verify 迁移路径，以及 storage-validation / activation / per-market market-close
-  reconciliation workflows。合同细节见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`。
+  reconciliation workflows；另有专用 manual `SETUP01 D1 VPS Read-Only Verify` workflow，
+  只调用 `vps-verify --full-objects`，不注入行情、持仓、broker 或 Cloudflare 凭证，raw
+  receipt 只留 runner 临时目录，artifact 与 Job Summary 仅保留 sanitized summary。合同
+  细节见 `docs/research/SETUP01_D1_VPS_DURABLE_STORAGE.md`。
   VPS 已完成一次性初始化（专用非 root 账户 + root-owned helper + 冻结 storage root 与
   目录合同），运行期凭证只存在于 GitHub Secrets；真实 VPS synthetic storage validation
   已 `VERIFIED`（create-only、落盘重算 SHA-256、read-back、幂等重放、同 identity 不同

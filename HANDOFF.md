@@ -4,12 +4,12 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-当前逻辑任务是完成 `SINGLE_SOURCE_MARKET_DATA_V1` 在 PR #124 squash merge 后的正式治理
-closeout。PR #124 已进入 main；本分支只修正 `HANDOFF.md` 与
-`docs/CURRENT_STATUS.md` 的现场事实，使其与 GitHub 真实状态一致，目标节点为
-`POST_SINGLE_SOURCE_MERGE_GOVERNANCE_PR_FULLY_READY`。不得改变冻结交易策略、Paper、
-broker、Final OOS 或整体 Wave/Setup 路线；本轮不写 D1 V2 activation、不运行 formal
-natural collector、不修改 production state。
+当前逻辑任务是解决 PR #125 merge 后遗留的
+`POST_MERGE_VPS_STATE_NOT_REVERIFIED`，并关闭治理状态滞后。PR #124 与 PR #125
+均已进入 main；本分支新增最小的 `SETUP01 D1 VPS Read-Only Verify` workflow 与静态
+安全测试，目标节点为 `D1_VPS_READ_ONLY_VERIFY_PR_FULLY_READY`。不得改变冻结交易策略、
+Paper、broker、Final OOS 或整体 Wave/Setup 路线；本轮不写 D1 V2 activation、不运行
+formal natural collector、不修改 production state。
 
 当前 main 的生产数据架构为：CN 唯一 `HITHINK_FINANCIAL_API`，US 唯一 `YAHOO_CHART`；
 CN Candidate 为 HITHINK 官方 `000300.SH`/`000905.SH` 成分的确定性 union/dedupe；BaoStock
@@ -52,6 +52,8 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `CANDIDATE_STATUS=UNAVAILABLE`，不得渲染为 `NO_SIGNAL`。
 - `SINGLE_SOURCE_MARKET_DATA_V1` 代码已进入 main，但 `NATURAL_PRODUCTION_RUN_ACCEPTANCE_PENDING`：
   本轮不把尚未发生的 post-merge natural CN/US 日报写成已验收。
+- PR #124 与 PR #125 均已 squash merge；当前分支只为后续安全的 VPS read-only verify
+  入口准备最小 PR，动态 main/PR/CI 事实仍以 GitHub 为准。
 - D1 V1 legacy activation 保留；V2 append-only activation epoch 代码已进入 main，按
   `source_contract_version` 精确绑定 snapshot，V1 不可覆盖 V2，且
   `D1_V2_ACTIVATION_WRITTEN=False`。本轮没有真实 V2 activation，也没有允许 V2 natural
@@ -60,9 +62,11 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   的 VPS formal commit 完整性校验处失败：`D1 formal VPS commit requires a complete natural
   session`。失败发生在 object/pointer 写入之前，不能据此推导 VPS 当前 orphan 状态；没有执行
   cleanup。
-- `POST_MERGE_VPS_STATE_NOT_REVERIFIED`：本环境没有 `D1_VPS_*`，因此 CN/US formal count、
-  V1 activation hash、orphan/unreferenced object 列表与 V2 activation 是否存在均未作本轮实时
-  核对。此前历史核对的 CN/US `0/0` 不替代本轮证据。
+- `POST_MERGE_VPS_STATE_NOT_REVERIFIED`：本地 Codex 环境没有授权的 `D1_VPS_*`，且 PR #125
+  merge 后 main 尚缺专用只读 GitHub workflow，因此 CN/US formal count、V1 activation hash、
+  orphan/unreferenced object 列表与 V2 activation 是否存在均未作实时核对。本分支新增的
+  read-only workflow 只调用既有 `vps-verify --full-objects`，raw receipt 留在 runner 临时目录，
+  只上传 sanitized summary；历史核对的 CN/US `0/0` 不替代本轮证据。
 - 既有 CN/US schedule、exact resolver、reconciliation、日报 reliability/notification marker、
   Cloudflare/VPS trigger-only fallback 保持不变；#110、#82、#96 继续独立不动。
 
@@ -135,10 +139,10 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`POST_SINGLE_SOURCE_MERGE_GOVERNANCE_PR_FULLY_READY`：PR #124 已进入 main，当前治理 PR
-只同步 merge 后的现场事实，不改运行代码。`POST_MERGE_VPS_STATE_NOT_REVERIFIED` 仍然成立：
-本环境无 `D1_VPS_*`，所以本轮不宣称 formal count、activation hash、V2 presence 或 orphan
-状态。V1 activation 保持不变，V2 immutable activation 与 formal evidence 均未写入。
+`D1_VPS_READ_ONLY_VERIFY_PR_FULLY_READY`：PR #124 与 PR #125 已进入 main；本分支只新增
+专用 manual read-only verify workflow、最小静态安全测试，并同步当前现场治理描述。
+`POST_MERGE_VPS_STATE_NOT_REVERIFIED` 仍然成立，直到该 workflow 在 merge 后真实运行并读取
+安全 summary。V1 activation 保持不变，V2 immutable activation 与 formal evidence 均未写入。
 
 注意：VPS 实例曾被重建，host key 已变更，当前冻结 fingerprint 以 GitHub Secret
 `D1_VPS_HOST_KEY_FINGERPRINT` 与 `D1_VPS_KNOWN_HOSTS` 为准；旧指纹文件已作废。VPS 仍禁止
@@ -146,17 +150,16 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Next Action
 
-1. 用户决定是否 squash merge 本 docs-only governance closeout PR；本轮不自动 merge。
-2. merge 后重新获取最终 main SHA。
-3. merge 后再次确认 VPS durable state，并保留 read-only verify 的实时边界。
-4. 以最终 main SHA 生成 CN/US `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` activation preview/hash。
-5. 用户审核并单独授权 V2 activation write。
-6. 完成 write/read-back/full verify；未授权前不写 activation、不提交 formal D1 session。
-7. 等待下一自然 eligible session。
-8. 验收首次新单源 natural CN/US production run；不得人工指定日期或 backfill。
+1. 用户决定是否 squash merge 本 read-only verify PR；本轮不自动 merge。
+2. merge 后使用最终 main 运行 `SETUP01 D1 VPS Read-Only Verify`。
+3. 读取 sanitized summary；不把 artifact 当作正式 D1 evidence。
+4. 仅当 verify 为 `VERIFIED`、CN/US formal count 为 `0/0`、V1 hash 一致、V2 absent，且无
+   unresolved orphan/integrity issue 时，进入 `FINAL_MAIN_SHA_BOUND_D1_V2_ACTIVATION_PREVIEW`。
+5. 基于届时最终 main SHA 生成 CN/US V2 preview；不要提前冻结 activation timestamp。
+6. 用户审核并单独授权 V2 activation write；未授权前不写 activation、不提交 formal D1 session。
+7. 等待下一自然 eligible session，并验收首次新单源 natural CN/US production run；不得人工指定日期或 backfill。
 
-合并该治理 PR 后的下一正式节点是
-`FINAL_MAIN_SHA_BOUND_D1_V2_ACTIVATION_PREVIEW`；#110/#82/#96 继续独立不动。
+#110/#82/#96 继续独立不动。
 
 ## Constraints
 
