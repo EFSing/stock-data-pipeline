@@ -4,12 +4,14 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-当前逻辑任务是解决 PR #125 merge 后遗留的
-`POST_MERGE_VPS_STATE_NOT_REVERIFIED`，并关闭治理状态滞后。PR #124 与 PR #125
-均已进入 main；本分支新增最小的 `SETUP01 D1 VPS Read-Only Verify` workflow 与静态
-安全测试，目标节点为 `D1_VPS_READ_ONLY_VERIFY_PR_FULLY_READY`。不得改变冻结交易策略、
-Paper、broker、Final OOS 或整体 Wave/Setup 路线；本轮不写 D1 V2 activation、不运行
-formal natural collector、不修改 production state。
+当前逻辑任务已完成：已解决 PR #125 merge 后的
+`POST_MERGE_VPS_STATE_NOT_REVERIFIED`，证明并修复 VPS helper 的已知旧版本，完成 CN/US
+V2 activation，并通过最终 main 只读校验。当前交接状态为
+`D1_V2_ACTIVATION_COMPLETE`、`D1_V2_GOVERNANCE_PR_FULLY_READY`、
+`D1_V2_WAITING_FOR_FIRST_NATURAL_ELIGIBLE_SESSION`；部署身份硬化仍为
+`D1_VPS_HELPER_DEPLOYMENT_IDENTITY_HARDENING_PENDING`。治理 PR 只允许 docs-only、等待
+exact-head CI，明确不自动 merge。不得改变冻结交易策略、Paper、broker、Final OOS 或整体
+Wave/Setup 路线；本轮不运行 natural collector、不回填、不修改 production state。
 
 当前 main 的生产数据架构为：CN 唯一 `HITHINK_FINANCIAL_API`，US 唯一 `YAHOO_CHART`；
 CN Candidate 为 HITHINK 官方 `000300.SH`/`000905.SH` 成分的确定性 union/dedupe；BaoStock
@@ -24,11 +26,12 @@ storage，改用用户自有 Ubuntu VPS。Drive 404 与已合并的 GCS adapter 
 disabled/non-production，运行期没有 explicit approval 时拒绝写 formal D1。当前正式 backend
 是 SSH immutable store `SETUP01_D1_VPS_SSH_DURABLE_STORAGE` /
 `VPS_D1_DURABLE_BACKEND_V1`：GitHub Actions 继续做全部计算，VPS 只做 immutable storage、
-activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。当前环境没有授权的
-`D1_VPS_*` 运行时变量，因此本轮没有进行合并后的 VPS read-only verify，正式记录为
-`POST_MERGE_VPS_STATE_NOT_REVERIFIED`；此前受控核对的 0/0 只作为历史值，不能冒充本轮实时
-事实。没有运行 natural collector、没有创建或覆盖 V2 activation，也没有修改正式 SETUP、
-Risk、Daily Decision、Paper、Sheet 或 broker 语义。
+activation/pointer、SHA 校验、verify/export/recovery/migrate 与磁盘健康。分支维护流程证明
+远端 helper 是不再扫描 `system/activation_epochs/` 的已知旧版本，并只原子替换
+`/srv/d1-research/system/d1_vps_store_helper.py`；没有写入 D1 evidence、activation 或
+formal session 路径。随后 branch full verify、独立 main full verify 与最终 main full verify
+均通过；没有运行 natural collector、没有 backfill，也没有修改正式 SETUP、Risk、Daily
+Decision、Paper、Sheet 或 broker 语义。
 
 总体策略唯一正式事实源仍为 `docs/TRADING_SYSTEM_SPEC.md`：Weekly State → Daily State
 → Swing → Wave Scenario → Fibonacci → Setup → Entry / Decision → Invalidation / Target
@@ -52,21 +55,30 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
   `CANDIDATE_STATUS=UNAVAILABLE`，不得渲染为 `NO_SIGNAL`。
 - `SINGLE_SOURCE_MARKET_DATA_V1` 代码已进入 main，但 `NATURAL_PRODUCTION_RUN_ACCEPTANCE_PENDING`：
   本轮不把尚未发生的 post-merge natural CN/US 日报写成已验收。
-- PR #124 与 PR #125 均已 squash merge；当前分支只为后续安全的 VPS read-only verify
-  入口准备最小 PR，动态 main/PR/CI 事实仍以 GitHub 为准。
-- D1 V1 legacy activation 保留；V2 append-only activation epoch 代码已进入 main，按
-  `source_contract_version` 精确绑定 snapshot，V1 不可覆盖 V2，且
-  `D1_V2_ACTIVATION_WRITTEN=False`。本轮没有真实 V2 activation，也没有允许 V2 natural
-  collector 提交 formal evidence。
+- PR #124 与 PR #125 均已 squash merge；当前治理分支只包含 HANDOFF/CURRENT_STATUS
+  的最小 docs-only closeout，动态 main/PR/CI 事实仍以 GitHub 为准。
+- D1 V1 legacy activation 保留；V2 append-only activation epoch 已按
+  `source_contract_version` 精确绑定 snapshot 写入 CN/US，V1 未覆盖 V2。CN record 为
+  `321179a6beed10f8786a1cc27e43676085b04b344483426d708c74246304a067`，activation timestamp
+  为 `2026-09-30T03:46:23+00:00`；US record 为
+  `bb3409ddb1059a34e18375495b5bf976dab31b289b92f7a77ccbb21966bc1f51`，activation timestamp
+  为 `2026-09-30T07:02:56+00:00`。两者均为 immutable V2 activation；本轮没有 formal
+  evidence 或 formal natural session。
 - 旧 US reconciliation run `36657403069` 使用 merge 前旧 main，在 `Reconcile US market close`
   的 VPS formal commit 完整性校验处失败：`D1 formal VPS commit requires a complete natural
   session`。失败发生在 object/pointer 写入之前，不能据此推导 VPS 当前 orphan 状态；没有执行
   cleanup。
-- `POST_MERGE_VPS_STATE_NOT_REVERIFIED`：本地 Codex 环境没有授权的 `D1_VPS_*`，且 PR #125
-  merge 后 main 尚缺专用只读 GitHub workflow，因此 CN/US formal count、V1 activation hash、
-  orphan/unreferenced object 列表与 V2 activation 是否存在均未作实时核对。本分支新增的
-  read-only workflow 只调用既有 `vps-verify --full-objects`，raw receipt 留在 runner 临时目录，
-  只上传 sanitized summary；历史核对的 CN/US `0/0` 不替代本轮证据。
+- `D1_VPS_REMOTE_HELPER_ACTIVATION_EPOCH_SCAN_STALE` 已关闭：远端旧 helper hash 为
+  `cee43b1314a18cb1cd9ff4352e35fd991aa69b1b6fb252a8c0f598cc02aa9690`，授权 main helper
+  hash 为 `e2d57ce4e011825a2eee3f2005216d0ff12032e7d2a0140aaf8dd043c6d46334`；原子更新后
+  read-back 与 mode 保持一致，`.part`/backup residue 均为 `false`。更新使用
+  `StrictHostKeyChecking=yes` 与 pinned host fingerprint，且只触及单一 helper path。
+- 最终 main 只读 summary 为 `VERIFIED`：backend 为
+  `SETUP01_D1_VPS_SSH_DURABLE_STORAGE / VPS_D1_DURABLE_BACKEND_V1`，storage identity 为
+  `43815f2754928dc7be5e58e409a6d0c61493040fbe9f56f6050a93e374675116`，CN/US formal
+  session 为 `0/0`，V1 hash 保持 `01d339d52732966d50a33245321b1dc873a7f200f801e887e166d290ea83cb81`
+  与 `a1a97dabfa01adeaab964c4ebecc6f686497c1ac1fafa5c399a937d8fb35f85e`，CN/US V2 均为
+  present，unreferenced object 与 errors 均为 `0`，`continuation_ready=true`。
 - 既有 CN/US schedule、exact resolver、reconciliation、日报 reliability/notification marker、
   Cloudflare/VPS trigger-only fallback 保持不变；#110、#82、#96 继续独立不动。
 
@@ -127,8 +139,15 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 - D1 V1 activation bytes/hash 继续绑定 legacy `system/activation/{CN,US}.json`；V2
   activation 只能使用 append-only `system/activation_epochs/{CN,US}/
   SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`，commit 按 snapshot source-contract version
-  精确绑定，不使用 `current`/`latest` fallback。当前代码已准备该路径，但本轮未创建真实
-  V2 activation。
+  精确绑定，不使用 `current`/`latest` fallback。本轮 CN/US V2 均已创建且保持 immutable；
+  US record 绑定 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2`、observer
+  `SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1`、protocol
+  `SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1`（SHA-256
+  `ee55ec82959be510a8d9a2d84a99143de3638e550f88527536dad9fd5546d0e0`），首个 eligible
+  session 为 `2026-09-30`，last eligible session 为 `2027-09-29`，end boundary 为
+  `2027-09-30`，final cutoff 为 `2027-09-30T04:00:00+08:00`。其
+  `formal_entry_allowed=false`、`research_only=true`、`paper_write=false`、
+  `production_state_write=false`。
 - 用户普通股票收益偏好已登记为独立只读诊断：报告分别呈现最近合法 T1 gross headroom、
   后续结构目标及不确定性、止损距离/1R/RR/成本，以及仅在合法最终结果存在时呈现 net
   return/net R/持有期/资金占用；不新增绝对收益硬阈值，不改变 D1/5%/2R/T1 全退或准入。
@@ -139,10 +158,14 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Blocker / Decision
 
-`D1_VPS_READ_ONLY_VERIFY_PR_FULLY_READY`：PR #124 与 PR #125 已进入 main；本分支只新增
-专用 manual read-only verify workflow、最小静态安全测试，并同步当前现场治理描述。
-`POST_MERGE_VPS_STATE_NOT_REVERIFIED` 仍然成立，直到该 workflow 在 merge 后真实运行并读取
-安全 summary。V1 activation 保持不变，V2 immutable activation 与 formal evidence 均未写入。
+`D1_V2_ACTIVATION_COMPLETE`：helper stale diagnosis/update、branch/main/final read-only
+verify 与 CN/US V2 activation 均已完成；V1 activation 保持不变，formal session 仍为 `0/0`。
+`D1_V2_GOVERNANCE_PR_FULLY_READY`：只保留 HANDOFF/CURRENT_STATUS 的最小 governance
+closeout，等待该 docs-only PR 的 exact-head CI；不自动 merge。
+`D1_V2_WAITING_FOR_FIRST_NATURAL_ELIGIBLE_SESSION`：下一步只能等待 activation record
+规定的首个自然 eligible session；不得人工指定日期、collector/backfill 或补写 formal evidence。
+`D1_VPS_HELPER_DEPLOYMENT_IDENTITY_HARDENING_PENDING`：后续另行加强 deployed helper 与
+授权 main release 的身份绑定，本轮不扩大 scope。
 
 注意：VPS 实例曾被重建，host key 已变更，当前冻结 fingerprint 以 GitHub Secret
 `D1_VPS_HOST_KEY_FINGERPRINT` 与 `D1_VPS_KNOWN_HOSTS` 为准；旧指纹文件已作废。VPS 仍禁止
@@ -150,14 +173,13 @@ Extreme Fear Reversal；SETUP_03 仍只是其中一个子策略。
 
 ## Next Action
 
-1. 用户决定是否 squash merge 本 read-only verify PR；本轮不自动 merge。
-2. merge 后使用最终 main 运行 `SETUP01 D1 VPS Read-Only Verify`。
-3. 读取 sanitized summary；不把 artifact 当作正式 D1 evidence。
-4. 仅当 verify 为 `VERIFIED`、CN/US formal count 为 `0/0`、V1 hash 一致、V2 absent，且无
-   unresolved orphan/integrity issue 时，进入 `FINAL_MAIN_SHA_BOUND_D1_V2_ACTIVATION_PREVIEW`。
-5. 基于届时最终 main SHA 生成 CN/US V2 preview；不要提前冻结 activation timestamp。
-6. 用户审核并单独授权 V2 activation write；未授权前不写 activation、不提交 formal D1 session。
-7. 等待下一自然 eligible session，并验收首次新单源 natural CN/US production run；不得人工指定日期或 backfill。
+1. 从最新 main 创建最小 docs-only governance PR，PR body 保留 `What Changed`、`Why`、
+   `Tests`、`Risks`；等待 exact-head CI，不自动 merge。
+2. 保持 V1/V2 activation 与 VPS helper 不再改写；不运行 natural collector、不 backfill、
+   不提交 formal D1 session。
+3. 等待 CN/US activation 各自规定的首个自然 eligible session，再按既有窗口验收首个
+   新单源 natural run；任何缺失、迟到或 contract failure 都按 fail-closed 处理。
+4. 将 helper deployment identity hardening 作为独立后续任务，不在本 docs-only closeout 中扩 scope。
 
 #110/#82/#96 继续独立不动。
 

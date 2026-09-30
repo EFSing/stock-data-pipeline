@@ -5,16 +5,20 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 > 最后实质更新：2026-09-30（`SINGLE_SOURCE_MARKET_DATA_V1` 已 `MERGED_TO_MAIN`；自然
-> 生产运行验收仍为 `NATURAL_PRODUCTION_RUN_ACCEPTANCE_PENDING`；D1 V2 activation epoch
-> 代码已就绪但 `D1_V2_ACTIVATION_WRITTEN=False`；本次合并后的 VPS 状态为
-> `POST_MERGE_VPS_STATE_NOT_REVERIFIED`；新增
+> 生产运行验收仍为 `NATURAL_PRODUCTION_RUN_ACCEPTANCE_PENDING`；CN/US D1 V2 activation
+> 已按批准的 immutable epoch 写入；VPS helper stale diagnosis、branch/main/final read-only
+> verify 已完成；治理状态为 `D1_V2_ACTIVATION_COMPLETE`、
+> `D1_V2_GOVERNANCE_PR_FULLY_READY`、`D1_V2_WAITING_FOR_FIRST_NATURAL_ELIGIBLE_SESSION`，
+> helper deployment identity hardening 为 `D1_VPS_HELPER_DEPLOYMENT_IDENTITY_HARDENING_PENDING`；
+> 新增
 > shared exact completed-session resolver、close-to-next-open reconciliation、Cloudflare/VPS
 > trigger-only fallback、日报 reliability classification 与独立 notification marker；
 > Cloudflare Worker 与 VPS watchdog 已按该架构完成部署和 trigger-only smoke；SSH immutable
 > store、D1 source/observer contract、activation/prospective boundary、Cloud Daily Report
 > read-only 内存边界与 SETUP_01 H1 突破后双路径研究语义仍冻结）；新增专用 manual
 > `SETUP01 D1 VPS Read-Only Verify` workflow，使用既有只读 verify CLI、least-privilege
-> permissions 与 sanitized summary，尚未在 merge 后真实运行。
+> permissions 与 sanitized summary；最终 main summary 已为 `VERIFIED`，CN/US formal 为 `0/0`，
+> V1 hash 未变，CN/US V2 均可见。
 
 ## 项目身份
 
@@ -595,12 +599,32 @@
 - 不可变 per-market activation record 仍绑定冻结 protocol SHA、VPS backend/version、
   storage identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。
-  V1 legacy activation 继续保留，V2 使用 append-only epoch；当前代码状态为
-  `D1_V2_ACTIVATION_EPOCH_CODE_READY`、`D1_V2_ACTIVATION_WRITTEN=False`，本任务未创建/覆盖
-  V2 activation，也未改写旧 activation。`POST_MERGE_VPS_STATE_NOT_REVERIFIED`：本环境没有
-  授权的 `D1_VPS_*`，因此 CN/US formal session count、V1 activation hash、V2 activation
-  presence 与 orphan/unreferenced object 列表没有本轮实时结果；此前历史核对的 0/0 不替代
-  本轮证据。不得用人工日期或旧日报补 session。
+  V1 legacy activation 继续保留，V2 使用 append-only epoch；当前状态为
+  `D1_V2_ACTIVATION_COMPLETE`。CN record 为
+  `321179a6beed10f8786a1cc27e43676085b04b344483426d708c74246304a067`，timestamp 为
+  `2026-09-30T03:46:23+00:00`，`code_sha=0633e80a81302d0da8d5592c404bf80275a3c8cf`，
+  `storage_identity_sha256=43815f2754928dc7be5e58e409a6d0c61493040fbe9f56f6050a93e374675116`，
+  canonical path 为 `system/activation_epochs/CN/SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`。
+  US record 为 `bb3409ddb1059a34e18375495b5bf976dab31b289b92f7a77ccbb21966bc1f51`，timestamp
+  为 `2026-09-30T07:02:56+00:00`，同一 `code_sha` 与 storage identity，canonical path 为
+  `system/activation_epochs/US/SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`；其
+  `source_contract_version=SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2`、
+  `observer_version=SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1`、
+  `protocol_version=SETUP01_POST_BREAKOUT_D1_PROSPECTIVE_V1`、
+  `protocol_sha256=ee55ec82959be510a8d9a2d84a99143de3638e550f88527536dad9fd5546d0e0`，
+  backend 为 `SETUP01_D1_VPS_SSH_DURABLE_STORAGE / VPS_D1_DURABLE_BACKEND_V1`，first eligible
+  session 为 `2026-09-30`，last eligible 为 `2027-09-29`，end boundary 为 `2027-09-30`，
+  final cutoff 为 `2027-09-30T04:00:00+08:00`。US record 状态为
+  `D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION`，未允许 formal entry、paper write 或
+  production state write。不得用人工日期或旧日报补 session。
+- VPS helper 曾为已知旧版本，且不会扫描 `system/activation_epochs/`；branch-only maintenance
+  只原子更新 `/srv/d1-research/system/d1_vps_store_helper.py` 到授权 main helper bytes，
+  read-back SHA 与 mode 一致、无 `.part`/backup residue。最终 main read-only verify 为
+  `VERIFIED`，backend/storage identity 正确，CN/US formal session 为 `0/0`，V1 hash 为
+  `01d339d52732966d50a33245321b1dc873a7f200f801e887e166d290ea83cb81` /
+  `a1a97dabfa01adeaab964c4ebecc6f686497c1ac1fafa5c399a937d8fb35f85e`，CN/US V2 均 present，
+  unreferenced object 与 errors 均为 `0`，`continuation_ready=true`。自然 eligible session
+  之前不得运行 backfill 或 formal collector。
 - 同一 market activation identity 下只允许一个 approved durable backend：activation record
   绑定 backend identity/version 与 storage identity hash，因此保留的 GCS/Drive adapter 无法
   在 VPS activation 生效期间写 formal D1 evidence（运行期 fail closed），不构成 split-brain。
