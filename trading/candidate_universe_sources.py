@@ -28,6 +28,21 @@ class CandidateSeedDataError(RuntimeError):
     pass
 
 
+def require_snapshot_as_of(
+    snapshot_date: date | None, as_of: date | None, *, source: str,
+    snapshot_mode: str = "CURRENT_ONLY",
+) -> None:
+    """Reject undated/future membership or metadata, including cached payloads."""
+    if snapshot_date is None:
+        raise CandidateSeedDataError(f"{source}_SNAPSHOT_DATE_MISSING")
+    if as_of is not None and snapshot_date > as_of:
+        raise CandidateSeedDataError(
+            f"{source}_SNAPSHOT_AFTER_AS_OF:{snapshot_date.isoformat()}:"
+            f"report_as_of={as_of.isoformat()}:snapshot_mode={snapshot_mode}:"
+            "NO_ELIGIBLE_SNAPSHOT"
+        )
+
+
 HITHINK_INDEX_CONSTITUENT_ENDPOINT = (
     "/api/a-share-index/constituents/ths-stock-list"
 )
@@ -119,6 +134,15 @@ class BaoStockCandidateSeedAdapter:
                 symbol, exchange = canonical
                 basic = basic_by_code.get(source_code, {})
                 industry = industry_by_code.get(source_code, {})
+                require_snapshot_as_of(
+                    _as_date(index_row.get("updateDate")), as_of,
+                    source=f"BAOSTOCK_INDEX:{endpoint}", snapshot_mode="DATE_QUERY",
+                )
+                if industry:
+                    require_snapshot_as_of(
+                        _as_date(industry.get("updateDate")), as_of,
+                        source=f"BAOSTOCK_INDUSTRY:{source_code}",
+                    )
                 security_type = str(basic.get("type") or "").strip()
                 asset_class = "Equity" if security_type == "1" else "Unknown"
                 sector = str(industry.get("industry") or "").strip() or None
@@ -173,7 +197,12 @@ def _hithink_snapshot_timestamp(payload: dict[str, Any]) -> tuple[str, date | No
             return text, datetime.fromtimestamp(
                 float(raw) / 1000, ZoneInfo("Asia/Shanghai")
             ).date()
-        return text, date.fromisoformat(text[:10])
+        if len(text) == 10:
+            return text, date.fromisoformat(text)
+        timestamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=ZoneInfo("Asia/Shanghai"))
+        return text, timestamp.astimezone(ZoneInfo("Asia/Shanghai")).date()
     except (TypeError, ValueError, OSError) as exc:
         raise ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INVALID") from exc
 
@@ -252,10 +281,10 @@ class HithinkCandidateSeedAdapter:
                 index_name=index_name,
                 index_code=index_code,
             )
-            if as_of is not None and source_as_of is not None and source_as_of > as_of:
-                raise CandidateSeedDataError(
-                    f"HITHINK_INDEX_SNAPSHOT_AFTER_AS_OF:{index_code}:{source_as_of.isoformat()}"
-                )
+            require_snapshot_as_of(
+                source_as_of, as_of, source="HITHINK_INDEX",
+                snapshot_mode=f"CURRENT_ONLY:index_code={index_code}",
+            )
             for seed in seeds:
                 existing = merged.get(seed.symbol)
                 if existing is None:
@@ -316,6 +345,7 @@ def parse_iwb_holdings_csv(payload: bytes | str) -> tuple[date | None, tuple[See
         if row and row[0].strip() == "Fund Holdings as of" and len(row) > 1:
             source_as_of = _as_date(row[1])
             break
+    require_snapshot_as_of(source_as_of, None, source="IWB_HOLDINGS")
 
     output: list[SeedSecurity] = []
     for row in rows[header_index + 1 :]:
@@ -340,7 +370,7 @@ def parse_iwb_holdings_csv(payload: bytes | str) -> tuple[date | None, tuple[See
                 source_as_of=source_as_of,
                 reference_price=_parse_float(row[positions["Price"]]),
                 metadata_status="OK",
-                provenance=(IWB_OFFICIAL_HOLDINGS_URL,),
+                provenance=(IWB_OFFICIAL_HOLDINGS_URL, "snapshot_mode:CURRENT_ONLY"),
             )
         )
     if not output:
@@ -355,7 +385,7 @@ class IwbOfficialHoldingsAdapter:
         self.url = url
         self.timeout = timeout
 
-    def load(self) -> tuple[date | None, tuple[SeedSecurity, ...]]:
+    def load(self, as_of: date | None = None) -> tuple[date | None, tuple[SeedSecurity, ...]]:
         request = Request(
             self.url,
             headers={
@@ -365,7 +395,9 @@ class IwbOfficialHoldingsAdapter:
         )
         with urlopen(request, timeout=self.timeout) as response:
             payload = response.read()
-        return parse_iwb_holdings_csv(payload)
+        source_as_of, seeds = parse_iwb_holdings_csv(payload)
+        require_snapshot_as_of(source_as_of, as_of, source="IWB_HOLDINGS")
+        return source_as_of, seeds
 
 
 __all__ = [
@@ -378,4 +410,5 @@ __all__ = [
     "IwbOfficialHoldingsAdapter",
     "parse_iwb_holdings_csv",
     "parse_hithink_index_constituents",
+    "require_snapshot_as_of",
 ]

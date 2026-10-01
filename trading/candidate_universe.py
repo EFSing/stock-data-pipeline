@@ -260,6 +260,8 @@ def _evaluate_seed(
 ) -> CandidateRecord:
     if seed.market not in {"CN", "US"}:
         return _base_record(seed, "UNSUPPORTED_MARKET")
+    if seed.source_as_of is not None and seed.source_as_of > as_of_date:
+        return _base_record(seed, "SEED_METADATA_AFTER_AS_OF")
     if seed.metadata_status != "OK":
         return _base_record(seed, f"METADATA_{seed.metadata_status}")
     if seed.asset_class.upper() != "EQUITY":

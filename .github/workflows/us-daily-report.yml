@@ -10,6 +10,11 @@ on:
         description: "Optional completed US session date (YYYY-MM-DD)"
         required: false
         type: string
+      require_complete:
+        description: "Strict audit: fail even when a partial report was delivered"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -54,7 +59,7 @@ jobs:
       - name: Generate US report
         run: |
           STRICT_FLAG=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ inputs.require_complete }}" = "true" ]; then
             STRICT_FLAG="--require-complete"
           fi
           if [ -n "$REPORT_DATE" ]; then

@@ -315,6 +315,32 @@ def _review_rows_for_seed(seed: SeedSecurity, *, setup_state: str = "ARMED"):
 
 
 class ProductionCandidateRuntimeTests(unittest.TestCase):
+    def test_us_seed_loader_passes_report_date_to_holdings_adapter(self):
+        with patch("trading.production_candidate_runtime.IwbOfficialHoldingsAdapter") as adapter:
+            ProductionCandidateRuntime._load_us_seeds(T_DAY)
+            adapter.return_value.load.assert_called_once_with(as_of=T_DAY)
+
+    def test_future_or_undated_seed_envelope_and_metadata_block_before_history_fetch(self):
+        for market, symbol in (("CN", "600001.SH"), ("US", "AAPL")):
+            for envelope_date, metadata_date in (
+                (T_DAY + timedelta(days=1), T_DAY),
+                (T_DAY, T_DAY + timedelta(days=1)),
+                (T_DAY, None),
+            ):
+                with self.subTest(market=market, envelope=envelope_date, metadata=metadata_date):
+                    seed = replace(_seed(market, symbol), source_as_of=metadata_date)
+                    runtime = ProductionCandidateRuntime(
+                        seed_loaders={market: lambda _day: (envelope_date, (seed,))},
+                        short_history_loader=lambda *_args: self.fail("future seed fetched prices"),
+                        deep_history_loader=lambda *_args: self.fail("future seed fetched QFQ"),
+                        enforce_us_latest_qfq_asof=False,
+                    )
+                    result = runtime.run(market=market, as_of_date=T_DAY, completed_session_identity=_identity(market))
+                    self.assertEqual(result.candidate_status, "UNAVAILABLE")
+                    self.assertEqual(result.seed_count, 0)
+                    self.assertEqual(result.to_dict()["universe_snapshot_status"], "UNAVAILABLE")
+                    self.assertTrue(any("SNAPSHOT_" in error for error in result.errors))
+
     def test_cn_production_seed_loader_never_calls_baostock(self):
         seed = _seed("CN", "600001.SH")
         with patch.object(

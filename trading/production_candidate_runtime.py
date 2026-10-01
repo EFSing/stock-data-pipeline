@@ -47,6 +47,7 @@ from trading.candidate_universe import (
 from trading.candidate_universe_sources import (
     HithinkCandidateSeedAdapter,
     IwbOfficialHoldingsAdapter,
+    require_snapshot_as_of,
 )
 from trading.daily_decision_chain import (
     DATA_BAD,
@@ -1064,8 +1065,7 @@ class ProductionCandidateRuntime:
 
     @staticmethod
     def _load_us_seeds(as_of_date: date) -> tuple[date | None, tuple[Any, ...]]:
-        del as_of_date
-        return IwbOfficialHoldingsAdapter().load()
+        return IwbOfficialHoldingsAdapter().load(as_of=as_of_date)
 
     def run(
         self,
@@ -1117,6 +1117,22 @@ class ProductionCandidateRuntime:
                 for seed in seeds
             ):
                 raise CandidateRuntimeError("CANDIDATE_SEED_MARKET_MISMATCH")
+            # Validate the envelope and every metadata row before any price
+            # fetch.  Injected loaders/cached snapshots obey the same boundary.
+            if source_as_of is not None:
+                require_snapshot_as_of(
+                    source_as_of, as_of_date, source=f"{normalized_market}_CANDIDATE",
+                    snapshot_mode="SEED_METADATA",
+                )
+            for seed in seeds:
+                require_snapshot_as_of(
+                    getattr(seed, "source_as_of", None), as_of_date,
+                    source=f"{normalized_market}_CANDIDATE:{seed.symbol}",
+                    snapshot_mode="SEED_METADATA",
+                )
+            source_as_of = max([seed.source_as_of for seed in seeds] + (
+                [source_as_of] if source_as_of is not None else []
+            ))
             _record_stage(
                 timings,
                 "seed_metadata",
