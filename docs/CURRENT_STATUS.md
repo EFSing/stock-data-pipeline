@@ -7,7 +7,8 @@
 
 > 最后实质更新：2026-10-01（CN/US Candidate snapshot/metadata as-of 日期保护、
 > HITHINK ETF 五年单次窗口分段请求、manual/scheduled partial-report exit 一致性修复；
-> 本修复当前在独立 PR，尚未合并到 main。单源 provider 与 D1 V2 activation 能力保留，
+> 本修复已合并到 main，HITHINK provider 已恢复，CN/US workflow 公开真实 provider 验证完成；
+> 当前进入生产观察，后续自然日报验收待完成。单源 provider 与 D1 V2 activation 能力保留，
 > natural production / D1 evidence 验收与 helper deployment identity hardening 保持独立）。
 
 ## 项目身份
@@ -109,7 +110,7 @@
 - CN/US membership snapshot 与逐条 seed metadata 必须有可验证日期，且
   `snapshot_date <= report_as_of_date`；runtime 在 Candidate price fetch 前校验 envelope 与
   每条 seed，US IWB adapter 接收 report date，selector 拒绝未来 metadata。上海 ISO/epoch
-  timestamp 按相同本地日期解释。此修复在独立 PR 中，尚未进入 production main。
+  timestamp 按相同本地日期解释。Candidate snapshot as-of 修复已进入 production main。
 - HITHINK 官方成分股与已验证 IWB 下载都是 current-only；晚于报告日或日期缺失时
   明确 `UNAVAILABLE`，诊断保留 snapshot/report 日期、来源及 `NO_ELIGIBLE_SNAPSHOT`。
   不重标日期、不伪造历史参数、不用最新成分股回放过去。当前 production 无 persistent
@@ -323,7 +324,7 @@
 
 - 运维交付与分析质量分离：scheduled CN/US workflow 使用 partial-symbol-tolerant 语义，
   `RUN_STATUS=COMPLETED` + `DATA_STATUS=PARTIAL` 时 Actions 保持 success；manual
-  `workflow_dispatch` 在修复 PR 中默认同 scheduled 一致，仅显式 `require_complete=true`
+  `workflow_dispatch` 默认同 scheduled 一致，仅显式 `require_complete=true`
   才传 `--require-complete` 做 strict audit（exit 2），partial 质量标签仍保留。单源保留 provider
   provenance；stale/no exact-session、provider-wide failure、核心计算异常、artifact
   失败继续 non-zero；`COMPLETED_NO_USABLE_SYMBOLS` 先生成完整诊断再由 strict audit
@@ -384,8 +385,11 @@
   更新 0；Candidate 大规模历史不足和绿色日报掩盖部分质量亦已形成独立修复 PR。
   合并后仍需自然 schedule 只读验收 US exact-T、Candidate 覆盖、writer、日报状态与通知；
   代码测试或 Cloud 日报送达不能替代该验收，状态保持 `PRODUCTION_ACCEPTANCE_PENDING`。
-- 下一阶段优先观察真实 prospective Cloud Daily Reports / Paper 数据的正常 production
-  runs；这些 observational acceptance 不自动启动新的 strategy threshold research，也不
+- 当前处于生产观察：CN/US workflow 公开 fixture + 真实 provider 验证已完成，后续自然
+  日报继续核对 Candidate seed / included / deep-ready 数量、individual ENTRY_ALLOWED、
+  DATA_BLOCKED 与 JSON/HTML 完整性；自然运行验收仍待完成。仅记录问题，遇真实生产
+  blocker 或需要用户决策时停止；这些 observational acceptance 不启动新的开发 Phase 或
+  strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。
  - Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
    空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
@@ -438,8 +442,8 @@
 - `HITHINK_FINANCIAL_API` 已接入并完成真实 acceptance 的 `SINGLE_SOURCE_MARKET_DATA_V1`
   CN price path：明确 `a-share` 使用 raw `adjust=none` 与 corporate-action events，在仓库
   内由统一 adjustment engine 生成 qfq；明确 `fund-etf` 使用同一 vendor 的 fund historical
-  endpoint，并保留 provider-forward-adjusted provenance。ETF 历史单次最多五自然年；修复
-  PR 对长请求分段连续取数，保留原请求区间，避免默认 2000 日 QFQ 请求的 1003，不换源或
+  endpoint，并保留 provider-forward-adjusted provenance。ETF 历史单次最多五自然年；已合并
+  修复对长请求分段连续取数，保留原请求区间，避免默认 2000 日 QFQ 请求的 1003，不换源或
   截断请求。公开 provider 验证已成功，但实际返回历史覆盖仍由 provider 与既有门槛决定。
   财务报表字段仍不属于当前
   minimum market-data contract，也不作为 Wave/Fib/PA 依赖；任何未验证 adjustment contract
@@ -447,7 +451,8 @@
 
 - 已知 formal reader 单源状态接入缺口：当前 production prerequisites 仍要求旧
   `校验状态=已验证`；CN provider-valid 单源输入可能仍为 `DATA_BAD`，阻断正式池 Strategy
-  计算。Candidate 日期修复不改变该门槛，此缺口待独立修复；不得解释为策略无信号。
+  计算。Candidate 日期修复不改变该门槛；生产观察期间仅记录此剩余风险及影响，不主动
+  扩展修复；不得解释为策略无信号。
 
 ### Broker execution
 

@@ -4,10 +4,10 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`CANDIDATE_AS_OF_CONSISTENCY_CN_US`：CN/US Candidate 快照日期边界、HITHINK ETF
-历史窗口与 partial-report workflow exit 已完成最小修复、完整测试和真实 provider Actions
-验证。PR #128 保持独立，准备审阅；不自动合并。代码尚未进入 main，正式 branch/PR/CI
-状态以 GitHub 实时查询为准。HITHINK Secret 已成功配置，不再处理认证。
+`CN_US_PRODUCTION_OBSERVATION`：Candidate snapshot as-of 修复完成，HITHINK provider
+已恢复，CN/US workflow 公开 fixture + 真实 provider 验证完成。PR #128 已经用户授权
+squash merge，代码已进入 main；正式 branch/PR/CI 状态以 GitHub 实时查询为准。
+当前只观察合并后的自然日报，不开启新开发 Phase，不修改策略逻辑。
 
 ## Current State / Completed
 
@@ -29,6 +29,8 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 - CN/US manual 与 scheduled 日报默认使用相同 operational exit：已完成 partial report 为
   exit 0，数据质量仍 PARTIAL；只在显式 `require_complete=true` 时 strict audit exit 2。
   provider-wide failure、session/core/artifact failure 的 non-zero 语义不变。
+- PR 审查确认修改范围符合上述修复目标，无未解决 merge conflict；CI、三个 generic
+  shadow 与 CN/US 真实 provider workflow 均通过。合并后的自然日报验收仍待观察。
 
 ## Validation
 
@@ -57,13 +59,16 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 另发现独立的既有 formal reader 接入问题：`trading/production_prerequisites.py` 仍要求
 `校验状态=已验证`，CN 单源行情通过 provider 校验后可能仍被判 `DATA_BAD`，公开 fixture 的
 两只正式池标的因此未进入 Strategy 计算。此问题不由 Candidate as-of 修复引入，本 PR 不
-改该 data gate，后续单独修复，不将数据阻断写成无信号。
+改该 data gate；生产观察期间仅记录影响，不主动修复，不将数据阻断写成无信号。
 
 ## Next Action
 
-审阅 PR #128；获合并授权后再合并并核对 main。另行处理 formal reader 的单源状态接入；
-D1 natural evidence 验收与 helper deployment identity hardening 继续各自独立任务。
-#110/#82/#96 保持独立，不混入本修复。
+只读核对 main 后续 CN/US Daily Report：自然触发与 completed session、Candidate seed /
+included / deep-ready 数量、individual ENTRY_ALLOWED、DATA_BLOCKED、JSON/HTML 完整性及
+RUN_STATUS / DATA_STATUS / CANDIDATE_STATUS。未出现新的自然运行时保持待验收，不以验证
+fixture 或合并前运行替代。只记录问题，不扩展需求；仅遇真实生产 blocker 或需要用户
+决策时停止并通知。D1 natural evidence 验收与 helper deployment identity hardening、
+#110/#82/#96 保持各自独立，不混入本观察任务。
 
 ## Constraints / Pitfalls
 
