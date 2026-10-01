@@ -26,29 +26,9 @@ jobs:
   daily-report:
     runs-on: ubuntu-latest
     env:
+      VALIDATION_MARKET: CN
       REPORT_DATE: ${{ inputs.trade_date }}
-      BARK_ENDPOINT: ${{ secrets.BARK_ENDPOINT }}
-      SMTP_HOST: ${{ secrets.SMTP_HOST }}
-      SMTP_PORT: ${{ secrets.SMTP_PORT }}
-      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-      SMTP_FROM: ${{ secrets.SMTP_FROM }}
-      SMTP_TO: ${{ secrets.SMTP_TO }}
-      SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
-      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
-      # Optional durable operational namespace only; formal D1 evidence and
-      # Daily Report business data remain separate.
-      D1_VPS_HOST: ${{ secrets.D1_VPS_HOST }}
-      D1_VPS_PORT: ${{ vars.D1_VPS_PORT }}
-      D1_VPS_USER: ${{ vars.D1_VPS_USER }}
-      D1_VPS_STORAGE_ROOT: ${{ vars.D1_VPS_STORAGE_ROOT }}
-      D1_VPS_SSH_PRIVATE_KEY: ${{ secrets.D1_VPS_SSH_PRIVATE_KEY }}
-      D1_VPS_KNOWN_HOSTS: ${{ secrets.D1_VPS_KNOWN_HOSTS }}
-      D1_VPS_HOST_KEY_FINGERPRINT: ${{ secrets.D1_VPS_HOST_KEY_FINGERPRINT }}
-      D1_VPS_MIN_FREE_BYTES: ${{ vars.D1_VPS_MIN_FREE_BYTES }}
-      D1_VPS_DANGER_FREE_BYTES: ${{ vars.D1_VPS_DANGER_FREE_BYTES }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -56,17 +36,8 @@ jobs:
           python-version: "3.11"
       - name: Install runtime dependencies
         run: python -m pip install -r requirements.txt
-      - name: Generate CN report
-        run: |
-          STRICT_FLAG=""
-          if [ "${{ inputs.require_complete }}" = "true" ]; then
-            STRICT_FLAG="--require-complete"
-          fi
-          if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" $STRICT_FLAG
-          else
-            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" $STRICT_FLAG
-          fi
+      - name: Generate CN report with public fixture and real provider
+        run: python _candidate_asof_live_validation.py
       - name: Upload final CN artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -75,5 +46,7 @@ jobs:
           path: |
             ${{ runner.temp }}/cloud-daily-report/CN/daily-report.json
             ${{ runner.temp }}/cloud-daily-report/CN/daily-report.html
+            ${{ runner.temp }}/cloud-daily-report/CN/validation-summary.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
+
