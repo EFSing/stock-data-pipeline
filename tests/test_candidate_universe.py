@@ -3,6 +3,8 @@ import io
 import json
 import unittest
 from datetime import date, timedelta
+from dataclasses import replace
+from unittest.mock import patch
 
 from core import Quote
 from trading.candidate_universe import (
@@ -14,6 +16,7 @@ from trading.candidate_universe_sources import (
     BaoStockCandidateSeedAdapter,
     CandidateSeedDataError,
     HithinkCandidateSeedAdapter,
+    IwbOfficialHoldingsAdapter,
     parse_iwb_holdings_csv,
 )
 
@@ -194,6 +197,37 @@ class CandidateUniverseTests(unittest.TestCase):
 
 
 class IwbContractTests(unittest.TestCase):
+    @staticmethod
+    def _csv(snapshot_date):
+        return (
+            f'Fund Holdings as of,"{snapshot_date}"\n'
+            'Ticker,Name,Sector,Asset Class,Price,Exchange,Currency\n'
+            'AAPL,APPLE,Technology,Equity,200,NASDAQ,USD\n'
+        ).encode()
+
+    def test_latest_snapshot_is_checked_on_every_load_without_date_relabeling(self):
+        adapter = IwbOfficialHoldingsAdapter()
+        with patch("trading.candidate_universe_sources.urlopen") as open_url:
+            response = open_url.return_value.__enter__.return_value
+            response.read.side_effect = [self._csv("Sep 03, 2026"), self._csv("Sep 05, 2026")]
+            source_date, seeds = adapter.load(as_of=AS_OF)
+            self.assertEqual(source_date, date(2026, 9, 3))
+            self.assertEqual(seeds[0].source_as_of, source_date)
+            with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF.*report_as_of=2026-09-04.*CURRENT_ONLY.*NO_ELIGIBLE_SNAPSHOT"):
+                adapter.load(as_of=AS_OF)
+
+    def test_undated_holdings_fail_closed(self):
+        for value in ("", "invalid-date"):
+            with self.subTest(value=value), self.assertRaisesRegex(CandidateSeedDataError, "SNAPSHOT_DATE_MISSING"):
+                parse_iwb_holdings_csv(self._csv(value))
+
+    def test_selector_rejects_future_metadata_in_both_markets(self):
+        for market, symbol in (("CN", "600001.SH"), ("US", "AAPL")):
+            seed = replace(_seed(symbol, market, exchange="SH" if market == "CN" else "NASDAQ"), source_as_of=AS_OF + timedelta(days=1))
+            universe = select_candidate_universe((seed,), {symbol: _history(symbol, 10)}, AS_OF)
+            self.assertEqual(universe.records[0].exclusion_reason, "SEED_METADATA_AFTER_AS_OF")
+            self.assertFalse(universe.included)
+
     def test_parser_uses_official_preamble_and_equity_fields(self):
         rows = [
             ["iShares Russell 1000 ETF"],
@@ -287,6 +321,21 @@ class BaoStockContractTests(unittest.TestCase):
 
 
 class HithinkIndexContractTests(unittest.TestCase):
+    def test_snapshot_timestamp_uses_shanghai_date_across_utc_midnight(self):
+        payload = self._payload([{"thscode": "600001.SH", "name": "A"}])
+        payload["data"]["timestamp"] = "2026-09-04T17:00:00Z"
+        with self.assertRaisesRegex(CandidateSeedDataError, "2026-09-05.*report_as_of=2026-09-04"):
+            HithinkCandidateSeedAdapter(lambda *_args: payload).load(as_of=AS_OF)
+
+    def test_union_rejects_future_second_index_even_with_valid_first_index(self):
+        def request(_path, params):
+            payload = self._payload([{"thscode": "600001.SH", "name": "A"}])
+            if params["thscode"] == "000905.SH":
+                payload["data"]["timestamp"] = "2026-09-05"
+            return payload
+        with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF.*index_code=000905.SH"):
+            HithinkCandidateSeedAdapter(request).load(as_of=AS_OF)
+
     @staticmethod
     def _payload(rows):
         return {

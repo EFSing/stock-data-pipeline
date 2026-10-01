@@ -113,6 +113,10 @@ class GovernanceTests(unittest.TestCase):
             self.assertIn("schedule:", source)
             self.assertIn(cron, source)
             self.assertIn(f"--market {market}", source)
+            self.assertIn("require_complete:", source)
+            self.assertIn("default: false", source)
+            self.assertIn('${{ inputs.require_complete }}', source)
+            self.assertNotIn('if [ "${{ github.event_name }}" = "workflow_dispatch" ]', source)
             self.assertIn("run_cloud_daily_report.py", source)
             self.assertNotIn("main.py --group", source)
 

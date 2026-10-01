@@ -1882,9 +1882,9 @@ def _run_us_market(
 
     seed_started = time.perf_counter()
     try:
-        source_as_of, seeds = IwbOfficialHoldingsAdapter().load()
         candidate_sessions = _completed_us_sessions(as_of, HISTORY_BARS)
         effective_as_of = candidate_sessions[-1]
+        source_as_of, seeds = IwbOfficialHoldingsAdapter().load(as_of=effective_as_of)
     except Exception as exc:
         error_code = _market_error_code("US_SEED_METADATA_FAILED", exc)
         _record_stage(

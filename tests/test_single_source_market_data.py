@@ -244,6 +244,30 @@ class SingleSourceMarketDataTests(TestCase):
         self.assertIn("/api/a-share/prices/historical", calls)
         self.assertNotIn("/api/fund/market/historical", calls)
 
+    def test_etf_long_history_is_split_at_five_year_contract_without_truncation(self):
+        windows = []
+        start, end = date(2020, 2, 29), date(2026, 9, 30)
+        def request(path, params):
+            self.assertEqual(path, "/api/fund/market/historical")
+            first = datetime.fromtimestamp(params["start"] / 1000, timezone.utc).astimezone(
+                __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+            ).date()
+            last = datetime.fromtimestamp(params["end"] / 1000, timezone.utc).astimezone(
+                __import__("zoneinfo").ZoneInfo("Asia/Shanghai")
+            ).date()
+            windows.append((first, last))
+            return {"code": 0, "data": {"item": [
+                {"date": day.isoformat(), "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100}
+                for day in (first, last)
+            ]}}
+        watch = {"统一代码": "512400.SH", "市场": "CN", "币种": "CNY", "HITHINK资产类型": "fund-etf"}
+        with patch("providers._hithink_json", side_effect=request):
+            result = fetch_hithink_with_provenance(watch, "qfq", start, end)
+        self.assertEqual(windows, [(start, date(2025, 2, 28)), (date(2025, 3, 1), end)])
+        self.assertEqual([quote.trade_date for quote in result.quotes], [start, date(2025, 2, 28), date(2025, 3, 1), end])
+        self.assertEqual(result.api_requests, 2)
+        self.assertEqual(result.provenance["adjustment_engine_version"], CN_ETF_ADJUSTMENT_ENGINE_VERSION)
+
     def test_hithink_schema_break_is_provider_global(self):
         watch = {
             "统一代码": "600000.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",

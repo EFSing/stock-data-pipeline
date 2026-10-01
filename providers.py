@@ -435,16 +435,32 @@ def fetch_hithink_with_provenance(
     symbol = _hithink_symbol(watch)
     asset_type, metadata_requests = _hithink_asset_type(watch)
     if asset_type == HITHINK_ETF_ASSET_TYPE:
-        payload = _hithink_json(
-            "/api/fund/market/historical",
-            {
-                "thscode": symbol,
-                "interval": "1d",
-                "start": _hithink_epoch_ms(start),
-                "end": _hithink_epoch_ms(end),
-            },
-        )
-        raw_quotes = _hithink_raw_quotes(_hithink_items(payload), watch)
+        # The fund endpoint permits at most five calendar years per request.
+        # Preserve the requested history instead of truncating a long QFQ load.
+        raw_quotes = []
+        history_requests = 0
+        window_start = start
+        while window_start <= end:
+            try:
+                window_limit = window_start.replace(year=window_start.year + 5)
+            except ValueError:  # February 29 -> February 28 in a non-leap year.
+                window_limit = window_start.replace(year=window_start.year + 5, day=28)
+            window_end = min(end, window_limit)
+            payload = _hithink_json(
+                "/api/fund/market/historical",
+                {
+                    "thscode": symbol,
+                    "interval": "1d",
+                    "start": _hithink_epoch_ms(window_start),
+                    "end": _hithink_epoch_ms(window_end),
+                },
+            )
+            window_quotes = _hithink_raw_quotes(_hithink_items(payload), watch)
+            if any(not window_start <= quote.trade_date <= window_end for quote in window_quotes):
+                raise ProviderSymbolError("HITHINK_ETF_HISTORY_OUTSIDE_REQUEST")
+            raw_quotes.extend(window_quotes)
+            history_requests += 1
+            window_start = window_end + timedelta(days=1)
         if not raw_quotes:
             raise ProviderSymbolError("HITHINK_ETF_SYMBOL_NO_HISTORY")
         # The fund endpoint is explicitly documented by HiThink as an ETF
@@ -467,7 +483,7 @@ def fetch_hithink_with_provenance(
             tuple(raw_quotes),
             CN_SINGLE_SOURCE_PROVIDER,
             provenance,
-            metadata_requests + 1,
+            metadata_requests + history_requests,
         )
     payload = _hithink_json(
         "/api/a-share/prices/historical",
