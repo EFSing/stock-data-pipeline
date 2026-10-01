@@ -68,6 +68,11 @@ D1 natural evidence 验收与 helper deployment identity hardening 继续各自�
 ## Constraints / Pitfalls
 
 - 总体主线与四类 Setup 身份以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一事实源。
+  主线为 Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup →
+  Entry / Decision → Invalidation / Target → Risk / Position Management → Exit。
+- `SETUP_01` = Wave 2 → Wave 3，`SETUP_02` = Wave 3 Continuation，
+  `SETUP_03` = Platform Breakout，`SETUP_04` = Extreme Fear Reversal；SETUP_03 只是
+  四类 Setup 之一的子策略，Wave Scenario Engine、SETUP_01/02 的总体核心路线不变。
 - Wave/Swing/Fibonacci/Setup/Decision/Risk/Target/Stop/5%/2R/T→T+1 不变；无 OOS 或参数研究。
 - Candidate-only 仍 `READ_ONLY_DISCOVERY`，不 promotion、不 state/pending/Portfolio allocation。
 - Candidate unavailable 与 formal data status 分离，不渲染为 `NO_SIGNAL`；无法形成 universe
