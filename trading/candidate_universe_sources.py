@@ -11,16 +11,22 @@ import io
 from datetime import date, datetime
 from typing import Any, Callable
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from market_data_contract import ProviderGlobalFailure
 from providers import _hithink_items, _hithink_json
 from trading.candidate_universe import SeedSecurity
+from trading.production_prerequisites import ExactExchangeCalendarProvider
 
 
 IWB_OFFICIAL_HOLDINGS_URL = (
     "https://www.ishares.com/us/products/239707/ishares-russell-1000-etf/"
     "latest-holdings.csv"
+)
+IWB_HISTORICAL_HOLDINGS_URL = (
+    "https://www.ishares.com/ch/professionals/en/products/239707/"
+    "ishares-russell-1000-etf/1495092304805.ajax"
 )
 
 
@@ -72,9 +78,9 @@ def _as_date(value: str | None) -> date | None:
     text = str(value or "").strip()
     if not text:
         return None
-    for fmt in ("%Y-%m-%d", "%b %d, %Y"):
+    for fmt in ("%Y-%m-%d", "%b %d, %Y", "%d/%b/%Y"):
         try:
-            return datetime.strptime(text, fmt).date()
+            return datetime.strptime(text.replace("/Sept/", "/Sep/"), fmt).date()
         except ValueError:
             pass
     return None
@@ -194,17 +200,23 @@ def _hithink_snapshot_timestamp(payload: dict[str, Any]) -> tuple[str, date | No
     text = str(raw).strip()
     try:
         if isinstance(raw, (int, float)) or text.isdigit():
-            return text, datetime.fromtimestamp(
+            timestamp = datetime.fromtimestamp(
                 float(raw) / 1000, ZoneInfo("Asia/Shanghai")
-            ).date()
-        if len(text) == 10:
-            return text, date.fromisoformat(text)
-        timestamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            )
+        else:
+            timestamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=ZoneInfo("Asia/Shanghai"))
-        return text, timestamp.astimezone(ZoneInfo("Asia/Shanghai")).date()
+        source_day = timestamp.astimezone(ZoneInfo("Asia/Shanghai")).date()
     except (TypeError, ValueError, OSError) as exc:
         raise ProviderGlobalFailure("HITHINK_PROVIDER_SCHEMA_INVALID") from exc
+    # This field is data-ready time, not a constituent effective-date selector.
+    # On a non-session it describes the prior CN session, including holiday gaps.
+    # Never roll a trading-day snapshot back to satisfy an earlier report date.
+    calendar = ExactExchangeCalendarProvider()
+    source_as_of = (source_day if calendar.is_session("CN", source_day)
+                   else calendar.latest_completed_session("CN", now=timestamp).trade_date)
+    return text, source_as_of
 
 
 def parse_hithink_index_constituents(
@@ -244,6 +256,8 @@ def parse_hithink_index_constituents(
                     f"index_name:{index_name}",
                     f"index_code:{index_code}",
                     f"snapshot_timestamp:{source_timestamp}",
+                    f"snapshot_session_date:{source_as_of.isoformat()}",
+                    "snapshot_date_basis:XSHG_NON_SESSION_PREVIOUS_SESSION",
                     "snapshot_mode:CURRENT_ONLY",
                 ),
                 index_memberships=(index_code,),
@@ -261,9 +275,9 @@ class HithinkCandidateSeedAdapter:
     """Build the CN seed union from HiThink's official index endpoint.
 
     HiThink currently exposes a current membership snapshot rather than a
-    historical constituent selector.  The snapshot timestamp is retained on
-    every seed and a future snapshot is rejected for an as-of run, so current
-    membership cannot be silently applied retroactively.
+    historical constituent selector. Data-ready time is retained separately
+    from its CN session date. A non-session timestamp belongs to the preceding
+    exact session; trading-day snapshots cannot be applied to an earlier report.
     """
 
     def __init__(self, request_json: Callable[[str, dict[str, object]], dict] | None = None):
@@ -308,7 +322,7 @@ class HithinkCandidateSeedAdapter:
 
 
 def _parse_float(value: str | None) -> float | None:
-    text = str(value or "").strip().replace(",", "")
+    text = str(value or "").strip().replace(",", "").replace("’", "").replace("'", "")
     if not text or text == "-":
         return None
     try:
@@ -323,7 +337,10 @@ def _normalize_us_symbol(ticker: str) -> str:
     return str(ticker or "").strip().upper().replace(".", "-").replace("/", "-").replace(" ", "-")
 
 
-def parse_iwb_holdings_csv(payload: bytes | str) -> tuple[date | None, tuple[SeedSecurity, ...]]:
+def parse_iwb_holdings_csv(
+    payload: bytes | str, *, source_url: str = IWB_OFFICIAL_HOLDINGS_URL,
+    snapshot_mode: str = "CURRENT_ONLY",
+) -> tuple[date | None, tuple[SeedSecurity, ...]]:
     """Parse the actual iShares CSV shape, including its metadata preamble."""
 
     text = payload.decode("utf-8-sig", errors="replace") if isinstance(payload, bytes) else payload
@@ -370,7 +387,7 @@ def parse_iwb_holdings_csv(payload: bytes | str) -> tuple[date | None, tuple[See
                 source_as_of=source_as_of,
                 reference_price=_parse_float(row[positions["Price"]]),
                 metadata_status="OK",
-                provenance=(IWB_OFFICIAL_HOLDINGS_URL, "snapshot_mode:CURRENT_ONLY"),
+                provenance=(source_url, f"snapshot_mode:{snapshot_mode}"),
             )
         )
     if not output:
@@ -386,8 +403,16 @@ class IwbOfficialHoldingsAdapter:
         self.timeout = timeout
 
     def load(self, as_of: date | None = None) -> tuple[date | None, tuple[SeedSecurity, ...]]:
+        source_url = self.url
+        snapshot_mode = "CURRENT_ONLY"
+        if as_of is not None:
+            source_url = IWB_HISTORICAL_HOLDINGS_URL + "?" + urlencode({
+                "fileType": "csv", "fileName": "IWB_holdings", "dataType": "fund",
+                "asOfDate": as_of.strftime("%Y%m%d"),
+            })
+            snapshot_mode = "DATE_QUERY"
         request = Request(
-            self.url,
+            source_url,
             headers={
                 "User-Agent": "Mozilla/5.0",
                 "Accept": "text/csv,application/octet-stream;q=0.9,*/*;q=0.1",
@@ -395,8 +420,10 @@ class IwbOfficialHoldingsAdapter:
         )
         with urlopen(request, timeout=self.timeout) as response:
             payload = response.read()
-        source_as_of, seeds = parse_iwb_holdings_csv(payload)
-        require_snapshot_as_of(source_as_of, as_of, source="IWB_HOLDINGS")
+        source_as_of, seeds = parse_iwb_holdings_csv(
+            payload, source_url=source_url, snapshot_mode=snapshot_mode,
+        )
+        require_snapshot_as_of(source_as_of, as_of, source="IWB_HOLDINGS", snapshot_mode=snapshot_mode)
         return source_as_of, seeds
 
 

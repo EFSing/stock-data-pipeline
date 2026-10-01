@@ -205,7 +205,7 @@ class IwbContractTests(unittest.TestCase):
             'AAPL,APPLE,Technology,Equity,200,NASDAQ,USD\n'
         ).encode()
 
-    def test_latest_snapshot_is_checked_on_every_load_without_date_relabeling(self):
+    def test_dated_snapshot_is_checked_on_every_load_without_date_relabeling(self):
         adapter = IwbOfficialHoldingsAdapter()
         with patch("trading.candidate_universe_sources.urlopen") as open_url:
             response = open_url.return_value.__enter__.return_value
@@ -213,8 +213,20 @@ class IwbContractTests(unittest.TestCase):
             source_date, seeds = adapter.load(as_of=AS_OF)
             self.assertEqual(source_date, date(2026, 9, 3))
             self.assertEqual(seeds[0].source_as_of, source_date)
-            with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF.*report_as_of=2026-09-04.*CURRENT_ONLY.*NO_ELIGIBLE_SNAPSHOT"):
+            with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF.*report_as_of=2026-09-04.*DATE_QUERY.*NO_ELIGIBLE_SNAPSHOT"):
                 adapter.load(as_of=AS_OF)
+
+    def test_historical_request_uses_report_date_and_official_response_date(self):
+        with patch("trading.candidate_universe_sources.urlopen") as open_url:
+            open_url.return_value.__enter__.return_value.read.return_value = self._csv("30/Sept/2026")
+            source_date, seeds = IwbOfficialHoldingsAdapter().load(as_of=date(2026, 9, 30))
+            request = open_url.call_args.args[0]
+            self.assertIn("asOfDate=20260930", request.full_url)
+            self.assertIn("1495092304805.ajax", request.full_url)
+            self.assertEqual(source_date, date(2026, 9, 30))
+            self.assertEqual(seeds[0].source_as_of, source_date)
+            self.assertIn(request.full_url, seeds[0].provenance)
+            self.assertIn("snapshot_mode:DATE_QUERY", seeds[0].provenance)
 
     def test_undated_holdings_fail_closed(self):
         for value in ("", "invalid-date"):
@@ -323,18 +335,35 @@ class BaoStockContractTests(unittest.TestCase):
 class HithinkIndexContractTests(unittest.TestCase):
     def test_snapshot_timestamp_uses_shanghai_date_across_utc_midnight(self):
         payload = self._payload([{"thscode": "600001.SH", "name": "A"}])
-        payload["data"]["timestamp"] = "2026-09-04T17:00:00Z"
-        with self.assertRaisesRegex(CandidateSeedDataError, "2026-09-05.*report_as_of=2026-09-04"):
+        payload["data"]["timestamp"] = "2026-09-06T17:00:00Z"
+        with self.assertRaisesRegex(CandidateSeedDataError, "2026-09-07.*report_as_of=2026-09-04"):
             HithinkCandidateSeedAdapter(lambda *_args: payload).load(as_of=AS_OF)
 
     def test_union_rejects_future_second_index_even_with_valid_first_index(self):
         def request(_path, params):
             payload = self._payload([{"thscode": "600001.SH", "name": "A"}])
             if params["thscode"] == "000905.SH":
-                payload["data"]["timestamp"] = "2026-09-05"
+                payload["data"]["timestamp"] = "2026-09-07"
             return payload
         with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF.*index_code=000905.SH"):
             HithinkCandidateSeedAdapter(request).load(as_of=AS_OF)
+
+    def test_holiday_ready_time_uses_prior_exact_cn_session_and_keeps_timestamp(self):
+        for timestamp in ("2026-10-01T23:00:00+08:00", "2026-10-02T09:00:00+08:00"):
+            payload = self._payload([{"thscode": "600001.SH", "name": "A"}])
+            payload["data"]["timestamp"] = timestamp
+            adapter = HithinkCandidateSeedAdapter(lambda *_args: payload)
+            seeds = adapter.load(as_of=date(2026, 9, 30))
+            self.assertEqual(seeds[0].source_as_of, date(2026, 9, 30))
+            self.assertEqual(seeds[0].source_snapshot_timestamps, (timestamp,))
+            with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF"):
+                adapter.load(as_of=date(2026, 9, 29))
+
+    def test_trading_day_ready_time_is_never_rolled_back_to_previous_report(self):
+        payload = self._payload([{"thscode": "600001.SH", "name": "A"}])
+        payload["data"]["timestamp"] = "2026-10-08T09:00:00+08:00"
+        with self.assertRaisesRegex(CandidateSeedDataError, "AFTER_AS_OF:2026-10-08"):
+            HithinkCandidateSeedAdapter(lambda *_args: payload).load(as_of=date(2026, 9, 30))
 
     @staticmethod
     def _payload(rows):
