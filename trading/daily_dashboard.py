@@ -1977,6 +1977,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "workspace_order": ("today", "paper", "performance", "rules", "diagnostics"),
         "cloud_daily_report": dict(cloud_daily),
         "prospective_observation": dict(_mapping(payload.get("prospective_observation"))),
+        "opportunity_tracking": dict(_mapping(payload.get("opportunity_tracking"))),
     }
 
 
@@ -2549,6 +2550,34 @@ def _render_market_cards(markets: Sequence[Mapping[str, Any]]) -> str:
         '</div>'
         for item in markets
     )
+
+
+def _render_opportunity_tracking(projection: Mapping[str, Any]) -> str:
+    tracking = _mapping(projection.get("opportunity_tracking"))
+    if not tracking:
+        return ""
+    if tracking.get("status") != "SUCCESS":
+        return ('<section class="diagnostic-card" aria-label="机会跟踪"><h2>机会跟踪</h2>'
+                f'<p>账本状态：{_escape(tracking.get("status"))}；'
+                f'{_escape(tracking.get("error") or "诊断报告不写入正式前瞻账本")}</p></section>')
+    reasons = '；'.join(f'{_escape(_translate_reason(reason))}：{count}'
+                       for reason, count in tracking.get("today_original_reasons", {}).items())
+    stats = ''.join(
+        '<li>' + _escape(_translate_reason(row["original_reason"]))
+        + f'：成熟 {row["matured_count"]}，完整 {row["complete_count"]}，缺口 {row["coverage_gap_count"]}；'
+        + f'10日收盘变化均值 {_format_percent(row.get("mean_close_return"), signed=True)}，'
+        + f'中位数 {_format_percent(row.get("median_close_return"), signed=True)}；'
+        + f'最大有利变化均值 {_format_percent(row.get("mean_max_favorable_move"), signed=True)}，'
+        + f'最大不利变化均值 {_format_percent(row.get("mean_max_adverse_move"), signed=True)}；'
+        + f'T1触及 {row["T1_touched_count"]}，止损触及 {row["stop_touched_count"]}'
+        + ('；样本不足' if row["sample_insufficient"] else '') + '</li>'
+        for row in tracking.get("matured_by_original_reason", ()))
+    return ('<section class="diagnostic-card" aria-label="机会跟踪"><h2>机会跟踪</h2>'
+            f'<p>今日新增观察 {tracking["new_observation_count"]}；{reasons or "无新增"}</p>'
+            f'<p>仍在跟踪 {tracking["active_tracking_count"]}；今日完成10个交易日观察 {tracking["completed_today_count"]}；'
+            f'今日数据缺口 {tracking.get("coverage_gaps_today", 0)}</p>'
+            + ('<p>样本不足，仅作描述统计，不评价参数优劣。</p>' if tracking["sample_insufficient"] else '')
+            + '<ul>' + stats + '</ul><p>' + _escape(tracking["description"]) + '</p></section>')
 
 
 def _render_prospective_observation(projection: Mapping[str, Any]) -> str:
@@ -3166,6 +3195,7 @@ def render_dashboard_html(value: Any) -> str:
 </section>
 <section class="market-grid" aria-label="市场数据状态">{_render_market_cards(projection['markets'])}</section>
  {_render_diagnostics(projection)}
+ {_render_opportunity_tracking(projection)}
  {_render_prospective_observation(projection)}
 <nav class="workspace-nav" aria-label="工作台导航">{workspace_nav}</nav>
 {_render_paper_workspace(paper)}
