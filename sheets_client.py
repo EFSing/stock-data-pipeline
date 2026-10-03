@@ -399,9 +399,37 @@ class SheetsClient:
     def append_rows(self, sheet_name: str, headers: list[str], rows: Iterable[dict]) -> int:
         values = [[self._clean(row.get(header)) for header in headers] for row in rows]
         if values:
-            self._worksheet(sheet_name).append_rows(values, value_input_option="USER_ENTERED")
-            self._invalidate_records(sheet_name)
+            try:
+                self._worksheet(sheet_name).append_rows(values, value_input_option="USER_ENTERED")
+            finally:
+                # A response may be lost after Sheets accepted the append.
+                # A rerun must re-read durable identities before writing again.
+                self._invalidate_records(sheet_name)
         return len(values)
+
+    def upsert_opportunity_summary(self, row: dict, headers: list[str]) -> int:
+        """Update only one market/session row, preserving the other market.
+
+        Unlike the legacy whole-table _upsert, this does not clear/rewrite
+        durable history. Existing per-market workflow concurrency serializes
+        reruns; independent CN/US writers append/update disjoint identities.
+        """
+        sheet = "日报历史"
+        records = self.records(sheet)
+        matches = [(index, existing) for index, existing in enumerate(records, 2)
+                   if (str(existing.get("market")), str(existing.get("session_date")))
+                   == (row["market"], row["session_date"])]
+        if len(matches) > 1:
+            raise ValueError("DUPLICATE_OPPORTUNITY_SESSION_SUMMARY")
+        if not matches:
+            return self.append_rows(sheet, headers, [row])
+        index, existing = matches[0]
+        if existing.get("payload_json") == row["payload_json"]:
+            return 0
+        values = [[self._clean(row.get(header)) for header in headers]]
+        self._worksheet(sheet).update(values, f"A{index}", value_input_option="RAW")
+        self._invalidate_records(sheet)
+        return 1
 
 
 def gspread_col(number: int) -> str:

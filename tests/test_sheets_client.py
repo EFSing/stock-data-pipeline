@@ -51,6 +51,37 @@ class SheetsClientReadTests(unittest.TestCase):
         self.assertEqual(worksheet.read_calls, 3)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1.0, 2.0])
 
+    def test_opportunity_summary_upsert_preserves_other_market_and_same_run_is_noop(self):
+        from unittest.mock import Mock
+        headers = ["market", "session_date", "payload_json"]
+        old = {"market": "CN", "session_date": "2026-10-08", "payload_json": "old"}
+        other = {"market": "US", "session_date": "2026-10-08", "payload_json": "other"}
+        worksheet = _Worksheet([other, old])
+        worksheet.update = Mock()
+        client = self.make_client(worksheet)
+        self.assertEqual(client.upsert_opportunity_summary(old, headers), 0)
+        worksheet.update.assert_not_called()
+        new = old | {"payload_json": "new"}
+        self.assertEqual(client.upsert_opportunity_summary(new, headers), 1)
+        worksheet.update.assert_called_once_with([["CN", "2026-10-08", "new"]], "A3", value_input_option="RAW")
+        self.assertEqual(worksheet.records[0], other)
+        client.append_rows = Mock(return_value=1)
+        self.assertEqual(client.upsert_opportunity_summary(new | {"session_date": "2026-10-09"}, headers), 1)
+        client.append_rows.assert_called_once()
+
+    def test_lost_append_response_invalidates_snapshot_for_idempotent_retry(self):
+        from unittest.mock import Mock
+        worksheet = _Worksheet([])
+        client = self.make_client(worksheet)
+        self.assertEqual(client.records("机会观察账本"), [])
+        def accepted_then_response_lost(*args, **kwargs):
+            worksheet.records.append({"opportunity_id": "US|event"})
+            raise RuntimeError("response lost")
+        worksheet.append_rows = Mock(side_effect=accepted_then_response_lost)
+        with self.assertRaisesRegex(RuntimeError, "response lost"):
+            client.append_rows("机会观察账本", ["opportunity_id"], [{"opportunity_id": "US|event"}])
+        self.assertEqual(client.records("机会观察账本"), [{"opportunity_id": "US|event"}])
+
 
 if __name__ == "__main__":
     unittest.main()
