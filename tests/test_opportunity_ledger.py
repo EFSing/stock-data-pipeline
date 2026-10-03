@@ -233,12 +233,12 @@ class OpportunityLedgerTests(unittest.TestCase):
         ephemeral = SimpleNamespace(latest_rows=(), qfq_rows=(), symbol_status={}, active_paper_symbols=(),
                                     to_dict=lambda: {})
         quality = {"run_status": "COMPLETED", "data_status": "OK", "candidate_status": "SUCCESS"}
-        def run_once(client, automatic=True):
+        def run_once(client, automatic=True, t=T, current=NOW):
             with TemporaryDirectory() as directory, \
                     patch("scripts.run_cloud_daily_report.load_ephemeral_market_data", return_value=ephemeral), \
                     patch("scripts.run_cloud_daily_report.run_production_daily_decision", return_value=p), \
                     patch("scripts.run_cloud_daily_report._status_from_result", return_value=("SUCCESS", quality)):
-                result = run_cloud_daily_report(market="US", as_of_date=T, now=NOW, output_dir=directory,
+                result = run_cloud_daily_report(market="US", as_of_date=t, now=current, output_dir=directory,
                                                client=client, notify=False, automatic_resolution=automatic)
                 self.assertTrue((Path(directory) / "daily-report.json").exists())
                 self.assertTrue((Path(directory) / "daily-report.html").exists())
@@ -253,8 +253,16 @@ class OpportunityLedgerTests(unittest.TestCase):
         with TemporaryDirectory() as directory, patch("scripts.run_cloud_daily_report.resolve_cloud_trade_date", return_value=T), \
                 patch("scripts.run_cloud_daily_report.run_cloud_daily_report", return_value=failed):
             self.assertEqual(main(["--market", "US", "--output", directory, "--no-notify"]), 1)
-        diagnostic = run_once(Mock(), automatic=False)
+        manual = run_once(sheets, automatic=False)
+        self.assertEqual(manual["cloud_daily_report"]["OPPORTUNITY_LEDGER_STATUS"], "SUCCESS")
+        self.assertEqual(manual["opportunity_tracking"]["birth_rows_written"], 0)
+        # Later natural history after release is still diagnostic-only once
+        # its next-session open has passed; no Sheets access is attempted.
+        diagnostic_client = Mock()
+        diagnostic = run_once(diagnostic_client, automatic=False,
+                              current=datetime(2026, 10, 7, 21, tzinfo=timezone.utc))
         self.assertEqual(diagnostic["cloud_daily_report"]["OPPORTUNITY_LEDGER_STATUS"], "NOT_ENABLED_FOR_DIAGNOSTIC")
+        diagnostic_client.ensure_worksheet.assert_not_called()
 
 
 if __name__ == "__main__":
