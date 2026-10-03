@@ -1092,14 +1092,15 @@ def run_cloud_daily_report(
             session_resolution=session_resolution,
         ),
     }
-    # Explicit historical dates are diagnostic-only. The release excludes
-    # earlier sessions, and natural births must still be before next open.
-    eligible = automatic_resolution and as_of_date > RELEASE_DATE
+    # A manual rerun of the current natural session uses the same ledger.
+    # Historical dates are diagnostic-only; births must precede next open.
+    eligible = as_of_date > RELEASE_DATE
     if eligible:
         try:
             window = provider.completed_session_window(normalized_market, as_of_date, now=generated_at)
             if generated_at >= window.next_session_open:
-                opportunity_status = "MISSED_PROSPECTIVE_SESSION"
+                opportunity_status = ("MISSED_PROSPECTIVE_SESSION" if automatic_resolution
+                                      else "NOT_ENABLED_FOR_DIAGNOSTIC")
             else:
                 if sheets is None:
                     raise RuntimeError("OPPORTUNITY_LEDGER_CLIENT_UNAVAILABLE")

@@ -274,8 +274,8 @@ stop/invalidation与任一target同bar触及时写SAME_BAR_ORDER_AMBIGUOUS，不
 reason（allowed单列）显示mean/median close change、平均有利/不利变化与触及数量；
 不足20个完整样本仅显示样本不足，不输出参数优劣、阈值建议或交易绩效。
 
-Cloud自然自动session默认启用，release date为2026-10-04，正式birth只限release之后
-自然completed session的close→next-open窗口；显式--date是诊断、不写正式账本。
+Cloud自然session默认启用（schedule/manual/fallback使用同一记录路径），release date为2026-10-04，正式birth只限release之后
+自然completed session的close→next-open窗口；历史--date是诊断、不写正式账本；手动指定仍在close→next-open窗口的当前session也幂等记录。
 三个tab已在既有Cloud Google credentials下创建并核验写权限，未写生产历史observation。
 OPPORTUNITY_LEDGER_STATUS与RUN_STATUS分离；ledger失败仍尽量生成诊断JSON/HTML并
 non-zero exit。若报告本身失败，仍可持久化已有结果/失败summary与continuation gaps。

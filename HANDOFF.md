@@ -23,7 +23,7 @@ branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态
 - 原 T1/T2/T3/stop/invalidation 冻结；same-bar stop/target 明确 ambiguous。
   缺数据、漏运行、复权基准变化显式 coverage gap；不回填缺口收益，不虚构成交/PnL/R。
   有缺口的成熟样本不进入收益描述统计，样本不足明确提示，不形成参数建议。
-- Cloud 自动 session 默认记录；显式历史 --date 仅诊断，不写正式账本。2026-10-04
+- Cloud 自动 session 默认记录；手动指定当前自然session也记录；历史 --date 仅诊断，不写正式账本。2026-10-04
   release 前的 session 被排除；正式 birth 只在自然 completed session 的 close→next-open
   窗口产生。三个 tab 已用现有 Cloud Google Secrets 创建并核验写权限，无新增权限。
 - 写入失败独立为 OPPORTUNITY_LEDGER_STATUS=FAILED，尽量生成 JSON/HTML，workflow
