@@ -5,10 +5,10 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-02（PR #128 已合并；独立 Candidate 修复区分 CN data-ready
-> timestamp 与交易日归属，接入 US IWB 官方历史日期下载，尚未合并到 main。只读 CN 回补
-> 已恢复 Candidate 并形成报告，但发现零摆幅 Fibonacci 核心评估 blocker，完整链路验收
-> 未通过。单源 provider、D1 V2 activation 与 natural production / D1 evidence 边界不变）。
+> 最后实质更新：2026-10-03（独立 Candidate 源日期修复与 Wave 非正摆幅 Fib-context 边界
+> 修复已实现，尚未合并到 main；真实只读 CN 回补已 COMPLETED，核心异常解除，数据质量
+> 仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；公式和门槛不变。
+> 单源 provider、D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
 
@@ -162,6 +162,9 @@
   `scripts/run_wave_shadow.py` 提供只读 holdings shadow。
 - Fibonacci：`trading/fibonacci.py` 是纯几何 single source；引擎只将其转为描述性
   候选区域，不作为独立信号。
+- 独立修复在 Wave 的已判无效 impulse 边界避免请求非正摆幅的描述性 Fib 区域；
+  invalid scenario / Setup eligibility 保持既有语义，canonical Fibonacci 正摆幅合同、
+  公式、ratio 与策略阈值不变。该边界修复尚未进入 main。
 
 ### SETUP_01（Wave 2 → Wave 3）
 
@@ -297,9 +300,10 @@
   unchanged。
  - `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
   它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
-  enum/protocol/交易语义。首页默认展示本次 payload 中全部实际完成分析的股票，重点
-  阶段仍优先排序，WATCH、NO_TRADE、FAILED/DATA_BLOCKED 不再依赖 hidden 属性；静态
-  HTML 在没有 JavaScript 时也保留逐标的可读结果。股票默认以 compact row 展示，完整
+  enum/protocol/交易语义。独立展示修复默认优先显示今日重点，将确认与等待确认放在
+  异常之前；“全部/诊断”仍可访问全部结果，静态 HTML 在没有 JavaScript 时也保留完整
+  逐标的内容。原始质量/覆盖/前瞻审计默认折叠，报告覆盖数与成功分析数分开；评估失败
+  不冒充普通 NO_TRADE。该展示修复尚未进入 main。股票以 compact row 展示，完整
   当日状态、当前浪型、Setup、已满足/未满足条件、Decision/Risk/Position Management /
   原始诊断在“查看详情”展开；页面支持 sticky 阶段导航、
    ticker/公司名称前端搜索与既有 CN/US、Setup、行业筛选。`scripts/render_daily_dashboard.py`
@@ -396,10 +400,10 @@
   blocker 或需要用户决策时停止；这些 observational acceptance 不启动新的开发 Phase 或
   strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。
-- 独立 Candidate 修复的只读 CN 回补已恢复发现与多数策略评估，JSON/HTML 可完整生成；
-  但暴露 `601818.SH` 零摆幅 Fibonacci 的 `UPSTREAM_EVALUATION_FAILED`，runner 按既有核心
-  异常合同返回 FAILED，完整策略链尚未验收通过。该真实 blocker 需独立排查授权，不将
-  完整 artifact、部分分析成功或 ENTRY_ALLOWED=0 写成全链路通过；未改 Wave/Fibonacci。
+- 独立 Candidate / Wave 边界修复的真实只读 CN 回补已完成，零摆幅核心异常解除，
+  RUN_STATUS=COMPLETED，JSON/HTML 完整；不可评估的输入仍显式保留，DATA_STATUS 与
+  CANDIDATE_STATUS 仍 PARTIAL。不能把运维成功写成全标的数据完整或自然生产/D1 验收；
+  后续自然运行观察仍待修复合并到 main。既有核心异常 fail-closed 合同继续有效。
  - Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
    空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
    最低要求及可用的 RR 诊断。SETUP_01 target projection 额外把“保守第一障碍

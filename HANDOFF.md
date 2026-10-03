@@ -4,13 +4,12 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`CN_US_CANDIDATE_SOURCE_SESSION_DATE`：PR #128 已 squash merge。根据用户确认的
-“10 月 1 日非交易日返回 9 月 30 日成分数据”，已修正 CN data-ready timestamp 与真实
-session date 的区分，并接入 US IWB 指定日期历史持仓。修改在独立分支
-`codex/fix-candidate-session-date` / draft PR #129，尚未进入 main。
-2026-09-30 CN 只读回补已恢复 Candidate 并生成完整 JSON/HTML，但发现独立的 Fibonacci
-核心评估 blocker，完整策略链验收未通过。当前为 `READY_FOR_DECISION`；不改策略逻辑，
-不启动新开发 Phase。动态 branch/PR/CI 状态以 GitHub 实时查询为准。
+`CN_DAILY_REPORT_RECOVERY_AND_READABILITY`：PR #128 已 squash merge；Candidate 源日期修复
+在 PR #129。用户已授权独立排查零摆幅异常，并要求改善日报可读性；最小修复位于
+`codex/fix-wave-zero-span-report-readability` / PR #130，以 #129 分支为 base 保持 diff 独立。
+两项修复均未进入 main，不自动合并。2026-09-30 真实只读回补现已运行成功，核心评估
+异常为 0，JSON/HTML 完整；数据质量仍 PARTIAL，不能写成全标的覆盖完成或自然生产验收。
+当前准备审阅，不开启新 Phase，公式与交易门槛不变。动态 branch/PR/CI 以 GitHub 为准。
 
 ## Current State / Completed
 
@@ -38,18 +37,29 @@ session date 的区分，并接入 US IWB 指定日期历史持仓。修改在�
   provider-wide failure、session/core/artifact failure 的 non-zero 语义不变。
 - PR #128 的完成状态保留；当前源日期修复为独立 PR #129，不自动合并。自然日报验收与
   本次 historical diagnostic backfill 分开，不把回补当 prospective/D1 evidence。
+- Wave 已判断为无效的非正向/零摆幅 impulse 不再调用描述性 Fibonacci 区域计算；该
+  scenario 的原有失效与 Setup eligibility 不变。canonical Fibonacci 仍严格拒绝非正摆幅，
+  未改任何公式、ratio、5%/2R 或策略阈值。
+- 日报默认先显示今日重点，确认与等待确认排在异常前；全部结果仍可从“全部/诊断”访问，
+  无 JavaScript 时也保留完整行。原始质量/覆盖/前瞻审计默认折叠；“报告覆盖标的”与
+  “成功分析”分开，评估异常不再显示为正常 NO_TRADE。partial/failure 文案不抹掉已有结果。
 
 ## Validation
 
-- 完整 `python -m unittest discover -s tests -v`：965 tests，963 passed、2 skipped；
-  `py_compile`、`git diff --check`、PR code CI、Daily Chain / Portfolio Risk shadow 已通过。
+- 完整 `python -m unittest discover -s tests -v`：967 tests，965 passed、2 skipped；
+  focused presentation checks、`py_compile`、`git diff --check`、PR code CI 及 Daily Chain /
+  Paper / Portfolio Risk 三个 generic shadow 均通过。
 - Live adapter：CN 800 seeds，US 1023 seeds，source-as-of 均为 2026-09-30；holiday、交易日
   不回退、更早报告拒绝、原始 timestamp 与 IWB response-date 保护均有回归覆盖。
-- CN 用户授权的真实只读回补：800 seed → 781 data-qualified → 720 included → 687 deep-ready；
-  687 条 DATA_OK 中 686 正常策略评估，1 条 `UPSTREAM_EVALUATION_FAILED`；另 32 条 Candidate
-  DATA_UNAVAILABLE 与 3 条正式输入 DATA_BAD 保留，不降低 gate。新 CONFIRMED=5，
-  individual ENTRY_ALLOWED=0。JSON/HTML 完整，但核心异常使 workflow / RUN_STATUS=FAILED，
-  DATA_STATUS=PARTIAL、CANDIDATE_STATUS=PARTIAL；不能宣称完整策略链通过。
+- `601818.SH` exact-T 1000 bars 的 Wave / SETUP_01 replay / SETUP_02 replay 均完成，无原异常。
+- 新的真实只读 CN 回补：800 seed → 798 data-qualified → 735 included → 701 deep-ready / 成功
+  策略分析；报告共 737 行，核心评估异常 0。另 33 条 Candidate DATA_UNAVAILABLE 与 3 条
+  正式输入 DATA_BAD 保留，不降低 gate。新 CONFIRMED=5、ARMED=35、WATCH=40，individual
+  ENTRY_ALLOWED=0（3 个 T1 空间不足、1 个 R/R 不足、1 个超过入场区）。workflow success、
+  RUN_STATUS=COMPLETED，DATA_STATUS/CANDIDATE_STATUS=PARTIAL；HTML/JSON 完整。
+- 已用实际浏览器核对原报告与新版：原始诊断不再占满首屏，重点/全部结果/新确认筛选可用；
+  成功分析与异常计数分开。产物保存在 git-ignored 的
+  `artifacts/readonly_reports/CN/2026-09-30/wave-readability/`；不是研究/frozen artifact。
 - 临时 Actions harness 仅修改日报 workflow，不进入 PR；使用 `--no-notify`，不注入通知/VPS
   marker 凭证，未调用或修改 notification marker，未发送通知、未写 Sheet/state/Paper/D1。
   回补是 diagnostic，不是 natural production / prospective evidence；D1 activation、durable
@@ -57,11 +67,10 @@ session date 的区分，并接入 US IWB 指定日期历史持仓。修改在�
 
 ## Blocker / Remaining Risks
 
-Candidate 日期与 US 历史取数修复已完成，但真实回补发现核心 blocker：`601818.SH` 的
-Fibonacci 输入 `swing_high == swing_low == 2.5168255086545406`，触发“摆幅必须为正”并使
-整次运行 FAILED。该错误不是 Candidate as-of 拒绝，也不是 partial 分类误报；按用户
-“不修改策略逻辑”的约束，本次未改 Wave/Fibonacci。需用户决定是否授权独立排查修复。
-CN 仍无任意历史 session 的成分股查询；非交易日归属不把 current-only 变成历史数据库。
+零摆幅核心 blocker 已由明确的 invalid-context 边界处理解除，真实回补未再出现核心异常。
+当前无本次修复实现 blocker；数据质量仍 partial，33 个 Candidate 不可评估。CN 仍无任意
+历史 session 的成分股查询；非交易日归属不把 current-only 变成历史数据库。修复尚未进入
+main，自然运行验收待合并后观察。
 
 另发现独立的既有 formal reader 接入问题：`trading/production_prerequisites.py` 仍要求
 `校验状态=已验证`，本次回补 3 条正式输入仍 DATA_BAD。此问题不由 Candidate as-of 修复引入，本 PR 不
@@ -69,10 +78,10 @@ CN 仍无任意历史 session 的成分股查询；非交易日归属不把 curr
 
 ## Next Action
 
-审阅 draft PR #129 的 Candidate 修复与回补产物；用户决定是否授权独立修复上述 Fibonacci
-核心异常。当前停止扩大实现范围，不擅自忽略异常、降低数据门或放宽 as-of，不自动合并。
-main 自然生产观察、D1 natural evidence 验收、helper deployment identity hardening 和
-#110/#82/#96 保持各自独立。
+审阅 PR #129 与 stacked PR #130；获合并授权后先处理 #129，再将 #130 retarget main 并核对
+依赖/diff。之后只观察 main 的自然 CN/US 日报，不把本次回补作为自然生产或 D1 evidence。
+不扩展参数/策略研究，不擅自忽略异常、降低数据门或放宽 as-of。正式 reader 旧标签缺口、
+D1 natural evidence、helper deployment identity hardening 与 #110/#82/#96 继续独立。
 
 ## Constraints / Pitfalls
 
