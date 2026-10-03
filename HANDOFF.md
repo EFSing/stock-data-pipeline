@@ -10,7 +10,7 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 未修改、扩大或合并 #131；其 formal DATA_OK reader 修复是本分支的依赖，不是本任务 diff。
 branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 
-## Completed / System Boundary
+## Current State / Completed
 
 - `日报历史` 保存 market/session summary，复用已有日报漏斗和展示投影；同一 session
   使用行级 upsert，不清空历史表，不覆盖另一个市场。
@@ -42,7 +42,12 @@ branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态
 - 独立临时 Actions harness 只创建/核验三个 observation tab 表头，无生产observation、
   持仓读取、策略/Paper/broker/D1访问或通知。harness不进入PR，临时远端branch已清理。
 
-## Next Action / Remaining Risks
+## Blocker / Remaining Risks
+
+无实现或Sheets权限blocker；本任务尚未merge/deploy。依赖#131的reader修复仍待用户审阅，
+本任务保持stacked base。真实prospective结果必须等待自然session，不能通过历史回填补齐。
+
+## Next Action
 
 审阅本任务独立PR；不得merge。#131后续合并时，本chat自动核对真实远端事实，将本任务
 retarget/rebase到最新main，重新验证代码、CI与generic shadows并检查真实diff；不需要用户
@@ -51,8 +56,13 @@ retarget/rebase到最新main，重新验证代码、CI与generic shadows并检�
 
 ## Constraints / Pitfalls
 
-- 总体主线与四类Setup以docs/TRADING_SYSTEM_SPEC.md为唯一事实源；Wave/Swing/Fibonacci/
-  SETUP_01/02/Entry Zone/5%T1/2R/Stop/Target/Portfolio Risk/Paper/broker不变。
+- 总体主线与四类Setup以docs/TRADING_SYSTEM_SPEC.md为唯一事实源：
+  Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup →
+  Entry / Decision → Invalidation / Target → Risk / Position Management → Exit。
+  SETUP_01=Wave 2→Wave 3，SETUP_02=Wave 3 Continuation，SETUP_03=Platform Breakout，
+  SETUP_04=Extreme Fear Reversal；SETUP_03只是四类Setup之一的子策略，Wave Scenario Engine
+  与SETUP_01/SETUP_02的总体核心路线不变。本任务不改变Wave/Swing/Fibonacci/Entry Zone/
+  5%T1/2R/Stop/Target/Portfolio Risk/Paper/broker。
 - CN与US独立；只接受exact-T canonical provider，US QFQ latest-session门保持不变。
 - 当前三表schema见trading/opportunity_ledger.py常量及docs/ARCHITECTURE.md；
   null保留在payload_json，不从空单元格猜数值。既有per-market workflow concurrency
