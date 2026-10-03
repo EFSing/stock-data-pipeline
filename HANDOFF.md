@@ -4,12 +4,12 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`CN_DAILY_REPORT_RECOVERY_AND_READABILITY`：PR #128 已 squash merge；Candidate 源日期修复
-在 PR #129。用户已授权独立排查零摆幅异常，并要求改善日报可读性；最小修复位于
-`codex/fix-wave-zero-span-report-readability` / PR #130，以 #129 分支为 base 保持 diff 独立。
-两项修复均未进入 main，不自动合并。2026-09-30 真实只读回补现已运行成功，核心评估
-异常为 0，JSON/HTML 完整；数据质量仍 PARTIAL，不能写成全标的覆盖完成或自然生产验收。
-当前准备审阅，不开启新 Phase，公式与交易门槛不变。动态 branch/PR/CI 以 GitHub 为准。
+`FORMAL_READER_SINGLE_SOURCE_VALIDATION_LABEL`：PR #129 已 squash merge；PR #130 已 retarget
+到 main 并去除已合并的 Candidate diff，fresh exact-head CI / 三个 shadow 全通过后 squash
+merge。Candidate 源日期、Wave zero-span 与日报可读性修复均已进入 main，本地 main 已同步。
+用户授权下一项独立修复 formal reader 旧 `校验状态=已验证` 接入缺口；不再扩大 #130，
+33 条 Candidate unavailable 暂不处理。2026-09-30 只读回补已运行成功、核心异常为 0，
+数据质量仍 PARTIAL；自然生产验收继续独立。无新 Phase，公式和门槛不变；动态事实以 GitHub 为准。
 
 ## Current State / Completed
 
@@ -35,7 +35,8 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 - CN/US manual 与 scheduled 日报默认使用相同 operational exit：已完成 partial report 为
   exit 0，数据质量仍 PARTIAL；只在显式 `require_complete=true` 时 strict audit exit 2。
   provider-wide failure、session/core/artifact failure 的 non-zero 语义不变。
-- PR #128 的完成状态保留；当前源日期修复为独立 PR #129，不自动合并。自然日报验收与
+- PR #128/#129/#130 均已合并；#130 最终 diff 仅 Wave 边界、日报展示及对应测试/治理文档。
+  本次合并未加入 formal reader 或 Candidate unavailable 修复。自然日报验收与
   本次 historical diagnostic backfill 分开，不把回补当 prospective/D1 evidence。
 - Wave 已判断为无效的非正向/零摆幅 impulse 不再调用描述性 Fibonacci 区域计算；该
   scenario 的原有失效与 Setup eligibility 不变。canonical Fibonacci 仍严格拒绝非正摆幅，
@@ -69,19 +70,20 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 零摆幅核心 blocker 已由明确的 invalid-context 边界处理解除，真实回补未再出现核心异常。
 当前无本次修复实现 blocker；数据质量仍 partial，33 个 Candidate 不可评估。CN 仍无任意
-历史 session 的成分股查询；非交易日归属不把 current-only 变成历史数据库。修复尚未进入
-main，自然运行验收待合并后观察。
+历史 session 的成分股查询；非交易日归属不把 current-only 变成历史数据库。两项修复已
+进入 main，自然运行验收仍待后续真实运行。
 
-另发现独立的既有 formal reader 接入问题：`trading/production_prerequisites.py` 仍要求
-`校验状态=已验证`，本次回补 3 条正式输入仍 DATA_BAD。此问题不由 Candidate as-of 修复引入，本 PR 不
-改该 data gate；生产观察期间仅记录影响，不主动修复，不将数据阻断写成无信号。
+独立 formal reader 接入缺口：`trading/production_prerequisites.py` 仍要求旧
+`校验状态=已验证`。main 的自然日报已确认 CN 3 条、US 2 条 provider-valid 正式输入被
+判 DATA_BAD，未进入正式池策略分析；US Candidate 分析仍正常。用户现已授权独立修复
+该 reader 标签接入，不改变 source/exact-T/OHLC/QFQ 等数据门，不将数据阻断写成无信号。
 
 ## Next Action
 
-审阅 PR #129 与 stacked PR #130；获合并授权后先处理 #129，再将 #130 retarget main 并核对
-依赖/diff。之后只观察 main 的自然 CN/US 日报，不把本次回补作为自然生产或 D1 evidence。
-不扩展参数/策略研究，不擅自忽略异常、降低数据门或放宽 as-of。正式 reader 旧标签缺口、
-D1 natural evidence、helper deployment identity hardening 与 #110/#82/#96 继续独立。
+从同步后的 main 创建独立 formal reader 修复分支/PR，复用现有 single-source 合同与行投影，
+验证 CN/US 合格正式输入可进入分析，坏/过期/未知 source 继续 fail closed；不改策略逻辑，
+不处理 33 条 Candidate unavailable。main 自然观察、D1 evidence、helper deployment identity
+hardening 与 #110/#82/#96 保持独立，不把回补当自然生产或 prospective evidence。
 
 ## Constraints / Pitfalls
 

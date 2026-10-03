@@ -6,7 +6,7 @@
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
 > 最后实质更新：2026-10-03（独立 Candidate 源日期修复与 Wave 非正摆幅 Fib-context 边界
-> 修复已实现，尚未合并到 main；真实只读 CN 回补已 COMPLETED，核心异常解除，数据质量
+> 修复已合并到 main；真实只读 CN 回补已 COMPLETED，核心异常解除，数据质量
 > 仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；公式和门槛不变。
 > 单源 provider、D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
@@ -109,7 +109,7 @@
 - CN/US membership snapshot 与逐条 seed metadata 必须有可验证日期，且
   `snapshot_date <= report_as_of_date`；runtime 在 Candidate price fetch 前校验 envelope 与
   每条 seed，US IWB adapter 接收 report date，selector 拒绝未来 metadata。该日期保护已
-  进入 main；以下 source-date 修正与 US 历史下载已实现，尚未合并到 main。
+  进入 main；以下 source-date 修正与 US 历史下载也已合并到 main。
 - HITHINK 官方成分股仍是 current-only，REST/CLI 未提供历史日期 selector。`timestamp` 是
   data-ready time；新 adapter 保留原始 ISO/epoch 值，将非交易日响应按既有 XSHG calendar
   归属前一真实 session，交易日仍用当天日期，不为早期报告回退。此解释依据用户确认的
@@ -164,7 +164,7 @@
   候选区域，不作为独立信号。
 - 独立修复在 Wave 的已判无效 impulse 边界避免请求非正摆幅的描述性 Fib 区域；
   invalid scenario / Setup eligibility 保持既有语义，canonical Fibonacci 正摆幅合同、
-  公式、ratio 与策略阈值不变。该边界修复尚未进入 main。
+  公式、ratio 与策略阈值不变。该边界修复已进入 main。
 
 ### SETUP_01（Wave 2 → Wave 3）
 
@@ -303,7 +303,7 @@
   enum/protocol/交易语义。独立展示修复默认优先显示今日重点，将确认与等待确认放在
   异常之前；“全部/诊断”仍可访问全部结果，静态 HTML 在没有 JavaScript 时也保留完整
   逐标的内容。原始质量/覆盖/前瞻审计默认折叠，报告覆盖数与成功分析数分开；评估失败
-  不冒充普通 NO_TRADE。该展示修复尚未进入 main。股票以 compact row 展示，完整
+  不冒充普通 NO_TRADE。该展示修复已进入 main。股票以 compact row 展示，完整
   当日状态、当前浪型、Setup、已满足/未满足条件、Decision/Risk/Position Management /
   原始诊断在“查看详情”展开；页面支持 sticky 阶段导航、
    ticker/公司名称前端搜索与既有 CN/US、Setup、行业筛选。`scripts/render_daily_dashboard.py`
@@ -403,7 +403,7 @@
 - 独立 Candidate / Wave 边界修复的真实只读 CN 回补已完成，零摆幅核心异常解除，
   RUN_STATUS=COMPLETED，JSON/HTML 完整；不可评估的输入仍显式保留，DATA_STATUS 与
   CANDIDATE_STATUS 仍 PARTIAL。不能把运维成功写成全标的数据完整或自然生产/D1 验收；
-  后续自然运行观察仍待修复合并到 main。既有核心异常 fail-closed 合同继续有效。
+  修复已进入 main，后续自然运行观察继续独立。既有核心异常 fail-closed 合同继续有效。
  - Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
    空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
    最低要求及可用的 RR 诊断。SETUP_01 target projection 额外把“保守第一障碍
@@ -463,9 +463,9 @@
   都 fail closed 为 `DATA_ADJUSTMENT_UNVERIFIED`，不换 vendor。
 
 - 已知 formal reader 单源状态接入缺口：当前 production prerequisites 仍要求旧
-  `校验状态=已验证`；CN provider-valid 单源输入可能仍为 `DATA_BAD`，阻断正式池 Strategy
-  计算。Candidate 日期修复不改变该门槛；生产观察期间仅记录此剩余风险及影响，不主动
-  扩展修复；不得解释为策略无信号。
+  `校验状态=已验证`；CN/US provider-valid 正式输入仍可被判为 `DATA_BAD`，自然日报已确认
+  正式池分析受阻。Candidate/Wave/展示修复未改变该门槛，reader 接入待独立修复；不得
+  解释为策略无信号。既有 Candidate unavailable 个体不纳入该修复范围。
 
 ### Broker execution
 
