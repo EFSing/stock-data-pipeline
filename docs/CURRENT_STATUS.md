@@ -5,11 +5,10 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-01（CN/US Candidate snapshot/metadata as-of 日期保护、
-> HITHINK ETF 五年单次窗口分段请求、manual/scheduled partial-report exit 一致性修复；
-> 本修复已合并到 main，HITHINK provider 已恢复，CN/US workflow 公开真实 provider 验证完成；
-> 当前进入生产观察，后续自然日报验收待完成。单源 provider 与 D1 V2 activation 能力保留，
-> natural production / D1 evidence 验收与 helper deployment identity hardening 保持独立）。
+> 最后实质更新：2026-10-02（PR #128 已合并；独立 Candidate 修复区分 CN data-ready
+> timestamp 与交易日归属，接入 US IWB 官方历史日期下载，尚未合并到 main。只读 CN 回补
+> 已恢复 Candidate 并形成报告，但发现零摆幅 Fibonacci 核心评估 blocker，完整链路验收
+> 未通过。单源 provider、D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
 
@@ -109,12 +108,18 @@
   legacy/research adapter，不进入 production Candidate runtime。
 - CN/US membership snapshot 与逐条 seed metadata 必须有可验证日期，且
   `snapshot_date <= report_as_of_date`；runtime 在 Candidate price fetch 前校验 envelope 与
-  每条 seed，US IWB adapter 接收 report date，selector 拒绝未来 metadata。上海 ISO/epoch
-  timestamp 按相同本地日期解释。Candidate snapshot as-of 修复已进入 production main。
-- HITHINK 官方成分股与已验证 IWB 下载都是 current-only；晚于报告日或日期缺失时
-  明确 `UNAVAILABLE`，诊断保留 snapshot/report 日期、来源及 `NO_ELIGIBLE_SNAPSHOT`。
-  不重标日期、不伪造历史参数、不用最新成分股回放过去。当前 production 无 persistent
-  snapshot cache；所有新加载或 cache-backed loader 的输入均须重验原始日期。US live seed
+  每条 seed，US IWB adapter 接收 report date，selector 拒绝未来 metadata。该日期保护已
+  进入 main；以下 source-date 修正与 US 历史下载已实现，尚未合并到 main。
+- HITHINK 官方成分股仍是 current-only，REST/CLI 未提供历史日期 selector。`timestamp` 是
+  data-ready time；新 adapter 保留原始 ISO/epoch 值，将非交易日响应按既有 XSHG calendar
+  归属前一真实 session，交易日仍用当天日期，不为早期报告回退。此解释依据用户确认的
+  非交易日数据归属，不是 approximation 或历史端点；真正晚于报告日的 source session
+  仍 `UNAVAILABLE`，诊断保留 source/report date 与 `NO_ELIGIBLE_SNAPSHOT`。
+- US 新 adapter 在指定 report date 时从 iShares 官方 IWB 历史下载传 `asOfDate=YYYYMMDD`，
+  response `Fund Holdings as of` 是日期事实源；保留日期查询 URL/provenance，并兼容官方
+  historical CSV 日期/数字格式。不把 request date 赋给响应；缺日期或未来 snapshot fail
+  closed。未指定日期的直接下载仍为 current-only。当前 production 无 persistent
+  snapshot cache；所有新加载或 cache-backed loader 的输入均须重验日期。US live seed
   仅为 IWB Russell 1000，Yahoo 只供价格；S&P500/QQQ/SOX frozen research snapshots 独立。
 - 输出 affordability tier（CN `<=10,000` preferred / `<=20,000` retained；
   US 一股 `>1,000 USD` 排除）、20D/60D traded-notional 流动性 proxy、
@@ -391,6 +396,10 @@
   blocker 或需要用户决策时停止；这些 observational acceptance 不启动新的开发 Phase 或
   strategy threshold research，也不
   打开已关闭的 post-confirmation retest lifecycle。
+- 独立 Candidate 修复的只读 CN 回补已恢复发现与多数策略评估，JSON/HTML 可完整生成；
+  但暴露 `601818.SH` 零摆幅 Fibonacci 的 `UPSTREAM_EVALUATION_FAILED`，runner 按既有核心
+  异常合同返回 FAILED，完整策略链尚未验收通过。该真实 blocker 需独立排查授权，不将
+  完整 artifact、部分分析成功或 ENTRY_ALLOWED=0 写成全链路通过；未改 Wave/Fibonacci。
  - Browser Dashboard 与 email-safe HTML 在人类可读详情中展示“机会新鲜度”；目标
    空间不足明确写成“目标上涨空间不足”，并同时显示参考价格、T1、实际百分比、5%
    最低要求及可用的 RR 诊断。SETUP_01 target projection 额外把“保守第一障碍

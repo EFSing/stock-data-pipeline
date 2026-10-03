@@ -9,8 +9,8 @@ Weekly bounded seed refresh (read-only, no Sheet write)
         ↓
 trading/candidate_universe_sources.py
         → HITHINK official HS300 (000300.SH) ∪ CSI500 (000905.SH) constituents (CN)
-          with membership and current-snapshot provenance
-        → official iShares IWB latest-holdings.csv (US)
+          with data-ready timestamp and exact CN session-date provenance
+        → official iShares IWB dated holdings download for report as-of (US)
         ↓
 trading/candidate_universe.py
         → security/sector normalization
