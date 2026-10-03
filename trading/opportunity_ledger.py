@@ -198,8 +198,13 @@ def session_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
         "CONFIRMED": sum(row.get("setup01_state") == "CONFIRMED" or row.get("setup02_state") == "CONFIRMED" for row in results),
         "new_CONFIRMED": funnel.get("new_CONFIRMED"),
         "ENTRY_ALLOWED": funnel.get("individual_ENTRY_ALLOWED"),
+        "NO_TRADE": funnel.get("NO_TRADE"),
         "NO_TRADE_reasons_json": _json(dict(reasons)),
         "NO_TRADE_reasons": dict(reasons),
+        "NO_TRADE_result_primary_reasons": dict(Counter(
+            next(iter(row.get("reasons") or ()), "NO_REASON_REPORTED")
+            for row in results if row.get("final_status") == "NO_TRADE"
+        )),
         **{name: cloud.get(name) for name in ("RUN_STATUS", "DATA_STATUS", "CANDIDATE_STATUS")},
         "funnel": funnel, "git_sha": cloud.get("git_sha"),
     }
