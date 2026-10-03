@@ -20,7 +20,7 @@ trading/candidate_universe.py
         ↓
 lightweight candidate rows / fixture (no production state, no Sheets)
 
-Cloud Daily Report V1 (one independent CN or US workflow, read-only)
+Cloud Daily Report V1 (independent CN/US; strategy read-only, observation ledger write)
         ↓
 Exact exchange-calendars gate (CN=XSHG, US=XNYS)
         → non-session: SKIPPED_NON_SESSION, no previous-session fallback
@@ -34,6 +34,10 @@ trading/ephemeral_market_data.py
 ProductionInputAdapter(market=CN|US, ephemeral latest/QFQ)
         → existing Candidate runtime + existing account-isolated Daily Chain
         → Candidate-only remains READ_ONLY_DISCOVERY; no state or Sheet write
+        ↓
+Daily Opportunity Ledger V1 → 日报历史 / 机会观察账本 / 机会观察跟踪 (Sheets)
+        → session upsert; all new CONFIRMED births; exact-session T+1..T+10 outcomes
+        → observation only; no state/Paper/holdings/broker mutation
         ↓
 daily-report.json + daily-report.html (allowlist only, RUNNER_TEMP, ~30d upload)
         → optional Bark/SMTP notification with current GitHub run URL and the same full
@@ -233,12 +237,49 @@ scripts/run_cloud_daily_report.py
 
 - `run_cloud_daily_report.py` performs the exact session gate before constructing `SheetsClient`,
   loads only the target market's required provider identities into memory, and deliberately
-  does not read the legacy `最新行情` / `历史行情_前复权` sheets. It writes only
-  `daily-report.json` and `daily-report.html`, and never writes market rows, state, paper
+  does not read the legacy `最新行情` / `历史行情_前复权` sheets. It emits only
+  `daily-report.json` and `daily-report.html` artifacts, persists only independent opportunity
+  observations in the three ledger tabs, and never writes market-history rows, state, paper
   events, candidate promotion, or broker orders. The JSON metadata records the checked-out
   git SHA and lightweight CandidateRecord audit rows, but no raw/QFQ bars. `BARK_ENDPOINT`
   and optional SMTP are notification-only integrations; notification failure is recorded but
   does not alter the Daily Chain result.
+
+### trading/opportunity_ledger.py — Daily Opportunity Ledger V1
+
+Direct `SheetsClient.records/ensure_worksheet/append_rows`，不增加storage abstraction。
+现有整表`_upsert`会清空并重写历史，不能用于CN/US共享的durable ledger；
+`SheetsClient.upsert_opportunity_summary`只更新对应market/session行或追加新行，
+同内容为NOOP。既有CN/US workflow的per-market concurrency序列化同session重跑，
+不同市场更新不同identity。birth/follow-up追加前读取已有identity，写响应丢失后使
+records cache失效；不自动重试写入，下一次运行从真实Sheets恢复已提交记录。
+
+| Tab | Scalar columns | Identity / nested payload |
+|---|---|---|
+| `日报历史` | market, session_date, seed, data_qualified, included, deep_ready, successful_analysis, WATCH, ARMED, CONFIRMED, new_CONFIRMED, ENTRY_ALLOWED, NO_TRADE_reasons_json, RUN_STATUS, DATA_STATUS, CANDIDATE_STATUS, payload_json | market + session_date；payload另保留NO_TRADE总数、原result primary reasons、原funnel与git provenance |
+| `机会观察账本` | opportunity_id, market, symbol, setup, event_identity, T, source_identity, signal_close, action, primary_reject_reason, entry_zone_low/high, probe_entry, confirmation_entry, structural_invalidation, execution_stop, T1/T2/T3, t1_upside, rr, payload_json | opportunity_id=`market|existing event identity`；不可变birth；payload保留原Decision稳定字段、Wave/Setup context、formal/candidate身份、provider/adjustment/session/code provenance；不存在的字段为null |
+| `机会观察跟踪` | opportunity_id, as_of_date, sessions_since_confirmation, market, symbol, coverage_status, open/high/low/close, close_return, cumulative_max_favorable_move, cumulative_max_adverse_move, coverage_complete, bar_order_status, payload_json | opportunity_id + as_of_date；payload中touches与first_touch_sessions包含T1/T2/T3/execution_stop/structural_invalidation，另保留provider provenance |
+
+Runner仅把同一次分析所用的DailySymbolInput引用交给观察层，以保存exact-T signal close
+并复用有效历史；不增加Daily Chain evaluation。掉出Candidate的active observation用
+`ProductionCandidateRuntime.load_opportunity_continuation`复用已有deep QFQ loader、
+exact session window与US latest-QFQ门；身份为OPPORTUNITY_OBSERVATION，绝不作为
+Paper/strategy input，不创建pending/plan/order。CN资产类型继续由HITHINK自身metadata
+解析，不从symbol前缀猜测或强行设为股票。birth与follow-up只使用T及以前/当前可见数据。
+
+T日high/low不计未来结果；未来10个session按原signal close描述价格变化，原几何冻结。
+stop/invalidation与任一target同bar触及时写SAME_BAR_ORDER_AMBIGUOUS，不猜先后或胜负。
+缺行情/错provider/未来bar/漏运行/QFQ基准变化为显式gap；后续数据不事后覆盖gap，
+存在gap的样本不进入成熟收益统计，首次触及只表示已观察的首次触及。成熟按原reject
+reason（allowed单列）显示mean/median close change、平均有利/不利变化与触及数量；
+不足20个完整样本仅显示样本不足，不输出参数优劣、阈值建议或交易绩效。
+
+Cloud自然自动session默认启用，release date为2026-10-04，正式birth只限release之后
+自然completed session的close→next-open窗口；显式--date是诊断、不写正式账本。
+三个tab已在既有Cloud Google credentials下创建并核验写权限，未写生产历史observation。
+OPPORTUNITY_LEDGER_STATUS与RUN_STATUS分离；ledger失败仍尽量生成诊断JSON/HTML并
+non-zero exit。若报告本身失败，仍可持久化已有结果/失败summary与continuation gaps。
+策略状态、Paper、持仓、broker、market-history与D1 evidence不写。
 
 ### trading/ephemeral_market_data.py
 
@@ -301,7 +342,7 @@ scripts/run_cloud_daily_report.py
 
 ### Execution modes
 
-Cloud Daily Report V1 是 CN/US 独立的 read-only scheduled path：先用 `XSHG` / `XNYS`
+Cloud Daily Report V1 是 CN/US 独立的 strategy-read-only scheduled path（另有独立机会观察写入）：先用 `XSHG` / `XNYS`
 将 timezone-aware 当前时刻转换为交易所本地日期，再验证精确 completed T；非交易日返回
 `SKIPPED_NON_SESSION`，再从 provider 获取目标市场
 正式池、持仓和 Paper continuation 所需的 latest/QFQ rows。它复用既有
