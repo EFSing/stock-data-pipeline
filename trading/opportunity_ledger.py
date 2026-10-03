@@ -234,6 +234,7 @@ def followup(birth, session: date, index: int, history, previous, *, provenance=
     t = date.fromisoformat(birth["T"])
     if session <= t:
         raise ValueError("FOLLOWUP_REQUIRES_T_PLUS_ONE")
+    previous = [row for row in previous if row["as_of_date"] < session.isoformat()]
     status = unavailable_reason
     errors = validate_single_source_quotes(
         history, expected_symbol=birth["symbol"], expected_market=birth["market"],
@@ -327,7 +328,7 @@ def persist_daily_opportunities(client, payload, inputs, calendar, runtime, now)
     new = birth_snapshots(payload, inputs)
     written = _append(client, OPPORTUNITY_SHEET, new, births, ("opportunity_id",))
     market, t = payload["market"], date.fromisoformat(payload["as_of_date"])
-    active = set(active_symbols(births, follows, market)) & {
+    active = set(active_symbols(births, [row for row in follows if row["as_of_date"] <= t.isoformat()], market)) & {
         birth["symbol"] for birth in births if birth["market"] == market and birth["T"] < t.isoformat()
     }
     reused = {item.symbol: tuple(item.quotes) for item in inputs

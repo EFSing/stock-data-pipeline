@@ -94,6 +94,12 @@ class OpportunityLedgerTests(unittest.TestCase):
                          ["ABOVE_ENTRY_ZONE", "RR_BELOW_MINIMUM"] + ["TARGET_UPSIDE_BELOW_MINIMUM"] * 3)
         self.assertTrue(all(b["signal_close"] is None for b in births))
         self.assertEqual(fixture, original)
+        client, runtime = Sheets(), Mock()
+        first = persist_daily_opportunities(client, fixture, [], CALENDAR, runtime, NOW)
+        rerun = persist_daily_opportunities(client, fixture, [], CALENDAR, runtime, NOW)
+        self.assertEqual((first["birth_rows_written"], len(client.rows[OPPORTUNITY_SHEET])), (5, 5))
+        self.assertEqual((rerun["birth_rows_written"], rerun["session_rows_written"]), (0, 0))
+        runtime.load_opportunity_continuation.assert_not_called()
 
     def test_allowed_and_rejected_both_setups_and_formal_candidate_enter_ledger(self):
         sheets, runtime = Sheets(), Mock()
@@ -169,6 +175,9 @@ class OpportunityLedgerTests(unittest.TestCase):
         self.assertTrue(all(row["touches"].values()))
         self.assertEqual(set(row["first_touch_sessions"].values()), {next_day.isoformat()})
         self.assertFalse(set(row) & {"pnl", "win", "loss", "normalized_r", "actual_entry"})
+        later = dict(row, as_of_date=CALENDAR.next_session("US", next_day).isoformat(),
+                     cumulative_max_favorable_move=100.0)
+        self.assertEqual(followup(birth, next_day, 1, (quote(), quote(next_day, high=116, low=94)), [later]), row)
 
     def test_tenth_exchange_session_matures_and_gap_sample_is_excluded(self):
         birth = birth_snapshots(payload(), inputs([quote()]))[0]
