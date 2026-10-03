@@ -7,8 +7,10 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 `FORMAL_READER_SINGLE_SOURCE_VALIDATION_LABEL`：PR #129 已 squash merge；PR #130 已 retarget
 到 main 并去除已合并的 Candidate diff，fresh exact-head CI / 三个 shadow 全通过后 squash
 merge。Candidate 源日期、Wave zero-span 与日报可读性修复均已进入 main，本地 main 已同步。
-用户授权下一项独立修复 formal reader 旧 `校验状态=已验证` 接入缺口；不再扩大 #130，
-33 条 Candidate unavailable 暂不处理。2026-09-30 只读回补已运行成功、核心异常为 0，
+用户授权的 formal reader 接入修复已在独立分支 `codex/fix-formal-reader-single-source` 完成，
+尚未进入 main，准备审阅。只接入现有单源 `DATA_OK`，复用合同复核 latest/QFQ，兼容
+direct Yahoo Chart 已有 `YahooChart` 行 source 名称，不接受 yfinance/未知来源。
+不再扩大 #130，33 条 Candidate unavailable 暂不处理。2026-09-30 只读回补已运行成功、核心异常为 0，
 数据质量仍 PARTIAL；自然生产验收继续独立。无新 Phase，公式和门槛不变；动态事实以 GitHub 为准。
 
 ## Current State / Completed
@@ -47,9 +49,13 @@ merge。Candidate 源日期、Wave zero-span 与日报可读性修复均已进�
 
 ## Validation
 
-- 完整 `python -m unittest discover -s tests -v`：967 tests，965 passed、2 skipped；
-  focused presentation checks、`py_compile`、`git diff --check`、PR code CI 及 Daily Chain /
-  Paper / Portfolio Risk 三个 generic shadow 均通过。
+- 当前 reader 修复完整 `python -m unittest discover -s tests -v`：970 tests，968 passed、
+  2 skipped；producer 行投影 round-trip、canonical source、坏 OHLCV、未收盘、旧/未来日期与
+  QFQ 门均有回归覆盖，`py_compile`、`git diff --check` 通过。#129/#130 合并前 fresh
+  exact-head CI 和三个 generic shadow 全通过；reader 新 PR CI 状态按 GitHub 实时核对。
+- reader 真实 provider + 公开合成配置验证：CN `600000.SH` 的 1330 QFQ rows、US `AAPL` 的
+  1376 rows 均经既有投影产生 DATA_OK，正式 reader preflight/input 均 DATA_OK。没有读取
+  真实持仓、没有 Sheet/state 写入，未运行 Candidate runtime，也未检查/修复 33 个 unavailable。
 - Live adapter：CN 800 seeds，US 1023 seeds，source-as-of 均为 2026-09-30；holiday、交易日
   不回退、更早报告拒绝、原始 timestamp 与 IWB response-date 保护均有回归覆盖。
 - `601818.SH` exact-T 1000 bars 的 Wave / SETUP_01 replay / SETUP_02 replay 均完成，无原异常。
@@ -73,15 +79,15 @@ merge。Candidate 源日期、Wave zero-span 与日报可读性修复均已进�
 历史 session 的成分股查询；非交易日归属不把 current-only 变成历史数据库。两项修复已
 进入 main，自然运行验收仍待后续真实运行。
 
-独立 formal reader 接入缺口：`trading/production_prerequisites.py` 仍要求旧
-`校验状态=已验证`。main 的自然日报已确认 CN 3 条、US 2 条 provider-valid 正式输入被
-判 DATA_BAD，未进入正式池策略分析；US Candidate 分析仍正常。用户现已授权独立修复
-该 reader 标签接入，不改变 source/exact-T/OHLC/QFQ 等数据门，不将数据阻断写成无信号。
+main 仍有 formal reader 旧标签接入缺口：自然日报已确认 CN 3 条、US 2 条 provider-valid
+正式输入被判 DATA_BAD。独立 reader 分支已修复并通过公开 provider / 合成配置验证，尚未
+部署；不能将该验证写成真实正式池或自然运行已恢复。旧 `已验证` 行兼容性保持，新
+DATA_OK latest/QFQ 必须通过对应 canonical provider 与既有单源合同；公式/数据门不降低。
 
 ## Next Action
 
-从同步后的 main 创建独立 formal reader 修复分支/PR，复用现有 single-source 合同与行投影，
-验证 CN/US 合格正式输入可进入分析，坏/过期/未知 source 继续 fail closed；不改策略逻辑，
+审阅独立 formal reader 修复 PR，核对其 CI/shadow 与不变的数据/策略边界；获合并授权后
+再验证真实 CN/US 正式池自然分析恢复。坏/过期/未知 source 继续 fail closed，不改策略逻辑，
 不处理 33 条 Candidate unavailable。main 自然观察、D1 evidence、helper deployment identity
 hardening 与 #110/#82/#96 保持独立，不把回补当自然生产或 prospective evidence。
 

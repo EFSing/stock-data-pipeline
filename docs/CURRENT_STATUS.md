@@ -5,10 +5,11 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-03（独立 Candidate 源日期修复与 Wave 非正摆幅 Fib-context 边界
+> 最后实质更新：2026-10-04（独立 Candidate 源日期修复与 Wave 非正摆幅 Fib-context 边界
 > 修复已合并到 main；真实只读 CN 回补已 COMPLETED，核心异常解除，数据质量
 > 仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；公式和门槛不变。
-> 单源 provider、D1 V2 activation 与 natural production / D1 evidence 边界不变）。
+> formal reader 已在独立修复中接入合格 DATA_OK 行，尚未合并；单源 provider、D1 V2 activation
+> 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
 
@@ -66,8 +67,8 @@
 - 单 symbol 行情失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
   和显式禁止复用旧行情的备注，同时隔离该 symbol；只有 provider-wide failure、
   session/calendar 或 orchestrator failure 才使 scheduled job 非零退出。下游
-  production reader 要求 exact T、`正式收盘=True`、
-  `校验状态=已验证` 及 QFQ exact-T 尾行，缺一即 DATA_* fail closed。
+  production reader 要求 exact T、`正式收盘=True`、合格校验状态与 QFQ exact-T 尾行，
+  缺一即 DATA_* fail closed；单源 DATA_OK 标签接入的实现/部署状态见 Production wiring。
 - legacy provider registry 仍为旧市场/研究 fixture 提供兼容性；CN/US production
   不再使用 yfinance→其他 vendor、BaoStock/Tencent/Sina cross-check 或 qfq fallback。
 - 收盘语义固定：`交易日期` = 市场真实 session date，`抓取时间` = 北京时间，
@@ -462,10 +463,13 @@
   minimum market-data contract，也不作为 Wave/Fib/PA 依赖；任何未验证 adjustment contract
   都 fail closed 为 `DATA_ADJUSTMENT_UNVERIFIED`，不换 vendor。
 
-- 已知 formal reader 单源状态接入缺口：当前 production prerequisites 仍要求旧
-  `校验状态=已验证`；CN/US provider-valid 正式输入仍可被判为 `DATA_BAD`，自然日报已确认
-  正式池分析受阻。Candidate/Wave/展示修复未改变该门槛，reader 接入待独立修复；不得
-  解释为策略无信号。既有 Candidate unavailable 个体不纳入该修复范围。
+- 独立 formal reader 修复已接入既有单源 `校验状态=DATA_OK`，但尚未合并到 main；
+  当前 main 的旧 `已验证` 标签门仍可能将合格 CN/US 正式输入判 DATA_BAD。新路径复用
+  `market_data_contract.validate_single_source_quotes` 校验 latest/QFQ 的 exact-T、无未来
+  bar、OHLCV、日期质量与 schema，并核对市场 canonical provider；US 兼容现有 direct
+  Chart 行 source 名称 `YahooChart`，不接入 yfinance/未知来源。旧 `已验证` 行兼容性保持，
+  闭市、币种和 QFQ 前置条件不降低。公开 provider / 合成配置验证通过不代表真实正式池
+  自然验收；Candidate unavailable 个体不纳入该修复范围，不把数据阻断解释为无信号。
 
 ### Broker execution
 

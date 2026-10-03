@@ -15,6 +15,7 @@ import math
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 from core import Quote
+from market_data_contract import canonical_provider_for_market, validate_single_source_quotes
 from trading.daily_decision_chain import (
     DATA_BAD,
     DATA_OK,
@@ -619,7 +620,7 @@ def _data_for_symbol(
                 status, detail = DATA_BAD, "latest date > T"
             elif not _as_bool(row.get("正式收盘")):
                 status, detail = DATA_BAD, "latest not formally closed"
-            elif _text(row, "校验状态") != "已验证":
+            elif _text(row, "校验状态") not in {"已验证", "DATA_OK"}:
                 status, detail = DATA_BAD, "latest validation not verified"
         except (TypeError, ValueError, ProductionPrerequisiteError) as exc:
             status, detail = DATA_BAD, str(exc)
@@ -647,6 +648,21 @@ def _data_for_symbol(
             history = ()
     if status == DATA_OK and (latest_quote is None or not history or history[-1].trade_date != as_of_date):
         status, detail = DATA_BAD, "latest/qfq T coverage incomplete"
+    if status == DATA_OK and _text(matching_latest[0], "校验状态") == "DATA_OK":
+        provider = canonical_provider_for_market(item.market)
+        quote_sources = {provider}
+        if item.market == "US":
+            quote_sources.add("YahooChart")  # Existing direct Chart Quote/Sheet label.
+        contract_errors: list[str] = []
+        for quotes in ((latest_quote,), history):
+            if any(quote.source not in quote_sources for quote in quotes):
+                contract_errors.append("PROVIDER_MISMATCH")
+            contract_errors.extend(validate_single_source_quotes(
+                quotes, expected_symbol=item.symbol, expected_market=item.market,
+                target_trade_date=as_of_date, max_trade_date=as_of_date,
+            ))
+        if contract_errors:
+            status, detail = DATA_BAD, "single-source contract: " + ",".join(dict.fromkeys(contract_errors))
     return DailySymbolInput(
         symbol=item.symbol, market=item.market, as_of_date=as_of_date,
         qfq_history=history, data_quality_status=status,
