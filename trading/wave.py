@@ -114,6 +114,8 @@ def _fib_context(
         return (), ()
     if impulse_start.kind is not SwingKind.LOW or impulse_end.kind is not SwingKind.HIGH:
         return (), ()
+    if impulse_end.price <= impulse_start.price:
+        return (), ()
     levels = fibonacci_levels(impulse_end, impulse_start)
     return fibonacci_regions(levels)
 

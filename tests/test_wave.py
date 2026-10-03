@@ -71,6 +71,34 @@ def timed_pivot_quotes(points: list[tuple[date, str, float]], tail_close: float 
 
 
 class WaveScenarioEngineTests(unittest.TestCase):
+    def test_non_positive_impulse_has_no_fibonacci_regions_or_setup_eligibility(self):
+        for peak_price in (100.0, 95.0):
+            with self.subTest(peak_price=peak_price):
+                quotes = pivot_quotes([
+                    ("LOW", 100.0), ("HIGH", peak_price), ("LOW", 90.0)
+                ])
+                swings = [
+                    SwingPoint(
+                        kind=kind, price=price, pivot_index=index + 1,
+                        pivot_date=quotes[index + 1].trade_date,
+                        confirmed_index=index + 1,
+                        confirmed_date=quotes[index + 1].trade_date,
+                    )
+                    for index, (kind, price) in enumerate((
+                        (SwingKind.LOW, 100.0), (SwingKind.HIGH, peak_price),
+                        (SwingKind.LOW, 90.0),
+                    ))
+                ]
+                with patch("trading.wave.find_swings", side_effect=[swings, []]):
+                    result = evaluate_wave_scenario(
+                        quotes, daily_swing_lookback=1, weekly_swing_lookback=1
+                    )
+                for scenario in (result.primary_scenario, result.alternate_scenario):
+                    self.assertEqual(scenario.fibonacci_retracement_regions, ())
+                    self.assertEqual(scenario.fibonacci_extension_regions, ())
+                    self.assertFalse(scenario.setup01_context_eligible)
+                    self.assertFalse(scenario.setup02_context_eligible)
+
     def test_non_upward_low_high_low_is_not_wave2_candidate(self):
         quotes = pivot_quotes([
             ("LOW", 100.0), ("HIGH", 95.0), ("LOW", 90.0)

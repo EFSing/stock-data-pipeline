@@ -68,6 +68,7 @@ class DailyDashboardTests(unittest.TestCase):
             {
                 "candidate_total": 6,
                 "analysis_count": 6,
+                "completed_analysis_count": 6,
                 "watch_count": 1,
                 "armed_count": 1,
                 "new_confirmed_count": 1,
@@ -167,16 +168,32 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(diagnostics["status"], "NORMAL_NO_SIGNAL")
         self.assertEqual(diagnostics["coverage"]["signal_count"], 0)
 
-    def test_html_defaults_to_complete_static_stock_results(self):
+    def test_html_prioritizes_focus_and_retains_all_static_stock_results(self):
         rendered = render_dashboard_html(self.payload)
 
-        self.assertIn("全部已分析结果", rendered)
-        self.assertIn("let activeView = 'all';", rendered)
+        self.assertIn("今日重点", rendered)
+        self.assertIn("let activeView = 'focus';", rendered)
         self.assertNotIn('<article class="stock-row" hidden', rendered)
         for symbol in ("600001.SH", "600002.SH", "AAA", "BBB", "CCC", "600003.SH"):
             self.assertIn(f'<span class="ticker">{symbol}</span>', rendered)
         self.assertIn("已满足条件 / 现有依据", rendered)
         self.assertIn("未满足条件 / 不交易原因", rendered)
+
+    def test_core_evaluation_error_is_not_presented_as_normal_no_trade(self):
+        payload = _new_confirmation_no_trade_payload("RR_BELOW_MINIMUM")
+        row = payload["results"][0]
+        row.update(data_status="DATA_OK", final_status="NO_TRADE", event_was_new=False,
+                   new_confirmed_event_identities=[], individual_decision=None,
+                   individual_decision_candidates=[], setup01_state="NONE", setup02_state="NONE",
+                   reasons=["UPSTREAM_EVALUATION_FAILED: controlled"])
+        projection = build_dashboard_projection(payload)
+        self.assertEqual(projection["rows"][0]["stage_key"], "DATA_BLOCKED")
+        self.assertEqual(projection["summary"]["completed_analysis_count"], 0)
+        self.assertEqual(row["final_status"], "NO_TRADE")
+        rendered = render_dashboard_html(payload)
+        self.assertIn('<details class="diagnostic-issues"><summary>', rendered)
+        self.assertIn("UPSTREAM_EVALUATION_FAILED: controlled", rendered)
+        self.assertIn('<details class="diagnostic-technical"><summary>', rendered)
 
     def test_diagnostics_keep_normal_zero_partial_and_all_unavailable_distinct(self):
         normal = _new_confirmation_no_trade_payload("RR_BELOW_MINIMUM")
@@ -214,7 +231,7 @@ class DailyDashboardTests(unittest.TestCase):
         })
         partial_html = render_dashboard_html(partial)
         self.assertIn("候选链路异常", partial_html)
-        self.assertIn("数据异常，停止生成新信号", partial_html)
+        self.assertIn("部分标的无法评估，请分别查看已完成结果与异常", partial_html)
         self.assertIn("CANDIDATE_SHORT_HISTORY_INCOMPLETE", partial_html)
 
         unavailable = _new_confirmation_no_trade_payload("DATA_QUALITY_STALE")

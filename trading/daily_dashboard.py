@@ -33,12 +33,12 @@ STAGE_ORDER = (
 )
 
 DEFAULT_FOCUS_STAGES = (
-    "DATA_BLOCKED",
-    "POSITION_MANAGEMENT",
     "ENTRY_ALLOWED",
     "STRATEGY_PROPOSAL",
     "CONFIRMED",
     "ARMED",
+    "POSITION_MANAGEMENT",
+    "DATA_BLOCKED",
 )
 
 NAV_VIEW_ORDER = (
@@ -555,6 +555,8 @@ def _is_data_blocked(result: Mapping[str, Any], position_management: Mapping[str
         data_status in _DATA_BLOCKED_STATUSES
         or final_status in _DATA_BLOCKED_FINAL_STATUSES
         or bool(blocking & _DATA_BLOCKING_REASONS)
+        or any("EVALUATION_FAILED" in _raw_text(reason)
+               for reason in _sequence(result.get("reasons")))
         or (
             bool(position_management)
             and _text(position_management.get("status")) not in {"", _POSITION_OBSERVED}
@@ -1938,6 +1940,10 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
     summary = {
         "candidate_total": _candidate_total(payload, entries, rows),
         "analysis_count": len(rows),
+        "completed_analysis_count": sum(
+            _text(row["raw_result"].get("data_status")) == "DATA_OK"
+            and not row["data_blocked"] for row in rows
+        ),
         "watch_count": sum(row["stage_key"] == "WATCH" for row in rows),
         "armed_count": sum(row["stage_key"] == "ARMED" for row in rows),
         "new_confirmed_count": sum(row["event_is_new"] for row in rows),
@@ -2550,14 +2556,14 @@ def _render_prospective_observation(projection: Mapping[str, Any]) -> str:
     if not observation:
         return ""
     return (
-        '<section class="diagnostic-card" aria-label="前瞻只读观察" data-protocol="'
+        '<details class="diagnostic-card" aria-label="前瞻只读观察" data-protocol="'
         + _escape(observation.get("protocol_version")) + '">'
-        + '<h3>前瞻只读观察</h3><p>'
+        + '<summary>前瞻只读观察（展开数据审计）</summary><p>'
         + f'正式池 {_escape(observation.get("formal_symbols"))}；动态候选 {_escape(observation.get("dynamic_symbols"))}；'
         + f'重叠 {_escape(observation.get("overlap_symbols"))}；并集 {_escape(observation.get("union_symbols"))}；'
         + f'DATA_OK {_escape(observation.get("data_ok_symbols"))}；DATA_BLOCKED {_escape(observation.get("data_blocked_symbols"))}；'
         + f'首次确认 {_escape(observation.get("first_event_count"))}；Decision {_escape(observation.get("decision_count"))}'
-        + '</p></section>'
+        + '</p></details>'
     )
 
 
@@ -2565,7 +2571,7 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
     diagnostics = _mapping(projection.get("diagnostics"))
     status = _text(diagnostics.get("status"), "—")
     status_labels = {
-        "DATA_ISSUE": "数据异常，停止生成新信号",
+        "DATA_ISSUE": "部分标的无法评估，请分别查看已完成结果与异常",
         "COVERAGE_INSUFFICIENT": "候选覆盖不足，不能据此判断没有机会",
         "NORMAL_NO_SIGNAL": "覆盖已完成，今天没有交易信号",
         "SIGNAL_AVAILABLE": "已完成覆盖，存在已计算信号",
@@ -2627,19 +2633,19 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
             f'<div class="diagnostic-market">实际日报结果 {_escape(coverage.get("daily_result_count"))}；DATA_OK {_escape(coverage.get("data_ok_count"))}；NO_TRADE {_escape(coverage.get("no_trade_count"))}</div>'
         )
     issue_block = (
-        '<div class="diagnostic-issues"><strong>异常标的及原因</strong><ul>'
+        '<details class="diagnostic-issues"><summary>异常标的及原因（展开原始诊断）</summary><ul>'
         + issue_html
-        + "</ul></div>"
+        + "</ul></details>"
         if issues else ""
     )
     return (
         f'<section class="diagnostic-panel {"diagnostic-danger" if issues else ""}" aria-label="日报诊断">'
         f'<div class="diagnostic-heading"><h2>覆盖与日报诊断</h2><span>{_escape(status_labels.get(status, status))}</span></div>'
-        f'<div class="diagnostic-coverage">候选 Seed：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；included：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</div>'
+        f'<div class="diagnostic-coverage">候选种子 {_escape(coverage.get("seed_count"))} → 数据合格 {_escape(coverage.get("data_qualified_count"))} → 纳入候选 {_escape(coverage.get("included_count"))}；成功分析 {_escape(projection["summary"]["completed_analysis_count"])}；无法评估 {_escape(projection["summary"]["data_blocked_count"])}</div>'
         + issue_block
-        + '<div class="diagnostic-markets">'
+        + '<details class="diagnostic-technical"><summary>查看完整覆盖与筛选诊断</summary><div class="diagnostic-markets">'
         + "".join(market_html)
-        + "</div></section>"
+        + "</div></details></section>"
     )
 
 
@@ -3086,8 +3092,8 @@ def render_dashboard_html(value: Any) -> str:
     cloud_banner_labels = {
         "SKIPPED_NON_SESSION": "本日非交易日，已跳过（不使用上一交易日替代）",
         "INCOMPLETE_SESSION": "交易时段尚未完成，本日不生成新的交易信号",
-        "PARTIAL_DATA_QUALITY": "数据异常，本日不生成新的交易信号",
-        "FAILED": "日报生成异常，本日不生成新的交易信号",
+        "PARTIAL_DATA_QUALITY": "部分标的无法评估；已完成分析的结果仍可查看，异常标的不得用于交易",
+        "FAILED": "报告存在核心评估异常；以下已完成结果仅供复核，本次运行未通过验收",
     }
     cloud_banner = (
         f'<div class="cloud-status-banner status-{_escape(cloud_status)}">'
@@ -3107,11 +3113,6 @@ def render_dashboard_html(value: Any) -> str:
         f'aria-pressed="{"true" if key == "today" else "false"}">{_escape(label)}</button>'
         for key, label in workspace_specs
     )
-    paper_note = (
-        "本页同时展示显式开启的前瞻模拟账本；账本写入不等于生产批准。"
-        if _bool(paper.get("enabled"))
-        else "默认运行保持只读；模拟账本只有显式 --paper-track 才会写入。"
-    )
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -3126,10 +3127,11 @@ def render_dashboard_html(value: Any) -> str:
 .demo-banner {{ display:inline-block; margin-bottom:7px; border:1px solid #f4d28f; border-radius:999px; padding:3px 9px; background:#fff0d5; color:#7a4300; font-size:12px; font-weight:750; }} .cloud-status-banner {{ margin:7px 0 4px; border-radius:10px; padding:9px 11px; background:#fff0d5; color:#7a4300; font-weight:750; }} .cloud-status-banner.status-SUCCESS {{ background:var(--teal-soft); color:var(--teal); }} .cloud-status-banner.status-SKIPPED_NON_SESSION {{ background:#edf1f6; color:var(--muted); }} .cloud-status-banner.status-INCOMPLETE_SESSION,.cloud-status-banner.status-PARTIAL_DATA_QUALITY,.cloud-status-banner.status-FAILED {{ background:var(--red-soft); color:var(--red); }}
 .eyebrow {{ color:#b8e5dc; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }} h1 {{ margin:5px 0 3px; font-size:clamp(26px,3.4vw,38px); letter-spacing:-.03em; }}
 .hero-meta {{ color:#d9e8f2; display:flex; gap:16px; flex-wrap:wrap; font-size:13px; }} .readonly-note {{ margin:11px 0 0; color:#e9f4f8; font-size:12px; }}
-.summary-primary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; margin:12px 0 7px; }} .summary-secondary {{ display:flex; gap:8px; margin:0 0 9px; }}
+.summary-primary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; margin:12px 0 7px; }} .summary-secondary {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 9px; }}
 .metric {{ appearance:none; background:var(--card); border:1px solid var(--line); border-radius:11px; padding:10px 12px; min-height:66px; color:var(--ink); text-align:left; }} .metric-link {{ cursor:pointer; font:inherit; }} .metric-link:hover {{ border-color:#8ca9c2; box-shadow:0 3px 10px #18324b12; }}
 .metric-label,.field-label {{ color:var(--muted); font-size:12px; }} .metric-value {{ display:block; margin-top:3px; font-size:23px; line-height:1.1; font-weight:750; }} .summary-primary .metric:nth-child(1) .metric-value,.summary-primary .metric:nth-child(2) .metric-value {{ color:var(--teal); }} .summary-primary .metric:nth-child(6) .metric-value {{ color:var(--red); }}
 .summary-secondary .metric {{ min-height:48px; padding:8px 12px; display:flex; align-items:center; gap:10px; }} .summary-secondary .metric-value {{ margin:0; font-size:20px; }}
+.diagnostic-issues > summary,.diagnostic-technical > summary,.diagnostic-card > summary {{ cursor:pointer; min-height:44px; padding:10px 0; font-size:13px; color:var(--blue); font-weight:700; }}
 .market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:8px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:8px 13px; display:flex; justify-content:space-between; align-items:center; }} .diagnostic-panel {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:11px 13px; margin:0 0 10px; }} .diagnostic-danger {{ border-color:#efb4b4; background:#fffafa; }} .diagnostic-heading {{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }} .diagnostic-heading h2 {{ margin:0; font-size:16px; }} .diagnostic-heading span {{ color:var(--muted); font-size:12px; }} .diagnostic-coverage {{ margin-top:5px; color:#53687b; font-size:13px; }} .diagnostic-issues {{ margin-top:8px; color:var(--red); font-size:13px; }} .diagnostic-issues ul {{ margin:4px 0 0; padding-left:20px; }} .diagnostic-markets {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin-top:9px; }} .diagnostic-market {{ display:flex; flex-direction:column; gap:2px; background:#f8fafc; border-radius:8px; padding:8px 10px; color:#53687b; font-size:12px; overflow-wrap:anywhere; }} .diagnostic-market strong {{ color:var(--ink); font-size:13px; }} .diagnostic-reasons {{ color:var(--amber); }}
 .market-name {{ font-weight:750; margin-right:8px; }} .market-label {{ color:var(--muted); font-size:12px; }} .data-status {{ border-radius:999px; padding:3px 9px; font-weight:700; font-size:12px; }} .status-DATA_OK {{ background:var(--teal-soft); color:var(--teal); }} .status-DATA_BLOCKED {{ background:var(--red-soft); color:var(--red); }} .status-NOT_RUN {{ background:#edf1f6; color:var(--muted); }}
 .stage-nav {{ position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:4px; margin:8px 0 9px; padding:7px 8px; align-items:center; background:#f5f7fbeF; border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 14px #18324b12; backdrop-filter:blur(8px); }} .stage-nav-label {{ color:var(--muted); font-weight:700; margin-right:2px; white-space:nowrap; }} .stage-link {{ min-height:44px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--blue); font:inherit; font-size:13px; font-weight:700; cursor:pointer; padding:6px 8px; white-space:nowrap; }} .stage-link:hover,.stage-link[aria-pressed="true"] {{ color:var(--teal); background:#e8f5f2; border-color:#b9ddd5; }} .nav-count {{ color:var(--muted); font-weight:650; }}
@@ -3147,7 +3149,7 @@ def render_dashboard_html(value: Any) -> str:
 </head>
 <body>
 <main class="shell">
-<header class="hero"><div class="eyebrow">每日收盘报告 · 只读</div>{demo_banner}{cloud_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">页面只展示既有结构分析、交易决策、风险和策略跟踪持仓管理结果；中文阶段名称只是展示映射，不会产生新信号或订单。{_escape(paper_note)}</div></header>
+<header class="hero"><div class="eyebrow">每日收盘报告 · 只读</div>{demo_banner}{cloud_banner}<h1>{_escape(projection['title'])}</h1><div class="hero-meta"><span>数据日期：{_escape(projection['as_of_date'])}</span><span>生成时间：{_escape(projection['generated_at'])}</span></div><div class="readonly-note">先看今日确认和等待确认，再查看无法评估的标的。观察状态不代表可以买入；点击股票展开交易依据。本报告只读，不自动下单。</div></header>
 <section class="summary-primary" aria-label="今日重点摘要">
 {_metric('可入场', summary['entry_allowed_count'], 'positive')}
 {_metric('已形成交易方案', summary['strategy_proposal_count'])}
@@ -3159,7 +3161,8 @@ def render_dashboard_html(value: Any) -> str:
 <section class="summary-secondary" aria-label="次级摘要">
 {_metric_link('观察中', summary['watch_count'], 'WATCH')}
 {_metric('Candidate 总数', summary['candidate_total'])}
-{_metric('实际分析股票', summary['analysis_count'])}
+{_metric('报告覆盖标的', summary['analysis_count'])}
+{_metric('成功分析', summary['completed_analysis_count'])}
 </section>
 <section class="market-grid" aria-label="市场数据状态">{_render_market_cards(projection['markets'])}</section>
  {_render_diagnostics(projection)}
@@ -3172,10 +3175,10 @@ def render_dashboard_html(value: Any) -> str:
 {_render_today_paper_focus(paper, projection.get('as_of_date'))}
 <nav class="stage-nav" aria-label="阶段导航"><span class="stage-nav-label">阶段查看：</span>{stage_nav}</nav>
 <section class="filters" aria-label="股票筛选"><label class="search-field">搜索<input id="search-filter" type="search" placeholder="ticker 或公司名称" autocomplete="off"></label><label>市场<select id="market-filter"><option value="">全部</option><option value="CN">中国市场（CN）</option><option value="US">美国市场（US）</option></select></label><label>当前阶段<select id="stage-filter"><option value="">全部</option>{stage_options}</select></label><label>浪型策略<select id="setup-filter"><option value="">全部</option><option value="SETUP_01">2浪→3浪</option><option value="SETUP_02">3浪延续</option></select></label><label>行业／板块<select id="sector-filter"><option value="">全部</option>{sector_options}</select></label><span id="visible-count" class="stage-nav-label"></span></section>
-<div class="results-heading"><h2 id="results-title">全部已分析结果</h2><span id="results-description">默认展示本次所有实际完成分析的股票；今日重点可优先查看</span></div>
+<div class="results-heading"><h2 id="results-title">今日重点</h2><span id="results-description">先查看确认、等待确认与异常；全部结果保留在“全部/诊断”</span></div>
 <section id="cards" class="cards" aria-live="polite">{cards}</section><div id="empty" class="empty" hidden>没有符合当前筛选条件的股票。</div>
 </section>
-<div class="footer">默认展示全部实际分析结果；今日重点、状态、市场、策略和行业筛选只改变查看顺序或范围，不会删除日报结果。点击“查看交易依据”查看当日状态、条件、原因、价格计划和失效条件；开发者原始数据默认收起。页面不替代用户最终交易决定。</div>
+<div class="footer">默认优先查看今日重点；全部结果可从“全部/诊断”查看，筛选不会删除日报结果。点击“查看交易依据”查看当日状态、条件、原因、价格计划和失效条件；原始诊断默认收起。页面不替代用户最终交易决定。</div>
 </main>
 <script>
 (() => {{
@@ -3197,7 +3200,7 @@ def render_dashboard_html(value: Any) -> str:
     performance: document.getElementById('performance-workspace'),
     rules: document.getElementById('rules-workspace'),
   }};
-  let activeView = 'all';
+  let activeView = 'focus';
   const viewDescriptions = {{
     focus: '先处理可入场、方案、确认、等待确认、策略跟踪持仓与异常',
     ARMED: '只看等待确认的股票',
@@ -3230,13 +3233,13 @@ def render_dashboard_html(value: Any) -> str:
     Object.entries(workspacePanels).forEach(([key, panel]) => {{
       if (panel) panel.hidden = key !== workspace;
     }});
-    if (workspace === 'today') setActiveView('all');
+    if (workspace === 'today') setActiveView('focus');
     if (workspace === 'diagnostics') setActiveView('all');
   }};
   const requestedView = new URLSearchParams(window.location.search).get('view') || window.location.hash.slice(1);
   const initialView = requestedView && navButtons.some(button => button.dataset.view === requestedView)
     ? requestedView
-    : 'all';
+    : 'focus';
   const requestedWorkspace = new URLSearchParams(window.location.search).get('workspace');
   const initialWorkspace = requestedWorkspace && (requestedWorkspace === 'paper' || requestedWorkspace === 'performance' || requestedWorkspace === 'rules' || requestedWorkspace === 'diagnostics')
     ? requestedWorkspace
