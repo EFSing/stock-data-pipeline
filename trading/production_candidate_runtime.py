@@ -438,6 +438,8 @@ def _paper_continuation_seed(
     market: str,
     symbol: str,
     official_seeds: Sequence[Any],
+    *,
+    source: str = "PAPER_TRACKED",
 ) -> SeedSecurity:
     """Create metadata-only continuation identity for an active paper plan.
 
@@ -462,7 +464,7 @@ def _paper_continuation_seed(
         return replace(
             matched,
             symbol=normalized_symbol,
-            source="PAPER_TRACKED",
+            source=source,
             name=str(getattr(matched, "name", "") or normalized_symbol),
         )
     if normalized_market == "CN":
@@ -488,9 +490,10 @@ def _paper_continuation_seed(
         asset_class="Equity",
         exchange=exchange,
         currency=currency,
-        source="PAPER_TRACKED",
-        metadata_status="PAPER_CONTINUATION_IDENTITY_ONLY",
-        provenance=("策略模拟账本", "PAPER_TRACKED"),
+        source=source,
+        metadata_status=("PAPER_CONTINUATION_IDENTITY_ONLY" if source == "PAPER_TRACKED"
+                         else "OPPORTUNITY_CONTINUATION_IDENTITY_ONLY"),
+        provenance=("策略模拟账本" if source == "PAPER_TRACKED" else "机会观察账本", source),
     )
 
 
@@ -1066,6 +1069,22 @@ class ProductionCandidateRuntime:
     @staticmethod
     def _load_us_seeds(as_of_date: date) -> tuple[date | None, tuple[Any, ...]]:
         return IwbOfficialHoldingsAdapter().load(as_of=as_of_date)
+
+    def load_opportunity_continuation(
+        self, *, market: str, symbols: Iterable[str], as_of_date: date, now: datetime,
+    ) -> HistoryLoadResult:
+        """Reuse the active-symbol QFQ loader without Candidate or Paper identity."""
+        if market == "US" and self.enforce_us_latest_qfq_asof:
+            _validate_us_qfq_as_of(as_of_date, now)
+        seeds = tuple(replace(_paper_continuation_seed(
+            market, symbol, (), source="OPPORTUNITY_OBSERVATION",
+        ), asset_class="") for symbol in sorted(set(symbols)))
+        if not seeds:
+            return HistoryLoadResult({})
+        return _normalise_history_result(self.deep_history_loader(
+            seeds, self.session_window_loader(market, as_of_date, STRATEGY_HISTORY_BARS)[0],
+            as_of_date,
+        ))
 
     def run(
         self,

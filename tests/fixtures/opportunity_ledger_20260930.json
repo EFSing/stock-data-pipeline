@@ -1,0 +1,403 @@
+{
+  "market": "CN",
+  "as_of_date": "2026-09-30",
+  "generated_at": "2026-10-03T11:32:47.722364+00:00",
+  "cloud_daily_report": {
+    "RUN_STATUS": "COMPLETED",
+    "DATA_STATUS": "PARTIAL",
+    "CANDIDATE_STATUS": "PARTIAL"
+  },
+  "candidate_markets": {
+    "CN": {
+      "seed_count": 800,
+      "candidate_data_qualified_count": 798,
+      "candidate_included_count": 735,
+      "deep_history_ready_count": 701,
+      "strategy_analysis_count": null
+    }
+  },
+  "funnel": {
+    "CN": {
+      "seed": 800,
+      "candidate_data_qualified": 798,
+      "candidate_included": 735,
+      "deep_analysis": 701,
+      "WATCH": 40,
+      "ARMED": 35,
+      "new_CONFIRMED": 5,
+      "STRATEGY_PROPOSAL": 0,
+      "individual_ENTRY_ALLOWED": 0,
+      "Portfolio_allowed": 0,
+      "NO_TRADE": 701,
+      "DATA_BLOCKED": 36,
+      "opportunity_freshness": {
+        "new_confirmed_total": 5,
+        "above_entry_zone_count": 1,
+        "target_upside_below_minimum_count": 3,
+        "rr_below_minimum_count": 1,
+        "other_no_trade_count": 0,
+        "entry_allowed_count": 0,
+        "t1_gap_skip_count": 0,
+        "t1_upside_decay_skip_count": 0,
+        "t1_gap_or_upside_skip_count": 0,
+        "confirmation_funnel_conserved": true
+      }
+    }
+  },
+  "reports": [
+    {
+      "市场": "CN",
+      "universe": {
+        "formal_strategy_pool": [],
+        "dynamic_candidate_set": [
+          "002436.SZ",
+          "002821.SZ",
+          "600901.SH",
+          "601872.SH",
+          "603529.SH"
+        ]
+      },
+      "报告": {
+        "results": [
+          {
+            "symbol": "002436.SZ",
+            "market": "CN",
+            "as_of_date": "2026-09-30",
+            "data_status": "DATA_OK",
+            "weekly_state": "UPTREND",
+            "daily_state": "RANGE",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UPTREND_UNKNOWN_WAVE",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "FAILED",
+            "new_confirmed_event_identities": [
+              "002436.SZ|SETUP_01|2026-09-30|CONFIRMED|lifecycle=20"
+            ],
+            "individual_decision_candidates": [
+              {
+                "protocol_version": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+                "event_identity": "002436.SZ|SETUP_01|2026-09-30|CONFIRMED|lifecycle=20",
+                "symbol": "002436.SZ",
+                "market": "CN",
+                "trade_date": "2026-09-30",
+                "event_type": "CONFIRMED",
+                "action": "NO_TRADE",
+                "gate_reason": "ABOVE_ENTRY_ZONE",
+                "planned_entry": 40.94,
+                "entry_zone_low": 37.8,
+                "entry_zone_high": 39.16104305222941,
+                "structural_invalidation": 32.8,
+                "execution_stop": 31.438956947770585,
+                "targets": [],
+                "T1": null,
+                "T2": null,
+                "T3": null,
+                "rr": null,
+                "target_upside_pct": null,
+                "confirmation_level": 37.8,
+                "wave1_origin": 31.81,
+                "wave_scenario_invalidation": 31.81
+              }
+            ],
+            "final_status": "NO_TRADE",
+            "protocol_versions": {
+              "daily_chain": "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-14-v2",
+              "wave": "WAVE-SCENARIO-ENGINE-2026-08-30-v1",
+              "setup01": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+              "setup02": "SETUP-02-DECISION-RISK-2026-09-14-v3",
+              "opportunity_freshness": "OPPORTUNITY-FRESHNESS-DIAGNOSTICS-2026-09-14-v1",
+              "portfolio_risk": "PORTFOLIO-RISK-2026-09-02-v1",
+              "position_management": "POSITION-MANAGEMENT-EXIT-2026-09-02-v1",
+              "wave5": "WAVE-5-CONTEXT-2026-09-02-v1"
+            }
+          },
+          {
+            "symbol": "002821.SZ",
+            "market": "CN",
+            "as_of_date": "2026-09-30",
+            "data_status": "DATA_OK",
+            "weekly_state": "UPTREND",
+            "daily_state": "RANGE",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UPTREND_UNKNOWN_WAVE",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "FAILED",
+            "new_confirmed_event_identities": [
+              "002821.SZ|SETUP_01|2026-09-30|CONFIRMED|lifecycle=16"
+            ],
+            "individual_decision_candidates": [
+              {
+                "protocol_version": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+                "event_identity": "002821.SZ|SETUP_01|2026-09-30|CONFIRMED|lifecycle=16",
+                "symbol": "002821.SZ",
+                "market": "CN",
+                "trade_date": "2026-09-30",
+                "event_type": "CONFIRMED",
+                "action": "NO_TRADE",
+                "gate_reason": "RR_BELOW_MINIMUM",
+                "planned_entry": 188.62,
+                "entry_zone_low": 188.0,
+                "entry_zone_high": 192.88503901500238,
+                "structural_invalidation": 154.2,
+                "execution_stop": 149.3149609849976,
+                "targets": [
+                  200.0,
+                  212.16503999999998,
+                  227.93225999999999
+                ],
+                "T1": 200.0,
+                "T2": 212.16503999999998,
+                "T3": 227.93225999999999,
+                "rr": {
+                  "entry": 188.62,
+                  "execution_stop": 149.3149609849976,
+                  "risk_per_share": 39.30503901500239,
+                  "target_prices": [
+                    200.0,
+                    212.16503999999998,
+                    227.93225999999999
+                  ],
+                  "rr_ratios": [
+                    0.289530306677888,
+                    0.5990336249510663,
+                    1.0001837165202871
+                  ],
+                  "quality": "NO_TRADE"
+                },
+                "target_upside_pct": 0.06033294454458697,
+                "confirmation_level": 188.0,
+                "wave1_origin": 142.43,
+                "wave_scenario_invalidation": 142.43
+              }
+            ],
+            "final_status": "NO_TRADE",
+            "protocol_versions": {
+              "daily_chain": "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-14-v2",
+              "wave": "WAVE-SCENARIO-ENGINE-2026-08-30-v1",
+              "setup01": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+              "setup02": "SETUP-02-DECISION-RISK-2026-09-14-v3",
+              "opportunity_freshness": "OPPORTUNITY-FRESHNESS-DIAGNOSTICS-2026-09-14-v1",
+              "portfolio_risk": "PORTFOLIO-RISK-2026-09-02-v1",
+              "position_management": "POSITION-MANAGEMENT-EXIT-2026-09-02-v1",
+              "wave5": "WAVE-5-CONTEXT-2026-09-02-v1"
+            }
+          },
+          {
+            "symbol": "600901.SH",
+            "market": "CN",
+            "as_of_date": "2026-09-30",
+            "data_status": "DATA_OK",
+            "weekly_state": "UPTREND",
+            "daily_state": "UPTREND",
+            "primary_wave_scenario": "WAVE_3_CONTINUATION_CANDIDATE",
+            "alternate_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "CONFIRMED",
+            "new_confirmed_event_identities": [
+              "600901.SH|SETUP_02|2026-09-30|CONFIRMED|lifecycle=13"
+            ],
+            "individual_decision_candidates": [
+              {
+                "protocol_version": "SETUP-02-DECISION-RISK-2026-09-14-v3",
+                "event_identity": "600901.SH|SETUP_02|2026-09-30|CONFIRMED|lifecycle=13",
+                "symbol": "600901.SH",
+                "market": "CN",
+                "trade_date": "2026-09-30",
+                "event_type": "CONFIRMED",
+                "action": "NO_TRADE",
+                "gate_reason": "TARGET_UPSIDE_BELOW_MINIMUM",
+                "planned_entry": 6.94,
+                "entry_zone_low": 6.89,
+                "entry_zone_high": 6.95632562076845,
+                "structural_invalidation": 6.38,
+                "execution_stop": 6.31367437923155,
+                "targets": [
+                  7.046002994011976,
+                  7.079599999999999,
+                  7.2699
+                ],
+                "T1": null,
+                "T2": null,
+                "T3": null,
+                "rr": {
+                  "entry": 6.94,
+                  "execution_stop": 6.31367437923155,
+                  "risk_per_share": 0.6263256207684504,
+                  "target_prices": [
+                    7.046002994011976,
+                    7.079599999999999,
+                    7.2699
+                  ],
+                  "rr_ratios": [
+                    0.1692458211783177,
+                    0.22288725763560657,
+                    0.5267228244554949
+                  ],
+                  "quality": "NO_TRADE"
+                },
+                "target_upside_pct": 0.01527420662996772,
+                "confirmation_level": 6.89,
+                "wave1_origin": null,
+                "wave_scenario_invalidation": null
+              }
+            ],
+            "final_status": "NO_TRADE",
+            "protocol_versions": {
+              "daily_chain": "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-14-v2",
+              "wave": "WAVE-SCENARIO-ENGINE-2026-08-30-v1",
+              "setup01": "SETUP-02-DECISION-RISK-2026-09-14-v3",
+              "setup02": "SETUP-02-DECISION-RISK-2026-09-14-v3",
+              "opportunity_freshness": "OPPORTUNITY-FRESHNESS-DIAGNOSTICS-2026-09-14-v1",
+              "portfolio_risk": "PORTFOLIO-RISK-2026-09-02-v1",
+              "position_management": "POSITION-MANAGEMENT-EXIT-2026-09-02-v1",
+              "wave5": "WAVE-5-CONTEXT-2026-09-02-v1"
+            }
+          },
+          {
+            "symbol": "601872.SH",
+            "market": "CN",
+            "as_of_date": "2026-09-30",
+            "data_status": "DATA_OK",
+            "weekly_state": "UPTREND",
+            "daily_state": "RANGE",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "UPTREND_UNKNOWN_WAVE",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "FAILED",
+            "new_confirmed_event_identities": [
+              "601872.SH|SETUP_01|2026-09-30|CONFIRMED|lifecycle=16"
+            ],
+            "individual_decision_candidates": [
+              {
+                "protocol_version": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+                "event_identity": "601872.SH|SETUP_01|2026-09-30|CONFIRMED|lifecycle=16",
+                "symbol": "601872.SH",
+                "market": "CN",
+                "trade_date": "2026-09-30",
+                "event_type": "CONFIRMED",
+                "action": "NO_TRADE",
+                "gate_reason": "TARGET_UPSIDE_BELOW_MINIMUM",
+                "planned_entry": 20.15,
+                "entry_zone_low": 20.1,
+                "entry_zone_high": 20.68928889445669,
+                "structural_invalidation": 17.79,
+                "execution_stop": 17.20071110554331,
+                "targets": [
+                  20.979099378881987,
+                  21.815900621118015,
+                  25.79088
+                ],
+                "T1": 20.979099378881987,
+                "T2": 21.815900621118015,
+                "T3": 25.79088,
+                "rr": {
+                  "entry": 20.15,
+                  "execution_stop": 17.20071110554331,
+                  "risk_per_share": 2.9492888944566893,
+                  "target_prices": [
+                    20.979099378881987,
+                    21.815900621118015,
+                    25.79088
+                  ],
+                  "rr_ratios": [
+                    0.28111840126625603,
+                    0.5648482331619481,
+                    1.9126237550354157
+                  ],
+                  "quality": "NO_TRADE"
+                },
+                "target_upside_pct": 0.04114637116039644,
+                "confirmation_level": 20.1,
+                "wave1_origin": 13.81,
+                "wave_scenario_invalidation": 13.81
+              }
+            ],
+            "final_status": "NO_TRADE",
+            "protocol_versions": {
+              "daily_chain": "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-14-v2",
+              "wave": "WAVE-SCENARIO-ENGINE-2026-08-30-v1",
+              "setup01": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+              "setup02": "SETUP-02-DECISION-RISK-2026-09-14-v3",
+              "opportunity_freshness": "OPPORTUNITY-FRESHNESS-DIAGNOSTICS-2026-09-14-v1",
+              "portfolio_risk": "PORTFOLIO-RISK-2026-09-02-v1",
+              "position_management": "POSITION-MANAGEMENT-EXIT-2026-09-02-v1",
+              "wave5": "WAVE-5-CONTEXT-2026-09-02-v1"
+            }
+          },
+          {
+            "symbol": "603529.SH",
+            "market": "CN",
+            "as_of_date": "2026-09-30",
+            "data_status": "DATA_OK",
+            "weekly_state": "TRANSITION",
+            "daily_state": "RANGE",
+            "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "alternate_wave_scenario": "NO_VALID_SCENARIO",
+            "setup01_state": "CONFIRMED",
+            "setup02_state": "FAILED",
+            "new_confirmed_event_identities": [
+              "603529.SH|SETUP_01|2026-09-30|CONFIRMED|lifecycle=17"
+            ],
+            "individual_decision_candidates": [
+              {
+                "protocol_version": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+                "event_identity": "603529.SH|SETUP_01|2026-09-30|CONFIRMED|lifecycle=17",
+                "symbol": "603529.SH",
+                "market": "CN",
+                "trade_date": "2026-09-30",
+                "event_type": "CONFIRMED",
+                "action": "NO_TRADE",
+                "gate_reason": "TARGET_UPSIDE_BELOW_MINIMUM",
+                "planned_entry": 22.23,
+                "entry_zone_low": 22.092797783933516,
+                "entry_zone_high": 22.371574973423254,
+                "structural_invalidation": 19.795146814404433,
+                "execution_stop": 19.516369624914695,
+                "targets": [
+                  22.983159738615893,
+                  23.647516699810257,
+                  24.80355461495845
+                ],
+                "T1": 22.983159738615893,
+                "T2": 23.647516699810257,
+                "T3": 24.80355461495845,
+                "rr": {
+                  "entry": 22.23,
+                  "execution_stop": 19.516369624914695,
+                  "risk_per_share": 2.7136303750853052,
+                  "target_prices": [
+                    22.983159738615893,
+                    23.647516699810257,
+                    24.80355461495845
+                  ],
+                  "rr_ratios": [
+                    0.2775469148381035,
+                    0.52236911586225,
+                    0.9483806779976615
+                  ],
+                  "quality": "NO_TRADE"
+                },
+                "target_upside_pct": 0.033880330122172383,
+                "confirmation_level": 22.092797783933516,
+                "wave1_origin": 18.155370267774696,
+                "wave_scenario_invalidation": 18.155370267774696
+              }
+            ],
+            "final_status": "NO_TRADE",
+            "protocol_versions": {
+              "daily_chain": "PROSPECTIVE-DAILY-DECISION-CHAIN-2026-09-14-v2",
+              "wave": "WAVE-SCENARIO-ENGINE-2026-08-30-v1",
+              "setup01": "SETUP-01-DECISION-RISK-2026-09-14-v2",
+              "setup02": "SETUP-02-DECISION-RISK-2026-09-14-v3",
+              "opportunity_freshness": "OPPORTUNITY-FRESHNESS-DIAGNOSTICS-2026-09-14-v1",
+              "portfolio_risk": "PORTFOLIO-RISK-2026-09-02-v1",
+              "position_management": "POSITION-MANAGEMENT-EXIT-2026-09-02-v1",
+              "wave5": "WAVE-5-CONTEXT-2026-09-02-v1"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "fixture_notice": "Read-only 2026-09-30 diagnostic, five public Candidate confirmations; never a prospective production birth."
+}

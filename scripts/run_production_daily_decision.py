@@ -744,6 +744,7 @@ def run_production_daily_decision(
     ephemeral_errors=None,
     paper_active_symbols: Mapping[str, Iterable[str]] | None = None,
     allow_no_runnable_account: bool = False,
+    observation_inputs: list | None = None,
 ):
     run_started = time.perf_counter()
     if preflight and paper_track:
@@ -898,6 +899,8 @@ def run_production_daily_decision(
         )
         if paper_engine is not None:
             paper_context.append((report, inputs, universe_report))
+        if observation_inputs is not None:
+            observation_inputs.extend(inputs)
         all_daily_results.extend(report.results)
         strategy_elapsed_seconds = round(time.perf_counter() - strategy_started, 3)
         candidate_report = candidate_result.to_dict()
