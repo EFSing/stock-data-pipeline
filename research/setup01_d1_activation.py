@@ -22,8 +22,10 @@ from research.setup01_d1_prospective import (
 
 ACTIVATION_SCHEMA_VERSION = "setup01-d1-activation-record-v1"
 ACTIVATION_SCHEMA_VERSION_V2 = "setup01-d1-activation-record-v2"
+ACTIVATION_SCHEMA_VERSION_V3 = "setup01-d1-activation-record-v3"
 SOURCE_CONTRACT_V1 = "SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1"
 SOURCE_CONTRACT_V2 = "SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2"
+SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1 = "SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1"
 ACTIVATION_LEGACY_PREFIX = "system/activation"
 ACTIVATION_EPOCH_PREFIX = "system/activation_epochs"
 ACTIVATION_STATUS = "D1_ACTIVATION_READY_FOR_FIRST_ELIGIBLE_SESSION"
@@ -166,7 +168,11 @@ def build_activation_record(
     if not source_contract.get("contract_version"):
         raise ValueError("source contract version is required")
     selected_contract_version = normalize_source_contract_version(source_contract_version)
-    if selected_contract_version not in {SOURCE_CONTRACT_V1, SOURCE_CONTRACT_V2}:
+    if selected_contract_version not in {
+        SOURCE_CONTRACT_V1,
+        SOURCE_CONTRACT_V2,
+        SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+    }:
         raise ValueError("unsupported D1 source contract version")
     if source_contract.get("contract_version") != selected_contract_version:
         raise ValueError("source contract version does not match source contract")
@@ -178,6 +184,8 @@ def build_activation_record(
         "schema_version": (
             ACTIVATION_SCHEMA_VERSION_V2
             if selected_contract_version == SOURCE_CONTRACT_V2
+            else ACTIVATION_SCHEMA_VERSION_V3
+            if selected_contract_version == SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1
             else ACTIVATION_SCHEMA_VERSION
         ),
         "status": ACTIVATION_STATUS,
@@ -207,7 +215,10 @@ def build_activation_record(
     }
     # The V1 record shape is frozen.  Only the new epoch schema carries the
     # explicit version field; old V1 activation bytes and hashes remain valid.
-    if selected_contract_version == SOURCE_CONTRACT_V2:
+    if selected_contract_version in {
+        SOURCE_CONTRACT_V2,
+        SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+    }:
         record["source_contract_version"] = selected_contract_version
     record["record_sha256"] = content_sha256(record)
     return record
@@ -223,7 +234,11 @@ def validate_activation_record(
     """Validate an activation record before it can authorize a commit."""
 
     schema_version = record.get("schema_version")
-    if schema_version not in {ACTIVATION_SCHEMA_VERSION, ACTIVATION_SCHEMA_VERSION_V2}:
+    if schema_version not in {
+        ACTIVATION_SCHEMA_VERSION,
+        ACTIVATION_SCHEMA_VERSION_V2,
+        ACTIVATION_SCHEMA_VERSION_V3,
+    }:
         raise D1IntegrityError("activation record schema mismatch")
     without_hash = dict(record)
     actual = without_hash.pop("record_sha256", None)
@@ -264,6 +279,8 @@ def validate_activation_record(
     expected_contract_version = (
         SOURCE_CONTRACT_V2
         if schema_version == ACTIVATION_SCHEMA_VERSION_V2
+        else SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1
+        if schema_version == ACTIVATION_SCHEMA_VERSION_V3
         else SOURCE_CONTRACT_V1
     )
     record_version = record.get("source_contract_version", source.get("contract_version"))
@@ -295,11 +312,13 @@ def session_is_in_activation_window(record: Mapping[str, Any], session_date: str
 __all__ = [
     "ACTIVATION_SCHEMA_VERSION",
     "ACTIVATION_SCHEMA_VERSION_V2",
+    "ACTIVATION_SCHEMA_VERSION_V3",
     "ACTIVATION_EPOCH_PREFIX",
     "ACTIVATION_LEGACY_PREFIX",
     "ACTIVATION_STATUS",
     "SOURCE_CONTRACT_V1",
     "SOURCE_CONTRACT_V2",
+    "SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1",
     "activation_path",
     "activation_path_for_record",
     "build_activation_record",

@@ -16,6 +16,8 @@ from core import Quote
 from market_data_contract import (
     CN_SINGLE_SOURCE_PROVIDER,
     CN_ADJUSTMENT_ENGINE_VERSION,
+    CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION,
+    CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
     DATA_ADJUSTMENT_UNVERIFIED,
     DATA_INVALID,
     DATA_MISSING,
@@ -38,8 +40,11 @@ from trading.setup01_replay import replay_setup01_history
 
 D1_SOURCE_CONTRACT_V1 = "SETUP01_D1_SOURCE_OBSERVER_CONTRACT_V1"
 D1_SOURCE_CONTRACT_V2 = "SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2"
+D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1 = "SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1"
 SOURCE_MIGRATION_STATUS = "SUPERSEDED_BEFORE_FIRST_FORMAL_EVIDENCE"
 SOURCE_MIGRATION_REASON = "USER_APPROVED_SINGLE_SOURCE_MARKET_DATA_MIGRATION"
+CN_PROVIDER_FORWARD_MIGRATION_STATUS = "ACTIVATION_PENDING_D1_AUTHORIZATION"
+CN_PROVIDER_FORWARD_MIGRATION_REASON = "USER_APPROVED_CN_PROVIDER_FORWARD_QFQ_MIGRATION"
 # The legacy default remains available for frozen V1 fixtures.  The natural
 # collector explicitly requests V2 after a new activation epoch is approved.
 D1_SOURCE_CONTRACT_VERSION = D1_SOURCE_CONTRACT_V1
@@ -341,8 +346,34 @@ def source_contract_descriptor(
 ) -> dict[str, Any]:
     """Return the code-level readiness descriptor used before first natural data."""
 
+    contract_version = str(contract_version)
+    if contract_version == D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1:
+        return {
+            "contract_version": contract_version,
+            "status": "VERIFIED",
+            "migration_status": CN_PROVIDER_FORWARD_MIGRATION_STATUS,
+            "migration_reason": CN_PROVIDER_FORWARD_MIGRATION_REASON,
+            "formal_evidence_required_before_activation": 0,
+            "observer_version": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            "required_components": [
+                "universe_snapshot",
+                "raw_source_snapshot",
+                "normalized_prefix_snapshot",
+                "decision_snapshot",
+                "research_observation_report",
+            ],
+            "raw_source": "SINGLE_SOURCE_MARKET_DATA_V1_RAW_STAGE_A_PREFIX",
+            "normalized_prefix": (
+                "CN_PROVIDER_FORWARD_QFQ_CONTRACT_V2_QFQ_EXACT_T_PREFIX"
+            ),
+            "adjustment_engine_version": CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION,
+            "qfq_contract_version": CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+            "causal_observer": "SETUP01_POST_BREAKOUT_DUAL_PATH_OBSERVER_V1",
+            "public_private_isolation": "PUBLIC_MARKET_RESEARCH_ONLY_NO_HOLDINGS",
+            "cost_scenario": _cost_scenario(),
+        }
     return {
-        "contract_version": str(contract_version),
+        "contract_version": contract_version,
         "status": "VERIFIED",
         **(
             {
@@ -388,7 +419,11 @@ def build_d1_source_contract(
     """Project a Candidate runtime into the five D1 source/observer inputs."""
 
     contract_version = str(contract_version).strip()
-    if contract_version not in {D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2}:
+    if contract_version not in {
+        D1_SOURCE_CONTRACT_V1,
+        D1_SOURCE_CONTRACT_V2,
+        D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+    }:
         raise ValueError(f"unsupported D1 source contract version: {contract_version}")
     market = str(getattr(runtime, "market", "")).upper()
     session_date = getattr(runtime, "as_of_date", None)
@@ -520,24 +555,40 @@ def build_d1_source_contract(
         if market == "CN"
         else US_ADJUSTMENT_ENGINE_VERSION
     )
-    v2_contract_errors: list[str] = []
-    if contract_version == D1_SOURCE_CONTRACT_V2:
+    single_source_contract = contract_version in {
+        D1_SOURCE_CONTRACT_V2,
+        D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+    }
+    if contract_version == D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1 and market != "CN":
+        raise ValueError("CN provider-forward D1 contract is CN-only")
+    expected_adjustment_engine = (
+        CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION
+        if contract_version == D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1
+        else expected_adjustment_engine
+    )
+    expected_qfq_contract = (
+        CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION
+        if contract_version == D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1
+        else expected_adjustment_engine
+    )
+    single_source_contract_errors: list[str] = []
+    if single_source_contract:
         if provider_identity != expected_provider:
-            v2_contract_errors.append(
+            single_source_contract_errors.append(
                 f"PROVIDER_CONTRACT_PROVIDER_MISMATCH:{provider_identity}!={expected_provider}"
             )
-        if expected_adjustment_engine not in qfq_contract_text:
-            v2_contract_errors.append(
+        if expected_qfq_contract not in qfq_contract_text:
+            single_source_contract_errors.append(
                 f"PROVIDER_CONTRACT_ADJUSTMENT_ENGINE_MISMATCH:{qfq_contract_text}"
             )
         identity_market = str(session_identity.get("market") or "").upper()
         identity_date = str(session_identity.get("trade_date") or "")[:10]
         if identity_market != market or identity_date != session_date.isoformat():
-            v2_contract_errors.append("CANDIDATE_SESSION_IDENTITY_MISMATCH")
+            single_source_contract_errors.append("CANDIDATE_SESSION_IDENTITY_MISMATCH")
         if not str(session_identity.get("identity") or "").strip():
-            v2_contract_errors.append("COMPLETED_SESSION_IDENTITY_MISSING")
+            single_source_contract_errors.append("COMPLETED_SESSION_IDENTITY_MISSING")
         if not bool(session_identity.get("exact_exchange_calendar")):
-            v2_contract_errors.append("COMPLETED_SESSION_CALENDAR_NOT_EXACT")
+            single_source_contract_errors.append("COMPLETED_SESSION_CALENDAR_NOT_EXACT")
     per_symbol_source_status: dict[str, str] = {}
     for symbol in attempted_symbols:
         qfq_values = qfq_by_symbol.get(symbol, ())
@@ -579,7 +630,7 @@ def build_d1_source_contract(
         == PROVIDER_GLOBAL_FAILURE
         for symbol in attempted_symbols
     )
-    if contract_version == D1_SOURCE_CONTRACT_V2:
+    if single_source_contract:
         # V2 treats symbol failures as data-plane diagnostics.  The formal
         # session remains committable when the provider/session contract is
         # exact and the attempted universe is explicit.  A seed or
@@ -590,7 +641,7 @@ def build_d1_source_contract(
             or value.startswith("CANDIDATE_SESSION_")
             or value.startswith("COMPLETED_SESSION_")
         ]
-        blocking_errors.extend(v2_contract_errors)
+        blocking_errors.extend(single_source_contract_errors)
         if universe_snapshot_status == "UNAVAILABLE":
             blocking_errors.append("UNIVERSE_SNAPSHOT_UNAVAILABLE")
             incomplete.append("UNIVERSE_SNAPSHOT_UNAVAILABLE")
@@ -611,14 +662,14 @@ def build_d1_source_contract(
             "seed_source": str(getattr(runtime, "qfq_contract", {}).get("seed") or "UNKNOWN"),
             "raw_history_source": (
                 str(provider_contract.get("market_data_provider") or "UNKNOWN")
-                if contract_version == D1_SOURCE_CONTRACT_V2
+                if single_source_contract
                 else "EXISTING_CANDIDATE_RUNTIME_STAGE_A"
             ),
             "qfq_source": str(provider_contract.get("qfq") or "UNKNOWN"),
             "provider_identity": provider_identity,
             "adjustment_engine_version": (
-                "CN_FORWARD_ADJUSTMENT_ENGINE_V1"
-                if market == "CN" and contract_version == D1_SOURCE_CONTRACT_V2
+                expected_adjustment_engine
+                if market == "CN" and single_source_contract
                 else "YAHOO_CHART_ADJCLOSE_ENGINE_V1"
                 if market == "US" and contract_version == D1_SOURCE_CONTRACT_V2
                 else None
@@ -650,8 +701,8 @@ def build_d1_source_contract(
         "exact_session_identity": _safe(session_identity),
         "provider_identity": provider_identity,
         "adjustment_engine_version": (
-            "CN_FORWARD_ADJUSTMENT_ENGINE_V1" if market == "CN" and contract_version == D1_SOURCE_CONTRACT_V2
-            else "YAHOO_CHART_ADJCLOSE_ENGINE_V1" if market == "US" and contract_version == D1_SOURCE_CONTRACT_V2
+            expected_adjustment_engine if single_source_contract
+            else "YAHOO_CHART_ADJCLOSE_ENGINE_V1" if market == "US" and single_source_contract
             else None
         ),
         "per_symbol_provenance": per_symbol_provenance,
@@ -664,14 +715,14 @@ def build_d1_source_contract(
     }
     decision_rows = []
     decision_symbols = set(included_symbols) | set(qfq_by_symbol)
-    if contract_version == D1_SOURCE_CONTRACT_V2:
+    if single_source_contract:
         decision_symbols |= set(attempted_symbols)
     for symbol in sorted(decision_symbols):
         decision_rows.append({
             "symbol": symbol,
             "market": market,
             "session_date": session_date.isoformat(),
-            "data_status": per_symbol_source_status.get(symbol, "DATA_MISSING") if contract_version == D1_SOURCE_CONTRACT_V2 else "DATA_OK" if symbol in deep_ready else "DATA_BLOCKED",
+            "data_status": per_symbol_source_status.get(symbol, "DATA_MISSING") if single_source_contract else "DATA_OK" if symbol in deep_ready else "DATA_BLOCKED",
             "research_overlay_only": True,
             "formal_entry_allowed": False,
             "real_fill_evidence": False,
@@ -718,7 +769,7 @@ def build_d1_source_contract(
         "source_identity": {
             "provider": (
                 provider_identity
-                if contract_version == D1_SOURCE_CONTRACT_V2
+                if single_source_contract
                 else "SETUP01_D1_PUBLIC_CANDIDATE_RUNTIME"
             ),
             "source_date": session_date.isoformat(),
@@ -794,6 +845,7 @@ def build_d1_snapshot_from_candidate_runtime(
 __all__ = [
     "D1_SOURCE_CONTRACT_V1",
     "D1_SOURCE_CONTRACT_V2",
+    "D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1",
     "D1_SOURCE_CONTRACT_VERSION",
     "SOURCE_MIGRATION_REASON",
     "SOURCE_MIGRATION_STATUS",

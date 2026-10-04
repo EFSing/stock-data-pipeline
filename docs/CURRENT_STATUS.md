@@ -5,10 +5,11 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-04（独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 最后实质更新：2026-10-04（CN A-share provider-forward QFQ 合同迁移 PR 就绪、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
 > 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
-> 公式和门槛不变。Daily Opportunity Ledger V1 已完成独立实现，尚未接入生产；单源 provider、
+> 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
+> natural acceptance pending；单源 provider、
 > D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
@@ -36,9 +37,11 @@
   仅保留 legacy/research/universe metadata 职责，不进入 CN/US production decision path。
 - 单源合同由 `market_data_contract.py` 统一验证 exact-T、严格递增且无重复日期、未来
   bar、OHLC sanity、非负 volume、schema 与 required history。CN asset type 由明确 metadata
-  或 HITHINK 同源 metadata directory 的 exact symbol match 决定：股票使用 HITHINK raw
-  `adjust=none` + 同一 vendor corporate actions，由 `CN_FORWARD_ADJUSTMENT_ENGINE_V1`
-  在仓库内生成并记录 adjustment-chain provenance；fund/ETF 使用同一 HITHINK fund
+  或 HITHINK 同源 metadata directory 的 exact symbol match 决定：生产股票 qfq 使用同一
+  HITHINK provider 的 `/api/a-share/prices/historical?adjust=forward`，记录
+  `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2` / `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`；
+  旧 raw `adjust=none` + corporate actions 的 `CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持
+  immutable，供 D1 V2/旧 evidence。fund/ETF 使用同一 HITHINK fund
   historical endpoint，并记录 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1` provider-adjusted
   provenance；无法证明的 adjustment contract 标为 `DATA_ADJUSTMENT_UNVERIFIED`，不回退
   其他 vendor。
@@ -59,7 +62,8 @@
 - 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
   策略股票刷新 exact latest date 的前复权历史；HK/JP/SE 不被猜测扩展为 QFQ 范围，
   `full` 仍只可由 workflow_dispatch 手动触发。
-- `SINGLE_SOURCE_MARKET_DATA_V1` 已 `MERGED_TO_MAIN`：真实 HITHINK CN 与 `YAHOO_CHART`
+- `SINGLE_SOURCE_MARKET_DATA_V1` 已 `MERGED_TO_MAIN`；CN A-share provider-forward
+  migration 已在独立分支完成 code/read-only acceptance，真实 PR 尚未 merge。真实 HITHINK CN 与 `YAHOO_CHART`
   US provider acceptance 已按 exact-T、OHLCV、chronology、stale、adjustment provenance、
   same-provider retry 与 reproducibility 完成；但 `NATURAL_PRODUCTION_RUN_ACCEPTANCE_PENDING`：
   不能把尚未发生的 post-merge CN/US 自然日报写成已经验收，也不能把 provider acceptance
@@ -412,10 +416,10 @@
    （最近已确认历史阻力）”与“Wave3 结构目标（最近 Fib 投射）”分开显示；邮件与
    Dashboard 均不重新计算交易几何。
 
-### Daily Opportunity Ledger V1（已合并到 main，尚未产生自然 prospective 记录）
+### Daily Opportunity Ledger V1（已合并并接入 production Cloud path，natural acceptance pending）
 
-- Cloud 日报代码路径可记录“日报历史”和 SETUP_01/02 new CONFIRMED 的观察账本；独立 PR
-  已合并到 main，但尚未产生正式 prospective 生产记录；
+- Cloud 日报 production path 已接入“日报历史”和 SETUP_01/02 new CONFIRMED 的观察账本；
+  尚未产生正式 prospective 生产记录，natural acceptance pending；
 
   ENTRY_ALLOWED 与所有 NO_TRADE 都纳入，birth只复制原Decision和T日signal close，
   缺字段为null，不重算策略。三张独立tab已用既有Cloud凭证创建并核验写权限。
@@ -476,9 +480,10 @@
   或 scheduled execution；holdings 行情路径（上表）是已运行的例外。
 
 - `HITHINK_FINANCIAL_API` 已接入并完成真实 acceptance 的 `SINGLE_SOURCE_MARKET_DATA_V1`
-  CN price path：明确 `a-share` 使用 raw `adjust=none` 与 corporate-action events，在仓库
-  内由统一 adjustment engine 生成 qfq；明确 `fund-etf` 使用同一 vendor 的 fund historical
-  endpoint，并保留 provider-forward-adjusted provenance。ETF 历史单次最多五自然年；已合并
+  CN price path：生产 `a-share` qfq 使用 provider `adjust=forward`，记录
+  `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2` 与完整 request/as-of provenance；旧
+  `CN_FORWARD_ADJUSTMENT_ENGINE_V1` 不删除、不改写。`fund-etf` 继续使用同一 vendor 的
+  fund historical endpoint，并保留 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1` provenance。ETF 历史单次最多五自然年；已合并
   修复对长请求分段连续取数，保留原请求区间，避免默认 2000 日 QFQ 请求的 1003，不换源或
   截断请求。公开 provider 验证已成功，但实际返回历史覆盖仍由 provider 与既有门槛决定。
   财务报表字段仍不属于当前
@@ -647,6 +652,11 @@
   durable verify、formal session count 与 activation version 通过前 fail closed：V1 返回
   `D1_SOURCE_MIGRATION_PENDING`，formal evidence 已存在则返回
   `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE`。
+- `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 的 CN raw/QFQ basis 保持旧
+  `CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_V1` immutable；新的
+  `SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1` 已 code-ready，activation epoch
+  只允许写入 `system/activation_epochs/CN/SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1.json`，
+  当前不创建真实 activation、不运行 natural collector、不回填。
 - 不可变 per-market activation record 仍绑定冻结 protocol SHA、VPS backend/version、
   storage identity hash、code SHA、冻结 signal/stop/exit/gate package、source contract、
   cost scenario、observer version、首个 eligible exchange session 与固定 12 个月边界。

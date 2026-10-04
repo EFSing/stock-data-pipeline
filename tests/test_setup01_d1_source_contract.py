@@ -5,8 +5,14 @@ from datetime import date, timedelta
 import unittest
 
 from core import Quote
+from research.setup01_d1_activation import (
+    ACTIVATION_SCHEMA_VERSION_V3,
+    build_activation_record,
+    validate_activation_record,
+)
 from research.setup01_d1_prospective import validate_session_snapshot
 from research.setup01_d1_source_contract import (
+    D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
     D1_SOURCE_CONTRACT_V2,
     D1_SOURCE_CONTRACT_VERSION,
     build_d1_snapshot_from_candidate_runtime,
@@ -231,6 +237,45 @@ class D1SourceContractTests(unittest.TestCase):
         self.assertEqual(contract["status"], "INCOMPLETE")
         self.assertEqual(contract["universe_snapshot"]["status"], "UNAVAILABLE")
         self.assertIn("UNIVERSE_SNAPSHOT_UNAVAILABLE", contract["research_observation_report"]["errors"])
+
+    def test_cn_provider_forward_contract_is_code_ready_but_cn_only(self):
+        descriptor = source_contract_descriptor(D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1)
+        self.assertEqual(descriptor["status"], "VERIFIED")
+        self.assertEqual(
+            descriptor["migration_status"],
+            "ACTIVATION_PENDING_D1_AUTHORIZATION",
+        )
+        with self.assertRaisesRegex(ValueError, "CN provider-forward D1 contract is CN-only"):
+            build_d1_source_contract(
+                self.runtime,
+                session_identity={
+                    "market": "US", "trade_date": "2026-09-25",
+                    "identity": "exchange_calendars:XNYS:2026-09-25",
+                    "exact_exchange_calendar": True,
+                },
+                acquired_at="2026-09-26T05:00:00+08:00",
+                contract_version=D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+            )
+
+    def test_cn_provider_forward_activation_epoch_is_buildable_without_writing(self):
+        descriptor = source_contract_descriptor(D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1)
+        record = build_activation_record(
+            market="CN",
+            activation_timestamp="2026-10-04T16:00:00+08:00",
+            backend_identity="fixture-backend",
+            backend_version="fixture-v1",
+            storage_identity_sha256="a" * 64,
+            code_sha="b" * 40,
+            source_contract=descriptor,
+            observer_version=descriptor["observer_version"],
+            source_contract_version=D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+        )
+        self.assertEqual(record["schema_version"], ACTIVATION_SCHEMA_VERSION_V3)
+        self.assertEqual(
+            record["source_contract_version"],
+            D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+        )
+        validate_activation_record(record)
 
 
 if __name__ == "__main__":

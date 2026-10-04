@@ -10,6 +10,9 @@ from core import Quote
 from market_data_contract import (
     CN_ADJUSTMENT_ENGINE_VERSION,
     CN_ETF_ADJUSTMENT_ENGINE_VERSION,
+    CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION,
+    CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION,
     DATA_ADJUSTMENT_UNVERIFIED,
     CN_SINGLE_SOURCE_PROVIDER,
     DATA_OK,
@@ -89,6 +92,109 @@ class _FakeSheets:
 
 
 class SingleSourceMarketDataTests(TestCase):
+    def test_hithink_provider_forward_qfq_is_explicit_and_does_not_use_actions(self):
+        calls = []
+        payload = {"code": 0, "data": {"adjust": "forward", "item": [
+            {
+                "date": "2026-09-25", "open_price": 10, "high_price": 11,
+                "low_price": 9, "close_price": 10, "volume": 100,
+            },
+            {
+                "date": "2026-09-28", "open_price": 11, "high_price": 12,
+                "low_price": 10, "close_price": 11, "volume": 110,
+            },
+        ]}}
+
+        def hithink_json(path, params):
+            calls.append((path, dict(params)))
+            self.assertEqual(path, "/api/a-share/prices/historical")
+            return payload
+
+        watch = {
+            "统一代码": "600000.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",
+            "HITHINK代码": "600000.SH", "HITHINK资产类型": "a-share",
+        }
+        with patch("providers._hithink_json", side_effect=hithink_json):
+            result = fetch_hithink_with_provenance(
+                watch,
+                "qfq",
+                date(2026, 9, 25),
+                T_DAY,
+                qfq_contract_version=CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+            )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1]["adjust"], "forward")
+        self.assertEqual(result.provenance["adjustment_engine_version"], CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION)
+        self.assertEqual(result.provenance["qfq_contract_version"], CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION)
+        self.assertEqual(result.provenance["corporate_action_source"], None)
+        self.assertEqual(result.provenance["adjustment_chain_sha256"], None)
+        self.assertEqual(result.provenance["request_start"], "2026-09-25")
+        self.assertEqual(result.provenance["request_end"], "2026-09-28")
+        self.assertEqual(result.provenance["exact_session_date"], "2026-09-28")
+
+    def test_hithink_provider_forward_requires_provider_adjustment_semantics(self):
+        watch = {
+            "统一代码": "600000.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",
+            "HITHINK代码": "600000.SH", "HITHINK资产类型": "a-share",
+        }
+        with patch(
+            "providers._hithink_json",
+            return_value={"code": 0, "data": {"adjust": "none", "item": []}},
+        ):
+            with self.assertRaises(ProviderGlobalFailure):
+                fetch_hithink_with_provenance(
+                    watch,
+                    "qfq",
+                    date(2026, 9, 25),
+                    T_DAY,
+                    qfq_contract_version=CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+                )
+
+    def test_hithink_provider_forward_preserves_asof_cutoff_in_request(self):
+        watch = {
+            "统一代码": "600519.SH", "名称": "fixture", "市场": "CN", "币种": "CNY",
+            "HITHINK代码": "600519.SH", "HITHINK资产类型": "a-share",
+        }
+        pre_rows = [
+            {"date": "2026-06-24", "open_price": 10, "high_price": 11, "low_price": 9, "close_price": 10, "volume": 100},
+            {"date": "2026-06-25", "open_price": 11, "high_price": 12, "low_price": 10, "close_price": 11, "volume": 110},
+        ]
+        post_rows = pre_rows + [
+            {"date": "2026-06-26", "open_price": 6, "high_price": 7, "low_price": 5, "close_price": 6, "volume": 120},
+        ]
+
+        def hithink_json(_path, params):
+            rows = pre_rows if params["end"] == 1782316800000 else post_rows
+            return {"code": 0, "data": {"adjust": "forward", "item": rows}}
+
+        with patch("providers._hithink_json", side_effect=hithink_json):
+            before = fetch_hithink_with_provenance(
+                watch,
+                "qfq",
+                date(2026, 6, 24),
+                date(2026, 6, 25),
+                qfq_contract_version=CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+            )
+            after = fetch_hithink_with_provenance(
+                watch,
+                "qfq",
+                date(2026, 6, 24),
+                date(2026, 6, 29),
+                qfq_contract_version=CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+            )
+
+        before_by_date = {quote.trade_date: quote.close for quote in before.quotes}
+        after_by_date = {quote.trade_date: quote.close for quote in after.quotes}
+        self.assertEqual(before_by_date, {
+            date(2026, 6, 24): 10.0,
+            date(2026, 6, 25): 11.0,
+        })
+        self.assertEqual(
+            {key: after_by_date[key] for key in before_by_date},
+            before_by_date,
+        )
+
     def test_hithink_qfq_uses_raw_bars_and_internal_action_chain(self):
         raw_items = [
             {
@@ -138,6 +244,10 @@ class SingleSourceMarketDataTests(TestCase):
             )
         self.assertEqual(result.provider, CN_SINGLE_SOURCE_PROVIDER)
         self.assertEqual(result.provenance["adjustment_engine_version"], CN_ADJUSTMENT_ENGINE_VERSION)
+        self.assertEqual(
+            result.provenance["qfq_contract_version"],
+            CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION,
+        )
         self.assertEqual(result.api_requests, 2)
         self.assertEqual(result.quotes[0].close, 9.0)
         self.assertEqual(result.quotes[1].close, 5.0)

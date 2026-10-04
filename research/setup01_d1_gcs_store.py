@@ -39,6 +39,7 @@ from research.setup01_d1_prospective import (
 from research.setup01_d1_source_contract import (
     D1_SOURCE_CONTRACT_V1,
     D1_SOURCE_CONTRACT_V2,
+    D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
     D1_SOURCE_CONTRACT_VERSION,
 )
 
@@ -563,7 +564,11 @@ class GoogleCloudStorageD1Store:
             raise D1IntegrityError("D1 formal GCS commit requires a complete natural session")
         source = snapshot.get("source_identity") or {}
         source_version = source.get("source_contract_version")
-        if source_version not in {D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2}:
+        if source_version not in {
+            D1_SOURCE_CONTRACT_V1,
+            D1_SOURCE_CONTRACT_V2,
+            D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+        }:
             raise D1IntegrityError("D1_SOURCE_ACTIVATION_CONTRACT_PENDING")
         if not source.get("activation_record_sha256"):
             raise D1IntegrityError("D1 activation record binding is missing")

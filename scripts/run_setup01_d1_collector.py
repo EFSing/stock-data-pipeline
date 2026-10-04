@@ -23,6 +23,7 @@ from research.setup01_d1_vps_store import VpsD1Store
 from research.setup01_d1_source_contract import (
     D1_SOURCE_CONTRACT_V1,
     D1_SOURCE_CONTRACT_V2,
+    D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
     source_contract_descriptor,
 )
 
@@ -309,7 +310,11 @@ def main(argv: list[str] | None = None) -> int:
     gcs_activation_parser.add_argument("--code-sha", required=True)
     gcs_activation_parser.add_argument(
         "--source-contract-version",
-        choices=(D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2),
+        choices=(
+            D1_SOURCE_CONTRACT_V1,
+            D1_SOURCE_CONTRACT_V2,
+            D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+        ),
         required=True,
     )
     gcs_collect_parser = sub.add_parser("gcs-collect")
@@ -328,7 +333,11 @@ def main(argv: list[str] | None = None) -> int:
     vps_activation_parser.add_argument("--code-sha", required=True)
     vps_activation_parser.add_argument(
         "--source-contract-version",
-        choices=(D1_SOURCE_CONTRACT_V1, D1_SOURCE_CONTRACT_V2),
+        choices=(
+            D1_SOURCE_CONTRACT_V1,
+            D1_SOURCE_CONTRACT_V2,
+            D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+        ),
         required=True,
     )
     vps_collect_parser = sub.add_parser("vps-collect")

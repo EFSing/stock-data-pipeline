@@ -22,8 +22,13 @@ from research.setup01_d1_prospective import (
 from research.setup01_d1_source_contract import (
     D1_SOURCE_CONTRACT_V1,
     D1_SOURCE_CONTRACT_V2,
+    D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
     build_d1_snapshot_from_candidate_runtime,
     source_contract_descriptor,
+)
+from market_data_contract import (
+    CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION,
 )
 from research.setup01_d1_vps_store import VPS_BACKEND_IDENTITY, VpsD1Store
 from trading.production_candidate_runtime import ProductionCandidateRuntime
@@ -40,8 +45,12 @@ def _session_payload(identity: Any) -> dict[str, Any]:
     }
 
 
-def _migration_gate(durable: Any, market: str) -> dict[str, Any]:
-    """Require an explicit V1-preserved -> V2 epoch migration state."""
+def _migration_gate(
+    durable: Any,
+    market: str,
+    source_contract_version: str = D1_SOURCE_CONTRACT_V2,
+) -> dict[str, Any]:
+    """Require explicit append-only activation state for the requested basis."""
 
     verification = durable.verify()
     counts = {
@@ -68,13 +77,27 @@ def _migration_gate(durable: Any, market: str) -> dict[str, Any]:
     legacy = load(D1_SOURCE_CONTRACT_V1)
     if legacy is None:
         raise D1IntegrityError("D1_SOURCE_MIGRATION_LEGACY_ACTIVATION_MISSING")
-    versioned = load(D1_SOURCE_CONTRACT_V2)
+    if source_contract_version not in {
+        D1_SOURCE_CONTRACT_V2,
+        D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1,
+    }:
+        raise D1IntegrityError("D1_SOURCE_CONTRACT_VERSION_UNSUPPORTED")
+    if source_contract_version == D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1:
+        previous = load(D1_SOURCE_CONTRACT_V2)
+        if previous is None:
+            raise D1IntegrityError("D1_SOURCE_MIGRATION_PREVIOUS_CONTRACT_MISSING")
+    versioned = load(source_contract_version)
     if versioned is None:
         raise D1IntegrityError("D1_SOURCE_MIGRATION_PENDING")
     return {
         "session_counts": counts,
         "legacy_activation_source_contract_version": D1_SOURCE_CONTRACT_V1,
-        "activation_source_contract_version": D1_SOURCE_CONTRACT_V2,
+        "previous_activation_source_contract_version": (
+            D1_SOURCE_CONTRACT_V2
+            if source_contract_version == D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1
+            else None
+        ),
+        "activation_source_contract_version": source_contract_version,
     }
 
 
@@ -86,6 +109,7 @@ def collect_natural_session(
     runtime: ProductionCandidateRuntime | None = None,
     backend: str = "vps",
     calendar_provider: ExactExchangeCalendarProvider | None = None,
+    source_contract_version: str = D1_SOURCE_CONTRACT_V2,
 ) -> dict[str, Any]:
     generated_at = now or datetime.now(timezone.utc)
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
@@ -99,7 +123,11 @@ def collect_natural_session(
     durable = store or (
         VpsD1Store.from_env() if normalized_backend == "vps" else GoogleCloudStorageD1Store.from_env()
     )
-    migration_state = _migration_gate(durable, normalized_market)
+    migration_state = _migration_gate(
+        durable,
+        normalized_market,
+        source_contract_version=source_contract_version,
+    )
     calendar = calendar_provider or ExactExchangeCalendarProvider()
     # Formal natural collection always resolves the latest real exchange
     # close.  There is intentionally no --date override: a delayed trigger
@@ -107,7 +135,7 @@ def collect_natural_session(
     identity = calendar.latest_completed_session(normalized_market, now=generated_at)
     trade_date = identity.trade_date
     activation = durable.load_activation_record(
-        normalized_market, source_contract_version=D1_SOURCE_CONTRACT_V2
+        normalized_market, source_contract_version=source_contract_version
     )
     if not session_is_in_activation_window(activation, trade_date.isoformat()):
         raise D1ProspectiveWindowError(
@@ -127,7 +155,13 @@ def collect_natural_session(
             "MISSED_PROSPECTIVE_SESSION",
             detail=window.as_dict(),
         )
-    candidate_runtime = runtime or ProductionCandidateRuntime()
+    candidate_runtime = runtime or ProductionCandidateRuntime(
+        cn_qfq_contract_version=(
+            CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION
+            if source_contract_version == D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1
+            else CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION
+        )
+    )
     result = candidate_runtime.run(
         market=normalized_market,
         as_of_date=trade_date,
@@ -141,7 +175,7 @@ def collect_natural_session(
         session_identity=_session_payload(identity),
         acquired_at=generated_at.isoformat(),
         activation_record=activation,
-        contract_version=D1_SOURCE_CONTRACT_V2,
+        contract_version=source_contract_version,
     )
     committed = durable.commit(snapshot)
     report_markdown = render_research_report(snapshot)
@@ -160,9 +194,9 @@ def collect_natural_session(
         "commit_name": committed.commit_name,
         "commit_generation": getattr(committed, "commit_generation", None),
         "pointer_sha256": getattr(committed, "pointer_sha256", None),
-        "source_contract_version": source_contract_descriptor(D1_SOURCE_CONTRACT_V2)["contract_version"],
-        "source_migration_status": source_contract_descriptor(D1_SOURCE_CONTRACT_V2)["migration_status"],
-        "source_migration_reason": source_contract_descriptor(D1_SOURCE_CONTRACT_V2)["migration_reason"],
+        "source_contract_version": source_contract_descriptor(source_contract_version)["contract_version"],
+        "source_migration_status": source_contract_descriptor(source_contract_version).get("migration_status"),
+        "source_migration_reason": source_contract_descriptor(source_contract_version).get("migration_reason"),
         "research_only": True,
         "research_only_candidate": True,
         "formal_entry_allowed": False,
@@ -184,10 +218,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="SETUP_01 D1 natural durable collector")
     parser.add_argument("--market", choices=("CN", "US"), required=True)
     parser.add_argument("--backend", choices=("vps", "gcs"), default="vps")
+    parser.add_argument(
+        "--source-contract-version",
+        choices=(D1_SOURCE_CONTRACT_V2, D1_SOURCE_CONTRACT_CN_PROVIDER_FORWARD_V1),
+        default=D1_SOURCE_CONTRACT_V2,
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--report-output", type=Path, required=True)
     args = parser.parse_args(argv)
-    result = collect_natural_session(args.market, backend=args.backend)
+    result = collect_natural_session(
+        args.market,
+        backend=args.backend,
+        source_contract_version=args.source_contract_version,
+    )
     report_markdown = str(result.pop("report_markdown"))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
