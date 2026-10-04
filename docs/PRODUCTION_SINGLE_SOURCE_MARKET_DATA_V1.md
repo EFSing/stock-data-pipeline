@@ -1,8 +1,9 @@
 # SINGLE_SOURCE_MARKET_DATA_V1
 
-状态：`CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`。CN A-share provider-forward
-route、as-of purity、33 个 residual symbol、control 与回归验证已完成；PR 尚未 merge，
-真实 D1 provider-forward activation 与 natural production acceptance 仍未执行。
+状态：`CN_QFQ_PROVIDER_FORWARD_MIGRATION_MERGED_TO_MAIN`。CN A-share provider-forward
+route、as-of purity、33 个 residual symbol、control 与回归验证已完成；PR #133 已 squash
+merge。真实 D1 provider-forward activation 与 merge 后首个 natural CN production
+acceptance 仍未执行。
 
 本合同只改变 production data plane 与 failure isolation，不改变 Wave、Swing、
 Fibonacci、Setup、Entry、Target、Stop、RR、Risk、Paper、broker 或 Final OOS 语义。
@@ -171,6 +172,7 @@ session count 核对、source contract 验证和用户最终批准后创建，�
   `DATA_STATUS=PARTIAL` exit=0 均有语义测试；`DATA_MISSING` 与
   `DATA_ADJUSTMENT_UNVERIFIED` 不映射为 `NO_SIGNAL`。
 
-因此当前 PR 合同状态为 `CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`。这不表示真实 D1
-activation 已创建或 natural production 已验收：新 activation 仍只 code-ready，不创建
-immutable record；PR merge 仍需独立审阅。
+因此当前合同状态为 `CN_QFQ_PROVIDER_FORWARD_MIGRATION_MERGED_TO_MAIN`。这不表示真实
+D1 activation 已创建或 natural production 已验收：新 activation 仍只 code-ready，不创建
+immutable record；merge 后首个自然 CN session 必须单独完成 acceptance，历史手动运行不计入
+自然 acceptance。

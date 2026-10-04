@@ -5,11 +5,11 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-04（CN A-share provider-forward QFQ 合同迁移 PR 就绪、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 最后实质更新：2026-10-04（CN A-share provider-forward QFQ 合同迁移已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
 > 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
 > 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
-> natural acceptance pending；单源 provider、
+> merge 后首个自然 CN Daily Report 与 ledger natural acceptance pending；单源 provider、
 > D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
@@ -62,12 +62,12 @@
 - 定时 latest 成功后，`scripts/refresh_production_qfq.py` 只为启用正式 CN/US
   策略股票刷新 exact latest date 的前复权历史；HK/JP/SE 不被猜测扩展为 QFQ 范围，
   `full` 仍只可由 workflow_dispatch 手动触发。
-- `SINGLE_SOURCE_MARKET_DATA_V1` 已 `MERGED_TO_MAIN`；CN A-share provider-forward
-  migration 已在独立分支完成 code/read-only acceptance，真实 PR 尚未 merge。真实 HITHINK CN 与 `YAHOO_CHART`
-  US provider acceptance 已按 exact-T、OHLCV、chronology、stale、adjustment provenance、
-  same-provider retry 与 reproducibility 完成；但 `NATURAL_PRODUCTION_RUN_ACCEPTANCE_PENDING`：
-  不能把尚未发生的 post-merge CN/US 自然日报写成已经验收，也不能把 provider acceptance
-  写成 D1 formal evidence。
+- `SINGLE_SOURCE_MARKET_DATA_V1` 与 CN A-share provider-forward migration 已
+  `MERGED_TO_MAIN`；真实 HITHINK CN 与 `YAHOO_CHART` US provider acceptance 已按
+  exact-T、OHLCV、chronology、stale、adjustment provenance、same-provider retry 与
+  reproducibility 完成。provider-forward route 合并到 main 后尚无自然 CN Daily Report，
+  状态为 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；不能把尚未发生的自然日报写成
+  已经验收，也不能把 provider acceptance 写成 D1 formal evidence。
 - 单 symbol 行情失败会在 `最新行情` 保留最后值但写入当前 `抓取时间`、`校验状态=数据不可用`
   和显式禁止复用旧行情的备注，同时隔离该 symbol；只有 provider-wide failure、
   session/calendar 或 orchestrator failure 才使 scheduled job 非零退出。下游

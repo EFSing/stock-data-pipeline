@@ -4,15 +4,15 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`：用户已批准将 CN A-share production qfq 迁移到
-HITHINK `/api/a-share/prices/historical?adjust=forward`。独立分支已完成 provider route、
-provenance、D1 V2 isolation 与新 CN D1 code-ready contract；旧
-`CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
-阻断 live route 现为 33/33 usable；as-of ex-date cutoff、8 controls 与 focused tests
-已通过；full unittest、compile、CI 与相关 generic shadows 均通过。独立 PR 已创建，
-未 merge，等待 review。真实 post-merge CN/US natural report
-acceptance、Opportunity Ledger natural acceptance 仍未发生。branch / PR / HEAD / CI
-继续从 GitHub 实时核对，不以本文件作动态证明。
+`CN_QFQ_PROVIDER_FORWARD_MIGRATION_MERGED_CLOSEOUT`：PR #133 已 squash merge 到 main，
+CN A-share production qfq 使用 HITHINK `/api/a-share/prices/historical?adjust=forward`。
+provider route、provenance、D1 V2 isolation 与新 CN D1 code-ready contract 已进入 main；
+旧 `CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
+阻断 live route 现为 33/33 usable；as-of ex-date cutoff、8 controls、full unittest、
+compile、CI 与相关 generic shadows 均通过。merge 之后尚无自然 CN Daily Report，
+当前状态为 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger
+natural acceptance 也仍未发生。US Candidate lifecycle hygiene 作为独立、未合并的后续 PR
+继续推进。branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
 
@@ -39,11 +39,14 @@ acceptance、Opportunity Ledger natural acceptance 仍未发生。branch / PR / 
   `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`；ETF 与 US contract 不变。
 - `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 明确锁定旧 raw+corporate-actions basis；新
   `SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1` 只 code-ready，不创建 activation。
+- merge 后首个 CN 自然日报必须单独审计原 33 个阻断标的、formal rows、
+  `DATA_STATUS`/`CANDIDATE_STATUS` 与 Opportunity Ledger 三表；历史手动运行不计入自然
+  acceptance。
 
 ## Validation
 
 - focused tests、全量 unittest、git diff --check 和 Daily Decision / Paper lifecycle /
-  Portfolio Risk 三个 generic shadows 已通过；PR 的 fresh CI/shadow 按 GitHub 实时核对。
+  Portfolio Risk 三个 generic shadows 已通过；PR #133 merge 后 main CI 亦已通过。
 - 2026-09-30 已保存的只读诊断中5个 new CONFIRMED、ENTRY_ALLOWED=0，fixture 得到5/5
   birth（3个目标空间不足、1个RR不足、1个超过入场区）。fixture不写正式 prospective rows。
 - 受控 synthetic 验证同session重跑零重复，T+1产生follow-up，掉出Candidate仍续载，
@@ -59,15 +62,20 @@ acceptance、Opportunity Ledger natural acceptance 仍未发生。branch / PR / 
 
 ## Blocker / Remaining Risks
 
-- 新 D1 activation 仍需独立治理授权；本 PR 不写真实 VPS/GCS activation，不回填迁移窗口。
+- 新 D1 activation 仍需独立治理授权；本次 merge 不写真实 VPS/GCS activation，不运行新
+  D1 V3 collector，不回填迁移窗口。
 - 601059/601198 保持 stale/unavailable；HOLX/JMKE/VYLR-WI lifecycle/when-issued 处理留在
   独立任务。真实 prospective 结果必须等待自然 session，不能通过历史回填补齐。
+- `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE` 不是继续推进独立 US lifecycle
+  hygiene 的阻塞条件。
 
 ## Next Action
 
-等待独立迁移 PR review/用户后续 merge 决策；本线程不 merge。继续等待后续 natural CN/US
-report、Opportunity Ledger T+1/10-session acceptance；不把 live probe 写成 prospective
-D1 evidence。
+保持 CN 首个 merge 后自然日报等待状态；从最新 main 完成独立 US Candidate lifecycle
+hygiene PR（HOLX unlisted/no-market、VYLR-WI when-issued、JMKE 保持
+`HISTORY_INSUFFICIENT`），完成验证并停在 `US_CANDIDATE_LIFECYCLE_PR_READY`，不 merge。
+继续等待后续 natural CN/US report、Opportunity Ledger T+1/10-session acceptance；不把
+live probe 写成 prospective D1 evidence。
 
 ## Constraints / Pitfalls
 
