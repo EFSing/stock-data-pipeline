@@ -4,6 +4,7 @@ import json
 import unittest
 
 from core import Quote
+from latest_snapshot import evaluate_single_source_snapshot, project_latest_row
 from trading.daily_decision_chain import (
     CompletedSessionIdentity,
     DailyDecisionResult,
@@ -283,6 +284,79 @@ class ProductionPrerequisiteTests(unittest.TestCase):
         client.rows["历史行情_前复权"][0]["币种"] = ""
         summary = next(item for item in build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE).preflight.accounts if item.account_id == "CN-1")
         self.assertIn(DATA_BAD, " ".join(summary.errors))
+
+    def test_canonical_single_source_data_ok_rows_are_usable_for_both_formal_pools(self):
+        client = _rows()
+        providers = {"CN": "HITHINK_FINANCIAL_API", "US": "YAHOO_CHART"}
+        for row in client.rows["最新行情"]:
+            row.update({"校验状态": "DATA_OK", "数据源": providers[row["市场"]]})
+        for row in client.rows["历史行情_前复权"]:
+            row["数据源"] = providers[row["市场"]]
+        snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
+        self.assertTrue(snapshot.preflight.ready)
+        self.assertTrue(all(item.data_ok_count == 1 for item in snapshot.preflight.accounts))
+        self.assertTrue(all(run.inputs[0].data_quality_status == DATA_OK for run in snapshot.account_runs))
+
+    def test_single_source_label_keeps_provider_quality_and_qfq_gates(self):
+        mutations = (
+            ("最新行情", "数据源", "synthetic"),
+            ("历史行情_前复权", "数据源", "Tencent"),
+            ("最新行情", "最高", "1"),
+            ("历史行情_前复权", "最低", "200"),
+            ("最新行情", "成交量", "-1"),
+            ("历史行情_前复权", "成交量", ""),
+            ("最新行情", "正式收盘", "FALSE"),
+            ("最新行情", "校验状态", "待复核"),
+            ("最新行情", "校验状态", "单源可用"),
+            ("最新行情", "校验状态", "DATA_INVALID"),
+            ("最新行情", "交易日期", "2026-09-04"),
+            ("历史行情_前复权", "交易日期", "2026-09-02"),
+        )
+        for sheet, field, value in mutations:
+            with self.subTest(sheet=sheet, field=field, value=value):
+                client = _rows()
+                for row in client.rows["最新行情"]:
+                    row.update({"校验状态": "DATA_OK", "数据源": (
+                        "HITHINK_FINANCIAL_API" if row["市场"] == "CN" else "YAHOO_CHART"
+                    )})
+                for row in client.rows["历史行情_前复权"]:
+                    row["数据源"] = "HITHINK_FINANCIAL_API" if row["市场"] == "CN" else "YAHOO_CHART"
+                client.rows[sheet][0][field] = value
+                snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE)
+                cn = next(item for item in snapshot.preflight.accounts if item.account_id == "CN-1")
+                self.assertEqual(cn.data_ok_count, 0)
+                us = next(item for item in snapshot.preflight.accounts if item.account_id == "US-1")
+                self.assertEqual(us.data_ok_count, 1)
+
+    def test_real_single_source_projection_format_round_trips_into_formal_reader(self):
+        for market, symbol, currency, source, zone, close_time in (
+            ("CN", "600000", "CNY", "HITHINK_FINANCIAL_API", "Asia/Shanghai", "15:00"),
+            ("US", "AAPL", "USD", "YahooChart", "America/New_York", "16:00"),
+        ):
+            with self.subTest(market=market):
+                client = _rows()
+                quote = Quote(symbol, symbol, market, T_DAY, source,
+                              100.0, 105.0, 95.0, 102.0, None, None, 1000.0,
+                              None, None, currency)
+                projected = project_latest_row(evaluate_single_source_snapshot(
+                    (quote,), fetched_at=AFTER_CLOSE, timezone_name=zone,
+                    close_time_text=close_time, expected_symbol=symbol,
+                    expected_market=market,
+                ), AFTER_CLOSE)
+                self.assertEqual(projected["校验状态"], "DATA_OK")
+                client.rows["最新行情"] = [projected]
+                client.rows["历史行情_前复权"] = [_history(symbol, market, currency)]
+                client.rows["历史行情_前复权"][0]["数据源"] = source
+                snapshot = build_production_snapshot(client, as_of_date=T_DAY,
+                                                     now=AFTER_CLOSE, market=market)
+                self.assertTrue(snapshot.preflight.ready)
+                self.assertEqual(snapshot.account_runs[0].inputs[0].data_quality_status, DATA_OK)
+
+        client = _rows()
+        client.rows["最新行情"][1].update({"校验状态": "DATA_OK", "数据源": "yfinance"})
+        client.rows["历史行情_前复权"][1]["数据源"] = "yfinance"
+        snapshot = build_production_snapshot(client, as_of_date=T_DAY, now=AFTER_CLOSE, market="US")
+        self.assertEqual(snapshot.preflight.accounts[0].data_ok_count, 0)
 
     def test_missing_group_and_position_origin_are_reported(self):
         client = _rows(missing_group=True, position=True)

@@ -114,7 +114,7 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     # scheduled latest companion only:
     scripts/refresh_production_qfq.py --group asia|us
         → formal 策略账户 + 策略股票池 (CN/US only)
-        → latest row must be exact, formally closed and 已验证
+        → latest row must be exact, formally closed and 已验证 / DATA_OK
         → fetch exact-T QFQ via HITHINK (CN) or YAHOO_CHART (US) only
         → symbol failures are isolated; successful identities are replaced idempotently
         → provider-wide failure remains non-zero; other markets/rows persist
@@ -722,7 +722,8 @@ never converted into `NO_SIGNAL`.
 `main.py --mode latest` 只写 `最新行情`、`校验记录`、`运行日志`；`历史行情_*` 与 `交易决策` 只属于 `full` 模式。定时 workflow 随后调用独立的 `refresh_production_qfq.py`，只替换正式 CN/US 策略股票的 `历史行情_前复权`，不运行 SETUP_03/Decision。CN/US 通过各自 canonical provider 完成单源合同校验；单标的失败隔离并继续其余标的，provider-wide failure 或 orchestrator failure 才非零退出。运行 stdout 和 GitHub Step Summary 输出 attempted、usable、failed-by-reason、coverage 与 `history_rows_written`。
 
 下游 Sheet 监控的最小新鲜度合同是：`最新行情` 必须是目标交易所 exact T、
-`正式收盘=True` 且 `校验状态=已验证`；`历史行情_前复权` 必须有同一身份且唯一的 exact-T
+`正式收盘=True` 且校验状态合格：旧 `已验证` 保持兼容；新 `DATA_OK` 由正式 reader 复核
+latest/QFQ 的对应 canonical provider 与既有单源数据合同。`历史行情_前复权` 必须有同一身份且唯一的 exact-T
 末行。`数据不可用`、`待复核`、缺行、重复日期、T-1/T+1 或任一生产日历前置条件失败，
 均映射为 DATA_BAD / DATA_STALE / DATA_UNAVAILABLE / DATA_UNAVAILABLE_FOR_DECISION 并阻断该标的策略读取；保留的旧 OHLCV 只作审计，
 不得作为当前新鲜行情。`trading/production_prerequisites.py` 是该生产读取 gate 的 Single
