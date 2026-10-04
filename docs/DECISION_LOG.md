@@ -1071,3 +1071,31 @@ code-ready but must not be written to the real VPS before the approved activatio
 **Reason:** a source-contract migration must not overwrite or silently reinterpret existing V1
 activation bytes. Explicit epoch identity keeps activation hashes, backend identity, and
 prospective eligibility boundaries auditable across versions.
+
+## 2026-10-04 — Daily Opportunity Ledger V1：独立的机会→结果观察闭环
+
+**Decision:** 生产日报的所有SETUP_01/02 new CONFIRMED都进入独立观察账本，包含
+ENTRY_ALLOWED及ABOVE_ENTRY_ZONE、TARGET_UPSIDE_BELOW_MINIMUM、RR_BELOW_MINIMUM和
+其他NO_TRADE。birth复制已有Decision、signal close、原交易几何和provenance；字段缺失
+保留null，不补交易公式。每个自然completed market/session另保存既有日报summary。
+
+Durable store使用既有SheetsClient直接接入三个独立tab：日报历史、机会观察账本、
+机会观察跟踪；identity分别为market/session、market+existing event identity、
+opportunity_id/as_of_date。summary允许幂等行级更新，birth/follow-up不可变追加；不
+使用清空整表的upsert，不引入数据库、storage abstraction、registry、Phase或研究protocol。
+
+每个observation从T+1起按真实exchange session观察10个completed sessions，复用
+canonical QFQ continuation，即使掉出Candidate也继续。T日盘中high/low不进入未来结果；
+原T1/T2/T3/stop/invalidation不重算。same-bar stop/target只标顺序不明；DATA_*、漏运行
+和QFQ基准改变记录coverage gap，不伪造收益或首次实际触及。有gap样本不进入成熟收益
+统计。被拒绝机会没有成交、PnL、normalized R或win/loss；正式Paper lifecycle继续独立。
+
+正式birth只来自功能启用后的自然session；显式历史--date/2026-09-30 fixture只能诊断，
+不能事后变成prospective production observation。release前session被排除，close→next-open
+窗口外不得创建birth。日报展示按原reject reason分组的基础描述统计，样本不足明确提示，
+不能据此自动评价参数、降低5%/2R或触发交易/晋级。记录失败与报告生成独立：尽量生成
+JSON/HTML，同时显式OPPORTUNITY_LEDGER_STATUS=FAILED并让scheduled workflow非零退出。
+
+**Reason:** ENTRY_ALLOWED=0不等于没有可观察机会。保留所有新确认及当时的拒绝依据，
+才能形成因果、可审计的长期反馈，同时保持策略纪律、Paper lifecycle、真实持仓、broker、
+Portfolio Risk和D1 research evidence的原有权限及语义边界。

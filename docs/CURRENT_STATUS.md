@@ -5,11 +5,11 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-04（独立 Candidate 源日期修复与 Wave 非正摆幅 Fib-context 边界
-> 修复已合并到 main；真实只读 CN 回补已 COMPLETED，核心异常解除，数据质量
-> 仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；公式和门槛不变。
-> formal reader 已在独立修复中接入合格 DATA_OK 行，尚未合并；单源 provider、D1 V2 activation
-> 与 natural production / D1 evidence 边界不变）。
+> 最后实质更新：2026-10-04（独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
+> 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
+> 公式和门槛不变。Daily Opportunity Ledger V1 已完成独立实现，尚未接入生产；单源 provider、
+> D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
 
@@ -383,8 +383,9 @@
   拒绝原因；确认日已计算但最终不交易时，首层摘要直接展示确认成功、入场区状态、可用的 T1 空间与
   T1 R/R 拒绝依据。策略跟踪持仓与模拟持仓分别标注，不将模拟账本计数写成当前真实持仓。该能力为
   presentation/read-only only，不改变 production trading semantics。
-- Cloud report 的 production state、paper ledger、broker order 与 raw/QFQ persistence
-  仍为零，final artifact allowlist 不变。`asia-close` / `us-close` 是独立的 Sheet-backed
+- Cloud report 的 production state、paper ledger、broker order 与完整 raw/QFQ series persistence
+  仍为零，final artifact allowlist 不变；独立Opportunity Ledger接线后只新增session/birth/
+  follow-up观察记录（含单session OHLC），不写行情历史表。`asia-close` / `us-close` 是独立的 Sheet-backed
   scheduled writer；Cloud Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` /
   `历史行情_前复权`，也不改变 writer 的事实源边界。Bark/SMTP 仍为可选通知；配置 D1
   VPS credentials 后，通知会先在独立 `system/operational/daily-report-notifications/`
@@ -410,6 +411,27 @@
    最低要求及可用的 RR 诊断。SETUP_01 target projection 额外把“保守第一障碍
    （最近已确认历史阻力）”与“Wave3 结构目标（最近 Fib 投射）”分开显示；邮件与
    Dashboard 均不重新计算交易几何。
+
+### Daily Opportunity Ledger V1（已实现，尚未接入生产）
+
+- Cloud 日报代码路径可记录“日报历史”和 SETUP_01/02 new CONFIRMED 的观察账本；独立 PR
+  尚未 merge/deploy，因此尚未产生正式 prospective 生产记录；
+
+  ENTRY_ALLOWED 与所有 NO_TRADE 都纳入，birth只复制原Decision和T日signal close，
+  缺字段为null，不重算策略。三张独立tab已用既有Cloud凭证创建并核验写权限。
+- 每个机会从T+1起按XSHG/XNYS真实session跟踪10个completed sessions，复用现有
+  canonical QFQ continuation；Candidate dropout后仍加载，Opportunity/Paper身份独立。
+  描述性记录OHLC、相对signal close的变化、未来区间高低变化、原目标/失效触及。
+  不伪造成交、PnL或normalized R；same-bar stop/target为顺序不明。
+- summary按market/session行级upsert；birth按market+existing event identity、follow-up
+  按opportunity_id/date幂等。DATA_*、漏运行和复权基准改变保留gap，缺口不伪造收益；
+  有gap的成熟样本不进入收益统计。日报“机会跟踪”只显示新增、拒绝原因、仍跟踪、
+  当日完成10-session数量与按原reason分组的描述统计；样本不足不评价参数。
+- 历史显式--date只诊断，release前session不进入正式账本；自然close→next-open窗口
+  才创建birth。2026-09-30 fixture的5个拒绝new CONFIRMED得到5/5 observation投影，
+  未写成真实prospective生产记录。真实自然启用/T+1/成熟样本仍待未来session。
+- ledger失败独立输出OPPORTUNITY_LEDGER_STATUS=FAILED，尽量保留JSON/HTML并使
+  workflow可见失败。策略/Paper/持仓/broker、33条Candidate unavailable与D1不变。
 
 ### Portfolio Risk（已实现并合并，未自动生产运行）
 
@@ -463,8 +485,8 @@
   minimum market-data contract，也不作为 Wave/Fib/PA 依赖；任何未验证 adjustment contract
   都 fail closed 为 `DATA_ADJUSTMENT_UNVERIFIED`，不换 vendor。
 
-- 独立 formal reader 修复已接入既有单源 `校验状态=DATA_OK`，但尚未合并到 main；
-  当前 main 的旧 `已验证` 标签门仍可能将合格 CN/US 正式输入判 DATA_BAD。新路径复用
+- formal reader 修复已接入既有单源 `校验状态=DATA_OK` 并合并到 main；旧 `已验证`
+  标签保持兼容，`DATA_OK` 路径额外执行 canonical provider 与 exact-T 单源合同。新路径复用
   `market_data_contract.validate_single_source_quotes` 校验 latest/QFQ 的 exact-T、无未来
   bar、OHLCV、日期质量与 schema，并核对市场 canonical provider；US 兼容现有 direct
   Chart 行 source 名称 `YahooChart`，不接入 yfinance/未知来源。旧 `已验证` 行兼容性保持，

@@ -1,9 +1,10 @@
-"""Run one market-scoped, read-only Cloud Daily Report.
+"""Run one market-scoped Cloud Daily Report with an observation-only ledger.
 
 The script is intentionally a thin orchestrator.  Session identity, provider
 fallback, latest validation, Candidate discovery, and the Daily Decision Chain
 remain owned by the existing modules; this layer only supplies ephemeral
-market evidence, writes the two final artifacts, and optionally notifies.
+market evidence, persists opportunity observations, writes the two final
+artifacts, and optionally notifies. Strategy/Paper/holdings remain read-only.
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ from trading.ephemeral_market_data import (
 from trading.notifications import github_run_url, send_bark, send_optional_email
 from trading.operational_markers import claim_report_notification
 from trading.production_candidate_runtime import ProductionCandidateRuntime
+from trading.opportunity_ledger import RELEASE_DATE, SCHEMAS, birth_snapshots, persist_daily_opportunities
 from trading.production_prerequisites import ExactExchangeCalendarProvider
 from trading.risk import MIN_TARGET_UPSIDE_PCT
 from trading.setup01_decision import SETUP01_MINIMUM_RR
@@ -595,6 +597,7 @@ def _cloud_metadata(
         "qfq_persisted": False,
         "state_write": False,
         "sheet_mutation": False,
+        "OPPORTUNITY_LEDGER_STATUS": "NOT_RUN",
         "broker_orders": "NONE",
         "errors": list(dict.fromkeys(metadata_errors)),
         "github_run_url": github_run_url(),
@@ -824,6 +827,9 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
             "本日不生成新的交易信号。"
         )
     run_url = cloud.get("github_run_url")
+    if cloud.get("OPPORTUNITY_LEDGER_STATUS") == "FAILED":
+        title += "（机会账本写入失败）"
+        body += "\nOPPORTUNITY_LEDGER_STATUS=FAILED；日报已生成，账本未完整持久化，请查看运行诊断。"
     if run_url:
         body += f"\n查看本次运行：{run_url}"
     return title, body
@@ -1014,6 +1020,12 @@ def run_cloud_daily_report(
 
     errors: list[str] = []
     report_status = "FAILED"
+    observation_inputs: list = []
+    opportunity_status = "NOT_ENABLED_FOR_DIAGNOSTIC"
+    opportunity_error = None
+    opportunity_write_attempted = False
+    runtime = ProductionCandidateRuntime()
+    sheets = None
     try:
         sheets = client if client is not None else SheetsClient()
         ephemeral = load_ephemeral_market_data(
@@ -1034,8 +1046,9 @@ def run_cloud_daily_report(
                 if item.get("errors")
             },
             paper_active_symbols={normalized_market: ephemeral.active_paper_symbols},
-            candidate_runtime=ProductionCandidateRuntime(),
+            candidate_runtime=runtime,
             allow_no_runnable_account=True,
+            observation_inputs=observation_inputs,
         )
         report_status, quality = _status_from_result(result, ephemeral)
         ephemeral_meta = ephemeral.to_dict()
@@ -1079,6 +1092,44 @@ def run_cloud_daily_report(
             session_resolution=session_resolution,
         ),
     }
+    # A manual rerun of the current natural session uses the same ledger.
+    # Historical dates are diagnostic-only; births must precede next open.
+    eligible = as_of_date > RELEASE_DATE
+    if eligible:
+        try:
+            window = provider.completed_session_window(normalized_market, as_of_date, now=generated_at)
+            if generated_at >= window.next_session_open:
+                opportunity_status = ("MISSED_PROSPECTIVE_SESSION" if automatic_resolution
+                                      else "NOT_ENABLED_FOR_DIAGNOSTIC")
+            else:
+                if sheets is None:
+                    raise RuntimeError("OPPORTUNITY_LEDGER_CLIENT_UNAVAILABLE")
+                opportunity_write_attempted = True
+                payload["opportunity_tracking"] = persist_daily_opportunities(
+                    sheets, payload, observation_inputs, provider, runtime, generated_at,
+                )
+                opportunity_status = "SUCCESS"
+        except Exception as exc:
+            opportunity_status, opportunity_error = "FAILED", _error_text(exc)
+    if "opportunity_tracking" not in payload:
+        try:
+            diagnostic_count = len(birth_snapshots(payload, observation_inputs))
+        except Exception:
+            diagnostic_count = None
+        payload["opportunity_tracking"] = {
+            "status": opportunity_status, "error": opportunity_error,
+            "diagnostic_observation_count": diagnostic_count,
+        }
+    payload["cloud_daily_report"]["OPPORTUNITY_LEDGER_STATUS"] = opportunity_status
+    payload["cloud_daily_report"]["opportunity_ledger_error"] = opportunity_error
+    payload["cloud_daily_report"]["opportunity_ledger_sheet_write"] = opportunity_status == "SUCCESS"
+    payload["cloud_daily_report"]["opportunity_ledger_write_attempted"] = opportunity_write_attempted
+    payload["cloud_daily_report"]["sheet_mutation"] = (True if opportunity_status == "SUCCESS" else "UNKNOWN" if opportunity_write_attempted else False)
+    payload["cloud_daily_report"]["sheet_mutation_scope"] = list(SCHEMAS) if opportunity_write_attempted else []
+    payload["cloud_daily_report"]["opportunity_followup_ohlc_persistence"] = opportunity_write_attempted
+    if opportunity_write_attempted:
+        payload["NO Sheets mutation"] = False
+        payload["read behavior"] = "READ_ONLY_STRATEGY_WITH_OPPORTUNITY_LEDGER"
     _write_and_notify(payload, output_dir, notify=notify)
     return payload
 
@@ -1145,6 +1196,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))
     metadata = payload.get("cloud_daily_report", {})
+    if metadata.get("OPPORTUNITY_LEDGER_STATUS") in {"FAILED", "MISSED_PROSPECTIVE_SESSION"} or payload.get("opportunity_tracking", {}).get("provider_global_failure"):
+        return 1
     status = str(metadata.get("status") or "FAILED")
     run_status = str(metadata.get("run_status") or metadata.get("RUN_STATUS") or status)
     data_status = str(metadata.get("data_status") or metadata.get("DATA_STATUS") or "UNKNOWN")
