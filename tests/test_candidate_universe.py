@@ -272,8 +272,9 @@ class IwbContractTests(unittest.TestCase):
             ["Ticker", "Name", "Sector", "Asset Class", "Price", "Exchange", "Currency"],
             ["AAPL", "APPLE", "Technology", "Equity", "200", "NASDAQ", "USD"],
             ["JMKE", "NEW LISTED", "Industrials", "Equity", "20", "NASDAQ", "USD"],
-            ["HOLX", "UNLISTED", "Health Care", "Equity", "20", "-", "USD"],
+            ["HOLX", "UNLISTED", "Health Care", "Equity", "20", "NO MARKET (E.G. UNLISTED)", "USD"],
             ["VYLR-WI", "WHEN ISSUED", "Industrials", "Equity", "20", "NASDAQ", "USD"],
+            ["BLANK", "BLANK EXCHANGE", "Industrials", "Equity", "20", "", "USD"],
         ]
         payload = io.StringIO()
         csv.writer(payload, lineterminator="\n").writerows(rows)
@@ -285,6 +286,8 @@ class IwbContractTests(unittest.TestCase):
         self.assertEqual(by_symbol["JMKE"].lifecycle_status, LIFECYCLE_ACTIVE)
         self.assertEqual(by_symbol["HOLX"].lifecycle_status, LIFECYCLE_UNLISTED_OR_NO_MARKET)
         self.assertIn("lifecycle_status:UNLISTED_OR_NO_MARKET", by_symbol["HOLX"].provenance)
+        self.assertEqual(by_symbol["BLANK"].lifecycle_status, LIFECYCLE_ACTIVE)
+        self.assertNotIn("lifecycle_status:", "|".join(by_symbol["BLANK"].provenance))
         self.assertEqual(by_symbol["VYLR-WI"].source_symbol, "VYLR-WI")
         self.assertEqual(by_symbol["VYLR-WI"].lifecycle_status, LIFECYCLE_WHEN_ISSUED)
         self.assertIn("lifecycle_status:WHEN_ISSUED", by_symbol["VYLR-WI"].provenance)
@@ -293,6 +296,7 @@ class IwbContractTests(unittest.TestCase):
     def test_lifecycle_exclusions_do_not_filter_new_listed_equity_as_metadata_bad(self):
         common = _seed("AAPL", "US", "Technology", exchange="NASDAQ")
         new_listed = _seed("JMKE", "US", "Industrials", exchange="NASDAQ")
+        blank_exchange = _seed("BLANK", "US", "Industrials", exchange=None)
         unlisted = replace(
             _seed("HOLX", "US", "Health Care", exchange=None),
             lifecycle_status=LIFECYCLE_UNLISTED_OR_NO_MARKET,
@@ -304,10 +308,11 @@ class IwbContractTests(unittest.TestCase):
             provenance=("official-iwb", "lifecycle_status:WHEN_ISSUED"),
         )
         universe = select_candidate_universe(
-            (common, new_listed, unlisted, when_issued),
+            (common, new_listed, blank_exchange, unlisted, when_issued),
             {
                 common.symbol: _history(common.symbol, 20.0),
                 new_listed.symbol: _history(new_listed.symbol, 20.0, count=59),
+                blank_exchange.symbol: _history(blank_exchange.symbol, 20.0),
                 unlisted.symbol: _history(unlisted.symbol, 20.0),
                 when_issued.symbol: _history(when_issued.symbol, 20.0),
             },
@@ -316,6 +321,8 @@ class IwbContractTests(unittest.TestCase):
         by_symbol = {record.symbol: record for record in universe.records}
 
         self.assertTrue(by_symbol["AAPL"].included)
+        self.assertTrue(by_symbol["BLANK"].included)
+        self.assertNotEqual(by_symbol["BLANK"].exclusion_reason, "LIFECYCLE_UNLISTED_OR_NO_MARKET")
         self.assertFalse(by_symbol["JMKE"].included)
         self.assertEqual(by_symbol["JMKE"].exclusion_reason, "HISTORY_INSUFFICIENT")
         self.assertFalse(by_symbol["HOLX"].included)

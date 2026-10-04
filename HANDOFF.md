@@ -13,11 +13,12 @@ compile、CI 与相关 generic shadows 均通过。merge 之后尚无自然 CN D
 当前状态为 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger
 natural acceptance 也仍未发生。
 
-独立 US lifecycle hygiene PR 只为 IWB metadata 保留并审计 lifecycle status：明确
-unlisted/no-market 的 Equity 排除为 `LIFECYCLE_UNLISTED_OR_NO_MARKET`，`-WI` identity
-排除为 `LIFECYCLE_WHEN_ISSUED` 且不映射普通 ticker；普通 Equity（含新上市）继续既有
-history gate，`HISTORY_INSUFFICIENT` 语义不变。PR 未 merge。branch / PR / HEAD / CI
-继续从 GitHub 实时核对，不以本文件作动态证明。
+独立 US lifecycle hygiene PR 只为 IWB metadata 保留并审计 lifecycle status：官方
+`Exchange=NO MARKET (E.G. UNLISTED)` 的 Equity 排除为
+`LIFECYCLE_UNLISTED_OR_NO_MARKET`；blank/missing Exchange 不视为明确 unlisted；`-WI`
+identity 排除为 `LIFECYCLE_WHEN_ISSUED` 且不映射普通 ticker；普通 Equity（含新上市）
+继续既有 history gate，`HISTORY_INSUFFICIENT` 语义不变。PR 未 merge。branch / PR /
+HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
 

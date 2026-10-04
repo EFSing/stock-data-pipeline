@@ -343,7 +343,16 @@ def _normalize_us_symbol(ticker: str) -> str:
 
 
 _UNLISTED_OR_NO_MARKET_EXCHANGES = frozenset(
-    {"", "-", "N/A", "NA", "NONE", "UNLISTED", "NO MARKET", "NO_MARKET"}
+    {
+        "-",
+        "N/A",
+        "NA",
+        "NONE",
+        "UNLISTED",
+        "NO MARKET",
+        "NO_MARKET",
+        "NO MARKET (E.G. UNLISTED)",
+    }
 )
 
 
