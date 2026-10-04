@@ -4,21 +4,19 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`US_CANDIDATE_LIFECYCLE_PR_READY`：PR #133 已 squash merge 到 main，CN A-share production
-qfq 使用 HITHINK `/api/a-share/prices/historical?adjust=forward`。provider route、
-provenance、D1 V2 isolation 与新 CN D1 code-ready contract 已进入 main；旧
+`DATA_QUALITY_STRUCTURAL_FIXES_COMPLETE_WAITING_NATURAL_ACCEPTANCE`：PR #133 与 PR #134
+均已 squash merge 到 main。CN A-share production qfq 使用 HITHINK
+`/api/a-share/prices/historical?adjust=forward`；旧
 `CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
-阻断 live route 现为 33/33 usable；as-of ex-date cutoff、8 controls、full unittest、
-compile、CI 与相关 generic shadows 均通过。merge 之后尚无自然 CN Daily Report，
-当前状态为 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger
-natural acceptance 也仍未发生。
+阻断 live route 现为 33/33 usable；provider/as-of controls、full unittest、compile、CI
+与相关 generic shadows 均通过。US Candidate lifecycle structural fixes 已进入 main：
+HOLX 的实际 `Exchange=NO MARKET (E.G. UNLISTED)`、VYLR-WI、blank Exchange 与 JMKE
+history gate 均有回归覆盖。
 
-独立 US lifecycle hygiene PR 只为 IWB metadata 保留并审计 lifecycle status：官方
-`Exchange=NO MARKET (E.G. UNLISTED)` 的 Equity 排除为
-`LIFECYCLE_UNLISTED_OR_NO_MARKET`；blank/missing Exchange 不视为明确 unlisted；`-WI`
-identity 排除为 `LIFECYCLE_WHEN_ISSUED` 且不映射普通 ticker；普通 Equity（含新上市）
-继续既有 history gate，`HISTORY_INSUFFICIENT` 语义不变。PR 未 merge。branch / PR /
-HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
+当前没有新的真实代码缺陷。merge 后尚无自然 CN Daily Report，状态为
+`WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger natural
+acceptance 也仍未发生。后续只等待自然 production acceptance，不继续扩大 Candidate
+规则或数据架构。branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
 
@@ -48,6 +46,10 @@ HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 - merge 后首个 CN 自然日报必须单独审计原 33 个阻断标的、formal rows、
   `DATA_STATUS`/`CANDIDATE_STATUS` 与 Opportunity Ledger 三表；历史手动运行不计入自然
   acceptance。
+- data-quality backlog 分类：HOLX unlisted/no-market 与 VYLR-WI lifecycle 已解决；JMKE
+  `HISTORY_INSUFFICIENT`、601059/601198 stale/unavailable 属于合法数据/历史不可用状态；
+  CN/US 自然日报、Opportunity Ledger natural acceptance 与 D1 V3 activation 边界仍待
+  自然 production/独立授权，不以清零状态为目标。
 
 ## Validation
 
@@ -62,25 +64,29 @@ HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 - provider-forward live acceptance：原 33 个 residual symbols `33/33` usable，8 controls
   exact-T/chronology/OHLCV/volume contract valid；600519.SH 与 000001.SZ ex-date cutoff
   对比未发现 future-action leakage；ETF provenance 保持 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1`。
+- post-merge US lifecycle sanity：HOLX → `LIFECYCLE_UNLISTED_OR_NO_MARKET`；VYLR-WI 保持
+  identity 并 → `LIFECYCLE_WHEN_ISSUED`；JMKE → `HISTORY_INSUFFICIENT`；blank Exchange
+  保持 ACTIVE/non-lifecycle；provider、strategy 与 affordability/history thresholds 未变。
 - full `unittest`: 990 passed, 2 skipped；compileall、git diff --check、Daily Decision /
   Paper lifecycle / Portfolio Risk / Position Management / SETUP_01 / SETUP_02 generic
   shadows 与 PR CI 均通过。
 
 ## Blocker / Remaining Risks
 
-- 新 D1 activation 仍需独立治理授权；本次 merge 不写真实 VPS/GCS activation，不运行新
+- 新 D1 activation 仍需独立治理授权；两次 merge 不写真实 VPS/GCS activation，不运行新
   D1 V3 collector，不回填迁移窗口。
-- 601059/601198 保持 stale/unavailable；US lifecycle hygiene PR 已完成但仍未 merge。
-  真实 prospective 结果必须等待自然 session，不能通过历史回填补齐。
-- `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE` 不是继续推进独立 US lifecycle
-  hygiene 的阻塞条件。
+- 601059/601198 保持 stale/unavailable；JMKE 的 `HISTORY_INSUFFICIENT` 与 lifecycle
+  exclusions 是合法 fail-closed 结果。真实 prospective 结果必须等待自然 session，不能
+  通过历史回填补齐。
+- `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE` 是当前唯一继续等待的 production
+  acceptance 边界之一；没有新代码 blocker。
 
 ## Next Action
 
-保持 CN 首个 merge 后自然日报等待状态；US Candidate lifecycle hygiene PR 已从最新 main
-完成并停在 `US_CANDIDATE_LIFECYCLE_PR_READY`，等待 review，保持不 merge。
-继续等待后续 natural CN/US report、Opportunity Ledger T+1/10-session acceptance；不把
-live probe 写成 prospective D1 evidence。
+保持 `DATA_QUALITY_STRUCTURAL_FIXES_COMPLETE_WAITING_NATURAL_ACCEPTANCE`；等待首个
+merge 后自然 CN/US report、Opportunity Ledger T+1/10-session acceptance，以及未来经
+独立授权的 D1 decision。不要为清零合法 unavailable/lifecycle 状态继续开发；不把 live
+probe 写成 prospective D1 evidence。
 
 ## Constraints / Pitfalls
 

@@ -5,7 +5,7 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-04（CN A-share provider-forward QFQ 合同迁移已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 最后实质更新：2026-10-04（CN A-share provider-forward QFQ 合同迁移与 US Candidate lifecycle structural fixes 已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
 > 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
 > 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
@@ -135,6 +135,11 @@
   Equity, including newly listed Equity, remains on the existing history gate; insufficient
   history remains `HISTORY_INSUFFICIENT`. These are Candidate data/identity exclusions only
   and do not change provider routing, strategy filters, or trading rules.
+- Candidate data-quality structural fixes are complete. HOLX/VYLR-WI lifecycle outcomes are
+  explicit and auditable; JMKE `HISTORY_INSUFFICIENT`, 601059/601198 stale/unavailable are
+  legitimate fail-closed data states, not reasons to alter Candidate rules. Remaining work is
+  natural production acceptance only; no additional provider, threshold, or data-architecture
+  change is authorized by this state.
 - 输出 affordability tier（CN `<=10,000` preferred / `<=20,000` retained；
   US 一股 `>1,000 USD` 排除）、20D/60D traded-notional 流动性 proxy、
   history/data-quality gate、确定性 global rank 与 included/excluded 审计行；production
