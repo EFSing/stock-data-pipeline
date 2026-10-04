@@ -4,13 +4,13 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`CN_QFQ_PROVIDER_FORWARD_MIGRATION`：用户已批准将 CN A-share production qfq 迁移到
+`CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`：用户已批准将 CN A-share production qfq 迁移到
 HITHINK `/api/a-share/prices/historical?adjust=forward`。独立分支已完成 provider route、
 provenance、D1 V2 isolation 与新 CN D1 code-ready contract；旧
 `CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
 阻断 live route 现为 33/33 usable；as-of ex-date cutoff、8 controls 与 focused tests
-已通过。等待 full unittest、CI/generic shadows 与 PR review 后报告
-`CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`。真实 post-merge CN/US natural report
+已通过；full unittest、compile、CI 与相关 generic shadows 均通过。独立 PR 已创建，
+未 merge，等待 review。真实 post-merge CN/US natural report
 acceptance、Opportunity Ledger natural acceptance 仍未发生。branch / PR / HEAD / CI
 继续从 GitHub 实时核对，不以本文件作动态证明。
 
@@ -50,20 +50,24 @@ acceptance、Opportunity Ledger natural acceptance 仍未发生。branch / PR / 
   数据缺失/错误provider/未来bar/复权基准变化为gap，same-bar ambiguous，无其他Sheet副作用。
 - 独立临时 Actions harness 只创建/核验三个 observation tab 表头，无生产observation、
   持仓读取、策略/Paper/broker/D1访问或通知。harness不进入PR，临时远端branch已清理。
+- provider-forward live acceptance：原 33 个 residual symbols `33/33` usable，8 controls
+  exact-T/chronology/OHLCV/volume contract valid；600519.SH 与 000001.SZ ex-date cutoff
+  对比未发现 future-action leakage；ETF provenance 保持 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1`。
+- full `unittest`: 988 passed, 2 skipped；compileall、git diff --check、Daily Decision /
+  Paper lifecycle / Portfolio Risk / Position Management / SETUP_01 / SETUP_02 generic
+  shadows 与 PR CI 均通过。
 
 ## Blocker / Remaining Risks
 
-- PR readiness 仍取决于 full unittest、compile、CI 与 generic shadows；不得 merge。
 - 新 D1 activation 仍需独立治理授权；本 PR 不写真实 VPS/GCS activation，不回填迁移窗口。
 - 601059/601198 保持 stale/unavailable；HOLX/JMKE/VYLR-WI lifecycle/when-issued 处理留在
   独立任务。真实 prospective 结果必须等待自然 session，不能通过历史回填补齐。
 
 ## Next Action
 
-完成 full unittest、compile、CI 和相关 generic shadows，核对真实 PR diff；若全部通过，
-停在 `CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`，不 merge。继续等待后续 natural
-CN/US report、Opportunity Ledger T+1/10-session acceptance；不把 live probe 写成
-prospective D1 evidence。
+等待独立迁移 PR review/用户后续 merge 决策；本线程不 merge。继续等待后续 natural CN/US
+report、Opportunity Ledger T+1/10-session acceptance；不把 live probe 写成 prospective
+D1 evidence。
 
 ## Constraints / Pitfalls
 
