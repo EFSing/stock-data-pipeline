@@ -16,7 +16,12 @@ from zoneinfo import ZoneInfo
 
 from market_data_contract import ProviderGlobalFailure
 from providers import _hithink_items, _hithink_json
-from trading.candidate_universe import SeedSecurity
+from trading.candidate_universe import (
+    LIFECYCLE_ACTIVE,
+    LIFECYCLE_UNLISTED_OR_NO_MARKET,
+    LIFECYCLE_WHEN_ISSUED,
+    SeedSecurity,
+)
 from trading.production_prerequisites import ExactExchangeCalendarProvider
 
 
@@ -337,6 +342,25 @@ def _normalize_us_symbol(ticker: str) -> str:
     return str(ticker or "").strip().upper().replace(".", "-").replace("/", "-").replace(" ", "-")
 
 
+_UNLISTED_OR_NO_MARKET_EXCHANGES = frozenset(
+    {"", "-", "N/A", "NA", "NONE", "UNLISTED", "NO MARKET", "NO_MARKET"}
+)
+
+
+def _us_lifecycle_status(source_symbol: str, exchange: str | None) -> str:
+    """Classify explicit US identity/listing metadata without ticker maps."""
+
+    normalized_symbol = _normalize_us_symbol(source_symbol)
+    if normalized_symbol.endswith("-WI"):
+        # Keep the when-issued identity intact.  In particular, do not turn
+        # ``VYLR-WI`` into the regular ``VYLR`` common-stock identity.
+        return LIFECYCLE_WHEN_ISSUED
+    normalized_exchange = " ".join(str(exchange or "").strip().upper().split())
+    if normalized_exchange in _UNLISTED_OR_NO_MARKET_EXCHANGES:
+        return LIFECYCLE_UNLISTED_OR_NO_MARKET
+    return LIFECYCLE_ACTIVE
+
+
 def parse_iwb_holdings_csv(
     payload: bytes | str, *, source_url: str = IWB_OFFICIAL_HOLDINGS_URL,
     snapshot_mode: str = "CURRENT_ONLY",
@@ -373,6 +397,11 @@ def parse_iwb_holdings_csv(
         if not source_symbol or source_symbol == "-" or asset_class != "Equity":
             continue
         symbol = _normalize_us_symbol(source_symbol)
+        exchange = row[positions["Exchange"]].strip() or None
+        lifecycle_status = _us_lifecycle_status(source_symbol, exchange)
+        provenance = [source_url, f"snapshot_mode:{snapshot_mode}"]
+        if lifecycle_status != LIFECYCLE_ACTIVE:
+            provenance.append(f"lifecycle_status:{lifecycle_status}")
         output.append(
             SeedSecurity(
                 market="US",
@@ -381,13 +410,14 @@ def parse_iwb_holdings_csv(
                 name=row[positions["Name"]].strip(),
                 sector=row[positions["Sector"]].strip() or None,
                 asset_class=asset_class,
-                exchange=row[positions["Exchange"]].strip() or None,
+                exchange=exchange,
                 currency=row[positions["Currency"]].strip() or "USD",
                 source="iShares_IWB_OFFICIAL_HOLDINGS",
                 source_as_of=source_as_of,
                 reference_price=_parse_float(row[positions["Price"]]),
                 metadata_status="OK",
-                provenance=(source_url, f"snapshot_mode:{snapshot_mode}"),
+                provenance=tuple(provenance),
+                lifecycle_status=lifecycle_status,
             )
         )
     if not output:

@@ -126,6 +126,13 @@
   closed。未指定日期的直接下载仍为 current-only。当前 production 无 persistent
   snapshot cache；所有新加载或 cache-backed loader 的输入均须重验日期。US live seed
   仅为 IWB Russell 1000，Yahoo 只供价格；S&P500/QQQ/SOX frozen research snapshots 独立。
+- US IWB Equity rows retain generic lifecycle metadata and source provenance. Explicit
+  unlisted/no-market exchange metadata is excluded as `LIFECYCLE_UNLISTED_OR_NO_MARKET`,
+  and a canonical `-WI` identity is excluded as `LIFECYCLE_WHEN_ISSUED` without mapping it
+  to the regular common-stock ticker. Ordinary Equity, including newly listed Equity,
+  remains on the existing history gate; insufficient history remains
+  `HISTORY_INSUFFICIENT`. These are Candidate data/identity exclusions only and do not
+  change provider routing, strategy filters, or trading rules.
 - 输出 affordability tier（CN `<=10,000` preferred / `<=20,000` retained；
   US 一股 `>1,000 USD` 排除）、20D/60D traded-notional 流动性 proxy、
   history/data-quality gate、确定性 global rank 与 included/excluded 审计行；production

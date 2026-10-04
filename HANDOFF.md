@@ -4,15 +4,20 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`CN_QFQ_PROVIDER_FORWARD_MIGRATION_MERGED_CLOSEOUT`：PR #133 已 squash merge 到 main，
-CN A-share production qfq 使用 HITHINK `/api/a-share/prices/historical?adjust=forward`。
-provider route、provenance、D1 V2 isolation 与新 CN D1 code-ready contract 已进入 main；
-旧 `CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
+`US_CANDIDATE_LIFECYCLE_PR_READY`：PR #133 已 squash merge 到 main，CN A-share production
+qfq 使用 HITHINK `/api/a-share/prices/historical?adjust=forward`。provider route、
+provenance、D1 V2 isolation 与新 CN D1 code-ready contract 已进入 main；旧
+`CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
 阻断 live route 现为 33/33 usable；as-of ex-date cutoff、8 controls、full unittest、
 compile、CI 与相关 generic shadows 均通过。merge 之后尚无自然 CN Daily Report，
 当前状态为 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger
-natural acceptance 也仍未发生。US Candidate lifecycle hygiene 作为独立、未合并的后续 PR
-继续推进。branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
+natural acceptance 也仍未发生。
+
+独立 US lifecycle hygiene PR 只为 IWB metadata 保留并审计 lifecycle status：明确
+unlisted/no-market 的 Equity 排除为 `LIFECYCLE_UNLISTED_OR_NO_MARKET`，`-WI` identity
+排除为 `LIFECYCLE_WHEN_ISSUED` 且不映射普通 ticker；普通 Equity（含新上市）继续既有
+history gate，`HISTORY_INSUFFICIENT` 语义不变。PR 未 merge。branch / PR / HEAD / CI
+继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
 
@@ -33,8 +38,8 @@ natural acceptance 也仍未发生。US Candidate lifecycle hygiene 作为独立
 - 写入失败独立为 OPPORTUNITY_LEDGER_STATUS=FAILED，尽量生成 JSON/HTML，workflow
   非零退出；部分写入不伪称零写入。已有 session/strategy/data/provider 合同不放宽。
 - 所有交易规则、正式策略状态、Paper lifecycle、持仓、broker 和 D1 evidence 均不变；
-  不处理 601059/601198、HOLX、JMKE、VYLR-WI residual lifecycle/exclusion；不新增
-  Phase/registry/storage abstraction。
+  不处理 601059/601198 residual data；US lifecycle hygiene 只处理通用 IWB metadata/identity
+  status，不新增 Phase/registry/storage abstraction。
 - 生产 CN A-share qfq 使用 `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2` /
   `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`；ETF 与 US contract 不变。
 - `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 明确锁定旧 raw+corporate-actions basis；新
@@ -56,7 +61,7 @@ natural acceptance 也仍未发生。US Candidate lifecycle hygiene 作为独立
 - provider-forward live acceptance：原 33 个 residual symbols `33/33` usable，8 controls
   exact-T/chronology/OHLCV/volume contract valid；600519.SH 与 000001.SZ ex-date cutoff
   对比未发现 future-action leakage；ETF provenance 保持 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1`。
-- full `unittest`: 988 passed, 2 skipped；compileall、git diff --check、Daily Decision /
+- full `unittest`: 990 passed, 2 skipped；compileall、git diff --check、Daily Decision /
   Paper lifecycle / Portfolio Risk / Position Management / SETUP_01 / SETUP_02 generic
   shadows 与 PR CI 均通过。
 
@@ -64,16 +69,15 @@ natural acceptance 也仍未发生。US Candidate lifecycle hygiene 作为独立
 
 - 新 D1 activation 仍需独立治理授权；本次 merge 不写真实 VPS/GCS activation，不运行新
   D1 V3 collector，不回填迁移窗口。
-- 601059/601198 保持 stale/unavailable；HOLX/JMKE/VYLR-WI lifecycle/when-issued 处理留在
-  独立任务。真实 prospective 结果必须等待自然 session，不能通过历史回填补齐。
+- 601059/601198 保持 stale/unavailable；US lifecycle hygiene PR 已完成但仍未 merge。
+  真实 prospective 结果必须等待自然 session，不能通过历史回填补齐。
 - `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE` 不是继续推进独立 US lifecycle
   hygiene 的阻塞条件。
 
 ## Next Action
 
-保持 CN 首个 merge 后自然日报等待状态；从最新 main 完成独立 US Candidate lifecycle
-hygiene PR（HOLX unlisted/no-market、VYLR-WI when-issued、JMKE 保持
-`HISTORY_INSUFFICIENT`），完成验证并停在 `US_CANDIDATE_LIFECYCLE_PR_READY`，不 merge。
+保持 CN 首个 merge 后自然日报等待状态；US Candidate lifecycle hygiene PR 已从最新 main
+完成并停在 `US_CANDIDATE_LIFECYCLE_PR_READY`，等待 review，保持不 merge。
 继续等待后续 natural CN/US report、Opportunity Ledger T+1/10-session acceptance；不把
 live probe 写成 prospective D1 evidence。
 
