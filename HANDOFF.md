@@ -5,9 +5,9 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 ## Current Task
 
 `DAILY_OPPORTUNITY_LEDGER_V1`：独立实现生产日报“机会→结果”反馈闭环，代码、回归与
-rebase 后验证完成，已停在 `PR_FULLY_READY_FOR_REVIEW`。#131 已 squash merge 到 `main`；
-#132 已 retarget 到 `main` 并整理为只包含本 ledger 的独立 PR，尚未合并。branch / PR /
-HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
+rebase 后验证完成，#131 与 #132 均已 squash merge 到 `main`。当前实现已进入 main，
+但真实 prospective / T+1 / 10-session 结果尚未发生。branch / PR / HEAD / CI 继续从
+GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
 
@@ -43,14 +43,13 @@ HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Blocker / Remaining Risks
 
-无实现或 Sheets 权限 blocker；#132 尚未 merge/deploy，等待用户审阅。真实 prospective
-结果必须等待自然 session，不能通过历史回填补齐。
+无实现或 Sheets 权限 blocker；真实 prospective 结果必须等待自然 session，不能通过历史
+回填补齐。
 
 ## Next Action
 
-审阅本任务独立 PR；本 chat 停止于 `PR_FULLY_READY_FOR_REVIEW`，不得 merge #132。
-真实自然启用、T+1 和 10-session 成熟样本仍需未来 session 实际发生；不把 fixture、权限
-核验或只读历史报告写成 prospective production/D1 evidence。
+等待合并后的自然启用、T+1 和 10-session 成熟样本实际发生；不把 fixture、权限核验或只读
+历史报告写成 prospective production/D1 evidence。
 
 ## Constraints / Pitfalls
 

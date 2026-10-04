@@ -412,10 +412,10 @@
    （最近已确认历史阻力）”与“Wave3 结构目标（最近 Fib 投射）”分开显示；邮件与
    Dashboard 均不重新计算交易几何。
 
-### Daily Opportunity Ledger V1（已实现，尚未接入生产）
+### Daily Opportunity Ledger V1（已合并到 main，尚未产生自然 prospective 记录）
 
 - Cloud 日报代码路径可记录“日报历史”和 SETUP_01/02 new CONFIRMED 的观察账本；独立 PR
-  尚未 merge/deploy，因此尚未产生正式 prospective 生产记录；
+  已合并到 main，但尚未产生正式 prospective 生产记录；
 
   ENTRY_ALLOWED 与所有 NO_TRADE 都纳入，birth只复制原Decision和T日signal close，
   缺字段为null，不重算策略。三张独立tab已用既有Cloud凭证创建并核验写权限。
