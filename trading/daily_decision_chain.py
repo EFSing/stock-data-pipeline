@@ -19,6 +19,7 @@ from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 from core import Quote
 from research.market_sessions import DEVELOPMENT_SESSION_IDENTITY
+from trading.fibonacci import EXTENSION_RATIOS, project_extension
 from trading.models import DecisionAction, SetupState, Trend, validate_quote_series
 from trading.portfolio_risk import (
     BASE_RISK_FRACTION,
@@ -1343,13 +1344,24 @@ def _armed_opportunity_projection(
     setup01: Any,
     setup02: Any,
 ) -> dict[str, Any]:
-    """Project current causal ARMED context without creating a trade decision."""
+    """Project current causal pre-confirmation context without a trade decision.
+
+    The existing ``armed_opportunity`` field is retained for compatibility with
+    saved reports, but it now also carries WATCH context.  SETUP_01 anchors are
+    copied from the already-evaluated causal snapshot and the Wave3 projection
+    calls the canonical Fibonacci extension helper.  Nothing here creates a
+    Decision, target gate, event, or persistent lifecycle.
+    """
 
     armed = [
         ("SETUP_01", setup01, SETUP01_ATR_PERIOD, SETUP01_ENTRY_ZONE_ATR),
         ("SETUP_02", setup02, SETUP02_ATR_PERIOD, SETUP02_ENTRY_ZONE_ATR),
     ]
-    armed = [row for row in armed if getattr(row[1], "state", None) is SetupState.ARMED]
+    armed = [
+        row
+        for row in armed
+        if getattr(row[1], "state", None) in {SetupState.WATCH, SetupState.ARMED}
+    ]
     if not armed:
         return {}
 
@@ -1357,6 +1369,7 @@ def _armed_opportunity_projection(
         "projection": ARMED_OPPORTUNITY_PROJECTION_VERSION,
         "status": "DATA_UNAVAILABLE",
         "setup_type": None,
+        "state": None,
         "as_of_date": item.as_of_date.isoformat(),
         "current_close": None,
         "confirmation_level": None,
@@ -1366,6 +1379,10 @@ def _armed_opportunity_projection(
         "atr14": None,
         "expected_entry_zone_low": None,
         "expected_entry_zone_high": None,
+        "wave3_projection_status": "NOT_AVAILABLE",
+        "wave3_fib_extensions": (),
+        "wave3_missing_reasons": (),
+        "wave3_anchors": {},
         "guidance": "数据不足，不能形成机会观察投影。",
         "missing_reasons": (),
         "is_trade_signal": False,
@@ -1375,6 +1392,7 @@ def _armed_opportunity_projection(
         return base
 
     setup_type, snapshot, atr_period, entry_zone_atr = armed[0]
+    state = getattr(snapshot, "state", None)
     close = float(item.qfq_history[-1].close) if item.qfq_history else None
     confirmation = _finite_positive(getattr(snapshot, "confirmation_level", None))
     invalidation = _finite_positive(
@@ -1398,6 +1416,7 @@ def _armed_opportunity_projection(
 
     base.update(
         setup_type=setup_type,
+        state=getattr(state, "value", state),
         current_close=close,
         confirmation_level=confirmation,
         structural_invalidation=invalidation,
@@ -1407,7 +1426,21 @@ def _armed_opportunity_projection(
     if missing:
         return base
 
+    if setup_type == "SETUP_01":
+        wave3_projection = _setup01_preconfirmation_wave3_projection(
+            snapshot,
+            current_close=close,
+            as_of_index=len(item.qfq_history) - 1,
+        )
+        base.update(wave3_projection)
+    else:
+        base.update(
+            wave3_projection_status="NOT_APPLICABLE",
+            wave3_missing_reasons=("SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",),
+        )
+
     distance = confirmation - close
+    state_label = getattr(state, "value", state)
     base.update(
         status="AVAILABLE",
         distance_to_confirmation=distance,
@@ -1415,13 +1448,123 @@ def _armed_opportunity_projection(
         expected_entry_zone_low=confirmation,
         expected_entry_zone_high=confirmation + entry_zone_atr * atr14,
         guidance=(
-            "等待收盘确认；当前仅为观察，不是买入信号。预计入场区按当前 ATR 估算，"
+            ("当前仍在观察阶段；" if state_label == SetupState.WATCH.value else "等待收盘确认；")
+            + "当前仅为观察，不是买入信号。预计入场区按当前 ATR 估算，"
             "未来正式确认时以确认日 Decision 为准；若确认时已超过正式入场区，则按现有规则"
             "不追价，不等待后续回踩补入。结构失效则放弃。"
         ),
         missing_reasons=(),
     )
     return base
+
+
+def _swing_anchor_projection(swing: Any) -> dict[str, Any] | None:
+    """Serialize an existing causal SwingPoint for a read-only projection."""
+
+    if swing is None:
+        return None
+    pivot_date = getattr(swing, "pivot_date", None)
+    confirmed_date = getattr(swing, "confirmed_date", None)
+    return {
+        "kind": getattr(getattr(swing, "kind", None), "value", getattr(swing, "kind", None)),
+        "price": getattr(swing, "price", None),
+        "pivot_index": getattr(swing, "pivot_index", None),
+        "pivot_date": pivot_date.isoformat() if hasattr(pivot_date, "isoformat") else pivot_date,
+        "confirmed_index": getattr(swing, "confirmed_index", None),
+        "confirmed_date": (
+            confirmed_date.isoformat()
+            if hasattr(confirmed_date, "isoformat")
+            else confirmed_date
+        ),
+    }
+
+
+def _setup01_preconfirmation_wave3_projection(
+    snapshot: Any,
+    *,
+    current_close: float,
+    as_of_index: int,
+) -> dict[str, Any]:
+    """Project canonical Wave3 extensions from existing SETUP_01 anchors.
+
+    The evaluator has already enforced the Wave/Swing causal boundary.  This
+    helper only copies those anchors and calls the shared Fibonacci geometry;
+    it never searches swings or infers anchors from prices.
+    """
+
+    anchor_values = {
+        "wave1_origin": getattr(snapshot, "wave1_origin", None),
+        "wave1_peak": getattr(snapshot, "wave1_peak", None),
+        "wave2_low": getattr(snapshot, "wave2_low", None),
+    }
+    anchors = {
+        name: _swing_anchor_projection(swing)
+        for name, swing in anchor_values.items()
+    }
+    missing: list[str] = []
+    prices: dict[str, float] = {}
+    for name, swing in anchor_values.items():
+        anchor = anchors.get(name)
+        if anchor is None:
+            missing.append(f"{name.upper()}_UNAVAILABLE")
+            continue
+        price = _finite_positive(anchor.get("price"))
+        confirmed_index = anchor.get("confirmed_index")
+        if price is None:
+            missing.append(f"{name.upper()}_PRICE_UNAVAILABLE")
+        else:
+            prices[name] = price
+        if confirmed_index is None:
+            missing.append(f"{name.upper()}_NOT_CONFIRMED")
+        else:
+            try:
+                if int(confirmed_index) > as_of_index:
+                    missing.append(f"{name.upper()}_CONFIRMED_AFTER_AS_OF")
+            except (TypeError, ValueError):
+                missing.append(f"{name.upper()}_CONFIRMATION_INDEX_INVALID")
+
+    if not missing:
+        origin = prices["wave1_origin"]
+        peak = prices["wave1_peak"]
+        wave2_low = prices["wave2_low"]
+        if not (origin < wave2_low < peak):
+            missing.append("WAVE1_WAVE2_ANCHOR_ORDER_INVALID")
+        if current_close <= 0 or not math.isfinite(float(current_close)):
+            missing.append("CURRENT_CLOSE_UNAVAILABLE")
+
+    if missing:
+        return {
+            "wave3_projection_status": "DATA_UNAVAILABLE",
+            "wave3_fib_extensions": (),
+            "wave3_missing_reasons": tuple(dict.fromkeys(missing)),
+            "wave3_anchors": anchors,
+        }
+
+    extensions = []
+    for ratio_name, ratio in EXTENSION_RATIOS.items():
+        price = project_extension(
+            wave2_low,
+            origin,
+            peak,
+            ratio,
+        )
+        extensions.append(
+            {
+                "ratio": float(ratio),
+                "ratio_label": ratio_name,
+                "price": float(price),
+                "upside_pct": relative_distance_pct(price, current_close),
+                "source": "WAVE3_FIB_EXTENSION",
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }
+        )
+    return {
+        "wave3_projection_status": "AVAILABLE",
+        "wave3_fib_extensions": tuple(extensions),
+        "wave3_missing_reasons": (),
+        "wave3_anchors": anchors,
+        "wave3_reference_price": current_close,
+    }
 
 
 def _finite_positive(value: Any) -> float | None:

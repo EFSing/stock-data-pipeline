@@ -17,6 +17,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from trading.risk import relative_distance_pct
 from trading.trade_logic_explanation import strategy_rules_for_dashboard
 
 
@@ -328,6 +329,54 @@ def _target_projection_display(
         "wave3_fib_extensions": "；".join(extension_labels) or "—",
         "target_boundary_explanation": explanation,
     }
+
+
+def _format_human_price(value: Any, default: str = "未提供") -> str:
+    """Format a compact price for the human-opportunity layer.
+
+    The existing four-decimal plan formatting remains available in the audit
+    and formal plan projections.  This two-decimal presentation keeps the
+    first screen readable without changing any stored or calculated value.
+    """
+
+    if value is None or _raw_text(value) in {"", "—", "-"}:
+        return default
+    return _format_number(value, 2)
+
+
+def _format_human_price_range(low: Any, high: Any) -> str:
+    if low is None and high is None:
+        return "未形成（缺少确认价或 ATR）"
+    if low is not None and high is not None:
+        return f"{_format_human_price(low)}–{_format_human_price(high)}"
+    return _format_human_price(low if low is not None else high)
+
+
+def _wave3_extension_rows(value: Any) -> tuple[dict[str, Any], ...]:
+    rows: list[dict[str, Any]] = []
+    for item in _sequence(value):
+        mapping = _mapping(item)
+        if not mapping:
+            continue
+        ratio = _first_value(mapping.get("ratio"), mapping.get("ratio_label"))
+        price = mapping.get("price")
+        if ratio is None or _numeric(price) is None:
+            continue
+        rows.append({
+            **dict(mapping),
+            "ratio_label": _text(mapping.get("ratio_label")) or _format_number(ratio, 3),
+        })
+    return tuple(rows)
+
+
+def _primary_wave3_extension(value: Any) -> Mapping[str, Any] | None:
+    extensions = _wave3_extension_rows(value)
+    if not extensions:
+        return None
+    return next(
+        (item for item in extensions if _text(item.get("ratio_label")) == "1.618"),
+        extensions[0],
+    )
 
 
 def _sequence(value: Any) -> tuple[Any, ...]:
@@ -728,6 +777,8 @@ def _invalidation_text(result: Mapping[str, Any], decision: Mapping[str, Any]) -
     )
     if isinstance(value, (Mapping, list, tuple)):
         return _json_text(value)
+    if _numeric(value) is not None:
+        return _format_price(value, "未提供明确结构失效条件")
     return _display(value, "未提供明确结构失效条件")
 
 
@@ -1300,6 +1351,233 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
             if _raw_text(value)
         ),
         "raw_result": result,
+    }
+
+
+def _wave3_missing_text(values: Sequence[Any]) -> str:
+    labels = {
+        "WAVE1_ORIGIN_UNAVAILABLE": "Wave1 Origin",
+        "WAVE1_ORIGIN_PRICE_UNAVAILABLE": "Wave1 Origin price",
+        "WAVE1_ORIGIN_NOT_CONFIRMED": "Wave1 Origin confirmed status",
+        "WAVE1_PEAK_UNAVAILABLE": "Wave1 Peak",
+        "WAVE1_PEAK_PRICE_UNAVAILABLE": "Wave1 Peak price",
+        "WAVE1_PEAK_NOT_CONFIRMED": "Wave1 Peak confirmed status",
+        "WAVE2_LOW_UNAVAILABLE": "Wave2 Low",
+        "WAVE2_LOW_PRICE_UNAVAILABLE": "Wave2 Low price",
+        "WAVE2_LOW_NOT_CONFIRMED": "Wave2 Low confirmed status",
+        "WAVE1_WAVE2_ANCHOR_ORDER_INVALID": "Wave1/Wave2 anchor order",
+        "SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT": "SETUP_01 Wave2→Wave3 anchors",
+        "ABOVE_ENTRY_ZONE_FORMAL_DECISION_STOPPED_BEFORE_TARGET_GENERATION": "正式 Decision 在 ABOVE_ENTRY_ZONE gate 处提前终止",
+        "FORMAL_WAVE3_TARGET_PROJECTION_UNAVAILABLE": "正式 Wave3 target projection",
+        "FORMAL_DECISION_UNAVAILABLE": "正式 Decision",
+    }
+    rendered: list[str] = []
+    for value in values:
+        key = _raw_text(value)
+        label = labels.get(key, key)
+        if label and label not in rendered:
+            rendered.append(label)
+    return "、".join(rendered)
+
+
+def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Project existing fields into the human-first detail layer.
+
+    This function is presentation-only.  It selects already-produced target
+    provenance and pre-confirmation projection values; it never derives a
+    target, gate, ranking, or entry condition.
+    """
+
+    stage = _text(row.get("stage_key"))
+    decision = _mapping(row.get("decision"))
+    plan = _mapping(row.get("plan"))
+    armed = _mapping(row.get("armed_opportunity"))
+    has_decision = bool(decision)
+    is_preconfirmation = stage in {"WATCH", "ARMED"}
+    is_human_candidate = is_preconfirmation or has_decision
+    if not is_human_candidate or row.get("data_blocked"):
+        return {"available": False, "reason": "当前结果没有可展示的人工机会结构。"}
+
+    if is_preconfirmation and not has_decision:
+        reference_price = _numeric(armed.get("current_close"))
+        reference_label = "当前价"
+        confirmation = _numeric(armed.get("confirmation_level"))
+        entry_low = _numeric(armed.get("expected_entry_zone_low"))
+        entry_high = _numeric(armed.get("expected_entry_zone_high"))
+        invalidation = _numeric(armed.get("structural_invalidation"))
+        distance_pct = _numeric(armed.get("distance_to_confirmation_pct"))
+        wave_extensions = _wave3_extension_rows(armed.get("wave3_fib_extensions"))
+        wave_missing = tuple(_sequence(armed.get("wave3_missing_reasons")))
+        if _text(armed.get("wave3_projection_status")) == "NOT_APPLICABLE":
+            wave_missing = wave_missing or ("SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",)
+        if not wave_extensions and not wave_missing:
+            if _text(armed.get("setup_type")) == "SETUP_01":
+                wave_missing = (
+                    "WAVE1_ORIGIN_UNAVAILABLE",
+                    "WAVE1_PEAK_UNAVAILABLE",
+                    "WAVE2_LOW_UNAVAILABLE",
+                )
+            else:
+                wave_missing = ("SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",)
+        system_conclusion = "尚未确认，当前不会放行；这不影响它作为人工观察机会展示。"
+        confirmation_text = _format_human_price(confirmation)
+        invalidation_text = _format_human_price(invalidation)
+        next_action = (
+            "打开图表检查量价和结构；若仍认可该结构，重点盯 "
+            f"{confirmation_text} 附近的收盘确认。跌破 {invalidation_text} 则该观察逻辑失效。"
+            if confirmation is not None and invalidation is not None
+            else "打开图表检查量价和结构；当前缺少完整确认或失效字段，不能进一步假设。"
+        )
+        target_items = tuple(
+            {
+                "kind": "WAVE3_FIB_EXTENSION",
+                "label": f"3浪 Fib {_text(item.get('ratio_label'), _format_number(item.get('ratio'), 3))}",
+                "price": item.get("price"),
+                "upside_pct": item.get("upside_pct"),
+                "primary": _text(item.get("ratio_label")) in {"1.272", "1.618"},
+            }
+            for item in wave_extensions
+        )
+        return {
+            "available": True,
+            "stage": stage,
+            "reference_label": reference_label,
+            "reference_price": reference_price,
+            "confirmation_level": confirmation,
+            "distance_to_confirmation_pct": distance_pct,
+            "entry_zone_low": entry_low,
+            "entry_zone_high": entry_high,
+            "structural_invalidation": invalidation,
+            "structural_risk_pct": (
+                relative_distance_pct(invalidation, reference_price)
+                if invalidation is not None and reference_price not in {None, 0}
+                else None
+            ),
+            "wave3_extensions": wave_extensions,
+            "wave3_targets": target_items,
+            "wave3_is_estimate": True,
+            "wave3_missing_text": _wave3_missing_text(wave_missing),
+            "wave3_missing_reasons": wave_missing,
+            "system_conclusion": system_conclusion,
+            "next_action": next_action,
+            "formal_decision": False,
+            "gate_reason": "",
+            "target_upside_pct": None,
+            "first_rr": None,
+            "formal_t1": None,
+            "formal_t1_upside_pct": None,
+        }
+
+    reference_price = _numeric(decision.get("planned_entry"))
+    reference_label = "当前 Decision 参考价"
+    confirmation = _numeric(decision.get("confirmation_level"))
+    entry_low = _numeric(decision.get("entry_zone_low"))
+    entry_high = _numeric(decision.get("entry_zone_high"))
+    invalidation = _numeric(decision.get("structural_invalidation"))
+    freshness = _mapping(row.get("opportunity_freshness"))
+    target_projection = _mapping(plan.get("target_projection"))
+    wave_extensions = _wave3_extension_rows(target_projection.get("wave3_fib_extensions"))
+    wave_missing: tuple[Any, ...] = ()
+    if not wave_extensions:
+        gate_reason = _text(decision.get("gate_reason"))
+        if gate_reason == "ABOVE_ENTRY_ZONE":
+            wave_missing = ("ABOVE_ENTRY_ZONE_FORMAL_DECISION_STOPPED_BEFORE_TARGET_GENERATION",)
+        elif not has_decision:
+            wave_missing = ("FORMAL_DECISION_UNAVAILABLE",)
+        else:
+            wave_missing = ("FORMAL_WAVE3_TARGET_PROJECTION_UNAVAILABLE",)
+
+    formal_t1 = _numeric(
+        _first_value(
+            target_projection.get("current_effective_t1"),
+            decision.get("T1"),
+            (decision.get("targets") or [None])[0]
+            if isinstance(decision.get("targets"), Sequence)
+            and not isinstance(decision.get("targets"), (str, bytes, bytearray))
+            else None,
+        )
+    )
+    t1_upside = _first_value(
+        target_projection.get("overhead_resistance_upside_pct"),
+        decision.get("target_upside_pct"),
+        freshness.get("target_upside_pct"),
+    )
+    rr = _mapping(decision.get("rr"))
+    rr_values = _sequence(rr.get("rr_ratios"))
+    first_rr = _numeric(rr_values[0] if rr_values else rr.get("rr"))
+    target_items: list[dict[str, Any]] = []
+    if formal_t1 is not None:
+        target_items.append({
+            "kind": "FORMAL_T1",
+            "label": "第一障碍 / T1",
+            "price": formal_t1,
+            "upside_pct": t1_upside,
+            "primary": False,
+        })
+    target_items.extend(
+        {
+            "kind": "WAVE3_FIB_EXTENSION",
+            "label": f"3浪 Fib {_text(item.get('ratio_label'), _format_number(item.get('ratio'), 3))}",
+            "price": item.get("price"),
+            "upside_pct": item.get("upside_pct"),
+            "primary": _text(item.get("ratio_label")) in {"1.272", "1.618"},
+        }
+        for item in wave_extensions
+    )
+    gate_reason = _text(decision.get("gate_reason"))
+    if gate_reason == "ABOVE_ENTRY_ZONE":
+        system_conclusion = "确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。"
+        next_action = system_conclusion
+    elif gate_reason == "TARGET_UPSIDE_BELOW_MINIMUM":
+        system_conclusion = "第一目标剩余空间低于5%门槛"
+        next_action = (
+            "结合图表判断当前价格是否仍有可接受的结构空间；不要因为存在远端 Fib 目标而忽略"
+            "正式入场区、结构失效与执行风险。"
+        )
+    elif gate_reason == "RR_BELOW_MINIMUM":
+        system_conclusion = "第一目标 R/R 未达到系统最低要求"
+        next_action = (
+            "结合图表判断当前价格是否仍有可接受的结构空间；不要因为存在远端 Fib 目标而忽略"
+            "正式入场区、结构失效与执行风险。"
+        )
+    elif _decision_action(decision) == "ENTRY_ALLOWED":
+        system_conclusion = "正式条件满足；仍需遵循 T+1、组合风控与人工批准边界。"
+        next_action = "按正式系统的 T+1 与组合风控结果继续处理；本页只读，不自动下单。"
+    else:
+        system_conclusion = _text(
+            _first_value(decision.get("gate_detail"), row.get("waiting")),
+            "正式系统尚未形成可执行交易方案。",
+        )
+        next_action = "先结合图表检查当前价格、结构失效与正式入场区，再决定是否继续人工跟踪。"
+
+    return {
+        "available": True,
+        "stage": stage,
+        "reference_label": reference_label,
+        "reference_price": reference_price,
+        "confirmation_level": confirmation,
+        "distance_to_confirmation_pct": None,
+        "entry_zone_low": entry_low,
+        "entry_zone_high": entry_high,
+        "structural_invalidation": invalidation,
+        "structural_risk_pct": (
+            relative_distance_pct(invalidation, reference_price)
+            if invalidation is not None and reference_price not in {None, 0}
+            else None
+        ),
+        "wave3_extensions": wave_extensions,
+        "wave3_targets": tuple(target_items),
+        "wave3_is_estimate": False,
+        "wave3_missing_text": _wave3_missing_text(wave_missing),
+        "wave3_missing_reasons": wave_missing,
+        "system_conclusion": system_conclusion,
+        "next_action": next_action,
+        "formal_decision": True,
+        "gate_reason": gate_reason,
+        "target_upside_pct": _numeric(t1_upside),
+        "first_rr": first_rr,
+        "formal_t1": formal_t1,
+        "formal_t1_upside_pct": _numeric(t1_upside),
     }
 
 
@@ -1884,6 +2162,7 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         for result in _sequence(report.get("results")):
             projected = _make_row(entry, result)
             if projected is not None:
+                projected["manual_opportunity"] = _manual_opportunity_projection(projected)
                 rows.append(projected)
     presentation_order = DEFAULT_FOCUS_STAGES + tuple(
         stage for stage in STAGE_ORDER if stage not in DEFAULT_FOCUS_STAGES
@@ -1912,6 +2191,13 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
     known_markets = {row["market"] for row in rows if row["market"] and row["market"] != "—"}
     known_markets.update(_normalised_market(item) for item in _mapping(payload.get("candidate_markets")))
     cloud_market = _normalised_market(cloud_daily.get("market"))
+    if not cloud_market and entries:
+        # Older saved Cloud artifacts carried the market at the payload root
+        # before ``cloud_daily_report`` metadata was added.  Preserve their
+        # one-market report presentation without changing any row semantics.
+        root_market = _normalised_market(payload.get("market"))
+        if root_market in {"CN", "US"}:
+            cloud_market = root_market
     if cloud_market:
         known_markets.add(cloud_market)
     known_markets.update(
@@ -2167,6 +2453,223 @@ def _compact_position(row: Mapping[str, Any]) -> str:
     return "策略跟踪持仓管理：" + " · ".join(values) if values else "策略跟踪持仓中"
 
 
+def _human_upside(value: Any, default: str = "未提供") -> str:
+    if _numeric(value) is None:
+        return default
+    return _format_percent(value, default=default, signed=True)
+
+
+def _render_human_glance(row: Mapping[str, Any]) -> str:
+    manual = _mapping(row.get("manual_opportunity"))
+    if not manual.get("available"):
+        return ""
+    stage = _text(manual.get("stage"))
+    primary = _primary_wave3_extension(manual.get("wave3_extensions"))
+    if stage in {"WATCH", "ARMED"}:
+        wave_text = (
+            f"{_format_human_price(primary.get('price'))} / {_human_upside(primary.get('upside_pct'))}"
+            if primary
+            else (_wave3_missing_text(manual.get("wave3_missing_reasons")) or "待补齐结构锚点")
+        )
+        metrics = (
+            ("距确认", _human_upside(manual.get("distance_to_confirmation_pct"))),
+            ("结构风险", _human_upside(manual.get("structural_risk_pct"))),
+            ("预计入场区", _format_human_price_range(manual.get("entry_zone_low"), manual.get("entry_zone_high"))),
+            ("3浪目标", wave_text),
+        )
+        chip = "等待确认" if stage == "ARMED" else "观察中"
+        chip_class = "near" if stage == "ARMED" else ""
+    else:
+        metrics = (
+            ("当前/参考价", _format_human_price(manual.get("reference_price"))),
+            (
+                "3浪1.618 / 空间",
+                f"{_format_human_price(primary.get('price'))} / {_human_upside(primary.get('upside_pct'))}"
+                if primary
+                else (_wave3_missing_text(manual.get("wave3_missing_reasons")) or "未生成"),
+            ),
+            ("结构风险", _human_upside(manual.get("structural_risk_pct"))),
+            ("系统结论", _text(manual.get("system_conclusion"), "未形成")),
+        )
+        chip = "已确认"
+        chip_class = "confirmed" if _decision_action(_mapping(row.get("decision"))) == "ENTRY_ALLOWED" else "blocked"
+    return (
+        '<div class="human-glance"><div class="human-glance-title">人工查看要点 '
+        f'<span class="human-chip {chip_class}">{_escape(chip)}</span></div>'
+        '<div class="human-metrics">'
+        + "".join(
+            f'<div class="human-metric"><span>{_escape(label)}</span><strong>{_escape(value)}</strong></div>'
+            for label, value in metrics
+        )
+        + "</div></div>"
+    )
+
+
+def _render_wave_target_cards(manual: Mapping[str, Any]) -> str:
+    items = tuple(_mapping(item) for item in _sequence(manual.get("wave3_targets")))
+    cards = []
+    for item in items:
+        price = item.get("price")
+        ratio = _text(item.get("label"), "3浪目标")
+        classes = "wave-target primary" if _bool(item.get("primary")) else "wave-target"
+        cards.append(
+            f'<div class="{classes}"><div class="ratio">{_escape(ratio)}</div>'
+            f'<div class="price">{_escape(_format_human_price(price))}</div>'
+            f'<div class="upside">较参考价 {_escape(_human_upside(item.get("upside_pct")))}</div></div>'
+        )
+    if not cards:
+        missing = _text(manual.get("wave3_missing_text"), "正式结果未提供可消费的 Wave3 target projection")
+        cards.append(
+            '<div class="wave-target missing primary"><div class="ratio">3浪目标</div>'
+            f'<div class="price">未生成：{_escape(missing)}</div>'
+            '<div class="upside">不能在展示层重新推算</div></div>'
+        )
+    return '<div class="wave-target-grid">' + "".join(cards) + "</div>"
+
+
+def _render_manual_opportunity(row: Mapping[str, Any]) -> str:
+    manual = _mapping(row.get("manual_opportunity"))
+    if not manual.get("available"):
+        return ""
+    stage = _text(manual.get("stage"))
+    is_estimate = _bool(manual.get("wave3_is_estimate"))
+    reference_label = _text(manual.get("reference_label"), "当前价")
+    reference_price = _format_human_price(manual.get("reference_price"))
+    confirmation = _format_human_price(manual.get("confirmation_level"))
+    entry_zone = _format_human_price_range(
+        manual.get("entry_zone_low"), manual.get("entry_zone_high")
+    )
+    invalidation = _format_human_price(manual.get("structural_invalidation"))
+    risk_pct = _human_upside(manual.get("structural_risk_pct"))
+    if is_estimate:
+        distance_pct = _human_upside(manual.get("distance_to_confirmation_pct"))
+        lead = (
+            f"离确认只差 {distance_pct}。先判断这只股票值不值得打开图表，而不是先看系统会不会自动放行。"
+            if _numeric(manual.get("distance_to_confirmation_pct")) is not None
+            else "先判断这只股票值不值得打开图表，而不是先看系统会不会自动放行。"
+        )
+        confirmation_sub = f"距确认 {distance_pct}"
+        entry_sub = "按当前 ATR，仅用于观察"
+        heading = "预估3浪目标与上涨空间"
+    else:
+        lead = "先看潜在空间，再看系统为什么放行/拒绝。系统 NO_TRADE 不代表这只股票没有人工观察价值。"
+        confirmation_sub = ""
+        entry_sub = "正式 Decision 已生成"
+        heading = "3浪目标与潜在上涨空间"
+    target_gap = _text(manual.get("wave3_missing_text"))
+    gap_html = (
+        f'<div class="prototype-data-gap">当前缺少：{_escape(target_gap)}；因此暂不能可靠计算3浪目标。'
+        "展示层不会从价格倒推结构锚点。</div>"
+        if target_gap and not manual.get("wave3_targets")
+        else ""
+    )
+    return (
+        '<section class="panel manual-opportunity-panel decision-focus">'
+        '<h3>人工机会判断</h3>'
+        f'<p class="lead"><b>{_escape(lead)}</b></p>'
+        '<div class="manual-grid">'
+        f'<div class="manual-cell"><div class="label">{_escape(reference_label)}</div>'
+        f'<div class="value">{_escape(reference_price)}</div></div>'
+        '<div class="manual-cell"><div class="label">确认价</div>'
+        f'<div class="value">{_escape(confirmation)}</div>'
+        + (f'<div class="sub">{_escape(confirmation_sub)}</div>' if confirmation_sub else "")
+        + '</div>'
+        '<div class="manual-cell"><div class="label">'
+        + _escape("预计入场区" if is_estimate else "正式入场区")
+        + '</div>'
+        f'<div class="value">{_escape(entry_zone)}</div><div class="sub">{_escape(entry_sub)}</div></div>'
+        '<div class="manual-cell"><div class="label">结构失效</div>'
+        f'<div class="value">{_escape(invalidation)}</div><div class="sub">较参考价 {_escape(risk_pct)}</div></div>'
+        '</div>'
+        '<div class="wave-target-section">'
+        f'<h4>{_escape(heading)}</h4>'
+        + _render_wave_target_cards(manual)
+        + gap_html
+        + '</div>'
+        f'<div class="system-gate-line"><strong>正式系统结论：</strong>{_escape(manual.get("system_conclusion"))}</div>'
+        f'<div class="next-action-line"><b>人工下一步：</b>{_escape(manual.get("next_action"))}</div>'
+        '</section>'
+    )
+
+
+def _formal_field_value(value: Any, reason: str) -> str:
+    if _has_display_value(value):
+        return _raw_text(value)
+    return f"未生成；{reason}"
+
+
+def _render_confirmed_decision(row: Mapping[str, Any]) -> str:
+    manual = _mapping(row.get("manual_opportunity"))
+    if not manual.get("available") or not manual.get("formal_decision"):
+        return ""
+    plan = _mapping(row.get("plan"))
+    decision = _mapping(row.get("decision"))
+    gate_reason = _text(manual.get("gate_reason"), "正式 Decision 未通过")
+    conclusion = (
+        manual.get("system_conclusion")
+        if gate_reason == "ABOVE_ENTRY_ZONE"
+        else _text(row.get("waiting"), manual.get("system_conclusion"))
+    )
+    conclusion_class = "allowed" if _decision_action(decision) == "ENTRY_ALLOWED" else "blocked"
+    label = {
+        "ABOVE_ENTRY_ZONE": "超过允许入场区",
+        "TARGET_UPSIDE_BELOW_MINIMUM": "第一目标上涨空间不足",
+        "RR_BELOW_MINIMUM": "R/R 不足",
+        "NO_VALID_TARGET": "没有有效目标",
+        "ENTRY_ALLOWED": "正式条件满足",
+    }.get(gate_reason, gate_reason)
+    target_1 = plan.get("target_1")
+    if not _has_display_value(target_1):
+        target_1 = f"未生成；{_translate_reason(gate_reason) or '正式 target candidate 未提供'}"
+    fields = (
+        ("策略", row.get("setup")),
+        ("确认价", plan.get("confirmation_level")),
+        ("参考入场", plan.get("planned_entry")),
+        ("允许入场区", _entry_zone_text(plan) or f"未生成；{_translate_reason(gate_reason) or '缺少正式入场区'}"),
+        ("执行止损", plan.get("execution_stop")),
+        ("第一目标 T1", target_1),
+        ("T1 上涨空间", plan.get("target_upside_pct")),
+        ("第一目标 R/R", _first_rr_text(plan.get("rr")) or f"未生成；{_translate_reason(gate_reason) or '缺少 R/R'}"),
+        ("结构失效", plan.get("structural_invalidation") or _format_price(decision.get("structural_invalidation"))),
+    )
+    emphasis = {"确认价", "允许入场区", "第一目标 T1", "T1 上涨空间", "第一目标 R/R"}
+    grid = ''.join(
+        f'<div class="focus-field {"emphasis" if label_name in emphasis else ""}">'
+        f'<div class="focus-label">{_escape(label_name)}</div>'
+        f'<div class="focus-value">{_escape(_formal_field_value(value, _translate_reason(gate_reason) or "正式字段未提供"))}</div></div>'
+        for label_name, value in fields
+    )
+    note = (
+        "确认有效，但第一目标对应的 R/R 未达到系统最低要求，因此不交易。"
+        if gate_reason == "RR_BELOW_MINIMUM"
+        else "确认有效，但第一目标剩余上涨空间不足最低要求，因此不交易。"
+        if gate_reason == "TARGET_UPSIDE_BELOW_MINIMUM"
+        else manual.get("system_conclusion")
+    )
+    return (
+        '<section class="panel decision-focus confirmed-focus"><h3>确认后的交易判断</h3>'
+        f'<div class="focus-conclusion {conclusion_class}"><strong>{_escape(conclusion)}</strong>'
+        f'<span>{_escape(label)}</span></div>'
+        f'<div class="focus-grid">{grid}</div>'
+        f'<p class="focus-note">{_escape(note)}</p></section>'
+    )
+
+
+def _render_logic_summary(row: Mapping[str, Any]) -> str:
+    return (
+        '<details class="logic-summary"><summary>结构与判断依据（展开）</summary><div class="logic-grid">'
+        f'<section><h3>当前浪型</h3><p>{_escape(row.get("current_wave_label"))}</p></section>'
+        f'<section><h3>所属策略</h3><p>{_escape(row.get("setup"))}</p></section>'
+        f'<section><h3>已满足条件 / 现有依据</h3><p>{_escape(_satisfied_condition_text(row))}</p></section>'
+        f'<section><h3>未满足条件 / 不交易原因</h3><p>{_escape(_unsatisfied_condition_text(row))}</p></section>'
+        f'<section><h3>为什么</h3><p>{_escape(row.get("why"))}</p></section>'
+        f'<section><h3>还差什么 / 现在要做什么</h3><p>{_escape(row.get("missing_condition"))}</p></section>'
+        f'<section><h3>失效条件</h3><p>{_escape(row.get("invalidation"))}</p></section>'
+        f'<section><h3>备选情景</h3><p>{_escape(row.get("alternate_wave_label"))}</p></section>'
+        '</div></details>'
+    )
+
+
 def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
     """Render causal freshness facts in the human-readable detail view."""
 
@@ -2261,18 +2764,19 @@ def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
 
 
 def _render_armed_opportunity(row: Mapping[str, Any]) -> str:
-    if row.get("stage_key") != "ARMED":
+    if row.get("stage_key") not in {"WATCH", "ARMED"}:
         return ""
     armed = _mapping(row.get("armed_opportunity"))
+    title = "现在最重要的信息" if row.get("stage_key") == "ARMED" else "当前观察条件"
     if not armed:
         return (
-            '<section class="panel opportunity-panel"><h3>机会观察</h3>'
-            '<p>观察中，不是买入信号。缺少 ARMED 机会投影，不能猜测价格条件。</p></section>'
+            f'<section class="panel opportunity-panel"><h3>{_escape(title)}</h3>'
+            '<p>观察中，不是买入信号。缺少 causal 机会投影，不能猜测价格条件。</p></section>'
         )
     if armed.get("status") != "AVAILABLE":
         reasons = "、".join(_raw_text(value) for value in _sequence(armed.get("missing_reasons")))
         return (
-            '<section class="panel opportunity-panel"><h3>机会观察</h3>'
+            f'<section class="panel opportunity-panel"><h3>{_escape(title)}</h3>'
             '<p>观察中，不是买入信号。数据不足，不能猜测。</p>'
             f'<p>缺失原因：{_escape(reasons or "机会投影字段不完整")}</p></section>'
         )
@@ -2281,10 +2785,11 @@ def _render_armed_opportunity(row: Mapping[str, Any]) -> str:
         f"{armed.get('expected_entry_zone_high_display')}"
     )
     return (
-        '<section class="panel opportunity-panel"><h3>机会观察</h3>'
+        f'<section class="panel opportunity-panel"><h3>{_escape(title)}</h3>'
         '<p><strong>观察中，不是买入信号</strong></p>'
         + _render_field_grid(
             (
+                ("阶段", _text(armed.get("state"), row.get("stage_key"))),
                 ("Setup", armed.get("setup_type")),
                 ("当前收盘价", armed.get("current_close_display")),
                 ("确认价", armed.get("confirmation_level_display")),
@@ -2295,6 +2800,13 @@ def _render_armed_opportunity(row: Mapping[str, Any]) -> str:
                 ("结构失效价", armed.get("structural_invalidation_display")),
             ),
             extra_class="plan-grid",
+        )
+        + (
+            '<p class="prototype-data-gap">当前缺少：'
+            + _escape(_wave3_missing_text(armed.get("wave3_missing_reasons")))
+            + '；因此不能在观察层可靠计算 Wave3 目标。</p>'
+            if _text(armed.get("wave3_projection_status")) == "DATA_UNAVAILABLE"
+            else ""
         )
         + f'<p>{_escape(armed.get("guidance"))}</p></section>'
     )
@@ -2446,21 +2958,16 @@ def _render_details(row: Mapping[str, Any]) -> str:
     )
     return (
         '<details class="details"><summary>查看交易依据（查看详情）</summary><div class="detail-body">'
-        '<section class="plain-summary">'
-        f'<section><h3>当日状态</h3><p>{_escape(row.get("status_label"))}</p><p>{_escape(row.get("today_conclusion"))}</p></section>'
-        f'<section><h3>当前浪型</h3><p>{_escape(row.get("current_wave_label"))}</p></section>'
-        f'<section><h3>所属策略</h3><p>{_escape(row.get("setup"))}</p></section>'
-        f'<section><h3>已满足条件 / 现有依据</h3><p>{_escape(_satisfied_condition_text(row))}</p></section>'
-        f'<section><h3>未满足条件 / 不交易原因</h3><p>{_escape(_unsatisfied_condition_text(row))}</p></section>'
-        f'<section><h3>为什么</h3><p>{_escape(row.get("why"))}</p></section>'
-        f'<section><h3>还差什么 / 现在要做什么</h3><p>{_escape(row.get("missing_condition"))}</p></section>'
-        f'<section><h3>失效条件</h3><p>{_escape(row.get("invalidation"))}</p></section>'
-        f'<section><h3>备选情景</h3><p>{_escape(row.get("alternate_wave_label"))}</p></section>'
-        '</section>'
+        + _render_manual_opportunity(row)
+        + (
+            _render_confirmed_decision(row)
+            if row.get("stage_key") == "CONFIRMED"
+            else _render_plan(row)
+        )
         + _render_armed_opportunity(row)
-        + _render_plan(row)
         + _render_opportunity_freshness(row)
         + (_render_position({**row, "position": position}) if row.get("is_position") else "")
+        + _render_logic_summary(row)
         + '<details class="technical-details"><summary>开发者原始数据（查看技术详情 / 审计信息）</summary><div class="detail-body">'
         + '<div class="detail-grid">'
         '<section><h4>Wave / 结构</h4>'
@@ -2493,6 +3000,30 @@ def _render_details(row: Mapping[str, Any]) -> str:
     )
 
 
+def _compact_human_opportunity(row: Mapping[str, Any]) -> str:
+    manual = _mapping(row.get("manual_opportunity"))
+    if not manual.get("available"):
+        return ""
+    primary = _primary_wave3_extension(manual.get("wave3_extensions"))
+    risk = _human_upside(manual.get("structural_risk_pct"))
+    if _text(manual.get("stage")) in {"WATCH", "ARMED"}:
+        current = _format_human_price(manual.get("reference_price"))
+        distance = _human_upside(manual.get("distance_to_confirmation_pct"))
+        target = (
+            f"3浪1.618 {_format_human_price(primary.get('price'))}（{_human_upside(primary.get('upside_pct'))}）"
+            if primary
+            else "3浪目标待补结构锚点"
+        )
+        return f"现价 {current} · 距确认 {distance} · 结构风险 {risk} · {target}"
+    reference = _format_human_price(manual.get("reference_price"))
+    target = (
+        f"3浪1.618 {_format_human_price(primary.get('price'))}（{_human_upside(primary.get('upside_pct'))}）"
+        if primary
+        else "3浪目标待补结构锚点"
+    )
+    return f"参考价 {reference} · {target} · 结构风险 {risk}"
+
+
 def _render_row(row: Mapping[str, Any]) -> str:
     identity = "".join(
         f'<span class="badge {"warning" if row["candidate_only"] else ""}">{_escape(value)}</span>'
@@ -2511,6 +3042,12 @@ def _render_row(row: Mapping[str, Any]) -> str:
     search_text = _dashboard_search_text(row)
     price_block = (
         f'<span class="row-price">{_escape(compact_plan)}</span>'
+    )
+    human_compact = _compact_human_opportunity(row)
+    human_price_block = (
+        f'<span class="v3-price row-price">{_escape(human_compact)}</span>'
+        if human_compact
+        else ""
     )
     return (
         '<article class="stock-row" '
@@ -2532,6 +3069,8 @@ def _render_row(row: Mapping[str, Any]) -> str:
         f'<span class="row-wave">{_escape(row["current_wave_label"])}</span>'
         f'<span class="row-next">{_escape(row["missing_condition"])}</span>'
         + price_block
+        + human_price_block
+        + _render_human_glance(row)
         + '</div><div class="row-actions"><div class="identity-row">'
         + identity
         + '</div></div>'
@@ -3170,10 +3709,12 @@ def render_dashboard_html(value: Any) -> str:
 .row-bottom {{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:5px; }} .row-signals {{ display:flex; flex:1 1 420px; flex-wrap:wrap; align-items:center; gap:4px 11px; min-width:0; }} .row-signals > span {{ font-size:13px; }} .row-why {{ color:#53687b; font-weight:650; overflow-wrap:anywhere; }} .row-wave {{ color:var(--blue); font-weight:750; }} .row-setup {{ color:#53687b; font:12px Consolas,monospace; }} .row-next {{ color:var(--muted); overflow-wrap:anywhere; }} .row-price {{ color:var(--teal); font-weight:700; }} .row-actions {{ display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; }} .identity-row {{ display:flex; flex-wrap:wrap; gap:4px; margin:0; }} .badge {{ border:1px solid #c8d6e2; border-radius:999px; padding:2px 6px; color:#486074; font-size:11px; background:#f7fafc; white-space:nowrap; }} .badge.warning {{ color:var(--amber); border-color:#f2ca8c; background:var(--amber-soft); }} .badge.positive {{ color:var(--teal); border-color:#9ed7ca; background:var(--teal-soft); }}
 .details {{ flex:0 0 auto; margin:0; border:0; padding:0; }} .details[open] {{ flex-basis:100%; }} .details summary {{ min-height:44px; display:inline-flex; align-items:center; cursor:pointer; color:var(--blue); font-size:13px; font-weight:750; white-space:nowrap; list-style:none; padding:8px 0; }} .details summary::-webkit-details-marker {{ display:none; }} .details summary::before {{ content:"＋ "; }} .details[open] summary::before {{ content:"− "; }} .detail-body {{ border-top:1px solid var(--line); margin-top:8px; padding-top:10px; }} .field-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }} .field {{ min-width:0; }} .field-value {{ margin-top:2px; font-weight:650; overflow-wrap:anywhere; }} .panel {{ border-top:1px solid var(--line); padding-top:11px; margin-top:11px; }} .panel h3 {{ margin:0 0 8px; font-size:14px; }} .plan-panel h3 {{ color:var(--blue); }} .position-panel h3 {{ color:var(--teal); }} .detail-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }} .detail-grid section {{ background:#f8fafc; border-radius:9px; padding:9px 11px; }} .detail-grid h4,.details h4 {{ margin:0 0 4px; font-size:13px; }} .detail-grid p {{ margin:3px 0; font-size:13px; overflow-wrap:anywhere; }} code {{ color:#5c6d80; font-size:11px; }} pre {{ max-height:300px; overflow:auto; white-space:pre-wrap; background:#111d2a; color:#dce9f4; border-radius:9px; padding:11px; font:12px/1.5 Consolas,monospace; }}
 .workspace-nav {{ display:flex; flex-wrap:wrap; gap:5px; margin:10px 0 8px; padding:6px; background:#e8eef5; border:1px solid var(--line); border-radius:12px; }} .workspace-link {{ min-height:44px; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--blue); font:inherit; font-weight:750; padding:8px 12px; cursor:pointer; white-space:nowrap; }} .workspace-link:hover,.workspace-link[aria-pressed="true"] {{ color:#fff; background:var(--blue); border-color:var(--blue); }} .workspace-panel {{ margin-top:10px; }} .workspace-panel[hidden] {{ display:none; }} .workspace-heading {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin:13px 2px 8px; }} .workspace-heading h2 {{ margin:0; font-size:21px; }} .workspace-heading p {{ margin:0; color:var(--muted); font-size:13px; }} .workspace-subheading {{ margin:17px 2px 7px; font-size:16px; }} .paper-summary {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }} .paper-summary .metric {{ min-height:61px; }} .paper-trades {{ display:flex; flex-direction:column; gap:9px; }} .paper-trade {{ background:#fff; border:1px solid var(--line); border-left:4px solid #8ca9c2; border-radius:12px; padding:12px 14px; }} .paper-status-OPEN {{ border-left-color:var(--teal); }} .paper-status-CLOSED {{ border-left-color:var(--blue); }} .paper-status-SKIPPED {{ border-left-color:var(--muted); }} .paper-status-PENDING_T1 {{ border-left-color:var(--amber); }} .paper-trade-top {{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }} .paper-trade-meta {{ display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); font-size:12px; margin-top:3px; }} .paper-status {{ background:#edf1f6; color:#506276; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:750; white-space:nowrap; }} .paper-human-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:11px; }} .paper-human-grid > section {{ background:#f8fafc; border-radius:9px; padding:10px 12px; }} .paper-human-grid h4 {{ margin:0 0 5px; font-size:13px; color:var(--blue); }} .paper-human-grid p {{ margin:0; font-size:13px; overflow-wrap:anywhere; }} .paper-technical-details {{ margin-top:10px; border-top:1px solid var(--line); padding-top:8px; }} .paper-technical-details summary {{ cursor:pointer; color:var(--blue); font-size:12px; font-weight:750; }} .paper-technical-fields {{ margin-top:8px; }} .paper-technical-details pre {{ margin-top:8px; }} .paper-stat-note {{ color:var(--muted); font-size:12px; margin:12px 2px 0; }} .paper-warning {{ background:var(--amber-soft); color:#7a4300; border:1px solid #f2ca8c; border-radius:9px; padding:8px 10px; margin:8px 0; font-size:13px; }} .coverage-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .coverage-card {{ display:flex; flex-direction:column; gap:2px; background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:13px; }} .coverage-card span {{ color:var(--muted); }} .coverage-CONTINUOUS {{ color:var(--teal) !important; font-weight:750; }} .coverage-GAP_DETECTED {{ color:var(--amber) !important; font-weight:750; }} .performance-summary-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); margin-bottom:13px; }} .performance-table {{ margin-top:12px; }} .performance-table h3 {{ margin:0 0 5px; font-size:15px; }} .performance-groups {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }} .performance-group {{ background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px; }} .performance-group h4 {{ margin:0 0 7px; font-size:14px; color:var(--blue); }} .performance-group-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }} .rules-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }} .rule-card {{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; }} .rule-card h3 {{ margin:0 0 4px; font-size:14px; color:var(--blue); }} .rule-card p {{ margin:0; font-size:13px; }} .empty {{ color:var(--muted); text-align:center; padding:30px; background:#fff; border:1px dashed #c5d1df; border-radius:12px; }} .footer {{ color:var(--muted); font-size:12px; margin-top:18px; }}
+.decision-focus {{ margin:0 0 10px !important; border:1px solid #a9c7df !important; background:#f7fbff !important; border-radius:12px !important; padding:12px 14px !important; }} .decision-focus > h3 {{ margin:0 0 8px; font-size:16px; }} .focus-conclusion {{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 10px; padding:8px 10px; border-radius:9px; background:#e9f3fb; }} .focus-conclusion strong {{ font-size:15px; color:#163d5c; }} .focus-conclusion span {{ font-size:12px; font-weight:750; color:#47677f; }} .focus-conclusion.blocked {{ background:#fff0f0; }} .focus-conclusion.blocked strong {{ color:#9b3030; }} .focus-conclusion.allowed {{ background:#e8f5f2; }} .focus-conclusion.allowed strong {{ color:#166a5a; }} .focus-grid {{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; }} .focus-field {{ min-width:0; padding:8px 9px; border:1px solid #d8e4ee; border-radius:9px; background:#fff; }} .focus-field.emphasis {{ border-color:#9bbbd4; background:#f2f8fc; }} .focus-label {{ font-size:11px; color:#63798b; margin-bottom:3px; }} .focus-value {{ font-size:15px; font-weight:760; color:#102b42; overflow-wrap:anywhere; }} .focus-note {{ margin:9px 0 0 !important; color:#526a7d; font-size:13px; line-height:1.55; }} .human-glance {{ margin:8px 0 2px; padding:10px 12px; border-radius:10px; background:#f6f9fc; border:1px solid #dde6ee; }} .human-glance-title {{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:800; margin-bottom:7px; }} .human-chip {{ display:inline-block; padding:2px 7px; border-radius:999px; font-size:11px; border:1px solid #c7d5e1; background:#fff; }} .human-chip.near {{ border-color:#d6b36b; background:#fffaf0; }} .human-chip.confirmed {{ border-color:#8bb9a8; background:#f2fbf7; }} .human-chip.blocked {{ border-color:#d3a0a0; background:#fff6f6; }} .human-metrics {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }} .human-metric {{ min-width:0; }} .human-metric span {{ display:block; font-size:11px; color:#758899; margin-bottom:2px; }} .human-metric strong {{ display:block; font-size:14px; line-height:1.35; overflow-wrap:anywhere; }} .manual-opportunity-panel {{ border:1px solid #b9ccdc; background:#fbfdff; }} .manual-opportunity-panel h3 {{ margin:0 0 5px; font-size:18px; }} .manual-opportunity-panel .lead {{ margin:0 0 11px; color:#445e72; line-height:1.55; }} .manual-grid {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:10px 0; }} .manual-cell {{ padding:10px; border:1px solid #dbe5ed; border-radius:10px; background:#fff; }} .manual-cell .label {{ font-size:11px; color:#728596; margin-bottom:4px; }} .manual-cell .value {{ font-size:18px; font-weight:800; line-height:1.25; overflow-wrap:anywhere; }} .manual-cell .sub {{ font-size:12px; color:#607485; margin-top:3px; line-height:1.35; }} .wave-target-section {{ margin-top:12px; }} .wave-target-section h4 {{ margin:0 0 7px; font-size:14px; }} .wave-target-grid {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }} .wave-target {{ padding:10px; border-radius:10px; border:1px solid #d9e5ef; background:#fff; }} .wave-target .ratio {{ font-size:11px; color:#718598; }} .wave-target .price {{ font-size:19px; font-weight:850; margin-top:4px; overflow-wrap:anywhere; }} .wave-target .upside {{ font-size:14px; font-weight:750; margin-top:2px; overflow-wrap:anywhere; }} .wave-target.primary {{ border-width:2px; }} .wave-target.missing {{ border-style:dashed; background:#fafafa; }} .wave-target.missing .price {{ font-size:13px; font-weight:700; color:#71808d; }} .system-gate-line {{ margin-top:12px; padding:9px 10px; border-radius:9px; background:#f6f6f6; font-size:13px; line-height:1.5; }} .system-gate-line strong {{ margin-right:5px; }} .next-action-line {{ margin-top:8px; font-size:14px; line-height:1.55; }} .v3-price {{ font-weight:700; }} .prototype-data-gap {{ font-size:12px; color:#6d7e8c; margin-top:9px; padding-top:8px; border-top:1px dashed #d2dde6; }} .logic-summary {{ margin:8px 0 10px; border:1px solid #dbe4ec; border-radius:10px; background:#fff; }} .logic-summary > summary {{ cursor:pointer; padding:10px 12px; color:#35617f; font-size:13px; font-weight:750; }} .logic-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:0 12px 12px; }} .logic-grid > section {{ padding:8px 10px; border-radius:8px; background:#f8fafc; }} .logic-grid h3 {{ margin:0 0 4px; font-size:13px; }} .logic-grid p {{ margin:0; font-size:12px; line-height:1.5; color:#526a7d; }}
 @media (max-width:1050px) {{ .summary-primary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }} @media (max-width:620px) {{ .shell {{ width:min(100% - 20px,1440px); padding-top:10px; }} .hero {{ padding:18px 20px; border-radius:15px; }} .summary-primary {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .summary-secondary {{ flex-direction:column; }} .market-grid,.diagnostic-markets {{ grid-template-columns:1fr; }} .row-top {{ align-items:flex-start; }} .stage {{ margin-top:1px; }} .row-signals {{ flex-basis:100%; }} .row-actions {{ width:100%; justify-content:space-between; margin-left:0; }} .detail-grid {{ grid-template-columns:1fr; }} .field-grid {{ gap:7px; }} .ticker {{ font-size:15px; }} }}
 .today-paper-focus {{ margin-bottom:12px; }} .paper-focus-cards {{ display:flex; flex-direction:column; gap:7px; }} .paper-focus-card {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 10px; align-items:center; background:#fff; border:1px solid var(--line); border-left:4px solid var(--teal); border-radius:10px; padding:9px 12px; }} .paper-focus-card span {{ color:var(--muted); font-size:13px; }} .paper-focus-meta {{ display:block; font-size:12px !important; }} .paper-focus-values {{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 14px; }}
 @media (max-width:1050px) {{ .paper-summary {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} .performance-summary-grid {{ grid-template-columns:repeat(3,minmax(0,1fr)); }} }}
 @media (max-width:620px) {{ .paper-summary,.performance-summary-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .paper-grid,.paper-human-grid,.rules-grid,.performance-groups {{ grid-template-columns:1fr; }} .coverage-grid {{ grid-template-columns:1fr; }} }}
+@media (max-width:900px) {{ .focus-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .logic-grid {{ grid-template-columns:1fr; }} }} @media (max-width:760px) {{ .human-metrics,.manual-grid,.wave-target-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} }} @media (max-width:560px) {{ .focus-grid {{ grid-template-columns:1fr; }} .decision-focus {{ padding:10px !important; }} }}
 </style>
 </head>
 <body>

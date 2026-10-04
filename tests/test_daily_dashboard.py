@@ -567,6 +567,181 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["600002.SH"]["plan"]["planned_entry"], "尚未形成")
         self.assertEqual(rows["600002.SH"]["plan"]["execution_stop"], "—")
 
+    def test_armed_setup01_shows_estimated_wave3_targets_and_keeps_observation_semantics(self):
+        payload = {
+            "as_of_date": "2026-09-30",
+            "results": [{
+                "symbol": "ARMED.WAVE3",
+                "market": "CN",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "alternate_wave_scenario": "UPTREND_UNKNOWN_WAVE",
+                "setup01_state": "ARMED",
+                "setup02_state": "NONE",
+                "primary_action": "WAIT_CONFIRMATION",
+                "event_was_new": False,
+                "individual_decision": None,
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": ["等待新的 CONFIRMED event"],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+                "armed_opportunity": {
+                    "projection": "ARMED_OPPORTUNITY_PROJECTION_V1",
+                    "status": "AVAILABLE",
+                    "state": "ARMED",
+                    "setup_type": "SETUP_01",
+                    "current_close": 100.0,
+                    "confirmation_level": 105.0,
+                    "distance_to_confirmation": 5.0,
+                    "distance_to_confirmation_pct": 0.05,
+                    "structural_invalidation": 90.0,
+                    "atr14": 2.0,
+                    "expected_entry_zone_low": 105.0,
+                    "expected_entry_zone_high": 106.0,
+                    "wave3_projection_status": "AVAILABLE",
+                    "wave3_missing_reasons": [],
+                    "wave3_fib_extensions": [
+                        {"ratio": 1.272, "ratio_label": "1.272", "price": 120.0, "upside_pct": 0.20},
+                        {"ratio": 1.618, "ratio_label": "1.618", "price": 130.0, "upside_pct": 0.30},
+                        {"ratio": 2.0, "ratio_label": "2.0", "price": 140.0, "upside_pct": 0.40},
+                        {"ratio": 2.618, "ratio_label": "2.618", "price": 160.0, "upside_pct": 0.60},
+                    ],
+                    "guidance": "等待收盘确认；当前仅为观察，不是买入信号。",
+                    "missing_reasons": [],
+                    "is_trade_signal": False,
+                },
+            }],
+        }
+
+        projection = build_dashboard_projection(payload)
+        row = projection["rows"][0]
+        self.assertEqual(row["manual_opportunity"]["wave3_targets"][1]["price"], 130.0)
+        rendered = render_dashboard_html(payload)
+        self.assertIn("人工机会判断", rendered)
+        self.assertIn("预估3浪目标与上涨空间", rendered)
+        self.assertIn("Fib 1.618", rendered)
+        self.assertIn("130", rendered)
+        self.assertIn("+30.00%", rendered)
+        self.assertIn("观察中，不是买入信号", rendered)
+        self.assertNotIn("确认后的交易判断", rendered)
+
+    def test_confirmed_target_projection_is_human_first_and_formal_gate_remains_visible(self):
+        payload = _new_confirmation_no_trade_payload(
+            "RR_BELOW_MINIMUM",
+            planned_entry=100.0,
+            confirmation_level=98.0,
+            entry_zone_low=98.0,
+            entry_zone_high=101.0,
+            structural_invalidation=90.0,
+            execution_stop=89.0,
+            targets=[102.0, 130.0, 150.0],
+            target_upside_pct=0.02,
+            minimum_target_upside_pct=0.05,
+            rr={"rr_ratios": [0.2], "quality": "NO_TRADE"},
+            target_projection={
+                "current_effective_t1": 102.0,
+                "effective_t1_source": "CONFIRMED_SWING_HIGH",
+                "nearest_overhead_confirmed_swing_high": {"price": 102.0},
+                "overhead_resistance_upside_pct": 0.02,
+                "wave3_fib_extensions": [
+                    {"ratio": 1.272, "ratio_label": "1.272", "price": 120.0, "upside_pct": 0.20},
+                    {"ratio": 1.618, "ratio_label": "1.618", "price": 140.0, "upside_pct": 0.40},
+                    {"ratio": 2.0, "ratio_label": "2.0", "price": 160.0, "upside_pct": 0.60},
+                    {"ratio": 2.618, "ratio_label": "2.618", "price": 190.0, "upside_pct": 0.90},
+                ],
+            },
+        )
+        payload["results"][0]["opportunity_freshness"] = {
+            "target_upside_pct": 0.02,
+            "target_upside_band": "BELOW_MINIMUM",
+            "minimum_target_upside_pct": 0.05,
+            "entry_zone_upper_distance_pct": -0.01,
+        }
+
+        row = build_dashboard_projection(payload)["rows"][0]
+        self.assertEqual(row["stage_key"], "CONFIRMED")
+        self.assertEqual(row["manual_opportunity"]["formal_t1"], 102.0)
+        rendered = render_dashboard_html(payload)
+        self.assertLess(rendered.index("人工机会判断"), rendered.index("确认后的交易判断"))
+        self.assertIn("3浪 Fib 1.618", rendered)
+        self.assertIn("第一目标 R/R 未达到系统最低要求", rendered)
+        self.assertIn("确认后的交易判断", rendered)
+        self.assertIn("机会新鲜度", rendered)
+        self.assertIn("结构与判断依据（展开）", rendered)
+        self.assertNotIn("142.8699951171875", rendered)
+
+    def test_above_entry_zone_is_explained_without_recomputing_targets(self):
+        payload = _new_confirmation_no_trade_payload(
+            "ABOVE_ENTRY_ZONE",
+            planned_entry=110.0,
+            confirmation_level=100.0,
+            entry_zone_low=100.0,
+            entry_zone_high=105.0,
+            structural_invalidation=90.0,
+        )
+
+        row = build_dashboard_projection(payload)["rows"][0]
+        self.assertIn("允许入场区", row["manual_opportunity"]["system_conclusion"])
+        rendered = render_dashboard_html(payload)
+        self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
+        self.assertIn("正式 Decision 在 ABOVE_ENTRY_ZONE gate 处提前终止", rendered)
+
+    def test_watch_with_and_without_wave3_context_are_explicit(self):
+        base = {
+            "as_of_date": "2026-09-30",
+            "results": [{
+                "symbol": "WATCH.WAVE3",
+                "market": "US",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "alternate_wave_scenario": "UNKNOWN",
+                "setup01_state": "WATCH",
+                "setup02_state": "NONE",
+                "primary_action": "WATCH",
+                "event_was_new": False,
+                "individual_decision": None,
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": [],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+                "armed_opportunity": {
+                    "status": "AVAILABLE",
+                    "state": "WATCH",
+                    "setup_type": "SETUP_01",
+                    "current_close": 100.0,
+                    "confirmation_level": 105.0,
+                    "distance_to_confirmation_pct": 0.05,
+                    "structural_invalidation": 90.0,
+                    "expected_entry_zone_low": 105.0,
+                    "expected_entry_zone_high": 106.0,
+                    "wave3_projection_status": "DATA_UNAVAILABLE",
+                    "wave3_missing_reasons": ["WAVE1_ORIGIN_UNAVAILABLE"],
+                    "wave3_fib_extensions": [],
+                    "missing_reasons": [],
+                    "guidance": "当前仍在观察阶段；当前仅为观察，不是买入信号。",
+                },
+            }],
+        }
+        missing_html = render_dashboard_html(base)
+        self.assertIn("当前缺少：Wave1 Origin", missing_html)
+        self.assertIn("不能在展示层重新推算", missing_html)
+        self.assertNotIn("Fib 1.618", missing_html)
+
+        complete = deepcopy(base)
+        complete["results"][0]["armed_opportunity"].update({
+            "wave3_projection_status": "AVAILABLE",
+            "wave3_missing_reasons": [],
+            "wave3_fib_extensions": [
+                {"ratio": 1.272, "ratio_label": "1.272", "price": 120.0, "upside_pct": 0.20},
+                {"ratio": 1.618, "ratio_label": "1.618", "price": 130.0, "upside_pct": 0.30},
+            ],
+        })
+        complete_html = render_dashboard_html(complete)
+        self.assertIn("Fib 1.618", complete_html)
+        self.assertIn("+30.00%", complete_html)
+
     def test_search_matches_ticker_and_company_name(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
 
