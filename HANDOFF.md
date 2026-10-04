@@ -4,11 +4,10 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_OPPORTUNITY_LEDGER_V1`：独立实现生产日报“机会→结果”反馈闭环，代码与回归完成，
-准备审阅独立 stacked PR。开始任务时 #131 仍 OPEN，已从其 exact head 建立
-`codex/daily-opportunity-ledger-v1`，临时 base 为 `codex/fix-formal-reader-single-source`。
-未修改、扩大或合并 #131；其 formal DATA_OK reader 修复是本分支的依赖，不是本任务 diff。
-branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
+`DAILY_OPPORTUNITY_LEDGER_V1`：独立实现生产日报“机会→结果”反馈闭环，代码、回归与
+rebase 后验证完成，已停在 `PR_FULLY_READY_FOR_REVIEW`。#131 已 squash merge 到 `main`；
+#132 已 retarget 到 `main` 并整理为只包含本 ledger 的独立 PR，尚未合并。branch / PR /
+HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
 
@@ -44,15 +43,14 @@ branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态
 
 ## Blocker / Remaining Risks
 
-无实现或Sheets权限blocker；本任务尚未merge/deploy。依赖#131的reader修复仍待用户审阅，
-本任务保持stacked base。真实prospective结果必须等待自然session，不能通过历史回填补齐。
+无实现或 Sheets 权限 blocker；#132 尚未 merge/deploy，等待用户审阅。真实 prospective
+结果必须等待自然 session，不能通过历史回填补齐。
 
 ## Next Action
 
-审阅本任务独立PR；不得merge。#131后续合并时，本chat自动核对真实远端事实，将本任务
-retarget/rebase到最新main，重新验证代码、CI与generic shadows并检查真实diff；不需要用户
-中途操作。不得修改或合并#131。真实自然启用、T+1和10-session成熟样本仍需未来session
-实际发生；不把fixture、权限核验或只读历史报告写成prospective production/D1 evidence。
+审阅本任务独立 PR；本 chat 停止于 `PR_FULLY_READY_FOR_REVIEW`，不得 merge #132。
+真实自然启用、T+1 和 10-session 成熟样本仍需未来 session 实际发生；不把 fixture、权限
+核验或只读历史报告写成 prospective production/D1 evidence。
 
 ## Constraints / Pitfalls
 
@@ -69,6 +67,7 @@ retarget/rebase到最新main，重新验证代码、CI与generic shadows并检�
   序列化schedule/manual/fallback；不要另起绕过该并发组的生产ledger writer。
 - Candle顺序不明不标win/loss；覆盖不全时首次触及仅表示已观察到的首次触及。
 - Cloud不写最新行情/历史行情表、策略状态、Paper或持仓；只新增独立observational持久化。
-- #131尚未部署时不能把reader公开provider/synthetic验证写成真实正式池自然恢复。
+- formal reader 已合并到 main；公开 provider / synthetic 验证仍不能写成真实正式池自然
+  恢复或自然生产验收。
 
 `HANDOFF_CURRENT_AND_CONSISTENT`

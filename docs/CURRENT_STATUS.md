@@ -5,11 +5,11 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-04（独立 Candidate 源日期修复与 Wave 非正摆幅 Fib-context 边界
-> 修复已合并到 main；真实只读 CN 回补已 COMPLETED，核心异常解除，数据质量
-> 仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；公式和门槛不变。
-> formal reader 已在独立修复中接入合格 DATA_OK 行，尚未合并；单源 provider、D1 V2 activation
-> 与 natural production / D1 evidence 边界不变）。
+> 最后实质更新：2026-10-04（独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
+> 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
+> 公式和门槛不变。Daily Opportunity Ledger V1 已完成独立实现，尚未接入生产；单源 provider、
+> D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
 
@@ -412,9 +412,11 @@
    （最近已确认历史阻力）”与“Wave3 结构目标（最近 Fib 投射）”分开显示；邮件与
    Dashboard 均不重新计算交易几何。
 
-### Daily Opportunity Ledger V1（独立分支已实现，尚未部署）
+### Daily Opportunity Ledger V1（已实现，尚未接入生产）
 
-- 生产 Cloud 日报自动记录“日报历史”和 SETUP_01/02 new CONFIRMED 的观察账本；
+- Cloud 日报代码路径可记录“日报历史”和 SETUP_01/02 new CONFIRMED 的观察账本；独立 PR
+  尚未 merge/deploy，因此尚未产生正式 prospective 生产记录；
+
   ENTRY_ALLOWED 与所有 NO_TRADE 都纳入，birth只复制原Decision和T日signal close，
   缺字段为null，不重算策略。三张独立tab已用既有Cloud凭证创建并核验写权限。
 - 每个机会从T+1起按XSHG/XNYS真实session跟踪10个completed sessions，复用现有
@@ -483,8 +485,8 @@
   minimum market-data contract，也不作为 Wave/Fib/PA 依赖；任何未验证 adjustment contract
   都 fail closed 为 `DATA_ADJUSTMENT_UNVERIFIED`，不换 vendor。
 
-- 独立 formal reader 修复已接入既有单源 `校验状态=DATA_OK`，但尚未合并到 main；
-  当前 main 的旧 `已验证` 标签门仍可能将合格 CN/US 正式输入判 DATA_BAD。新路径复用
+- formal reader 修复已接入既有单源 `校验状态=DATA_OK` 并合并到 main；旧 `已验证`
+  标签保持兼容，`DATA_OK` 路径额外执行 canonical provider 与 exact-T 单源合同。新路径复用
   `market_data_contract.validate_single_source_quotes` 校验 latest/QFQ 的 exact-T、无未来
   bar、OHLCV、日期质量与 schema，并核对市场 canonical provider；US 兼容现有 direct
   Chart 行 source 名称 `YahooChart`，不接入 yfinance/未知来源。旧 `已验证` 行兼容性保持，

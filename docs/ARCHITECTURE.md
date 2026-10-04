@@ -266,6 +266,8 @@ Runner仅把同一次分析所用的DailySymbolInput引用交给观察层，以�
 exact session window与US latest-QFQ门；身份为OPPORTUNITY_OBSERVATION，绝不作为
 Paper/strategy input，不创建pending/plan/order。CN资产类型继续由HITHINK自身metadata
 解析，不从symbol前缀猜测或强行设为股票。birth与follow-up只使用T及以前/当前可见数据。
+该观察投影位于既有 Daily Decision Chain 之后，不改变 formal reader 的 DATA_OK admission、
+Candidate selection 或任何交易规则；重跑整理也不引入第二套 reader 或策略计算路径。
 
 T日high/low不计未来结果；未来10个session按原signal close描述价格变化，原几何冻结。
 stop/invalidation与任一target同bar触及时写SAME_BAR_ORDER_AMBIGUOUS，不猜先后或胜负。
