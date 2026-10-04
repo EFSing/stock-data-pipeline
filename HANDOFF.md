@@ -4,14 +4,12 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DATA_QUALITY_STRUCTURAL_FIXES_COMPLETE_WAITING_NATURAL_ACCEPTANCE`：PR #133 与 PR #134
-均已 squash merge 到 main。CN A-share production qfq 使用 HITHINK
-`/api/a-share/prices/historical?adjust=forward`；旧
-`CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
-阻断 live route 现为 33/33 usable；provider/as-of controls、full unittest、compile、CI
-与相关 generic shadows 均通过。US Candidate lifecycle structural fixes 已进入 main：
-HOLX 的实际 `Exchange=NO MARKET (E.G. UNLISTED)`、VYLR-WI、blank Exchange 与 JMKE
-history gate 均有回归覆盖。
+`DAILY_REPORT_HUMAN_OPPORTUNITY_UI_PR_READY`：PR #135 已创建并保持 open，branch
+`feat/daily-report-human-opportunity-v1` 未合并。CN/US Daily Report 共享 renderer 已加入
+人工机会优先层、正式确认后判断、显式结构数据缺口与 compact formatting；SETUP_01
+WATCH/ARMED 的 causal anchors 由只读 Daily Decision projection 透传，未来自然日报可展示
+canonical Wave3 Fib 预估。此前 PR #133/#134 的 CN provider-forward 与 US Candidate
+lifecycle 状态不变；真实 D1 activation 未执行。
 
 当前没有新的真实代码缺陷。merge 后尚无自然 CN Daily Report，状态为
 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger natural
@@ -19,6 +17,13 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 规则或数据架构。branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
+
+- Daily Report human-opportunity UI PR：CN/US 使用同一个 `trading/daily_dashboard.py`
+  renderer；展开顺序为“人工机会判断 → 确认后的交易判断 → 机会新鲜度 → 折叠结构依据 →
+  折叠开发者原始数据”。WATCH/ARMED 缺少 anchor 时明确列出缺口，不从价格倒推目标。
+- 实际保存的旧 CN/US Daily Report JSON 已生成新 HTML artifact；这些旧 JSON 尚未携带新
+  ARMED/WATCH anchor fields，artifact 对相应标的保留显式 data gap，不能写成新 projection
+  已在历史报告中自然存在。
 
 - `日报历史` 保存 market/session summary，复用已有日报漏斗和展示投影；同一 session
   使用行级 upsert，不清空历史表，不覆盖另一个市场。
@@ -70,6 +75,8 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 - full `unittest`: 990 passed, 2 skipped；compileall、git diff --check、Daily Decision /
   Paper lifecycle / Portfolio Risk / Position Management / SETUP_01 / SETUP_02 generic
   shadows 与 PR CI 均通过。
+- 本 PR 的 full `unittest discover`、compileall、git diff --check 与 GitHub PR checks
+  均通过；PR 未合并。
 
 ## Blocker / Remaining Risks
 
@@ -80,13 +87,15 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
   通过历史回填补齐。
 - `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE` 是当前唯一继续等待的 production
   acceptance 边界之一；没有新代码 blocker。
+- 旧保存 JSON 的 ARMED/WATCH anchor 缺口只能由未来自然日报重生成解决；不能通过历史
+  artifact 回填伪造 Wave3 projection。浏览器安全策略拒绝本地 `file:` URL 的自动绑定，
+  因此保留本地静态 artifact/文件预览验收证据，不把它写成真实浏览器验收已完成。
 
 ## Next Action
 
-保持 `DATA_QUALITY_STRUCTURAL_FIXES_COMPLETE_WAITING_NATURAL_ACCEPTANCE`；等待首个
-merge 后自然 CN/US report、Opportunity Ledger T+1/10-session acceptance，以及未来经
-独立授权的 D1 decision。不要为清零合法 unavailable/lifecycle 状态继续开发；不把 live
-probe 写成 prospective D1 evidence。
+等待 PR #135 review/用户决定，不要 merge；后续自然 CN/US report、Opportunity Ledger
+T+1/10-session acceptance，以及未来经独立授权的 D1 decision 仍按原边界处理。不要为
+清零合法 unavailable/lifecycle 状态继续开发；不把 live probe 写成 prospective D1 evidence。
 
 ## Constraints / Pitfalls
 
