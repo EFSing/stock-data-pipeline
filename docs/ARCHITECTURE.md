@@ -164,9 +164,12 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
 bounded V1 candidate layer.  The source adapters are read-only and do not reuse the
 production watchlist as a universe, do not create a security master, and do not write
 Google Sheets, broker state, orders, or strategy state.  `CandidateRecord` exposes
-inclusion/exclusion reason, sector, rank, affordability tier, documented minimum quantity,
-20D/60D liquidity proxy and history freshness.  It intentionally has no Strategy action
-field and cannot produce `ENTRY_ALLOWED`.
+inclusion/exclusion reason, source provenance, lifecycle status, sector, rank,
+affordability tier, documented minimum quantity, 20D/60D liquidity proxy and history
+freshness.  US IWB identity metadata excludes explicit unlisted/no-market rows and
+when-issued `-WI` identities without mapping them to a regular ticker; ordinary Equity
+rows continue through the existing history gate.  It intentionally has no Strategy
+action field and cannot produce `ENTRY_ALLOWED`.
 
 The production Candidate runtime is used by both the manual/local runner and the
 market-scoped Cloud Daily Report. It is invoked by `scripts/run_production_daily_decision.py

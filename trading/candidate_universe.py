@@ -21,6 +21,13 @@ US_CANDIDATE_MAX_SHARE_NOTIONAL = 1_000.0
 MIN_HISTORY_BARS = 60
 MAX_HISTORY_STALENESS_DAYS = 7
 
+# Lifecycle metadata is an identity/data-quality boundary, not a strategy
+# filter.  Source adapters may retain these rows for an auditable exclusion;
+# the selector must not turn them into an active Candidate.
+LIFECYCLE_ACTIVE = "ACTIVE"
+LIFECYCLE_UNLISTED_OR_NO_MARKET = "UNLISTED_OR_NO_MARKET"
+LIFECYCLE_WHEN_ISSUED = "WHEN_ISSUED"
+
 SSE_MAIN_BOARD_RULE_URL = (
     "https://english.sse.com.cn/news/newsrelease/c/5725303.shtml"
 )
@@ -69,6 +76,7 @@ class SeedSecurity:
     provenance: tuple[str, ...] = ()
     index_memberships: tuple[str, ...] = ()
     source_snapshot_timestamps: tuple[str, ...] = ()
+    lifecycle_status: str = LIFECYCLE_ACTIVE
 
 
 @dataclass(frozen=True)
@@ -103,6 +111,7 @@ class CandidateRecord:
     source_as_of: date | None = None
     index_memberships: tuple[str, ...] = ()
     provenance: tuple[str, ...] = ()
+    lifecycle_status: str = LIFECYCLE_ACTIVE
 
     def to_row(self) -> dict[str, object]:
         """Return a lightweight, serializable audit row."""
@@ -136,6 +145,7 @@ class CandidateRecord:
             "provenance": list(self.provenance),
             "inclusion_reason": self.inclusion_reason,
             "exclusion_reason": self.exclusion_reason,
+            "lifecycle_status": self.lifecycle_status,
         }
 
 
@@ -247,6 +257,7 @@ def _base_record(seed: SeedSecurity, reason: str) -> CandidateRecord:
         source_as_of=seed.source_as_of,
         index_memberships=seed.index_memberships,
         provenance=seed.provenance,
+        lifecycle_status=seed.lifecycle_status,
     )
 
 
@@ -262,6 +273,8 @@ def _evaluate_seed(
         return _base_record(seed, "UNSUPPORTED_MARKET")
     if seed.source_as_of is not None and seed.source_as_of > as_of_date:
         return _base_record(seed, "SEED_METADATA_AFTER_AS_OF")
+    if seed.market == "US" and seed.lifecycle_status != LIFECYCLE_ACTIVE:
+        return _base_record(seed, f"LIFECYCLE_{seed.lifecycle_status}")
     if seed.metadata_status != "OK":
         return _base_record(seed, f"METADATA_{seed.metadata_status}")
     if seed.asset_class.upper() != "EQUITY":
@@ -323,6 +336,7 @@ def _evaluate_seed(
                 source_as_of=seed.source_as_of,
                 index_memberships=seed.index_memberships,
                 provenance=seed.provenance,
+                lifecycle_status=seed.lifecycle_status,
             )
         inclusion_reason = (
             "CN_PREFERRED_AFFORDABILITY"
@@ -355,6 +369,7 @@ def _evaluate_seed(
                 source_as_of=seed.source_as_of,
                 index_memberships=seed.index_memberships,
                 provenance=seed.provenance,
+                lifecycle_status=seed.lifecycle_status,
             )
         tier = AffordabilityTier.US_CANDIDATE_ALLOWED
         minimum_quantity = 1
@@ -383,6 +398,7 @@ def _evaluate_seed(
         source_as_of=seed.source_as_of,
         index_memberships=seed.index_memberships,
         provenance=seed.provenance,
+        lifecycle_status=seed.lifecycle_status,
     )
 
 
@@ -490,6 +506,9 @@ __all__ = [
     "CandidateUniverse",
     "CN_EXTENDED_MAX_NOTIONAL",
     "CN_PREFERRED_MAX_NOTIONAL",
+    "LIFECYCLE_ACTIVE",
+    "LIFECYCLE_UNLISTED_OR_NO_MARKET",
+    "LIFECYCLE_WHEN_ISSUED",
     "LiquidityMetrics",
     "MAX_HISTORY_STALENESS_DAYS",
     "MIN_HISTORY_BARS",
