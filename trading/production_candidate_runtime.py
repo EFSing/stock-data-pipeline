@@ -29,6 +29,8 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from core import Quote
 from market_data_contract import (
+    CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION,
     DATA_INVALID,
     DATA_MISSING,
     DATA_STALE,
@@ -837,6 +839,7 @@ def _default_single_source_history_loader(
     end_date: date,
     *,
     adjustment: str,
+    cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
 ) -> HistoryLoadResult:
     """Load Candidate history one symbol at a time from its canonical vendor.
 
@@ -860,6 +863,7 @@ def _default_single_source_history_loader(
                 retry_count=EXACT_QFQ_MIN_RETRY_ATTEMPTS,
                 retry_wait_seconds=0.0,
                 target_trade_date=end_date,
+                cn_qfq_contract_version=cn_qfq_contract_version,
             )
             errors = validate_single_source_quotes(
                 result.quotes,
@@ -938,18 +942,28 @@ def _default_single_source_history_loader(
 
 
 def _default_single_source_short_history_loader(
-    seeds: tuple[Any, ...], start_date: date, end_date: date
+    seeds: tuple[Any, ...], start_date: date, end_date: date,
+    *, cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
 ) -> HistoryLoadResult:
     return _default_single_source_history_loader(
-        seeds, start_date, end_date, adjustment="raw"
+        seeds,
+        start_date,
+        end_date,
+        adjustment="raw",
+        cn_qfq_contract_version=cn_qfq_contract_version,
     )
 
 
 def _default_single_source_deep_history_loader(
-    seeds: tuple[Any, ...], start_date: date, end_date: date
+    seeds: tuple[Any, ...], start_date: date, end_date: date,
+    *, cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
 ) -> HistoryLoadResult:
     return _default_single_source_history_loader(
-        seeds, start_date, end_date, adjustment="qfq"
+        seeds,
+        start_date,
+        end_date,
+        adjustment="qfq",
+        cn_qfq_contract_version=cn_qfq_contract_version,
     )
 
 
@@ -1020,7 +1034,7 @@ class ProductionCandidateRuntime:
             ),
             "candidate_short_history": "HITHINK daily OHLCV; asset-aware endpoint",
             "strategy_deep_history": (
-                "HITHINK stock raw OHLCV + HITHINK corporate actions; "
+                "HITHINK stock provider-forward OHLCV; "
                 "ETF provider-forward-adjusted fund OHLCV"
             ),
             "qfq": (
@@ -1046,7 +1060,14 @@ class ProductionCandidateRuntime:
         deep_history_loader: HistoryLoader | None = None,
         session_window_loader: SessionWindowLoader | None = None,
         enforce_us_latest_qfq_asof: bool = True,
+        cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
     ) -> None:
+        if cn_qfq_contract_version not in {
+            CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+            CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION,
+        }:
+            raise ValueError(f"unsupported CN qfq contract: {cn_qfq_contract_version}")
+        self.cn_qfq_contract_version = cn_qfq_contract_version
         self.seed_loaders = {
             "CN": self._load_cn_seeds,
             "US": self._load_us_seeds,
@@ -1055,8 +1076,22 @@ class ProductionCandidateRuntime:
                 for key, value in (seed_loaders or {}).items()
             },
         }
-        self.short_history_loader = short_history_loader or _default_single_source_short_history_loader
-        self.deep_history_loader = deep_history_loader or _default_single_source_deep_history_loader
+        self.short_history_loader = short_history_loader or (
+            lambda seeds, start, end: _default_single_source_short_history_loader(
+                seeds,
+                start,
+                end,
+                cn_qfq_contract_version=self.cn_qfq_contract_version,
+            )
+        )
+        self.deep_history_loader = deep_history_loader or (
+            lambda seeds, start, end: _default_single_source_deep_history_loader(
+                seeds,
+                start,
+                end,
+                cn_qfq_contract_version=self.cn_qfq_contract_version,
+            )
+        )
         self.session_window_loader = session_window_loader or _completed_session_window
         self.enforce_us_latest_qfq_asof = bool(enforce_us_latest_qfq_asof)
 
@@ -1109,6 +1144,13 @@ class ProductionCandidateRuntime:
         timings = _new_stage_timings()
         errors: list[str] = []
         qfq_contract = dict(self.SOURCE_CONTRACT[normalized_market])
+        if normalized_market == "CN":
+            qfq_contract["qfq"] = self.cn_qfq_contract_version
+            qfq_contract["adjustment_provenance"] = (
+                "HITHINK_PROVIDER_FORWARD_ADJUSTED"
+                if self.cn_qfq_contract_version == CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION
+                else "HITHINK_RAW_PLUS_HITHINK_CORPORATE_ACTIONS"
+            )
         source_provenance: dict[str, Mapping[str, Any]] = {}
         provider_global_failure: str | None = None
         paper_symbols = tuple(

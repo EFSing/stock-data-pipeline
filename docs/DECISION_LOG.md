@@ -1099,3 +1099,35 @@ JSON/HTML，同时显式OPPORTUNITY_LEDGER_STATUS=FAILED并让scheduled workflow
 **Reason:** ENTRY_ALLOWED=0不等于没有可观察机会。保留所有新确认及当时的拒绝依据，
 才能形成因果、可审计的长期反馈，同时保持策略纪律、Paper lifecycle、真实持仓、broker、
 Portfolio Risk和D1 research evidence的原有权限及语义边界。
+
+## 2026-10-04 — CN A-share production QFQ uses HITHINK provider-forward contract
+
+**Decision:** CN `a-share` production qfq is migrated to the same-vendor
+`/api/a-share/prices/historical?adjust=forward` route under
+`CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2` and
+`CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`. Raw/latest `adjust=none`, HITHINK
+`fund-etf` routing, ETF `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1`, same-provider retry,
+and all US routing remain unchanged. The route records provider identity, endpoint,
+requested/response adjustment, request start/end, acquired-at, asset type, exact session,
+session identity and contract/version provenance. `corporate_action_source` and
+`adjustment_chain_sha256` are null for this basis; they are not copied from the old engine.
+
+`CN_FORWARD_ADJUSTMENT_ENGINE_V1` and
+`CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_V1` remain available and immutable for historical
+fixtures/evidence and old D1 semantics. `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` remains bound
+to that old basis and cannot silently consume provider-forward data. The new code-ready CN D1
+epoch is `SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1` at
+`system/activation_epochs/CN/SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1.json`; no real
+activation record is created, no natural collector is run, and no migration window is backfilled
+in this PR.
+
+**Evidence:** the original 33 `HITHINK_CORPORATE_ACTIONS_NOT_READY` symbols returned usable
+exact-T provider-forward history `33/33`; 8 controls passed exact-T/session/volume/OHLCV checks.
+For `600519.SH` around the 2026-06-26 ex-date and `000001.SZ` around the 2026-09-24 ex-date,
+end-before-ex-date versus end-after-ex-date requests had identical bars through the earlier
+cutoff, so no future-action leakage was observed. The provider-forward prices are not asserted
+to be numerically equivalent to `CN_FORWARD_ADJUSTMENT_ENGINE_V1`; the two bases remain separate.
+
+**Reason:** the user approved a production CN QFQ basis migration after a live provider-forward
+probe. Explicit adjustment/source-contract identity preserves D1 prospective purity and prevents
+old evidence from being reinterpreted under a materially different historical price basis.

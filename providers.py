@@ -18,6 +18,9 @@ from market_data_contract import (
     AdjustmentUnverifiedError,
     CN_ADJUSTMENT_ENGINE_VERSION,
     CN_ETF_ADJUSTMENT_ENGINE_VERSION,
+    CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION,
+    CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION,
     CN_SINGLE_SOURCE_PROVIDER,
     ProviderGlobalFailure,
     ProviderSymbolError,
@@ -429,6 +432,8 @@ def fetch_hithink_with_provenance(
     adjust: str,
     start: date,
     end: date,
+    *,
+    qfq_contract_version: str = CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION,
 ) -> SingleSourceFetchResult:
     if str(watch.get("市场")) != "CN":
         raise ProviderSymbolError("HITHINK_MARKET_UNSUPPORTED")
@@ -485,6 +490,58 @@ def fetch_hithink_with_provenance(
             provenance,
             metadata_requests + history_requests,
         )
+    if adjust == "qfq" and qfq_contract_version == CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION:
+        forward_payload = _hithink_json(
+            "/api/a-share/prices/historical",
+            {
+                "thscode": symbol,
+                "interval": "1d",
+                "start": _hithink_epoch_ms(start),
+                "end": _hithink_epoch_ms(end),
+                "adjust": "forward",
+            },
+        )
+        forward_data = forward_payload.get("data")
+        if not isinstance(forward_data, dict) or str(forward_data.get("adjust") or "").lower() != "forward":
+            raise ProviderGlobalFailure(
+                "HITHINK_PROVIDER_FORWARD_ADJUSTMENT_CONTRACT_INVALID"
+            )
+        forward_quotes = _hithink_raw_quotes(_hithink_items(forward_payload), watch)
+        if not forward_quotes:
+            raise ProviderSymbolError("HITHINK_SYMBOL_NO_HISTORY")
+        if any(not start <= quote.trade_date <= end for quote in forward_quotes):
+            raise ProviderSymbolError("HITHINK_FORWARD_HISTORY_OUTSIDE_REQUEST")
+        exact_session = max(quote.trade_date for quote in forward_quotes)
+        acquired_at = datetime.now(timezone.utc).isoformat()
+        forward_provenance = source_provenance(
+            market="CN",
+            provider=CN_SINGLE_SOURCE_PROVIDER,
+            adjustment="qfq",
+            adjustment_engine_version=CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION,
+            raw_source="HITHINK_FINANCIAL_API:/api/a-share/prices/historical?adjust=forward",
+            corporate_action_source=None,
+            adjustment_chain_sha256=None,
+            asset_type=asset_type,
+            adjustment_source="HITHINK_PROVIDER_FORWARD_ADJUSTED",
+            session_identity=f"CN:{symbol}:{exact_session.isoformat()}",
+            acquired_at=acquired_at,
+        )
+        forward_provenance.update({
+            "qfq_contract_version": CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+            "endpoint": "/api/a-share/prices/historical",
+            "requested_adjustment": "forward",
+            "provider_adjustment_policy": "FORWARD_ADJUSTED",
+            "request_start": start.isoformat(),
+            "request_end": end.isoformat(),
+            "exact_session_date": exact_session.isoformat(),
+            "response_adjustment": str(forward_data.get("adjust")),
+        })
+        return SingleSourceFetchResult(
+            tuple(forward_quotes),
+            CN_SINGLE_SOURCE_PROVIDER,
+            forward_provenance,
+            metadata_requests + 1,
+        )
     payload = _hithink_json(
         "/api/a-share/prices/historical",
         {
@@ -511,6 +568,8 @@ def fetch_hithink_with_provenance(
         return SingleSourceFetchResult(tuple(raw_quotes), CN_SINGLE_SOURCE_PROVIDER, provenance, requests)
     if adjust != "qfq":
         raise ValueError(f"unsupported HITHINK adjustment: {adjust}")
+    if qfq_contract_version != CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION:
+        raise ValueError(f"unsupported CN qfq contract: {qfq_contract_version}")
     try:
         actions = _hithink_json(
             "/api/a-share/corporate-actions/adjustment-factors",
@@ -542,6 +601,7 @@ def fetch_hithink_with_provenance(
         asset_type=asset_type,
         adjustment_source="HITHINK_RAW_PLUS_HITHINK_CORPORATE_ACTIONS",
     )
+    provenance["qfq_contract_version"] = CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION
     return SingleSourceFetchResult(tuple(adjusted), CN_SINGLE_SOURCE_PROVIDER, provenance, requests + 1)
 
 
@@ -1168,6 +1228,7 @@ def fetch_single_source_with_retry(
     retry_count: int,
     retry_wait_seconds: float,
     target_trade_date: date | None = None,
+    cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
 ) -> SingleSourceFetchResult:
     """Fetch one market through its canonical provider, with no vendor fallback."""
 
@@ -1180,7 +1241,17 @@ def fetch_single_source_with_retry(
     for attempt in range(1, attempts + 1):
         try:
             if provider == CN_SINGLE_SOURCE_PROVIDER:
-                result = fetch_hithink_with_provenance(watch, adjust, start, end)
+                result = fetch_hithink_with_provenance(
+                    watch,
+                    adjust,
+                    start,
+                    end,
+                    qfq_contract_version=(
+                        cn_qfq_contract_version
+                        if adjust == "qfq"
+                        else CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION
+                    ),
+                )
             else:
                 result = fetch_yahoo_chart_with_provenance(watch, adjust, start, end)
             quotes = tuple(sorted(result.quotes, key=lambda item: item.trade_date))

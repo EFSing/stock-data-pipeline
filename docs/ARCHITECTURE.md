@@ -119,13 +119,14 @@ SheetsClient.config() / records("自选清单")          ← Google Sheets
     scripts/refresh_production_qfq.py --group asia|us
         → formal 策略账户 + 策略股票池 (CN/US only)
         → latest row must be exact, formally closed and 已验证 / DATA_OK
-        → fetch exact-T QFQ via HITHINK (CN) or YAHOO_CHART (US) only
+        → fetch exact-T QFQ via HITHINK provider-forward A-share / HITHINK fund ETF (CN)
+          or YAHOO_CHART (US) only
         → symbol failures are isolated; successful identities are replaced idempotently
         → provider-wide failure remains non-zero; other markets/rows persist
 
     # --mode full only:
     select_history_series(...)                      [main]
-        fetch_single_source_with_retry(市场, "qfq")    [CN/US canonical providers]
+        fetch_single_source_with_retry(市场, "qfq")    [CN provider-forward / US canonical providers]
         → legacy fetch_with_retry only for non-CN/US compatibility/research
     confirmed close + qfq末日一致                    [main gate]
         → evaluate_setup03_event()                   [trading.events]
@@ -483,16 +484,34 @@ gate 防止将 future/stale/invalid identity 作为 lifecycle snapshot 发布。
 
 - canonical production adapters：`HITHINK_FINANCIAL_API`（CN）与 `YAHOO_CHART`（US），
   由 `fetch_single_source_with_retry()` 做同 provider bounded retry；内部合同和
-  adjustment provenance 由 `market_data_contract.py` 统一定义
+  adjustment provenance 由 `market_data_contract.py` 统一定义。CN A-share qfq 使用
+  `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2` / `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2`
+  与 `/api/a-share/prices/historical?adjust=forward`；旧
+  `CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_V1` / `CN_FORWARD_ADJUSTMENT_ENGINE_V1`
+  仍可由 D1 V2/legacy explicit basis 调用，不被覆盖。
 - legacy `PROVIDERS` 注册表仍包含 `BaoStock`、`Tencent`、`Sina`、`yfinance`，供
   HK/JP/SE compatibility、旧 fixture 与 research replay 使用，不进入 CN/US production
-- `fetch_with_retry()`：legacy 回退链抓取并重试，支持 `target_trade_date` 过期判断
+- `fetch_with_retry()`：legacy 回退链抓取并重试，支持 `target_trade_date` 过期判断；
+  CN/US production qfq 统一走 `fetch_single_source_with_retry()`，不进入 vendor fallback
 - `fetch_latest_with_retry()`：独立的短窗口 latest quote 路径；scheduled latest 不调用 full-history fetch
 - `_configured_source_candidates()`：数据源回退链 + AKShare 遗留别名路由
 - `fetch_yfinance()`：legacy/research yfinance path；CN/US production 不调用该 fallback path
 - `fetch_tencent()` / `fetch_sina()`：实时快照解析（含美股常规交易时段字段处理）
 - `fetch_baostock()`：A股历史（仅 CN）
 - 依赖：标准库；baostock / pandas / yfinance 均按需惰性导入
+
+### CN QFQ contract / D1 boundary
+
+- Production CN A-share qfq uses `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2` and
+  `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2`; raw/latest remains `adjust=none`, ETF/fund
+  remains `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1`, and US remains `YAHOO_CHART`.
+- `CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_V1` plus
+  `CN_FORWARD_ADJUSTMENT_ENGINE_V1` remains an explicit immutable legacy basis. D1 V2
+  natural/runtime code selects that basis explicitly, so a shared provider change cannot
+  silently rewrite V2 prefixes or existing evidence.
+- `SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1` is code-ready as a CN-only append-only
+  activation epoch. Its real activation is not created by this PR; no natural collector or
+  migration-window backfill is allowed before separate activation authorization.
 
 ### sheets_client.py
 

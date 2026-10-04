@@ -17,7 +17,13 @@ SINGLE_SOURCE_CONTRACT_NAME = "ONE_MARKET_ONE_MARKET_DATA_VENDOR"
 CN_SINGLE_SOURCE_PROVIDER = "HITHINK_FINANCIAL_API"
 US_SINGLE_SOURCE_PROVIDER = "YAHOO_CHART"
 
+# Immutable legacy basis retained for old fixtures/evidence and the D1 V2
+# source contract.  Production CN stock QFQ uses the provider-forward basis
+# below; the two contracts must never be conflated.
 CN_ADJUSTMENT_ENGINE_VERSION = "CN_FORWARD_ADJUSTMENT_ENGINE_V1"
+CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION = "CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_V1"
+CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION = "CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2"
+CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION = "CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2"
 # HiThink's fund-market historical endpoint is a separate, same-vendor
 # contract.  It returns ETF prices in the provider-documented forward-adjusted
 # form and must not be represented as the stock raw+corporate-action chain.
@@ -68,7 +74,7 @@ def canonical_provider_for_market(market: str) -> str:
 def adjustment_engine_for_market(market: str) -> str:
     normalized = str(market).strip().upper()
     if normalized == "CN":
-        return CN_ADJUSTMENT_ENGINE_VERSION
+        return CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION
     if normalized == "US":
         return US_ADJUSTMENT_ENGINE_VERSION
     raise ValueError(f"single-source adjustment market unsupported: {market}")
@@ -199,6 +205,9 @@ __all__ = [
     "AdjustmentUnverifiedError",
     "CN_ADJUSTMENT_ENGINE_VERSION",
     "CN_ETF_ADJUSTMENT_ENGINE_VERSION",
+    "CN_PROVIDER_FORWARD_ADJUSTMENT_ENGINE_VERSION",
+    "CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION",
+    "CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_VERSION",
     "CN_SINGLE_SOURCE_PROVIDER",
     "DATA_ADJUSTMENT_UNVERIFIED",
     "DATA_INVALID",

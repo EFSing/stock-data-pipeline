@@ -1,7 +1,8 @@
 # SINGLE_SOURCE_MARKET_DATA_V1
 
-状态：`SINGLE_SOURCE_PRODUCTION_CUTOVER_READY`。代码、离线 fixture 与真实 provider
-acceptance 已完成；D1 V2 immutable activation 与 production cutover 仍需用户最终授权。
+状态：`CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`。CN A-share provider-forward
+route、as-of purity、33 个 residual symbol、control 与回归验证已完成；PR 尚未 merge，
+真实 D1 provider-forward activation 与 natural production acceptance 仍未执行。
 
 本合同只改变 production data plane 与 failure isolation，不改变 Wave、Swing、
 Fibonacci、Setup、Entry、Target、Stop、RR、Risk、Paper、broker 或 Final OOS 语义。
@@ -10,7 +11,7 @@ Fibonacci、Setup、Entry、Target、Stop、RR、Risk、Paper、broker 或 Final
 
 | market | 唯一 production price vendor / implementation | raw | adjusted | 允许的重试 |
 |---|---|---|---|---|
-| CN | `HITHINK_FINANCIAL_API` | HITHINK metadata `asset_type=a-share` → `/api/a-share/prices/historical?adjust=none`; `fund-etf` → `/api/fund/market/historical` | 股票：仓库内 `CN_FORWARD_ADJUSTMENT_ENGINE_V1`；ETF：同一 HITHINK fund endpoint 的 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1` | 同一 HITHINK provider 的 bounded retry |
+| CN | `HITHINK_FINANCIAL_API` | HITHINK metadata `asset_type=a-share` → `/api/a-share/prices/historical?adjust=none`; `fund-etf` → `/api/fund/market/historical` | A-share 股票：`/api/a-share/prices/historical?adjust=forward`，`CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2` / `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`；旧 `CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保留为 immutable legacy/D1 V2 basis；ETF：同一 HITHINK fund endpoint 的 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1` | 同一 HITHINK provider 的 bounded retry |
 | US | `YAHOO_CHART` | Yahoo Chart `/v8/finance/chart` | Yahoo Chart `adjclose` factor，`YAHOO_CHART_ADJCLOSE_ENGINE_V1` | 同一 Yahoo Chart implementation 的 bounded retry |
 
 `yfinance`、BaoStock、Tencent、Sina 仍可被 legacy/research compatibility code 使用，
@@ -55,23 +56,35 @@ requested `as_of` 时 fail closed，不能把后来的 membership 追溯到更�
 
 ## CN adjustment provenance
 
-CN stock production 不使用 HITHINK 预计算 adjusted OHLC 作为 qfq SSOT。先取同一 vendor
-的 raw daily OHLCV，再取同一 vendor 的 corporate-action events，由
-`CN_FORWARD_ADJUSTMENT_ENGINE_V1` 生成 adjusted OHLCV。ETF/fund 是明确的另一资产合同：
+当前 CN A-share production qfq 使用 HITHINK 同一 provider 的
+`/api/a-share/prices/historical?adjust=forward`。该 provider-forward basis 的
+adjustment/version 为 `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2`，source contract 为
+`CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`；它不是、也不声称等价于旧的
+`CN_FORWARD_ADJUSTMENT_ENGINE_V1`。旧 raw + corporate-actions engine 仍保留为
+`CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_V1`，供历史 fixtures、旧证据和 D1 V2 使用，
+不得被新的 production route 静默改写。
+
+provider-forward qfq provenance 至少记录：
+
+- provider identity 与 endpoint `/api/a-share/prices/historical`；
+- requested adjustment=`forward` 与 response `data.adjust=forward`；
+- request start/end、acquired_at、asset_type、exact session date 与 session identity；
+- `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2` 与
+  `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`；
+- `corporate_action_source=null` 与 `adjustment_chain_sha256=null`，不得伪造旧 chain。
+
+ETF/fund 是明确的另一资产合同：
 HITHINK metadata 必须识别为 `fund-etf`，随后使用同一 HITHINK 的
 `/api/fund/market/historical`；该 endpoint 的 provider-documented OHLC 已为
 forward-adjusted，记录 `HITHINK_FUND_ETF_FORWARD_ADJUSTED_V1` 与
 `HITHINK_PROVIDER_FORWARD_ADJUSTED`，不得把它伪装成股票 raw+action chain，也不得回退其他
-vendor。每个 qfq result 记录：
+vendor。ETF contract 与本次股票迁移无关，保持不变。
 
-- raw endpoint / source identity；
-- corporate-action event source；
-- event date、dividend、bonus 与 factor chain 的 SHA-256；
-- adjustment engine version、asset type 与 adjustment source；
-- symbol/session provenance。
-
-若股票 corporate-action 数据未准备、字段不完整或其他资产合同无法证明，
-不换 vendor、不猜公式，直接将该 symbol 标为 `DATA_ADJUSTMENT_UNVERIFIED` 并隔离。
+若 active provider-forward response 的 `data.adjust`、OHLCV、requested range 或
+adjustment provenance 无法证明，仍不换 vendor、不猜公式，直接将该 symbol 标为
+`DATA_ADJUSTMENT_UNVERIFIED` 并隔离。旧 raw+corporate-actions basis 的
+`HITHINK_CORPORATE_ACTIONS_NOT_READY` 只适用于显式 legacy/D1 V2 contract，不改变当前
+production provider-forward route。
 
 ## Symbol-level isolation
 
@@ -108,7 +121,7 @@ HTML、email 顶部显示 attempted、`DATA_OK`、failed、coverage、failed-by-
 strategy analyzed 和 blocked counts；email 只展示最多 20 个异常 symbol，完整列表留在
 artifact。provider-wide failure 仍先生成 artifact/notification，再返回非零。
 
-## D1 V2 boundary
+## D1 V2/V3 boundary
 
 `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 保存 attempted universe、usable/missing/invalid
 symbols、per-symbol source status、provider identity、adjustment engine version、exact
@@ -131,18 +144,25 @@ session count 核对、source contract 验证和用户最终批准后创建，�
 `system/activation_epochs/{CN,US}/SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2.json`，提交时
 按 snapshot source contract 精确绑定版本，不读取 `current`/`latest` fallback。
 
+`SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 的 raw/QFQ basis 保持 immutable：CN 使用
+`CN_RAW_CORPORATE_ACTIONS_QFQ_CONTRACT_V1`。本 PR 仅使
+`SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1` code-ready；其 activation epoch
+路径为 `system/activation_epochs/CN/SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1.json`，
+但本 PR 不创建真实 activation、不运行 natural collector、不回填 migration window。
+
 ## Production acceptance boundary
 
 本分支已完成离线和真实 acceptance：
 
 - CN 最新已完成 session `2026-09-28`：`600519.SH`（沪 A）、`000001.SZ`（深 A）、
   `300750.SZ`（创业板）、`688008.SH`（科创板）、`512400.SH` 与 `159866.SZ`（ETF）均以
-  HITHINK 返回 exact-T、严格递增 OHLCV；股票 qfq 使用 HITHINK raw + corporate actions
-  与冻结公式，ETF 分别命中 HITHINK fund endpoint。现金分红、送转样本、same-provider
-  retry、stale detection、provenance、latency 与 reproducibility 已验收；bounded halt/no-
-  trade probe 未找到可用样本，不改变合同。
-- CN adjustment 还验证了一个 action dataset 返回 `3002` 的 fail-closed 路径，结果为
-  `DATA_ADJUSTMENT_UNVERIFIED`，未把未知事件当作无事件。
+  HITHINK 返回 exact-T、严格递增 OHLCV；ETF 命中既有 HITHINK fund endpoint。股票
+  provider-forward route 已对原 33 个 `HITHINK_CORPORATE_ACTIONS_NOT_READY` 标的实现
+  33/33 usable，并对 8 个 controls 完成 exact-T/session/volume/OHLCV 验收。
+  `600519.SH`（2026-06-26 ex-date）与 `000001.SZ`（2026-09-24 ex-date）的 end=T 与
+  跨 ex-date end 请求在 T 及以前 bars 完全一致，未观察 future-action leakage。
+- 旧 action dataset 返回 `3002` 的 fail-closed 语义与旧 engine 仍保留，但不再是当前
+  production CN A-share qfq route；旧 D1 V2/历史 evidence 不被 provider-forward 数据覆盖。
 - US `YAHOO_CHART` 使用 exact XNYS session `2026-09-28`；raw OHLCV 与 qfq `adjclose`
   provenance 均到 T，单个无效 symbol 只产生 symbol error，transport/schema/outage 保持
   provider-global 边界。未引入第二 US provider。
@@ -151,5 +171,6 @@ session count 核对、source contract 验证和用户最终批准后创建，�
   `DATA_STATUS=PARTIAL` exit=0 均有语义测试；`DATA_MISSING` 与
   `DATA_ADJUSTMENT_UNVERIFIED` 不映射为 `NO_SIGNAL`。
 
-因此当前合同状态为 `SINGLE_SOURCE_PRODUCTION_CUTOVER_READY`。这不表示已切换生产：V2
-activation 只生成 preview/hash，不创建 immutable record；PR #124 也不在本轮 merge。
+因此当前 PR 合同状态为 `CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`。这不表示真实 D1
+activation 已创建或 natural production 已验收：新 activation 仍只 code-ready，不创建
+immutable record；PR merge 仍需独立审阅。

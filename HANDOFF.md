@@ -4,10 +4,15 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_OPPORTUNITY_LEDGER_V1`：独立实现生产日报“机会→结果”反馈闭环，代码、回归与
-rebase 后验证完成，#131 与 #132 均已 squash merge 到 `main`。当前实现已进入 main，
-但真实 prospective / T+1 / 10-session 结果尚未发生。branch / PR / HEAD / CI 继续从
-GitHub 实时核对，不以本文件作动态证明。
+`CN_QFQ_PROVIDER_FORWARD_MIGRATION`：用户已批准将 CN A-share production qfq 迁移到
+HITHINK `/api/a-share/prices/historical?adjust=forward`。独立分支已完成 provider route、
+provenance、D1 V2 isolation 与新 CN D1 code-ready contract；旧
+`CN_FORWARD_ADJUSTMENT_ENGINE_V1` 保持 immutable，真实 D1 activation 未执行。原 33 条
+阻断 live route 现为 33/33 usable；as-of ex-date cutoff、8 controls 与 focused tests
+已通过。等待 full unittest、CI/generic shadows 与 PR review 后报告
+`CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`。真实 post-merge CN/US natural report
+acceptance、Opportunity Ledger natural acceptance 仍未发生。branch / PR / HEAD / CI
+继续从 GitHub 实时核对，不以本文件作动态证明。
 
 ## Current State / Completed
 
@@ -28,7 +33,12 @@ GitHub 实时核对，不以本文件作动态证明。
 - 写入失败独立为 OPPORTUNITY_LEDGER_STATUS=FAILED，尽量生成 JSON/HTML，workflow
   非零退出；部分写入不伪称零写入。已有 session/strategy/data/provider 合同不放宽。
 - 所有交易规则、正式策略状态、Paper lifecycle、持仓、broker 和 D1 evidence 均不变；
-  不处理33条 Candidate unavailable，不新增 Phase/registry/protocol/storage abstraction。
+  不处理 601059/601198、HOLX、JMKE、VYLR-WI residual lifecycle/exclusion；不新增
+  Phase/registry/storage abstraction。
+- 生产 CN A-share qfq 使用 `CN_HITHINK_PROVIDER_FORWARD_ADJUSTED_V2` /
+  `CN_HITHINK_PROVIDER_FORWARD_QFQ_CONTRACT_V2`；ETF 与 US contract 不变。
+- `SETUP01_D1_SINGLE_SOURCE_CONTRACT_V2` 明确锁定旧 raw+corporate-actions basis；新
+  `SETUP01_D1_CN_PROVIDER_FORWARD_QFQ_CONTRACT_V1` 只 code-ready，不创建 activation。
 
 ## Validation
 
@@ -43,13 +53,17 @@ GitHub 实时核对，不以本文件作动态证明。
 
 ## Blocker / Remaining Risks
 
-无实现或 Sheets 权限 blocker；真实 prospective 结果必须等待自然 session，不能通过历史
-回填补齐。
+- PR readiness 仍取决于 full unittest、compile、CI 与 generic shadows；不得 merge。
+- 新 D1 activation 仍需独立治理授权；本 PR 不写真实 VPS/GCS activation，不回填迁移窗口。
+- 601059/601198 保持 stale/unavailable；HOLX/JMKE/VYLR-WI lifecycle/when-issued 处理留在
+  独立任务。真实 prospective 结果必须等待自然 session，不能通过历史回填补齐。
 
 ## Next Action
 
-等待合并后的自然启用、T+1 和 10-session 成熟样本实际发生；不把 fixture、权限核验或只读
-历史报告写成 prospective production/D1 evidence。
+完成 full unittest、compile、CI 和相关 generic shadows，核对真实 PR diff；若全部通过，
+停在 `CN_QFQ_PROVIDER_FORWARD_MIGRATION_PR_READY`，不 merge。继续等待后续 natural
+CN/US report、Opportunity Ledger T+1/10-session acceptance；不把 live probe 写成
+prospective D1 evidence。
 
 ## Constraints / Pitfalls
 
