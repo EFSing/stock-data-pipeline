@@ -11,7 +11,7 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 普通用户区域。此前 PR #133/#134 的 CN provider-forward 与 US Candidate lifecycle 状态不变；
 真实 D1 activation 未执行。
 
-当前 code follow-up 正在现有 PR 分支工作；不得新建 PR 或 merge。最近远端 head 的
+当前 code follow-up 已提交并推送到现有 PR；不得新建 PR 或 merge。最新远端 head 的
 exact-head CI（test 与三个 generic shadows）已全部成功。merge 后尚无自然 CN Daily
 Report，状态为
 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger natural
@@ -96,8 +96,9 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
   `artifacts/daily_report_human_opportunity_v1/CN/2026-09-30-setup02-projection.html`
   与 `artifacts/daily_report_human_opportunity_v1/US/2026-10-02-setup02-projection.html`；
   CN 600901.SH 已展示 T1 + 四个 Fib，US SETUP_02 走同一 renderer。
-- 既有 code follow-up 的 exact-head GitHub CI 已成功（test、Daily Decision Chain、Paper
-  lifecycle、Portfolio Risk）；PR 保持 open，未合并。
+- 本轮 language follow-up 的 exact-head GitHub CI 已成功（test、三个 generic shadows）；PR
+  保持 open，未合并。既有 Daily Decision Chain、Paper lifecycle、Portfolio Risk 验证也保持
+  SUCCESS。
 
 ## Blocker / Remaining Risks
 
