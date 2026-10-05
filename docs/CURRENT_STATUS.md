@@ -323,22 +323,27 @@
  - `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
   它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
   enum/protocol/交易语义。共享 CN/US renderer 现以“人工机会判断”优先，展开后先展示
-  当前/Decision 参考价、确认价、入场区、结构风险、T1/阻力与 Wave3 target/upside；
+  当前/正式判断参考价、确认价、入场区、结构风险、第一目标/阻力与3浪空间；
   PR #135 的 proposed projection 还会将 SETUP_02 已生成的 `target_candidates` / provenance
   转为与 SETUP_01 相同的目标卡片；若 `ABOVE_ENTRY_ZONE` 等 gate 在 candidate 生成前提前终止，
   但 continuation anchors 已足够，则只读人工层可展示 canonical Wave3 结构空间，并明确不等同正式 T1。
   随后保留“确认后的交易判断”和机会新鲜度，结构与判断依据、开发者原始数据默认折叠。
-  未展开 card 也展示紧凑的当前价、确认距离、结构风险和主要 Wave3 空间；所有用户侧价格/百分比
+  未展开 card 也展示紧凑的当前价、确认距离、结构风险和主要3浪空间；所有用户侧价格/百分比
   使用 compact formatting，缺失字段显示可解释原因而非裸 `—`。独立展示修复默认优先显示今日重点，将确认与等待确认放在
   异常之前；“全部/诊断”仍可访问全部结果，静态 HTML 在没有 JavaScript 时也保留完整
   逐标的内容。原始质量/覆盖/前瞻审计默认折叠，报告覆盖数与成功分析数分开；评估失败
   不冒充普通 NO_TRADE。该共享展示修复属于 PR #135 proposed implementation，待 PR 合并后才进入
   main 正式能力地图。股票以 compact row 展示，完整
-  当日状态、当前浪型、Setup、已满足/未满足条件、Decision/Risk/Position Management /
+  当日状态、当前浪型、策略类型、已满足/未满足条件、正式判断/风险/持仓管理 /
   原始诊断在“查看详情”展开；页面支持 sticky 阶段导航、
-   ticker/公司名称前端搜索与既有 CN/US、Setup、行业筛选。`scripts/render_daily_dashboard.py`
+   代码/公司名称前端搜索与既有 CN/US、策略类型、行业筛选。`scripts/render_daily_dashboard.py`
    可将已保存 JSON 写为 `reports/daily_dashboard/latest.html` 及日期版本；runner 通过
    显式 `--dashboard-output DIR` 选择性生成相同输出。
+ - PR #135 follow-up 增加共享 Dashboard/email 的 `USER_VISIBLE_LANGUAGE_AUDIT`：只扫描普通
+   用户区域，开发者原始数据/审计区域不计入；输出 `user_visible_raw_enum_count`、
+   `user_visible_internal_field_count`、`user_visible_unnecessary_english_count`、半中英提示计数，
+   并明确列出允许保留的 `SETUP_01`、`SETUP_02`、`T1/T2/T3`、`R/R`、`ATR14`、`CN/US`。当前
+   fixture Dashboard 与 email 均为三项验收计数 0；该能力待 PR 合并后进入 main 正式地图。
  - 前瞻模拟交易跟踪 V1 已接入显式 `--paper-track` 路径：只对新 `CONFIRMED` 且已有
    individual `ENTRY_ALLOWED` 的 SETUP_01/02 事件创建 Paper plan，使用独立、append-only
    `策略模拟账本`；正式池与 Candidate-only 均保留原 provenance，Candidate 仍不晋级、不

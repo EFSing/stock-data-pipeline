@@ -138,7 +138,7 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("数据异常数量</strong>：0", rendered)
         self.assertIn("示例云计算", rendered)
         self.assertNotIn("示例制造", rendered)
-        self.assertIn("完整 HTML 实际分析覆盖", rendered)
+        self.assertIn("日报页面实际分析覆盖", rendered)
         self.assertIn("邮件重点摘要", rendered)
 
     def test_email_diagnostics_marks_candidate_discovery_failure_and_keeps_coverage(self):
@@ -159,7 +159,7 @@ class DailyReportEmailTests(unittest.TestCase):
 
         self.assertIn("候选发现失败，覆盖不完整", rendered)
         self.assertIn("候选链路异常", rendered)
-        self.assertIn("完整 HTML 实际分析覆盖", rendered)
+        self.assertIn("日报页面实际分析覆盖", rendered)
 
     def test_no_decision_plan_never_fabricates_price_fields(self):
         payload = _cloud_payload("CN")
@@ -206,10 +206,10 @@ class DailyReportEmailTests(unittest.TestCase):
         rendered = render_daily_report_email_html(payload)
 
         self.assertIn("是否已有交易计划：</span>是", rendered)
-        self.assertIn("入场（Entry）：200", rendered)
-        self.assertIn("止损（Stop）：190", rendered)
-        self.assertIn("目标（Targets）：T1：220；T2：230；T3：240", rendered)
-        self.assertIn("风险收益比（RR）：2.00 / 3.00 / 4.00", rendered)
+        self.assertIn("入场：200", rendered)
+        self.assertIn("止损：190", rendered)
+        self.assertIn("目标：第一目标 T1：220；第二目标 T2：230；第三目标 T3：240", rendered)
+        self.assertIn("风险收益比（R/R）：2.00 / 3.00 / 4.00", rendered)
 
     def test_real_plan_displays_upside_band_without_changing_plan_semantics(self):
         payload = _cloud_payload("US")
@@ -259,11 +259,11 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("第一目标候选：98.6825", rendered)
         self.assertIn("目标上涨空间：0.53%", rendered)
         self.assertIn("系统最低要求：5.00%", rendered)
-        self.assertIn("对应 RR：0.14R", rendered)
+        self.assertIn("对应第一目标 R/R：0.14R", rendered)
         self.assertNotIn("最低 RR 要求", rendered)
-        self.assertIn("这些是本次 Decision gate 的计算依据，不是买入/止盈建议。", rendered)
+        self.assertIn("这些是本次正式规则的计算依据，不是买入/止盈建议。", rendered)
         self.assertIn("是否已有交易计划：</span>否", rendered)
-        self.assertNotIn("交易计划（来自真实 Decision）", rendered)
+        self.assertNotIn("交易计划（来自正式判断）", rendered)
         self.assertNotIn("入场（Entry）", rendered)
 
     def test_new_confirmation_no_trade_email_surfaces_rejection_summary_first(self):
@@ -288,7 +288,7 @@ class DailyReportEmailTests(unittest.TestCase):
         for fragment in (
             "确认成功",
             "仍在入场区",
-            "T1空间 14.26%",
+            "第一目标空间 14.26%",
             "R/R 0.88",
             "R/R不足",
             "→ 不交易",
@@ -331,10 +331,10 @@ class DailyReportEmailTests(unittest.TestCase):
             )
         )
 
-        self.assertIn("当前正式 T1（保持 gate/RR）", rendered)
+        self.assertIn("当前正式第一目标 T1（保持规则与 R/R）", rendered)
         self.assertIn("保守第一障碍（最近已确认历史阻力）", rendered)
-        self.assertIn("Wave3 结构目标（最近 Fib 投射）", rendered)
-        self.assertIn("系统不是认为 Wave3 只有 1.00% 空间", rendered)
+        self.assertIn("3浪结构目标（最近斐波那契投射）", rendered)
+        self.assertIn("系统不是认为3浪只有 1.00% 空间", rendered)
         self.assertIn("按现有保守规则不交易", rendered)
 
     def test_above_entry_zone_rejected_decision_explains_no_chasing(self):
@@ -360,7 +360,7 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("当前价格：18.78", rendered)
         self.assertIn("原因：已经高于允许入场区上沿", rendered)
         self.assertIn("是否已有交易计划：</span>否", rendered)
-        self.assertNotIn("交易计划（来自真实 Decision）", rendered)
+        self.assertNotIn("交易计划（来自正式判断）", rendered)
         self.assertNotIn("目标（Targets）", rendered)
 
     def test_summary_plan_count_excludes_rejected_decisions(self):
@@ -426,7 +426,7 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("测试标的00", rendered)
         self.assertIn("测试标的19", rendered)
         self.assertNotIn("测试标的20", rendered)
-        self.assertIn("邮件重点摘要未展开 5 只；完整逐只结果见 HTML 附件", rendered)
+        self.assertIn("邮件重点摘要未展开 5 只；完整逐只结果见日报文件附件", rendered)
 
     def test_report_level_failure_is_visible_without_raw_diagnostics(self):
         payload = _cloud_payload("CN", "FAILED")
@@ -469,8 +469,8 @@ class DailyReportEmailTests(unittest.TestCase):
         self.assertIn("覆盖与日报诊断", rendered)
         self.assertIn("深度分析：2", rendered)
         self.assertIn("BABA", rendered)
-        self.assertIn("qfq yfinance returned date 2026-09-18 before T", rendered)
-        self.assertIn("HISTORY_INSUFFICIENT", rendered)
+        self.assertIn("复权行情日期早于数据日期", rendered)
+        self.assertIn("历史行情不足", rendered)
 
     def test_smtp_message_keeps_plain_text_fallback_and_html_alternative(self):
         with patch("trading.notifications.smtplib.SMTP", _FakeSMTP):

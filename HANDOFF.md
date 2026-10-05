@@ -4,14 +4,14 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_HUMAN_OPPORTUNITY_UI_PR_READY`：继续 PR #135，PR 保持 open，branch
+`DAILY_REPORT_CROSS_STAGE_CONSISTENCY_PR_READY`：继续 PR #135，PR 保持 open，branch
 `feat/daily-report-human-opportunity-v1` 未合并。CN/US Daily Report 共享 renderer 已加入
-人工机会优先层、正式确认后判断、显式结构数据缺口与 compact formatting；当前 follow-up
-将 SETUP_02 已有 `target_candidates` / provenance 投影为与 SETUP_01 相同的人工目标卡片，
-并覆盖 `ABOVE_ENTRY_ZONE` 的 causal Wave3 只读空间。此前 PR #133/#134 的 CN provider-
-forward 与 US Candidate lifecycle 状态不变；真实 D1 activation 未执行。
+人工机会优先层、正式确认后判断、显式结构数据缺口、SETUP_02 目标投影、compact formatting
+与用户可见中文化；本轮新增 `USER_VISIBLE_LANGUAGE_AUDIT`，覆盖 Dashboard 与 email 的
+普通用户区域。此前 PR #133/#134 的 CN provider-forward 与 US Candidate lifecycle 状态不变；
+真实 D1 activation 未执行。
 
-当前 code follow-up 已提交并推送到现有 PR；不得新建 PR 或 merge。最近远端 head 的
+当前 code follow-up 正在现有 PR 分支工作；不得新建 PR 或 merge。最近远端 head 的
 exact-head CI（test 与三个 generic shadows）已全部成功。merge 后尚无自然 CN Daily
 Report，状态为
 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger natural
@@ -30,6 +30,10 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
   展示第一障碍/T1 与 Fib 1.272/1.618/2.0/2.618 及各自空间；5%/RR gate 与正式 action
   不变。SETUP_02 在 candidate 生成前因 `ABOVE_ENTRY_ZONE` 终止时，若 continuation
   anchors 合法，人工层展示结构空间并明确不等同正式 T1。
+- 用户可见普通区域已统一使用中文语义：3浪斐波那契、正式判断、参考目标、缺失原因、
+  结构失效价等；开发者原始数据/审计区继续保留内部原值。共享 `html_consistency_audit()`
+  提供 `USER_VISIBLE_LANGUAGE_AUDIT`，返回 raw enum、内部字段、不必要英文、半中英提示计数，
+  以及完整允许保留缩写清单。
 - 实际保存的旧 CN/US Daily Report JSON 已生成新 HTML artifact；这些旧 JSON 尚未携带新
   ARMED/WATCH anchor fields，artifact 对相应标的保留显式 data gap，不能写成新 projection
   已在历史报告中自然存在。最终 artifact 使用 CN 2026-09-30 与 US 2026-10-02；US
@@ -68,9 +72,12 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 
 ## Validation
 
-- 本次 follow-up focused tests（Dashboard、email、armed projection、Daily Decision Chain、
-  SETUP_02）115 passed；全量 `unittest discover` 1000 passed、2 skipped；compileall 与
-  git diff --check 已通过。
+- 本轮 focused tests（Dashboard、email、armed projection、Paper shadow）63 passed；全量
+  `unittest discover` 1001 passed、2 skipped；`compileall` 与 `git diff --check` 已通过。
+- Dashboard 与 email fixture 的 `USER_VISIBLE_LANGUAGE_AUDIT` 均为：
+  `user_visible_raw_enum_count=0`、`user_visible_internal_field_count=0`、
+  `user_visible_unnecessary_english_count=0`、`user_visible_mixed_language_count=0`；
+  允许清单为 `SETUP_01`、`SETUP_02`、`T1`、`T2`、`T3`、`R/R`、`ATR14`、`CN`、`US`。
 - Daily Decision Chain、Paper lifecycle、Portfolio Risk 三个 `GENERIC_OPERATIONAL_SHADOW`
   均为 SUCCESS；均未读取真实持仓、凭证或 broker，也未写 Sheets。
 - 2026-09-30 已保存的只读诊断中5个 new CONFIRMED、ENTRY_ALLOWED=0，fixture 得到5/5
@@ -89,7 +96,7 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
   `artifacts/daily_report_human_opportunity_v1/CN/2026-09-30-setup02-projection.html`
   与 `artifacts/daily_report_human_opportunity_v1/US/2026-10-02-setup02-projection.html`；
   CN 600901.SH 已展示 T1 + 四个 Fib，US SETUP_02 走同一 renderer。
-- 本次 follow-up 的 exact-head GitHub CI 已成功（test、Daily Decision Chain、Paper
+- 既有 code follow-up 的 exact-head GitHub CI 已成功（test、Daily Decision Chain、Paper
   lifecycle、Portfolio Risk）；PR 保持 open，未合并。
 
 ## Blocker / Remaining Risks

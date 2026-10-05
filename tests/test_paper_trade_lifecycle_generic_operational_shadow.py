@@ -42,7 +42,7 @@ class PaperTradeLifecycleGenericOperationalShadowTests(unittest.TestCase):
             self.assertTrue(Path(directory, "latest.html").exists())
             html = Path(directory, "latest.html").read_text(encoding="utf-8")
             self.assertIn("模拟交易", html)
-            self.assertIn("示例数据 / Synthetic Demo · Paper Lifecycle Shadow", html)
+            self.assertIn("示例数据 · 模拟交易生命周期验证", html)
             self.assertIn("示例科技", html)
             self.assertIn("示例制造", html)
             self.assertIn("有没有真正模拟成交", html)

@@ -6,8 +6,12 @@ import unittest
 from trading.daily_dashboard import (
     build_dashboard_projection,
     dashboard_search_matches,
+    html_consistency_audit,
     load_dashboard_json,
     render_dashboard_html,
+    render_daily_report_email_html,
+    USER_VISIBLE_ALLOWED_ABBREVIATIONS,
+    user_visible_language_audit,
     write_dashboard_html,
 )
 
@@ -233,7 +237,7 @@ class DailyDashboardTests(unittest.TestCase):
             },
         )
         self.assertEqual(projection["as_of_date"], "2026-09-03")
-        self.assertEqual(projection["demo_label"], "示例数据 / Synthetic Demo")
+        self.assertEqual(projection["demo_label"], "示例数据")
         self.assertEqual(
             {item["market"]: item["status_key"] for item in projection["markets"]},
             {"CN": "DATA_OK", "US": "DATA_OK"},
@@ -296,7 +300,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertTrue(any(item["symbol"] == "600001.SH" for item in diagnostics["data_issues"]))
         rendered = render_dashboard_html(payload)
         self.assertIn("异常标的及原因", rendered)
-        self.assertIn("qfq yfinance 数据日期落后于 T", rendered)
+        self.assertIn("复权行情日期早于数据日期", rendered)
         self.assertIn("HISTORY_INSUFFICIENT", rendered)
 
     def test_diagnostics_distinguish_normal_no_signal_from_missing_coverage(self):
@@ -620,7 +624,7 @@ class DailyDashboardTests(unittest.TestCase):
         end = rendered.index("</article>", start)
         float_card = rendered[start:end]
         user_view = float_card.split('<details class="technical-details">', 1)[0]
-        self.assertIn("3.7375", user_view)
+        self.assertIn("3.74", user_view)
         self.assertNotIn("3.737499999999997", user_view)
         self.assertIn("查看技术详情 / 审计信息", rendered)
 
@@ -647,7 +651,7 @@ class DailyDashboardTests(unittest.TestCase):
                     "minimum_target_upside_pct": 0.05,
                     "entry_zone_upper_distance_pct": -0.01,
                 },
-                ("确认成功", "仍在入场区", "T1空间 3.00% < 5.00%", "→ 不交易"),
+                ("确认成功", "仍在入场区", "第一目标空间 3.00% < 5.00%", "→ 不交易"),
             ),
             (
                 "RR_BELOW_MINIMUM",
@@ -656,7 +660,7 @@ class DailyDashboardTests(unittest.TestCase):
                     "entry_zone_upper_distance_pct": -0.01,
                     "rr": {"rr_ratios": [0.88], "quality": "NO_TRADE"},
                 },
-                ("确认成功", "仍在入场区", "T1空间 14.26%", "R/R 0.88", "R/R不足", "→ 不交易"),
+                ("确认成功", "仍在入场区", "第一目标空间 14.26%", "R/R 0.88", "R/R不足", "→ 不交易"),
             ),
             (
                 "STALE_CONFIRMATION_GEOMETRY",
@@ -774,7 +778,7 @@ class DailyDashboardTests(unittest.TestCase):
         rendered = render_dashboard_html(payload)
         self.assertIn("人工机会判断", rendered)
         self.assertIn("预估3浪目标与上涨空间", rendered)
-        self.assertIn("Fib 1.618", rendered)
+        self.assertIn("斐波那契 1.618", rendered)
         self.assertIn("130", rendered)
         self.assertIn("+30.00%", rendered)
         self.assertIn("观察中，不是买入信号", rendered)
@@ -818,7 +822,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(row["manual_opportunity"]["formal_t1"], 102.0)
         rendered = render_dashboard_html(payload)
         self.assertLess(rendered.index("人工机会判断"), rendered.index("确认后的交易判断"))
-        self.assertIn("3浪 Fib 1.618", rendered)
+        self.assertIn("3浪斐波那契 1.618", rendered)
         self.assertIn("第一目标 R/R 未达到系统最低要求", rendered)
         self.assertIn("确认后的交易判断", rendered)
         self.assertIn("机会新鲜度", rendered)
@@ -844,10 +848,10 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(
             [item["label"] for item in row["manual_opportunity"]["wave3_targets"]],
             [
-                "Wave3 结构目标 Fib 1.272",
-                "Wave3 结构目标 Fib 1.618",
-                "Wave3 结构目标 Fib 2.0",
-                "Wave3 结构目标 Fib 2.618",
+                "3浪结构目标 斐波那契 1.272",
+                "3浪结构目标 斐波那契 1.618",
+                "3浪结构目标 斐波那契 2.0",
+                "3浪结构目标 斐波那契 2.618",
             ],
         )
         self.assertTrue(
@@ -855,12 +859,12 @@ class DailyDashboardTests(unittest.TestCase):
         )
         self.assertIn("允许入场区", row["manual_opportunity"]["system_conclusion"])
         rendered = render_dashboard_html(payload)
-        self.assertIn("Wave3 结构目标 / 人工机会空间", rendered)
-        self.assertIn("Fib 1.272", rendered)
-        self.assertIn("Fib 1.618", rendered)
-        self.assertIn("Fib 2.0", rendered)
-        self.assertIn("Fib 2.618", rendered)
-        self.assertIn("不等同正式 T1/T2/T3", rendered)
+        self.assertIn("3浪结构目标 / 人工机会空间", rendered)
+        self.assertIn("斐波那契 1.272", rendered)
+        self.assertIn("斐波那契 1.618", rendered)
+        self.assertIn("斐波那契 2.0", rendered)
+        self.assertIn("斐波那契 2.618", rendered)
+        self.assertIn("不等同正式第一至第三目标", rendered)
         self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
         self.assertNotIn("第一障碍 / T1</div><div class=\"price\">140", rendered)
 
@@ -902,9 +906,9 @@ class DailyDashboardTests(unittest.TestCase):
             }],
         }
         missing_html = render_dashboard_html(base)
-        self.assertIn("当前缺少：Wave1 Origin", missing_html)
+        self.assertIn("当前缺少：缺少1浪起点", missing_html)
         self.assertIn("不能在展示层重新推算", missing_html)
-        self.assertNotIn("Fib 1.618", missing_html)
+        self.assertNotIn("斐波那契 1.618", missing_html)
 
         complete = deepcopy(base)
         complete["results"][0]["armed_opportunity"].update({
@@ -916,7 +920,7 @@ class DailyDashboardTests(unittest.TestCase):
             ],
         })
         complete_html = render_dashboard_html(complete)
-        self.assertIn("Fib 1.618", complete_html)
+        self.assertIn("斐波那契 1.618", complete_html)
         self.assertIn("+30.00%", complete_html)
 
     def test_search_matches_ticker_and_company_name(self):
@@ -1012,7 +1016,7 @@ class DailyDashboardTests(unittest.TestCase):
         start = rendered.index('data-search="REJECTED')
         end = rendered.index("</article>", start)
         rejected_card = rendered[start:end]
-        self.assertIn("尚未形成交易计划", rejected_card)
+        self.assertIn("人工机会判断", rejected_card)
         self.assertNotIn("关键价格", rejected_card)
         self.assertNotIn("入场区间", rejected_card)
 
@@ -1129,8 +1133,8 @@ class DailyDashboardTests(unittest.TestCase):
 
         rendered = render_dashboard_html(payload)
         self.assertIn("保守第一障碍（最近已确认历史阻力）", rendered)
-        self.assertIn("Wave3 结构目标（最近 Fib 投射）", rendered)
-        self.assertIn("系统不是认为 Wave3 只有 1.00% 空间", rendered)
+        self.assertIn("3浪结构目标（最近斐波那契投射）", rendered)
+        self.assertIn("系统不是认为3浪只有 1.00% 空间", rendered)
         self.assertIn("按现有保守规则不交易", rendered)
 
     def test_setup02_target_candidates_share_setup01_human_target_cards(self):
@@ -1180,10 +1184,10 @@ class DailyDashboardTests(unittest.TestCase):
                     [item["label"] for item in manual["wave3_targets"]],
                     [
                         "第一障碍 / T1",
-                        "3浪 Fib 1.272",
-                        "3浪 Fib 1.618",
-                        "3浪 Fib 2.0",
-                        "3浪 Fib 2.618",
+                        "3浪斐波那契 1.272",
+                        "3浪斐波那契 1.618",
+                        "3浪斐波那契 2.0",
+                        "3浪斐波那契 2.618",
                     ],
                 )
                 self.assertAlmostEqual(
@@ -1194,7 +1198,7 @@ class DailyDashboardTests(unittest.TestCase):
                 self.assertEqual(row["today_conclusion"], "不交易：目标上涨空间不足")
 
                 rendered = render_dashboard_html(payload)
-                for label in ("第一障碍 / T1", "3浪 Fib 1.272", "3浪 Fib 1.618", "3浪 Fib 2.0", "3浪 Fib 2.618"):
+                for label in ("第一障碍 / T1", "3浪斐波那契 1.272", "3浪斐波那契 1.618", "3浪斐波那契 2.0", "3浪斐波那契 2.618"):
                     self.assertIn(label, rendered)
                 self.assertIn(
                     "较参考价 +2.01%" if market == "CN" else "较参考价 +3.36%",
@@ -1218,16 +1222,16 @@ class DailyDashboardTests(unittest.TestCase):
             [item["label"] for item in row["manual_opportunity"]["wave3_targets"]],
             [
                 "第一障碍 / T1",
-                "3浪 Fib 1.272",
-                "3浪 Fib 1.618",
-                "3浪 Fib 2.0",
-                "3浪 Fib 2.618",
+                "3浪斐波那契 1.272",
+                "3浪斐波那契 1.618",
+                "3浪斐波那契 2.0",
+                "3浪斐波那契 2.618",
             ],
         )
         rendered = render_dashboard_html(payload)
         self.assertIn("第一目标 R/R", rendered)
         self.assertIn("确认有效，但第一目标对应的 R/R 未达到系统最低要求，因此不交易。", rendered)
-        self.assertIn("3浪 Fib 2.618", rendered)
+        self.assertIn("3浪斐波那契 2.618", rendered)
 
     def test_setup02_above_entry_zone_uses_causal_geometry_as_presentation_only(self):
         payload = _setup02_confirmation_payload(
@@ -1245,16 +1249,16 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(
             [item["label"] for item in manual["wave3_targets"]],
             [
-                "Wave3 结构目标 Fib 1.272",
-                "Wave3 结构目标 Fib 1.618",
-                "Wave3 结构目标 Fib 2.0",
-                "Wave3 结构目标 Fib 2.618",
+                "3浪结构目标 斐波那契 1.272",
+                "3浪结构目标 斐波那契 1.618",
+                "3浪结构目标 斐波那契 2.0",
+                "3浪结构目标 斐波那契 2.618",
             ],
         )
         self.assertIn("超过允许入场区上沿", manual["system_conclusion"])
         self.assertEqual(row["decision"]["gate_reason"], "ABOVE_ENTRY_ZONE")
         rendered = render_dashboard_html(payload)
-        self.assertIn("不等同正式 T1/T2/T3", rendered)
+        self.assertIn("不等同正式第一至第三目标", rendered)
         self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
 
     def test_identity_metadata_wave_mapping_and_input_immutability(self):
@@ -1298,7 +1302,7 @@ class DailyDashboardTests(unittest.TestCase):
         html = render_dashboard_html(self.payload)
 
         self.assertIn("示例科技&lt;&amp;", html)
-        self.assertIn("示例数据 / Synthetic Demo", html)
+        self.assertIn("示例数据", html)
         self.assertIn("专用设备", html)
         self.assertNotIn("示例科技<&", html)
         self.assertIn("关键价格", html)
@@ -1349,7 +1353,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertNotIn("交易方案", html[armed_start:armed_end])
         self.assertIn("交易方案", html[proposal_start:proposal_end])
         self.assertIn("200", html[proposal_start:proposal_end])
-        self.assertIn("目标价 T1", html[proposal_start:proposal_end])
+        self.assertIn("第一目标 T1", html[proposal_start:proposal_end])
         self.assertIn("已形成交易方案", html[proposal_start:proposal_end])
 
     def test_same_input_is_deterministic_and_writer_creates_latest_and_date_copy(self):
@@ -1456,6 +1460,38 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("上涨趋势中的3浪延续结构完成", html)
         self.assertIn("结构失效是波浪结构被破坏的底线", html)
         self.assertIn("DYNAMIC_CANDIDATE", html)
+
+    def test_user_visible_language_audit_excludes_developer_evidence_and_lists_allowed_abbreviations(self):
+        audit = html_consistency_audit(self.payload)
+        self.assertEqual(audit["USER_VISIBLE_LANGUAGE_AUDIT"]["audit_name"], "USER_VISIBLE_LANGUAGE_AUDIT")
+        for key in (
+            "user_visible_raw_enum_count",
+            "user_visible_internal_field_count",
+            "user_visible_unnecessary_english_count",
+            "user_visible_mixed_language_count",
+        ):
+            self.assertEqual(audit[key], 0)
+        self.assertEqual(audit["allowed_abbreviations"], list(USER_VISIBLE_ALLOWED_ABBREVIATIONS))
+        self.assertTrue(audit["passed"])
+
+        synthetic = (
+            "<main>ABOVE_ENTRY_ZONE Decision planned_entry Wave3</main>"
+            '<details class="technical-details"><summary>开发者原始数据</summary>'
+            "<pre>ABOVE_ENTRY_ZONE planned_entry Wave3</pre></details>"
+        )
+        violation = user_visible_language_audit(synthetic)
+        self.assertGreater(violation["user_visible_raw_enum_count"], 0)
+        self.assertGreater(violation["user_visible_internal_field_count"], 0)
+        self.assertGreater(violation["user_visible_unnecessary_english_count"], 0)
+        self.assertEqual(
+            user_visible_language_audit(
+                '<details class="technical-details"><pre>ABOVE_ENTRY_ZONE planned_entry Wave3</pre></details>'
+            )["user_visible_raw_enum_count"],
+            0,
+        )
+
+        email_audit = user_visible_language_audit(render_daily_report_email_html(self.payload))
+        self.assertTrue(email_audit["passed"])
 
 
 if __name__ == "__main__":
