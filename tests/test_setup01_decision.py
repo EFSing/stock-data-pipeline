@@ -31,10 +31,12 @@ from trading.setup01_decision import (
     evaluate_setup01_decision,
     evaluate_setup01_decision_stream,
     execute_setup01_t1_open,
+    reference_target_candidates,
     setup01_decision_to_dict,
     setup01_target_projection,
     setup01_target_provenance_audit,
 )
+from trading.daily_decision_chain import _reference_target_diagnostics
 from trading.risk import risk_reward as calculate_risk_reward
 from trading.setup01_replay import (
     Setup01ReplayDay,
@@ -177,6 +179,27 @@ class Setup01DecisionTests(unittest.TestCase):
         event, quotes = _fixture(short_history=True)
         decision = evaluate_setup01_decision(event, quotes)
         self.assertEqual(decision.gate_reason, Setup01DecisionGateReason.ATR_UNAVAILABLE)
+
+    def test_above_entry_zone_reference_diagnostics_do_not_mutate_formal_decision(self):
+        event, quotes = _fixture(t_close=112.5)
+        decision = evaluate_setup01_decision(event, quotes)
+
+        candidates = reference_target_candidates(event, quotes)
+        diagnostics = _reference_target_diagnostics(event, decision, quotes)
+
+        self.assertEqual(decision.gate_reason, Setup01DecisionGateReason.ABOVE_ENTRY_ZONE)
+        self.assertEqual(decision.targets, ())
+        self.assertIsNone(decision.rr)
+        self.assertTrue(candidates)
+        self.assertEqual(diagnostics["status"], "AVAILABLE")
+        self.assertEqual(diagnostics["reference_t1"], candidates[0].price)
+        self.assertEqual(diagnostics["reference_t1_source"], candidates[0].source)
+        self.assertAlmostEqual(
+            diagnostics["reference_t1_upside_pct"],
+            (candidates[0].price - decision.planned_entry) / decision.planned_entry,
+        )
+        self.assertIsNotNone(diagnostics["reference_first_rr"])
+        self.assertIn("不参与正式系统放行", diagnostics["note"])
 
     def test_no_valid_target_and_target_upside_gate_are_explicit(self):
         event, quotes = _fixture()

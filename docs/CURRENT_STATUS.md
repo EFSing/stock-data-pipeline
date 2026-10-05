@@ -5,7 +5,7 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-05（CN A-share provider-forward QFQ 合同迁移与 US Candidate lifecycle structural fixes 已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 最后实质更新：2026-10-06（CN A-share provider-forward QFQ 合同迁移与 US Candidate lifecycle structural fixes 已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
 > 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
 > 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
@@ -320,6 +320,10 @@
   不倒推价格。该 projection 仍仅供观察；正式确认时以确认日 Decision 重新计算为准，确认时
   超过正式区则不追价、不等待后续回踩补入，结构失效则放弃。它不产生 Decision、event、plan、
   Paper/state write、ranking 或交易 gate，production trading semantics unchanged。
+- PR #135 当前 follow-up 在 branch 上将 SETUP_02 的既有
+  `continuation_low0/high1/low2`（及已有 `continuation_high3`）映射到同一 canonical
+  Wave3 extension helper，因此 WATCH/ARMED 有四个只读 1.272/1.618/2.0/2.618 目标及
+  上涨空间，或明确真实 anchor 缺口；不搜索第二套 Swing，不改变 SETUP_02 状态机。
  - `trading/daily_dashboard.py` 是 presentation-only 投影与 standalone HTML renderer；
   它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
   enum/protocol/交易语义。共享 CN/US renderer 现以“人工机会判断”优先，展开后先展示
@@ -333,7 +337,10 @@
   异常之前；“全部/诊断”仍可访问全部结果，静态 HTML 在没有 JavaScript 时也保留完整
   逐标的内容。原始质量/覆盖/前瞻审计默认折叠，报告覆盖数与成功分析数分开；评估失败
   不冒充普通 NO_TRADE。该共享展示修复属于 PR #135 proposed implementation，待 PR 合并后才进入
-  main 正式能力地图。股票以 compact row 展示，完整
+  main 正式能力地图。branch follow-up 另外为 `ABOVE_ENTRY_ZONE` 保存独立
+  `reference_target_diagnostics`（参考第一目标、来源、上涨空间、参考第一目标盈亏比及
+  “不参与正式系统放行”说明），不回写 formal targets/RR/action/gate/execution/portfolio；
+  并提供按 CN/US、Setup、Stage、Gate 的 `DAILY_REPORT_CONSISTENCY_MATRIX_V1`。股票以 compact row 展示，完整
   当日状态、当前浪型、策略类型、已满足/未满足条件、正式判断/风险/持仓管理 /
   原始诊断在“查看详情”展开；页面支持 sticky 阶段导航、
    代码/公司名称前端搜索与既有 CN/US、策略类型、行业筛选。`scripts/render_daily_dashboard.py`

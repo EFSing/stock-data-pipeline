@@ -6,6 +6,7 @@ import unittest
 from trading.daily_dashboard import (
     build_dashboard_projection,
     dashboard_search_matches,
+    daily_report_consistency_matrix,
     html_consistency_audit,
     load_dashboard_json,
     render_dashboard_html,
@@ -1260,6 +1261,70 @@ class DailyDashboardTests(unittest.TestCase):
         rendered = render_dashboard_html(payload)
         self.assertIn("不等同正式第一至第三目标", rendered)
         self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
+
+    def test_above_entry_zone_renders_reference_target_diagnostics_separately(self):
+        payload = _setup02_confirmation_payload(
+            "ABOVE_ENTRY_ZONE",
+            above_entry_zone=True,
+            symbol="002436.SZ",
+            market="CN",
+        )
+        payload["results"][0]["reference_target_diagnostics"] = {
+            "status": "AVAILABLE",
+            "reference_t1": 44.12,
+            "reference_t1_source": "CONFIRMED_SWING_HIGH",
+            "reference_t1_upside_pct": 0.077,
+            "reference_first_rr": 2.31,
+            "note": (
+                "正式系统已在超过允许入场区处判定不交易，以下数值仅供人工判断，"
+                "不参与正式系统放行。"
+            ),
+        }
+
+        html = render_dashboard_html(payload)
+
+        self.assertIn("第一目标 T1", html)
+        self.assertIn("未生成", html)
+        self.assertIn("参考第一目标", html)
+        self.assertIn("参考上涨空间", html)
+        self.assertIn("参考第一目标盈亏比 R/R", html)
+        self.assertIn("44.12", html)
+        self.assertIn("不参与正式系统放行", html)
+        self.assertEqual(
+            user_visible_language_audit(html)["user_visible_raw_enum_count"],
+            0,
+        )
+
+    def test_consistency_matrix_exposes_market_setup_stage_gate_metrics(self):
+        payload = _setup02_confirmation_payload(
+            "ABOVE_ENTRY_ZONE",
+            above_entry_zone=True,
+            symbol="002436.SZ",
+            market="CN",
+        )
+        payload["results"][0]["reference_target_diagnostics"] = {
+            "status": "AVAILABLE",
+            "reference_t1": 44.12,
+            "reference_t1_upside_pct": 0.077,
+            "reference_first_rr": 2.31,
+        }
+
+        matrix = daily_report_consistency_matrix(payload)
+
+        self.assertEqual(matrix["matrix_name"], "DAILY_REPORT_CONSISTENCY_MATRIX_V1")
+        self.assertIn("CN", matrix["markets"])
+        self.assertIn("SETUP_02", matrix["setups"])
+        self.assertIn("CONFIRMED", matrix["stages"])
+        self.assertIn("ABOVE_ENTRY_ZONE", matrix["gates"])
+        case = next(
+            item for item in matrix["cases"]
+            if item["market"] == "CN"
+            and item["setup"] == "SETUP_02"
+            and item["gate"] == "ABOVE_ENTRY_ZONE"
+        )
+        self.assertEqual(case["count"], 1)
+        self.assertEqual(case["missing_reference_or_formal_t1"], 0)
+        self.assertEqual(case["missing_reference_or_formal_rr"], 0)
 
     def test_identity_metadata_wave_mapping_and_input_immutability(self):
         original = deepcopy(self.payload)

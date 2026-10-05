@@ -467,14 +467,32 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
             + '</div>'
         )
     if reason == "ABOVE_ENTRY_ZONE":
+        reference = _mapping(row.get("reference_target_diagnostics"))
+        reference_html = ""
+        if _text(reference.get("status")) == "AVAILABLE":
+            source_label = {
+                "CONFIRMED_SWING_HIGH": "已确认历史阻力",
+                "WAVE3_FIB_EXTENSION": "3浪斐波那契投射",
+            }.get(_text(reference.get("reference_t1_source")), "既有目标候选")
+            reference_html = (
+                '<div style="margin-top:9px;padding-top:8px;border-top:1px solid #ead7b6;">'
+                '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">参考目标诊断（仅供人工判断）</div>'
+                f'<div style="margin:2px 0;">参考第一目标 T1：{_escape(reference.get("reference_t1"))}</div>'
+                f'<div style="margin:2px 0;">参考目标来源：{_escape(source_label)}</div>'
+                f'<div style="margin:2px 0;">参考上涨空间：{_escape(reference.get("reference_t1_upside_pct"))}</div>'
+                f'<div style="margin:2px 0;">参考第一目标盈亏比 R/R：{_escape(reference.get("reference_first_rr"))}</div>'
+                '<div style="margin:7px 0 0 0;color:#687386;">正式系统已在超过允许入场区处判定不交易，以下数值仅供人工判断，不参与正式系统放行。</div>'
+                '</div>'
+            )
         return (
             '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
             '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">正式判断计算依据</div>'
             f'<div style="margin:2px 0;">允许入场区：{_escape(plan.get("entry_zone_low"))}～{_escape(plan.get("entry_zone_high"))}</div>'
             f'<div style="margin:2px 0;">当前价格：{_escape(plan.get("planned_entry"))}</div>'
             '<div style="margin:2px 0;">原因：已经高于允许入场区上沿</div>'
-            '<div style="margin:7px 0 0 0;color:#687386;">这些是本次正式规则的计算依据，不是买入/止盈建议。</div>'
-            '</div>'
+            + reference_html
+            + '<div style="margin:7px 0 0 0;color:#687386;">这些是本次正式规则的计算依据，不是买入/止盈建议。</div>'
+            + '</div>'
         )
     return (
         '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'

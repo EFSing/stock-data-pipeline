@@ -24,10 +24,12 @@ from trading.setup02_decision import (
     evaluate_setup02_decision,
     evaluate_setup02_decision_stream,
     execute_setup02_t1_open,
+    reference_target_candidates,
     setup02_decision_to_dict,
     setup02_structure_geometry_audit,
     setup02_target_provenance_audit,
 )
+from trading.daily_decision_chain import _reference_target_diagnostics
 from trading.setup02_replay import Setup02ReplayEvent
 from trading.risk import risk_reward as calculate_risk_reward
 
@@ -239,6 +241,22 @@ class Setup02DecisionTests(unittest.TestCase):
         self.assertAlmostEqual(decision.entry_zone_low, 120.0)
         self.assertAlmostEqual(decision.entry_zone_high, 120.0 + 0.5 * decision.atr14)
         self.assertAlmostEqual(decision.execution_stop, 108.0 - 0.5 * decision.atr14)
+
+    def test_above_entry_zone_reference_diagnostics_reuse_setup02_candidates(self):
+        event, quotes = _fixture(t_close=130.0)
+        decision = evaluate_setup02_decision(event, quotes)
+
+        candidates = reference_target_candidates(event, quotes)
+        diagnostics = _reference_target_diagnostics(event, decision, quotes)
+
+        self.assertEqual(decision.gate_reason, Setup02DecisionGateReason.ABOVE_ENTRY_ZONE)
+        self.assertEqual(decision.targets, ())
+        self.assertIsNone(decision.rr)
+        self.assertTrue(candidates)
+        self.assertEqual(diagnostics["status"], "AVAILABLE")
+        self.assertEqual(diagnostics["reference_t1"], candidates[0].price)
+        self.assertEqual(diagnostics["reference_t1_source"], candidates[0].source)
+        self.assertIsNotNone(diagnostics["reference_first_rr"])
 
     def test_no_valid_target_is_explicit(self):
         event, quotes = _fixture()

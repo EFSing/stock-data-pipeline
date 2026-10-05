@@ -1641,6 +1641,9 @@ def _make_row(entry: Mapping[str, Any], result_value: Any) -> dict[str, Any] | N
         "position": _position_projection(result, universe, symbol, position_management),
         "opportunity_freshness": freshness,
         "armed_opportunity": armed_opportunity,
+        "reference_target_diagnostics": dict(
+            _mapping(result.get("reference_target_diagnostics"))
+        ),
         "decision": decision,
         "portfolio_result": _mapping(result.get("portfolio_result")),
         "position_management": position_management,
@@ -1666,7 +1669,21 @@ def _wave3_missing_text(values: Sequence[Any]) -> str:
         "WAVE2_LOW_PRICE_UNAVAILABLE": "缺少2浪低点价格，暂时无法计算3浪目标",
         "WAVE2_LOW_NOT_CONFIRMED": "2浪低点尚未确认，暂时无法计算3浪目标",
         "WAVE1_WAVE2_ANCHOR_ORDER_INVALID": "1浪与2浪锚点顺序无效，暂时无法计算3浪目标",
-        "SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT": "缺少 SETUP_02 延续结构锚点，暂时无法计算3浪目标",
+        "CONTINUATION_LOW0_UNAVAILABLE": "缺少延续结构起点，暂时无法计算3浪目标",
+        "CONTINUATION_LOW0_PRICE_UNAVAILABLE": "缺少延续结构起点价格，暂时无法计算3浪目标",
+        "CONTINUATION_LOW0_NOT_CONFIRMED": "延续结构起点尚未确认，暂时无法计算3浪目标",
+        "CONTINUATION_LOW0_CONFIRMED_AFTER_AS_OF": "延续结构起点晚于当前日期，暂时无法计算3浪目标",
+        "CONTINUATION_LOW1_UNAVAILABLE": "缺少延续结构高点，暂时无法计算3浪目标",
+        "CONTINUATION_HIGH1_UNAVAILABLE": "缺少延续结构高点，暂时无法计算3浪目标",
+        "CONTINUATION_HIGH1_PRICE_UNAVAILABLE": "缺少延续结构高点价格，暂时无法计算3浪目标",
+        "CONTINUATION_HIGH1_NOT_CONFIRMED": "延续结构高点尚未确认，暂时无法计算3浪目标",
+        "CONTINUATION_HIGH1_CONFIRMED_AFTER_AS_OF": "延续结构高点晚于当前日期，暂时无法计算3浪目标",
+        "CONTINUATION_LOW2_UNAVAILABLE": "缺少延续结构回踩低点，暂时无法计算3浪目标",
+        "CONTINUATION_LOW2_PRICE_UNAVAILABLE": "缺少延续结构回踩低点价格，暂时无法计算3浪目标",
+        "CONTINUATION_LOW2_NOT_CONFIRMED": "延续结构回踩低点尚未确认，暂时无法计算3浪目标",
+        "CONTINUATION_LOW2_CONFIRMED_AFTER_AS_OF": "延续结构回踩低点晚于当前日期，暂时无法计算3浪目标",
+        "CONTINUATION_LOW0_CONTINUATION_LOW2_ANCHOR_ORDER_INVALID": "延续结构锚点顺序无效，暂时无法计算3浪目标",
+        "SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT": "缺少延续结构锚点，暂时无法计算3浪目标",
         "ABOVE_ENTRY_ZONE_FORMAL_DECISION_STOPPED_BEFORE_TARGET_GENERATION": "正式规则在目标计算前已判定不交易，因此正式 T1 未生成",
         "FORMAL_WAVE3_TARGET_PROJECTION_UNAVAILABLE": "缺少3浪目标投影所需结构信息，暂时无法计算3浪目标",
         "FORMAL_DECISION_UNAVAILABLE": "缺少正式判断，暂时无法确认目标",
@@ -1703,6 +1720,26 @@ def _decision_wave3_anchor_mapping(
     }
 
 
+def _continuation_anchor_text(value: Any) -> str:
+    anchors = _mapping(value)
+    if not anchors:
+        return "未提供"
+    labels = (
+        ("continuation_low0", "起点"),
+        ("continuation_high1", "前一高点"),
+        ("continuation_low2", "回踩低点"),
+        ("continuation_high3", "确认高点"),
+    )
+    rendered = []
+    for key, label in labels:
+        anchor = _mapping(anchors.get(key))
+        if not anchor:
+            rendered.append(f"{label}未提供")
+            continue
+        rendered.append(f"{label} {_format_human_price(anchor.get('price'))}")
+    return "；".join(rendered)
+
+
 def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
     """Project existing fields into the human-first detail layer.
 
@@ -1731,8 +1768,6 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
         distance_pct = _numeric(armed.get("distance_to_confirmation_pct"))
         wave_extensions = _wave3_extension_rows(armed.get("wave3_fib_extensions"))
         wave_missing = tuple(_sequence(armed.get("wave3_missing_reasons")))
-        if _text(armed.get("wave3_projection_status")) == "NOT_APPLICABLE":
-            wave_missing = wave_missing or ("SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",)
         if not wave_extensions and not wave_missing:
             if _text(armed.get("setup_type")) == "SETUP_01":
                 wave_missing = (
@@ -1741,7 +1776,11 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
                     "WAVE2_LOW_UNAVAILABLE",
                 )
             else:
-                wave_missing = ("SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",)
+                wave_missing = (
+                    "CONTINUATION_LOW0_UNAVAILABLE",
+                    "CONTINUATION_HIGH1_UNAVAILABLE",
+                    "CONTINUATION_LOW2_UNAVAILABLE",
+                )
         system_conclusion = "尚未确认，当前不会放行；这不影响它作为人工观察机会展示。"
         confirmation_text = _format_human_price(confirmation)
         invalidation_text = _format_human_price(invalidation)
@@ -1789,6 +1828,7 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
             "first_rr": None,
             "formal_t1": None,
             "formal_t1_upside_pct": None,
+            "reference_target_diagnostics": {},
         }
 
     reference_price = _numeric(decision.get("planned_entry"))
@@ -1801,6 +1841,7 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
     target_projection = _mapping(plan.get("target_projection"))
     wave_extensions = _wave3_extension_rows(target_projection.get("wave3_fib_extensions"))
     gate_reason = _text(decision.get("gate_reason"))
+    reference_diagnostics = _mapping(row.get("reference_target_diagnostics"))
     wave3_presentation_only = False
     if not wave_extensions:
         fallback_projection = project_setup01_wave3_extensions(
@@ -1921,6 +1962,7 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
         "first_rr": first_rr,
         "formal_t1": formal_t1,
         "formal_t1_upside_pct": _numeric(t1_upside),
+        "reference_target_diagnostics": dict(reference_diagnostics),
     }
 
 
@@ -2655,6 +2697,10 @@ _USER_VISIBLE_RAW_ENUM_TOKENS = (
     "WAVE2_LOW_NOT_CONFIRMED",
     "SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",
     "CURRENT_CLOSE_UNAVAILABLE",
+    "REFERENCE_DIAGNOSTICS_UNAVAILABLE",
+    "CONTINUATION_LOW0_UNAVAILABLE",
+    "CONTINUATION_HIGH1_UNAVAILABLE",
+    "CONTINUATION_LOW2_UNAVAILABLE",
 )
 _USER_VISIBLE_INTERNAL_FIELD_NAMES = (
     "planned_entry",
@@ -2673,6 +2719,10 @@ _USER_VISIBLE_INTERNAL_FIELD_NAMES = (
     "wave3_projection_status",
     "reference_target",
     "reference_t1",
+    "reference_t1_source",
+    "reference_t1_upside_pct",
+    "reference_t1_label",
+    "reference_t1_upside_label",
     "reference_first_rr",
     "missing_reasons",
     "current_effective_t1",
@@ -2826,6 +2876,170 @@ def html_consistency_audit(value: Any) -> dict[str, Any]:
         "audit_name": USER_VISIBLE_LANGUAGE_AUDIT,
         "USER_VISIBLE_LANGUAGE_AUDIT": language,
         **language,
+    }
+
+
+_CONSISTENCY_MATRIX_STAGES = (
+    "WATCH",
+    "ARMED",
+    "CONFIRMED",
+    "STRATEGY_PROPOSAL",
+    "ENTRY_ALLOWED",
+    "DATA_BLOCKED",
+)
+_CONSISTENCY_MATRIX_GATES = (
+    "ABOVE_ENTRY_ZONE",
+    "TARGET_UPSIDE_BELOW_MINIMUM",
+    "RR_BELOW_MINIMUM",
+    "NO_VALID_TARGET",
+    "INVALID_STRUCTURE",
+    "ATR_UNAVAILABLE",
+    "ENTRY_ALLOWED",
+)
+_CONSISTENCY_MATRIX_METRICS = (
+    "missing_current_price",
+    "missing_confirmation",
+    "missing_structural_risk",
+    "missing_wave3_projection",
+    "missing_reference_or_formal_t1",
+    "missing_reference_or_formal_rr",
+    "duplicate_summary",
+    "raw_enum_leak",
+    "unnecessary_english",
+    "wrong_setup_missing_reason",
+)
+
+
+def daily_report_consistency_matrix(value: Any) -> dict[str, Any]:
+    """Audit the rendered daily report by market/setup/stage/gate.
+
+    This is a presentation regression gate.  It reads the already-produced
+    result fields and never evaluates a setup or creates a target.
+    """
+
+    payload = _as_payload(value)
+    projection = build_dashboard_projection(payload)
+    rows = tuple(projection.get("rows", ()))
+    rendered = render_dashboard_html(payload)
+    language = user_visible_language_audit(rendered)
+    cases: list[dict[str, Any]] = []
+
+    def metrics_for(row: Mapping[str, Any], setup: str) -> dict[str, int]:
+        stage = _text(row.get("stage_key"))
+        decision = _mapping(row.get("decision"))
+        manual = _mapping(row.get("manual_opportunity"))
+        armed = _mapping(row.get("armed_opportunity"))
+        diagnostics = _mapping(manual.get("reference_target_diagnostics"))
+        wave_extensions = _sequence(manual.get("wave3_extensions"))
+        wave_missing = _sequence(manual.get("wave3_missing_reasons"))
+        formal_t1 = _numeric(manual.get("formal_t1"))
+        formal_rr = _numeric(manual.get("first_rr"))
+        gate = _text(decision.get("gate_reason"))
+        if stage in {"WATCH", "ARMED"}:
+            current_price = _numeric(armed.get("current_close"))
+            confirmation = _numeric(armed.get("confirmation_level"))
+            structural = _numeric(armed.get("structural_invalidation"))
+            missing_wave = not wave_extensions and not wave_missing
+        else:
+            current_price = _numeric(manual.get("reference_price"))
+            confirmation = _numeric(manual.get("confirmation_level"))
+            structural = _numeric(manual.get("structural_invalidation"))
+            missing_wave = (
+                stage in {"CONFIRMED", "STRATEGY_PROPOSAL", "ENTRY_ALLOWED"}
+                and setup in {"SETUP_01", "SETUP_02"}
+                and not wave_extensions
+                and not wave_missing
+            )
+        reference_t1 = _numeric(diagnostics.get("reference_t1"))
+        reference_rr = _numeric(diagnostics.get("reference_first_rr"))
+        expects_formal = gate in {
+            "TARGET_UPSIDE_BELOW_MINIMUM",
+            "RR_BELOW_MINIMUM",
+            "ENTRY_ALLOWED",
+        }
+        expects_reference = gate == "ABOVE_ENTRY_ZONE"
+        wrong_reason = (
+            setup == "SETUP_02"
+            and stage in {"WATCH", "ARMED"}
+            and any(
+                _text(reason) == "SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT"
+                for reason in wave_missing
+            )
+        )
+        return {
+            "missing_current_price": int(current_price is None and not row.get("data_blocked")),
+            "missing_confirmation": int(confirmation is None and not row.get("data_blocked")),
+            "missing_structural_risk": int(structural is None and not row.get("data_blocked")),
+            "missing_wave3_projection": int(missing_wave),
+            "missing_reference_or_formal_t1": int(
+                (expects_reference and (reference_t1 is None or _text(diagnostics.get("status")) != "AVAILABLE"))
+                or (expects_formal and formal_t1 is None)
+            ),
+            "missing_reference_or_formal_rr": int(
+                (expects_reference and (reference_rr is None or _text(diagnostics.get("status")) != "AVAILABLE"))
+                or (expects_formal and formal_rr is None)
+            ),
+            # A row must have either the legacy compact plan or the human
+            # compact opportunity summary, never both.
+            "duplicate_summary": int(
+                bool(_compact_price(row)) and bool(_compact_human_opportunity(row))
+            ),
+            "raw_enum_leak": language["user_visible_raw_enum_count"],
+            "unnecessary_english": language["user_visible_unnecessary_english_count"],
+            "wrong_setup_missing_reason": int(wrong_reason),
+        }
+
+    for row in rows:
+        setup_values = tuple(
+            setup
+            for setup in ("SETUP_01", "SETUP_02")
+            if setup in _text(row.get("setup"))
+            or setup in {
+                _text(row.get("decision", {}).get("event_identity"))
+                if isinstance(row.get("decision"), Mapping)
+                else "",
+            }
+        )
+        if not setup_values:
+            continue
+        stage = _text(row.get("stage_key"))
+        if stage not in _CONSISTENCY_MATRIX_STAGES:
+            continue
+        decision = _mapping(row.get("decision"))
+        gate = _text(decision.get("gate_reason")) or (
+            "ENTRY_ALLOWED" if stage == "ENTRY_ALLOWED" else ""
+        )
+        if gate not in _CONSISTENCY_MATRIX_GATES:
+            gate = "UNSPECIFIED"
+        for setup in setup_values:
+            metrics = metrics_for(row, setup)
+            cases.append({
+                "market": _normalised_market(row.get("market")) or "UNKNOWN",
+                "setup": setup,
+                "stage": stage,
+                "gate": gate,
+                "count": 1,
+                **metrics,
+            })
+
+    totals = {metric: sum(item[metric] for item in cases) for metric in _CONSISTENCY_MATRIX_METRICS}
+    totals["count"] = sum(item["count"] for item in cases)
+    failures = [
+        item for item in cases
+        if any(item[metric] for metric in _CONSISTENCY_MATRIX_METRICS)
+    ]
+    return {
+        "matrix_name": "DAILY_REPORT_CONSISTENCY_MATRIX_V1",
+        "markets": ["CN", "US"],
+        "setups": ["SETUP_01", "SETUP_02"],
+        "stages": list(_CONSISTENCY_MATRIX_STAGES),
+        "gates": list(_CONSISTENCY_MATRIX_GATES),
+        "metrics": list(_CONSISTENCY_MATRIX_METRICS),
+        "cases": cases,
+        "totals": totals,
+        "failed_case_count": len(failures),
+        "passed": not failures,
+        "language_audit": language,
     }
 
 
@@ -3078,6 +3292,45 @@ def _render_wave_target_cards(manual: Mapping[str, Any]) -> str:
     return '<div class="wave-target-grid">' + "".join(cards) + "</div>"
 
 
+def _render_reference_target_diagnostics(manual: Mapping[str, Any]) -> str:
+    diagnostics = _mapping(manual.get("reference_target_diagnostics"))
+    if not diagnostics:
+        return ""
+    note = _text(
+        diagnostics.get("note"),
+        "正式系统已在超过允许入场区处判定不交易，以下数值仅供人工判断，不参与正式系统放行。",
+    )
+    if _text(diagnostics.get("status")) != "AVAILABLE":
+        missing = _wave3_missing_text(diagnostics.get("missing_reasons")) or "参考目标诊断暂不可用"
+        return (
+            '<section class="reference-target-diagnostics">'
+            '<h4>参考目标诊断（仅供人工判断）</h4>'
+            f'<p>当前无法形成参考第一目标：{_escape(missing)}</p>'
+            f'<p class="wave-target-note">{_escape(note)}</p>'
+            '</section>'
+        )
+    source = _target_source_label(diagnostics.get("reference_t1_source"))
+    fields = (
+        ("参考第一目标 T1", _format_human_price(diagnostics.get("reference_t1"))),
+        ("参考目标来源", source),
+        ("参考上涨空间", _human_upside(diagnostics.get("reference_t1_upside_pct"))),
+        ("参考第一目标盈亏比 R/R", _format_number(diagnostics.get("reference_first_rr"), 2)),
+    )
+    return (
+        '<section class="reference-target-diagnostics">'
+        '<h4>参考目标诊断（仅供人工判断）</h4>'
+        '<div class="focus-grid">'
+        + "".join(
+            f'<div class="focus-field emphasis"><div class="focus-label">{_escape(label)}</div>'
+            f'<div class="focus-value">{_escape(value)}</div></div>'
+            for label, value in fields
+        )
+        + '</div>'
+        f'<p class="wave-target-note">{_escape(note)}</p>'
+        '</section>'
+    )
+
+
 def _render_manual_opportunity(row: Mapping[str, Any]) -> str:
     manual = _mapping(row.get("manual_opportunity"))
     if not manual.get("available"):
@@ -3147,8 +3400,9 @@ def _render_manual_opportunity(row: Mapping[str, Any]) -> str:
         + _render_wave_target_cards(manual)
         + gap_html
         + '</div>'
-        f'<div class="system-gate-line"><strong>正式系统结论：</strong>{_escape(manual.get("system_conclusion"))}</div>'
-        f'<div class="next-action-line"><b>人工下一步：</b>{_escape(manual.get("next_action"))}</div>'
+        + _render_reference_target_diagnostics(manual)
+        + f'<div class="system-gate-line"><strong>正式系统结论：</strong>{_escape(manual.get("system_conclusion"))}</div>'
+        + f'<div class="next-action-line"><b>人工下一步：</b>{_escape(manual.get("next_action"))}</div>'
         '</section>'
     )
 
@@ -3360,6 +3614,11 @@ def _render_armed_opportunity(row: Mapping[str, Any]) -> str:
                 ("当前 ATR14", armed.get("atr14_display")),
                 ("预计入场区（按当前 ATR14，仅供观察）", entry_zone),
                 ("结构失效价", armed.get("structural_invalidation_display")),
+                *(
+                    (("延续结构锚点", _continuation_anchor_text(armed.get("continuation_anchors"))),)
+                    if _text(armed.get("setup_type")) == "SETUP_02"
+                    else ()
+                ),
             ),
             extra_class="plan-grid",
         )
@@ -4500,6 +4759,7 @@ __all__ = [
     "dashboard_universe_metadata",
     "dashboard_search_matches",
     "build_dashboard_projection",
+    "daily_report_consistency_matrix",
     "html_consistency_audit",
     "load_dashboard_json",
     "render_daily_report_email_html",

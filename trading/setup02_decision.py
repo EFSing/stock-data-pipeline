@@ -531,6 +531,41 @@ def _target_candidates(
     return tuple(sorted(merged, key=lambda item: (item.price, item.source)))
 
 
+def reference_target_candidates(
+    event: Setup02ReplayEvent,
+    quotes: Sequence[Quote],
+    *,
+    swing_lookback: int = 5,
+) -> tuple[Setup02TargetCandidate, ...]:
+    """Rebuild the formal evaluator's T-known candidates for read-only use.
+
+    The exact causal prefix, continuation structure checks, confirmed swing
+    candidate construction, canonical extension ratios, and nearest-first
+    ordering all remain owned by this module.  The returned candidates are
+    diagnostics only; no formal Decision is created or mutated.
+    """
+
+    _validated_event(event)
+    prefix = _prefix_at_event(event, quotes)
+    try:
+        low0, high1, low2, _high3, confirmation, _invalidation = _structure_fields(
+            event, prefix
+        )
+    except ValueError:
+        return ()
+    planned_entry = float(prefix[-1].close)
+    if planned_entry <= confirmation:
+        return ()
+    return _target_candidates(
+        prefix,
+        low0=low0,
+        high1=high1,
+        low2=low2,
+        entry=planned_entry,
+        swing_lookback=swing_lookback,
+    )
+
+
 def _target_provenance_is_valid(
     candidate: Setup02TargetCandidate,
     *,
@@ -1208,6 +1243,7 @@ __all__ = [
     "evaluate_setup02_decision",
     "evaluate_setup02_decision_stream",
     "execute_setup02_t1_open",
+    "reference_target_candidates",
     "setup02_decision_to_dict",
     "setup02_execution_to_dict",
     "setup02_structure_geometry_audit",

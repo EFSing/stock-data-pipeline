@@ -98,6 +98,46 @@ def _setup01_snapshot_with_anchors(state: SetupState):
     )
 
 
+def _setup02_snapshot_with_anchors(state: SetupState):
+    return SimpleNamespace(
+        state=state,
+        confirmation_level=120.0,
+        structural_invalidation=92.0,
+        continuation_low0=SwingPoint(
+            kind=SwingKind.LOW,
+            price=90.0,
+            pivot_index=5,
+            pivot_date=date(2026, 1, 6),
+            confirmed_index=10,
+            confirmed_date=date(2026, 1, 11),
+        ),
+        continuation_high1=SwingPoint(
+            kind=SwingKind.HIGH,
+            price=120.0,
+            pivot_index=12,
+            pivot_date=date(2026, 1, 13),
+            confirmed_index=17,
+            confirmed_date=date(2026, 1, 18),
+        ),
+        continuation_low2=SwingPoint(
+            kind=SwingKind.LOW,
+            price=105.0,
+            pivot_index=18,
+            pivot_date=date(2026, 1, 19),
+            confirmed_index=19,
+            confirmed_date=date(2026, 1, 20),
+        ),
+        continuation_high3=SwingPoint(
+            kind=SwingKind.HIGH,
+            price=120.0,
+            pivot_index=19,
+            pivot_date=date(2026, 1, 20),
+            confirmed_index=19,
+            confirmed_date=date(2026, 1, 20),
+        ),
+    )
+
+
 class ArmedOpportunityProjectionTests(unittest.TestCase):
     def test_setup01_projection_carries_causal_anchors_and_canonical_wave3_extensions(self):
         item = _input("US", "ANCHORS")
@@ -180,6 +220,47 @@ class ArmedOpportunityProjectionTests(unittest.TestCase):
             projection["distance_to_confirmation_pct"],
             (120.0 - item.qfq_history[-1].close) / item.qfq_history[-1].close,
         )
+
+    def test_setup02_armed_projection_uses_continuation_anchors_and_four_fib_targets(self):
+        item = _input("US", "SETUP02.ARMED")
+        projection = _armed_opportunity_projection(
+            item,
+            _snapshot(SetupState.NONE),
+            _setup02_snapshot_with_anchors(SetupState.ARMED),
+        )
+
+        self.assertEqual(projection["wave3_projection_status"], "AVAILABLE")
+        self.assertEqual(
+            tuple(item["ratio_label"] for item in projection["wave3_fib_extensions"]),
+            ("1.272", "1.618", "2.0", "2.618"),
+        )
+        self.assertEqual(
+            projection["continuation_anchors"]["continuation_low0"]["price"],
+            90.0,
+        )
+        self.assertAlmostEqual(
+            projection["wave3_fib_extensions"][1]["upside_pct"],
+            (153.54 - 115.0) / 115.0,
+        )
+        self.assertNotIn(
+            "SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",
+            projection["wave3_missing_reasons"],
+        )
+
+    def test_setup02_watch_projection_reports_real_missing_continuation_anchor(self):
+        item = _input("CN", "SETUP02.WATCH.MISSING")
+        projection = _armed_opportunity_projection(
+            item,
+            _snapshot(SetupState.NONE),
+            _snapshot(SetupState.WATCH, confirmation=120.0, invalidation=92.0),
+        )
+
+        self.assertEqual(projection["wave3_projection_status"], "DATA_UNAVAILABLE")
+        self.assertIn(
+            "CONTINUATION_LOW0_UNAVAILABLE",
+            projection["wave3_missing_reasons"],
+        )
+        self.assertEqual(projection["wave3_fib_extensions"], ())
 
     def test_missing_causal_fields_fail_closed(self):
         projection = _armed_opportunity_projection(
