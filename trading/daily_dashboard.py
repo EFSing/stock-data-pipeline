@@ -103,6 +103,12 @@ _TARGET_SOURCE_LABELS = {
     "CONFIRMED_SWING_HIGH": "最近已确认历史阻力",
     "WAVE3_FIB_EXTENSION": "Wave3 Fib 结构投射",
 }
+_WAVE3_EXTENSION_RATIO_LABELS = {
+    1.272: "1.272",
+    1.618: "1.618",
+    2.0: "2.0",
+    2.618: "2.618",
+}
 
 WAVE_LABELS = {
     "WAVE_2_TO_3_CANDIDATE": "2浪调整结束候选，等待3浪启动",
@@ -260,13 +266,198 @@ def _target_source_label(value: Any) -> str:
     return " + ".join(_TARGET_SOURCE_LABELS.get(part, part) for part in parts)
 
 
+def _extension_ratio_label(value: Any) -> str:
+    number = _numeric(value)
+    if number is None:
+        return _format_number(value, 3)
+    for canonical, label in _WAVE3_EXTENSION_RATIO_LABELS.items():
+        if math.isclose(number, canonical, rel_tol=0.0, abs_tol=1e-12):
+            return label
+    return _format_number(number, 3)
+
+
+def _candidate_sources(candidate: Mapping[str, Any]) -> tuple[str, ...]:
+    values: list[str] = []
+    for value in (
+        candidate.get("source"),
+        *(
+            _mapping(item).get("source")
+            for item in _sequence(candidate.get("provenance"))
+        ),
+    ):
+        for part in _raw_text(value).replace(",", "+").split("+"):
+            part = part.strip()
+            if part and part not in values:
+                values.append(part)
+    return tuple(values)
+
+
+def _candidate_extension_ratio(candidate: Mapping[str, Any]) -> float | None:
+    for item in _sequence(candidate.get("provenance")):
+        provenance = _mapping(item)
+        if "WAVE3_FIB_EXTENSION" not in _candidate_sources(provenance):
+            continue
+        ratio = _first_value(
+            provenance.get("extension_ratio"),
+            provenance.get("ratio"),
+            candidate.get("extension_ratio"),
+            candidate.get("ratio"),
+        )
+        number = _numeric(ratio)
+        if number is not None:
+            return number
+    return _numeric(
+        _first_value(
+            candidate.get("extension_ratio"),
+            candidate.get("ratio"),
+        )
+    )
+
+
+def _candidate_presentation(
+    candidate: Mapping[str, Any],
+    *,
+    reference_price: float | None,
+) -> dict[str, Any] | None:
+    price = _numeric(candidate.get("price"))
+    if price is None:
+        return None
+    projected = dict(candidate)
+    ratio = _candidate_extension_ratio(candidate)
+    if ratio is not None:
+        projected["ratio"] = ratio
+        projected["ratio_label"] = (
+            _text(candidate.get("ratio_label")) or _extension_ratio_label(ratio)
+        )
+    if _numeric(candidate.get("upside_pct")) is None and reference_price not in {
+        None,
+        0,
+    }:
+        projected["upside_pct"] = relative_distance_pct(price, reference_price)
+    return projected
+
+
+def _target_projection_from_candidates(
+    decision: Mapping[str, Any],
+    target_values: Sequence[Any],
+) -> dict[str, Any]:
+    """Adapt existing target candidates to the shared presentation contract.
+
+    SETUP_01 serializes this projection directly, while SETUP_02 historically
+    exposed only ``target_candidates``.  This adapter selects and labels those
+    existing candidates; it never creates target prices or changes their order
+    for the formal Decision.
+    """
+
+    reference_price = _numeric(decision.get("planned_entry"))
+    candidates = tuple(
+        projected
+        for candidate in (
+            _mapping(item)
+            for item in _sequence(decision.get("target_candidates"))
+        )
+        if (projected := _candidate_presentation(
+            candidate,
+            reference_price=reference_price,
+        )) is not None
+    )
+    if not candidates:
+        return {}
+
+    formal_t1 = _first_value(target_values[0] if target_values else None)
+    effective_candidate = next(
+        (
+            candidate
+            for candidate in candidates
+            if _numeric(formal_t1) is not None
+            and _numeric(candidate.get("price")) is not None
+            and math.isclose(
+                float(candidate["price"]),
+                float(formal_t1),
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+        ),
+        None,
+    )
+    overhead_candidates = tuple(
+        candidate
+        for candidate in candidates
+        if "CONFIRMED_SWING_HIGH" in _candidate_sources(candidate)
+    )
+    fib_candidates = tuple(
+        candidate
+        for candidate in candidates
+        if "WAVE3_FIB_EXTENSION" in _candidate_sources(candidate)
+        and _candidate_extension_ratio(candidate) is not None
+    )
+    nearest_overhead = min(
+        overhead_candidates,
+        key=lambda candidate: float(candidate["price"]),
+        default=None,
+    )
+    fib_extensions = tuple(
+        sorted(
+            fib_candidates,
+            key=lambda candidate: (
+                _candidate_extension_ratio(candidate) or math.inf,
+                float(candidate["price"]),
+                _text(candidate.get("source")),
+            ),
+        )
+    )
+    nearest_fib = min(
+        fib_extensions,
+        key=lambda candidate: (
+            float(candidate["price"]),
+            _candidate_extension_ratio(candidate) or math.inf,
+            _text(candidate.get("source")),
+        ),
+        default=None,
+    )
+    return {
+        "current_effective_t1": formal_t1,
+        "effective_t1_source": (
+            effective_candidate.get("source") if effective_candidate else None
+        ),
+        "effective_t1_candidate": effective_candidate,
+        "nearest_overhead_confirmed_swing_high": nearest_overhead,
+        "nearest_overhead_confirmed_swing_high_price": (
+            nearest_overhead.get("price") if nearest_overhead else None
+        ),
+        "overhead_resistance_upside_pct": (
+            nearest_overhead.get("upside_pct") if nearest_overhead else None
+        ),
+        "nearest_wave3_fib_extension": nearest_fib,
+        "nearest_wave3_fib_extension_price": (
+            nearest_fib.get("price") if nearest_fib else None
+        ),
+        "nearest_wave3_fib_extension_ratio": (
+            nearest_fib.get("ratio") if nearest_fib else None
+        ),
+        "wave3_fib_upside_pct": (
+            nearest_fib.get("upside_pct") if nearest_fib else None
+        ),
+        "wave3_fib_extensions": fib_extensions,
+    }
+
+
 def _target_projection_display(
     decision: Mapping[str, Any],
     target_values: Sequence[Any],
 ) -> dict[str, Any]:
     """Format the shared Decision target projection without redoing geometry."""
 
-    projection = _mapping(decision.get("target_projection"))
+    projection = dict(_mapping(decision.get("target_projection")))
+    candidate_projection = _target_projection_from_candidates(
+        decision,
+        target_values,
+    )
+    if candidate_projection and not _sequence(projection.get("wave3_fib_extensions")):
+        projection = {**candidate_projection, **projection}
+        for key, value in candidate_projection.items():
+            if key not in projection or projection[key] in (None, "", (), [], {}):
+                projection[key] = value
     overhead = _mapping(projection.get("nearest_overhead_confirmed_swing_high"))
     fib = _mapping(projection.get("nearest_wave3_fib_extension"))
     effective_t1 = _first_value(
@@ -300,7 +491,7 @@ def _target_projection_display(
         if not item:
             continue
         extension_labels.append(
-            f"{_format_number(item.get('ratio'), 3)}：{_format_price(item.get('price'))}"
+            f"{_extension_ratio_label(item.get('ratio'))}：{_format_price(item.get('price'))}"
             f"（{_format_percent(item.get('upside_pct'))}）"
         )
     explanation = ""
@@ -365,7 +556,7 @@ def _wave3_extension_rows(value: Any) -> tuple[dict[str, Any], ...]:
             continue
         rows.append({
             **dict(mapping),
-            "ratio_label": _text(mapping.get("ratio_label")) or _format_number(ratio, 3),
+            "ratio_label": _text(mapping.get("ratio_label")) or _extension_ratio_label(ratio),
         })
     return tuple(rows)
 
@@ -1381,6 +1572,29 @@ def _wave3_missing_text(values: Sequence[Any]) -> str:
     return "、".join(rendered)
 
 
+def _decision_wave3_anchor_mapping(
+    decision: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Expose already-produced Wave anchors to the canonical projection helper."""
+
+    return {
+        "wave1_origin": _first_value(
+            decision.get("wave1_origin"),
+            decision.get("continuation_low0"),
+        ),
+        "wave1_peak": _first_value(
+            decision.get("wave1_peak"),
+            decision.get("continuation_high1"),
+            decision.get("confirmation_level"),
+        ),
+        "wave2_low": _first_value(
+            decision.get("wave2_low"),
+            decision.get("continuation_low2"),
+            decision.get("structural_invalidation"),
+        ),
+    }
+
+
 def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
     """Project existing fields into the human-first detail layer.
 
@@ -1480,13 +1694,9 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
     wave_extensions = _wave3_extension_rows(target_projection.get("wave3_fib_extensions"))
     gate_reason = _text(decision.get("gate_reason"))
     wave3_presentation_only = False
-    if not wave_extensions and _text(row.get("setup")) == "SETUP_01":
+    if not wave_extensions:
         fallback_projection = project_setup01_wave3_extensions(
-            {
-                "wave1_origin": decision.get("wave1_origin"),
-                "wave1_peak": decision.get("confirmation_level"),
-                "wave2_low": decision.get("structural_invalidation"),
-            },
+            _decision_wave3_anchor_mapping(decision),
             current_close=reference_price,
             require_confirmed=False,
         ) if reference_price is not None else {}

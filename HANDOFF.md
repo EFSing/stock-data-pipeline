@@ -4,14 +4,15 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_HUMAN_OPPORTUNITY_UI_PR_READY`：PR #135 已创建并保持 open，branch
+`DAILY_REPORT_HUMAN_OPPORTUNITY_UI_PR_READY`：继续 PR #135，PR 保持 open，branch
 `feat/daily-report-human-opportunity-v1` 未合并。CN/US Daily Report 共享 renderer 已加入
-人工机会优先层、正式确认后判断、显式结构数据缺口与 compact formatting；SETUP_01
-WATCH/ARMED 的 causal anchors 由只读 Daily Decision projection 透传，未来自然日报可展示
-canonical Wave3 Fib 预估。此前 PR #133/#134 的 CN provider-forward 与 US Candidate
-lifecycle 状态不变；真实 D1 activation 未执行。
+人工机会优先层、正式确认后判断、显式结构数据缺口与 compact formatting；当前 follow-up
+将 SETUP_02 已有 `target_candidates` / provenance 投影为与 SETUP_01 相同的人工目标卡片，
+并覆盖 `ABOVE_ENTRY_ZONE` 的 causal Wave3 只读空间。此前 PR #133/#134 的 CN provider-
+forward 与 US Candidate lifecycle 状态不变；真实 D1 activation 未执行。
 
-当前没有新的真实代码缺陷。merge 后尚无自然 CN Daily Report，状态为
+当前代码 follow-up 尚待提交并推送到现有 PR；不得新建 PR 或 merge。merge 后尚无自然 CN
+Daily Report，状态为
 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger natural
 acceptance 也仍未发生。后续只等待自然 production acceptance，不继续扩大 Candidate
 规则或数据架构。branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
@@ -24,6 +25,10 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 - `CONFIRMED + SETUP_01 + ABOVE_ENTRY_ZONE` 即使正式 target-before gate 提前终止，
   也会从既有 Decision anchors 通过共享 canonical Wave3 projection 展示人工空间；正式
   T1/RR 仍为空，正式结论仍为确认有效但超过允许入场区、不追高。
+- `CONFIRMED + SETUP_02` 现在在 presentation projection 层消费既有 target candidates，
+  展示第一障碍/T1 与 Fib 1.272/1.618/2.0/2.618 及各自空间；5%/RR gate 与正式 action
+  不变。SETUP_02 在 candidate 生成前因 `ABOVE_ENTRY_ZONE` 终止时，若 continuation
+  anchors 合法，人工层展示结构空间并明确不等同正式 T1。
 - 实际保存的旧 CN/US Daily Report JSON 已生成新 HTML artifact；这些旧 JSON 尚未携带新
   ARMED/WATCH anchor fields，artifact 对相应标的保留显式 data gap，不能写成新 projection
   已在历史报告中自然存在。最终 artifact 使用 CN 2026-09-30 与 US 2026-10-02；US
@@ -62,8 +67,11 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 
 ## Validation
 
-- focused tests、全量 unittest、git diff --check 和 Daily Decision / Paper lifecycle /
-  Portfolio Risk 三个 generic shadows 已通过；PR #133 merge 后 main CI 亦已通过。
+- 本次 follow-up focused tests（Dashboard、email、armed projection、Daily Decision Chain、
+  SETUP_02）115 passed；全量 `unittest discover` 1000 passed、2 skipped；compileall 与
+  git diff --check 已通过。
+- Daily Decision Chain、Paper lifecycle、Portfolio Risk 三个 `GENERIC_OPERATIONAL_SHADOW`
+  均为 SUCCESS；均未读取真实持仓、凭证或 broker，也未写 Sheets。
 - 2026-09-30 已保存的只读诊断中5个 new CONFIRMED、ENTRY_ALLOWED=0，fixture 得到5/5
   birth（3个目标空间不足、1个RR不足、1个超过入场区）。fixture不写正式 prospective rows。
 - 受控 synthetic 验证同session重跑零重复，T+1产生follow-up，掉出Candidate仍续载，
@@ -76,11 +84,12 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 - post-merge US lifecycle sanity：HOLX → `LIFECYCLE_UNLISTED_OR_NO_MARKET`；VYLR-WI 保持
   identity 并 → `LIFECYCLE_WHEN_ISSUED`；JMKE → `HISTORY_INSUFFICIENT`；blank Exchange
   保持 ACTIVE/non-lifecycle；provider、strategy 与 affordability/history thresholds 未变。
-- full `unittest`: 990 passed, 2 skipped；compileall、git diff --check、Daily Decision /
-  Paper lifecycle / Portfolio Risk / Position Management / SETUP_01 / SETUP_02 generic
-  shadows 与 PR CI 均通过。
-- 本 PR 的 full `unittest discover`、compileall、git diff --check 与 GitHub PR checks
-  均通过；PR 未合并。
+- 已保存的只读 CN/US HTML artifact 已重新渲染：
+  `artifacts/daily_report_human_opportunity_v1/CN/2026-09-30-setup02-projection.html`
+  与 `artifacts/daily_report_human_opportunity_v1/US/2026-10-02-setup02-projection.html`；
+  CN 600901.SH 已展示 T1 + 四个 Fib，US SETUP_02 走同一 renderer。
+- 现有 PR 远端 head 的 GitHub checks 已通过；本地 follow-up 提交推送后仍需核对新的
+  exact-head CI。PR 保持 open，未合并。
 
 ## Blocker / Remaining Risks
 
@@ -94,12 +103,14 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 - 旧保存 JSON 的 ARMED/WATCH anchor 缺口只能由未来自然日报重生成解决；不能通过历史
   artifact 回填伪造 Wave3 projection。浏览器安全策略拒绝本地 `file:` URL 的自动绑定，
   因此保留本地静态 artifact/文件预览验收证据，不把它写成真实浏览器验收已完成。
+- follow-up 尚未提交到远端 PR；在推送前 exact-head CI 尚未针对本次修改运行。
 
 ## Next Action
 
-等待 PR #135 review/用户决定，不要 merge；后续自然 CN/US report、Opportunity Ledger
-T+1/10-session acceptance，以及未来经独立授权的 D1 decision 仍按原边界处理。不要为
-清零合法 unavailable/lifecycle 状态继续开发；不把 live probe 写成 prospective D1 evidence。
+提交并推送本地 follow-up 到现有 PR #135，核对新的 exact-head CI 后保持 PR open、不要
+merge；后续自然 CN/US report、Opportunity Ledger T+1/10-session acceptance，以及未来
+经独立授权的 D1 decision 仍按原边界处理。不要为清零合法 unavailable/lifecycle 状态继续
+开发；不把 live probe 写成 prospective D1 evidence。
 
 ## Constraints / Pitfalls
 

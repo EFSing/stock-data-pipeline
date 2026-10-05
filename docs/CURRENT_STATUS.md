@@ -324,6 +324,9 @@
   它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
   enum/protocol/交易语义。共享 CN/US renderer 现以“人工机会判断”优先，展开后先展示
   当前/Decision 参考价、确认价、入场区、结构风险、T1/阻力与 Wave3 target/upside；
+  PR #135 的 proposed projection 还会将 SETUP_02 已生成的 `target_candidates` / provenance
+  转为与 SETUP_01 相同的目标卡片；若 `ABOVE_ENTRY_ZONE` 等 gate 在 candidate 生成前提前终止，
+  但 continuation anchors 已足够，则只读人工层可展示 canonical Wave3 结构空间，并明确不等同正式 T1。
   随后保留“确认后的交易判断”和机会新鲜度，结构与判断依据、开发者原始数据默认折叠。
   未展开 card 也展示紧凑的当前价、确认距离、结构风险和主要 Wave3 空间；所有用户侧价格/百分比
   使用 compact formatting，缺失字段显示可解释原因而非裸 `—`。独立展示修复默认优先显示今日重点，将确认与等待确认放在

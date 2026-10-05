@@ -43,6 +43,160 @@ def _new_confirmation_no_trade_payload(gate_reason: str, **decision_fields) -> d
     }
 
 
+def _setup02_target_candidates(
+    *,
+    planned_entry: float = 6.94,
+    profile: str = "CN",
+) -> list[dict]:
+    if planned_entry == 6.94:
+        prices = (7.046002994011976, 7.0796, 7.2699, 7.48, 7.8199)
+        origin, peak, wave2_low = 6.2, 6.75, 6.38
+    elif profile == "RR":
+        prices = (108.0, 119.08, 124.27, 130.0, 139.27)
+        origin, peak, wave2_low = 90.0, 105.0, 100.0
+    else:
+        prices = (103.0, 103.36, 105.09, 107.0, 110.09)
+        origin, peak, wave2_low = 90.0, 95.0, 97.0
+    return [
+        {
+            "price": prices[0],
+            "source": "CONFIRMED_SWING_HIGH",
+            "reason": "T-known confirmed swing high",
+            "provenance": [{
+                "source": "CONFIRMED_SWING_HIGH",
+                "pivot_date": "2026-05-06",
+                "confirmed_date": "2026-05-07",
+                "extension_ratio": None,
+            }],
+        },
+        {
+            "price": prices[1],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 1.272",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 1.272,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+        {
+            "price": prices[2],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 1.618",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 1.618,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+        {
+            "price": prices[3],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 2.0",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 2.0,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+        {
+            "price": prices[4],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 2.618",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 2.618,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+    ]
+
+
+def _setup02_confirmation_payload(
+    gate_reason: str,
+    *,
+    market: str = "CN",
+    symbol: str = "600901.SH",
+    above_entry_zone: bool = False,
+) -> dict:
+    planned_entry = 7.1 if above_entry_zone else (6.94 if market == "CN" else 100.0)
+    candidates = [] if above_entry_zone else _setup02_target_candidates(
+        planned_entry=planned_entry,
+        profile="RR" if gate_reason == "RR_BELOW_MINIMUM" else market,
+    )
+    targets = [item["price"] for item in candidates[:3]]
+    if above_entry_zone:
+        target_upside = None
+        rr = None
+    elif gate_reason == "RR_BELOW_MINIMUM":
+        target_upside = 0.08
+        rr = {"rr_ratios": [1.8, 2.4, 3.1], "quality": "NO_TRADE"}
+    else:
+        target_upside = (targets[0] - planned_entry) / planned_entry
+        rr = {"rr_ratios": [0.1692458211783177, 0.22, 0.53], "quality": "NO_TRADE"}
+    decision = {
+        "action": "NO_TRADE",
+        "gate_reason": gate_reason,
+        "planned_entry": planned_entry,
+        "confirmation_level": 7.0 if above_entry_zone else (6.89 if market == "CN" else 100.0),
+        "entry_zone_low": 7.0 if above_entry_zone else (6.89 if market == "CN" else 99.0),
+        "entry_zone_high": 7.05 if above_entry_zone else (6.9563 if market == "CN" else 102.0),
+        "structural_invalidation": 6.38 if above_entry_zone else (6.38 if market == "CN" else 90.0),
+        "execution_stop": None if above_entry_zone else (6.3137 if market == "CN" else 90.0),
+        "targets": targets,
+        "target_candidates": candidates,
+        "target_upside_pct": target_upside,
+        "target_upside_band": "BELOW_MINIMUM" if gate_reason == "TARGET_UPSIDE_BELOW_MINIMUM" else "PREFERRED_UPSIDE",
+        "minimum_target_upside_pct": 0.05,
+        "rr": rr,
+    }
+    if above_entry_zone:
+        decision.update({
+            "continuation_low0": {"price": 6.2},
+            "continuation_high1": {"price": 6.75},
+            "continuation_low2": {"price": 6.38},
+        })
+    return {
+        "as_of_date": "2026-09-30",
+        "results": [{
+            "symbol": symbol,
+            "market": market,
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_3_CONTINUATION_CANDIDATE",
+            "alternate_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "setup01_state": "NONE",
+            "setup02_state": "CONFIRMED",
+            "primary_action": "NO_TRADE",
+            "event_was_new": True,
+            "new_confirmed_event_identities": [f"{symbol}|SETUP_02|2026-09-30|CONFIRMED"],
+            "individual_decision": decision,
+            "opportunity_freshness": {
+                "target_upside_pct": target_upside,
+                "target_upside_band": decision["target_upside_band"],
+                "minimum_target_upside_pct": 0.05,
+                "entry_zone_upper_distance_pct": 0.01 if above_entry_zone else -0.002,
+            },
+            "portfolio_result": None,
+            "position_management": None,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "NO_TRADE",
+        }],
+    }
+
+
 class DailyDashboardTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -978,6 +1132,130 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("Wave3 结构目标（最近 Fib 投射）", rendered)
         self.assertIn("系统不是认为 Wave3 只有 1.00% 空间", rendered)
         self.assertIn("按现有保守规则不交易", rendered)
+
+    def test_setup02_target_candidates_share_setup01_human_target_cards(self):
+        for market, symbol in (("CN", "600901.SH"), ("US", "SETUP02.US")):
+            with self.subTest(market=market):
+                payload = _setup02_confirmation_payload(
+                    "TARGET_UPSIDE_BELOW_MINIMUM",
+                    market=market,
+                    symbol=symbol,
+                )
+                row = build_dashboard_projection(payload)["rows"][0]
+                decision = row["decision"]
+                plan = row["plan"]
+                manual = row["manual_opportunity"]
+                expected_entry = 6.94 if market == "CN" else 100.0
+                expected_t1 = 7.046002994011976 if market == "CN" else 103.0
+                expected_fib = 7.0796 if market == "CN" else 103.36
+
+                self.assertEqual(decision["gate_reason"], "TARGET_UPSIDE_BELOW_MINIMUM")
+                self.assertEqual(plan["target_1"], "7.046" if market == "CN" else "103")
+                self.assertEqual(
+                    plan["target_upside_pct"],
+                    "1.53%" if market == "CN" else "3.00%",
+                )
+                self.assertEqual(
+                    plan["rr"],
+                    "0.17 / 0.22 / 0.53",
+                )
+                self.assertEqual(plan["nearest_wave3_fib_extension_ratio"], "1.272")
+                self.assertEqual(
+                    plan["nearest_wave3_fib_extension"],
+                    "7.0796" if market == "CN" else "103.36",
+                )
+                self.assertEqual(
+                    plan["wave3_fib_upside_pct"],
+                    "2.01%" if market == "CN" else "3.36%",
+                )
+                self.assertEqual(
+                    tuple(item["ratio_label"] for item in plan["target_projection"]["wave3_fib_extensions"]),
+                    ("1.272", "1.618", "2.0", "2.618"),
+                )
+                self.assertEqual(
+                    plan["target_projection"]["wave3_fib_extensions"][0]["provenance"][0]["formula_identity"],
+                    "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+                )
+                self.assertEqual(
+                    [item["label"] for item in manual["wave3_targets"]],
+                    [
+                        "第一障碍 / T1",
+                        "3浪 Fib 1.272",
+                        "3浪 Fib 1.618",
+                        "3浪 Fib 2.0",
+                        "3浪 Fib 2.618",
+                    ],
+                )
+                self.assertAlmostEqual(
+                    manual["wave3_targets"][1]["upside_pct"],
+                    (expected_fib - expected_entry) / expected_entry,
+                )
+                self.assertEqual(manual["formal_t1"], expected_t1)
+                self.assertEqual(row["today_conclusion"], "不交易：目标上涨空间不足")
+
+                rendered = render_dashboard_html(payload)
+                for label in ("第一障碍 / T1", "3浪 Fib 1.272", "3浪 Fib 1.618", "3浪 Fib 2.0", "3浪 Fib 2.618"):
+                    self.assertIn(label, rendered)
+                self.assertIn(
+                    "较参考价 +2.01%" if market == "CN" else "较参考价 +3.36%",
+                    rendered,
+                )
+                self.assertIn("确认有效，但第一目标剩余上涨空间不足最低要求，因此不交易。", rendered)
+
+    def test_setup02_rr_gate_keeps_formal_rr_and_shows_all_fib_targets(self):
+        payload = _setup02_confirmation_payload(
+            "RR_BELOW_MINIMUM",
+            market="US",
+            symbol="RR.SETUP02",
+        )
+        row = build_dashboard_projection(payload)["rows"][0]
+
+        self.assertEqual(row["decision"]["gate_reason"], "RR_BELOW_MINIMUM")
+        self.assertEqual(row["plan"]["target_1"], "108")
+        self.assertEqual(row["plan"]["target_upside_pct"], "8.00%")
+        self.assertEqual(row["plan"]["rr"], "1.80 / 2.40 / 3.10")
+        self.assertEqual(
+            [item["label"] for item in row["manual_opportunity"]["wave3_targets"]],
+            [
+                "第一障碍 / T1",
+                "3浪 Fib 1.272",
+                "3浪 Fib 1.618",
+                "3浪 Fib 2.0",
+                "3浪 Fib 2.618",
+            ],
+        )
+        rendered = render_dashboard_html(payload)
+        self.assertIn("第一目标 R/R", rendered)
+        self.assertIn("确认有效，但第一目标对应的 R/R 未达到系统最低要求，因此不交易。", rendered)
+        self.assertIn("3浪 Fib 2.618", rendered)
+
+    def test_setup02_above_entry_zone_uses_causal_geometry_as_presentation_only(self):
+        payload = _setup02_confirmation_payload(
+            "ABOVE_ENTRY_ZONE",
+            market="CN",
+            symbol="600901.ABOVE",
+            above_entry_zone=True,
+        )
+        row = build_dashboard_projection(payload)["rows"][0]
+        manual = row["manual_opportunity"]
+
+        self.assertIsNone(manual["formal_t1"])
+        self.assertIsNone(manual["first_rr"])
+        self.assertTrue(manual["wave3_presentation_only"])
+        self.assertEqual(
+            [item["label"] for item in manual["wave3_targets"]],
+            [
+                "Wave3 结构目标 Fib 1.272",
+                "Wave3 结构目标 Fib 1.618",
+                "Wave3 结构目标 Fib 2.0",
+                "Wave3 结构目标 Fib 2.618",
+            ],
+        )
+        self.assertIn("超过允许入场区上沿", manual["system_conclusion"])
+        self.assertEqual(row["decision"]["gate_reason"], "ABOVE_ENTRY_ZONE")
+        rendered = render_dashboard_html(payload)
+        self.assertIn("不等同正式 T1/T2/T3", rendered)
+        self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
 
     def test_identity_metadata_wave_mapping_and_input_immutability(self):
         original = deepcopy(self.payload)
