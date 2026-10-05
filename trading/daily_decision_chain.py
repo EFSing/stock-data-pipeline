@@ -1479,49 +1479,65 @@ def _swing_anchor_projection(swing: Any) -> dict[str, Any] | None:
     }
 
 
-def _setup01_preconfirmation_wave3_projection(
-    snapshot: Any,
+def _anchor_projection(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if _finite_positive(value) is not None:
+        return {
+            "price": float(value),
+            "pivot_index": None,
+            "pivot_date": None,
+            "confirmed_index": None,
+            "confirmed_date": None,
+        }
+    return _swing_anchor_projection(value)
+
+
+def project_setup01_wave3_extensions(
+    anchors: Mapping[str, Any],
     *,
     current_close: float,
-    as_of_index: int,
+    as_of_index: int | None = None,
+    require_confirmed: bool = False,
 ) -> dict[str, Any]:
-    """Project canonical Wave3 extensions from existing SETUP_01 anchors.
+    """Project SETUP_01 Wave3 geometry from an existing causal anchor set.
 
-    The evaluator has already enforced the Wave/Swing causal boundary.  This
-    helper only copies those anchors and calls the shared Fibonacci geometry;
-    it never searches swings or infers anchors from prices.
+    ``anchors`` may contain evaluator SwingPoints or a serialized read-only
+    Decision/event projection.  The latter is accepted only by callers that
+    already established the event/Decision boundary; this helper still
+    validates positive prices and anchor order before calling canonical
+    ``project_extension``.
     """
 
     anchor_values = {
-        "wave1_origin": getattr(snapshot, "wave1_origin", None),
-        "wave1_peak": getattr(snapshot, "wave1_peak", None),
-        "wave2_low": getattr(snapshot, "wave2_low", None),
+        name: anchors.get(name)
+        for name in ("wave1_origin", "wave1_peak", "wave2_low")
     }
-    anchors = {
-        name: _swing_anchor_projection(swing)
-        for name, swing in anchor_values.items()
+    projected_anchors = {
+        name: _anchor_projection(value)
+        for name, value in anchor_values.items()
     }
     missing: list[str] = []
     prices: dict[str, float] = {}
-    for name, swing in anchor_values.items():
-        anchor = anchors.get(name)
+    for name, anchor in projected_anchors.items():
         if anchor is None:
             missing.append(f"{name.upper()}_UNAVAILABLE")
             continue
         price = _finite_positive(anchor.get("price"))
-        confirmed_index = anchor.get("confirmed_index")
         if price is None:
             missing.append(f"{name.upper()}_PRICE_UNAVAILABLE")
         else:
             prices[name] = price
-        if confirmed_index is None:
-            missing.append(f"{name.upper()}_NOT_CONFIRMED")
-        else:
-            try:
-                if int(confirmed_index) > as_of_index:
-                    missing.append(f"{name.upper()}_CONFIRMED_AFTER_AS_OF")
-            except (TypeError, ValueError):
-                missing.append(f"{name.upper()}_CONFIRMATION_INDEX_INVALID")
+        if require_confirmed:
+            confirmed_index = anchor.get("confirmed_index")
+            if confirmed_index is None:
+                missing.append(f"{name.upper()}_NOT_CONFIRMED")
+            else:
+                try:
+                    if as_of_index is not None and int(confirmed_index) > as_of_index:
+                        missing.append(f"{name.upper()}_CONFIRMED_AFTER_AS_OF")
+                except (TypeError, ValueError):
+                    missing.append(f"{name.upper()}_CONFIRMATION_INDEX_INVALID")
 
     if not missing:
         origin = prices["wave1_origin"]
@@ -1537,17 +1553,12 @@ def _setup01_preconfirmation_wave3_projection(
             "wave3_projection_status": "DATA_UNAVAILABLE",
             "wave3_fib_extensions": (),
             "wave3_missing_reasons": tuple(dict.fromkeys(missing)),
-            "wave3_anchors": anchors,
+            "wave3_anchors": projected_anchors,
         }
 
     extensions = []
     for ratio_name, ratio in EXTENSION_RATIOS.items():
-        price = project_extension(
-            wave2_low,
-            origin,
-            peak,
-            ratio,
-        )
+        price = project_extension(wave2_low, origin, peak, ratio)
         extensions.append(
             {
                 "ratio": float(ratio),
@@ -1562,9 +1573,34 @@ def _setup01_preconfirmation_wave3_projection(
         "wave3_projection_status": "AVAILABLE",
         "wave3_fib_extensions": tuple(extensions),
         "wave3_missing_reasons": (),
-        "wave3_anchors": anchors,
+        "wave3_anchors": projected_anchors,
         "wave3_reference_price": current_close,
     }
+
+
+def _setup01_preconfirmation_wave3_projection(
+    snapshot: Any,
+    *,
+    current_close: float,
+    as_of_index: int,
+) -> dict[str, Any]:
+    """Project canonical Wave3 extensions from existing SETUP_01 anchors.
+
+    The evaluator has already enforced the Wave/Swing causal boundary.  This
+    helper only copies those anchors and calls the shared Fibonacci geometry;
+    it never searches swings or infers anchors from prices.
+    """
+
+    return project_setup01_wave3_extensions(
+        {
+            "wave1_origin": getattr(snapshot, "wave1_origin", None),
+            "wave1_peak": getattr(snapshot, "wave1_peak", None),
+            "wave2_low": getattr(snapshot, "wave2_low", None),
+        },
+        current_close=current_close,
+        as_of_index=as_of_index,
+        require_confirmed=True,
+    )
 
 
 def _finite_positive(value: Any) -> float | None:
@@ -1817,6 +1853,7 @@ __all__ = [
     "daily_decision_result_to_dict",
     "daily_report_json",
     "opportunity_freshness_funnel",
+    "project_setup01_wave3_extensions",
     "require_production_universe",
     "target_projection_markdown",
 ]

@@ -10,7 +10,8 @@
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
 > 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
 > merge 后首个自然 CN Daily Report 与 ledger natural acceptance pending；Daily Report
-> human-opportunity presentation 已接入共享 renderer；单源 provider、
+> human-opportunity presentation 已在 PR #135（OPEN / PR-ready / proposed）实现于共享
+> renderer；该能力尚未进入 main，只有 PR merge 后才成为正式当前能力。单源 provider、
 > D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
@@ -328,7 +329,8 @@
   使用 compact formatting，缺失字段显示可解释原因而非裸 `—`。独立展示修复默认优先显示今日重点，将确认与等待确认放在
   异常之前；“全部/诊断”仍可访问全部结果，静态 HTML 在没有 JavaScript 时也保留完整
   逐标的内容。原始质量/覆盖/前瞻审计默认折叠，报告覆盖数与成功分析数分开；评估失败
-  不冒充普通 NO_TRADE。该共享展示修复已进入当前开发分支，待 PR 合并。股票以 compact row 展示，完整
+  不冒充普通 NO_TRADE。该共享展示修复属于 PR #135 proposed implementation，待 PR 合并后才进入
+  main 正式能力地图。股票以 compact row 展示，完整
   当日状态、当前浪型、Setup、已满足/未满足条件、Decision/Risk/Position Management /
   原始诊断在“查看详情”展开；页面支持 sticky 阶段导航、
    ticker/公司名称前端搜索与既有 CN/US、Setup、行业筛选。`scripts/render_daily_dashboard.py`
@@ -553,7 +555,7 @@
   固定 5% gate 的一门移除反事实新增 `ENTRY_ALLOWED=0`；RR 分解报告 stop distance、
   first-target distance、both 与 insufficient-evidence 四类。formal pool 与 live
   Dynamic Candidate 未进入冻结样本，比较状态为
-  `INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE`。Dashboard 当前已由
+  `INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE`。PR #135 当前实现已由
   `daily_decision_chain` 的只读 context projection 透传 ARMED/WATCH causal snapshot、
   SETUP_01 anchors 与 canonical Wave3 presentation projection；历史保存且未包含新字段的
   JSON 会显示明确 data gap，等待下一次自然日报生成新 projection。最近 production daily-report

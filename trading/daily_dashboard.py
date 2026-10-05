@@ -17,6 +17,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from trading.daily_decision_chain import project_setup01_wave3_extensions
 from trading.risk import relative_distance_pct
 from trading.trade_logic_explanation import strategy_rules_for_dashboard
 
@@ -1477,9 +1478,25 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
     freshness = _mapping(row.get("opportunity_freshness"))
     target_projection = _mapping(plan.get("target_projection"))
     wave_extensions = _wave3_extension_rows(target_projection.get("wave3_fib_extensions"))
+    gate_reason = _text(decision.get("gate_reason"))
+    wave3_presentation_only = False
+    if not wave_extensions and _text(row.get("setup")) == "SETUP_01":
+        fallback_projection = project_setup01_wave3_extensions(
+            {
+                "wave1_origin": decision.get("wave1_origin"),
+                "wave1_peak": decision.get("confirmation_level"),
+                "wave2_low": decision.get("structural_invalidation"),
+            },
+            current_close=reference_price,
+            require_confirmed=False,
+        ) if reference_price is not None else {}
+        if _text(fallback_projection.get("wave3_projection_status")) == "AVAILABLE":
+            wave_extensions = _wave3_extension_rows(
+                fallback_projection.get("wave3_fib_extensions")
+            )
+            wave3_presentation_only = True
     wave_missing: tuple[Any, ...] = ()
     if not wave_extensions:
-        gate_reason = _text(decision.get("gate_reason"))
         if gate_reason == "ABOVE_ENTRY_ZONE":
             wave_missing = ("ABOVE_ENTRY_ZONE_FORMAL_DECISION_STOPPED_BEFORE_TARGET_GENERATION",)
         elif not has_decision:
@@ -1517,7 +1534,11 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
     target_items.extend(
         {
             "kind": "WAVE3_FIB_EXTENSION",
-            "label": f"3浪 Fib {_text(item.get('ratio_label'), _format_number(item.get('ratio'), 3))}",
+            "label": (
+                f"Wave3 结构目标 Fib {_text(item.get('ratio_label'), _format_number(item.get('ratio'), 3))}"
+                if wave3_presentation_only
+                else f"3浪 Fib {_text(item.get('ratio_label'), _format_number(item.get('ratio'), 3))}"
+            ),
             "price": item.get("price"),
             "upside_pct": item.get("upside_pct"),
             "primary": _text(item.get("ratio_label")) in {"1.272", "1.618"},
@@ -1568,6 +1589,7 @@ def _manual_opportunity_projection(row: Mapping[str, Any]) -> dict[str, Any]:
         "wave3_extensions": wave_extensions,
         "wave3_targets": tuple(target_items),
         "wave3_is_estimate": False,
+        "wave3_presentation_only": wave3_presentation_only,
         "wave3_missing_text": _wave3_missing_text(wave_missing),
         "wave3_missing_reasons": wave_missing,
         "system_conclusion": system_conclusion,
@@ -2533,6 +2555,7 @@ def _render_manual_opportunity(row: Mapping[str, Any]) -> str:
         return ""
     stage = _text(manual.get("stage"))
     is_estimate = _bool(manual.get("wave3_is_estimate"))
+    wave3_presentation_only = _bool(manual.get("wave3_presentation_only"))
     reference_label = _text(manual.get("reference_label"), "当前价")
     reference_price = _format_human_price(manual.get("reference_price"))
     confirmation = _format_human_price(manual.get("confirmation_level"))
@@ -2555,7 +2578,11 @@ def _render_manual_opportunity(row: Mapping[str, Any]) -> str:
         lead = "先看潜在空间，再看系统为什么放行/拒绝。系统 NO_TRADE 不代表这只股票没有人工观察价值。"
         confirmation_sub = ""
         entry_sub = "正式 Decision 已生成"
-        heading = "3浪目标与潜在上涨空间"
+        heading = (
+            "Wave3 结构目标 / 人工机会空间"
+            if wave3_presentation_only
+            else "3浪目标与潜在上涨空间"
+        )
     target_gap = _text(manual.get("wave3_missing_text"))
     gap_html = (
         f'<div class="prototype-data-gap">当前缺少：{_escape(target_gap)}；因此暂不能可靠计算3浪目标。'
@@ -2583,6 +2610,11 @@ def _render_manual_opportunity(row: Mapping[str, Any]) -> str:
         '</div>'
         '<div class="wave-target-section">'
         f'<h4>{_escape(heading)}</h4>'
+        + (
+            '<p class="wave-target-note">以下为人工机会空间，不等同正式 T1/T2/T3；正式系统仍按 gate 结论执行。</p>'
+            if wave3_presentation_only
+            else ""
+        )
         + _render_wave_target_cards(manual)
         + gap_html
         + '</div>'

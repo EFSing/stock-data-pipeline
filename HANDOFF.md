@@ -21,9 +21,13 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 - Daily Report human-opportunity UI PR：CN/US 使用同一个 `trading/daily_dashboard.py`
   renderer；展开顺序为“人工机会判断 → 确认后的交易判断 → 机会新鲜度 → 折叠结构依据 →
   折叠开发者原始数据”。WATCH/ARMED 缺少 anchor 时明确列出缺口，不从价格倒推目标。
+- `CONFIRMED + SETUP_01 + ABOVE_ENTRY_ZONE` 即使正式 target-before gate 提前终止，
+  也会从既有 Decision anchors 通过共享 canonical Wave3 projection 展示人工空间；正式
+  T1/RR 仍为空，正式结论仍为确认有效但超过允许入场区、不追高。
 - 实际保存的旧 CN/US Daily Report JSON 已生成新 HTML artifact；这些旧 JSON 尚未携带新
   ARMED/WATCH anchor fields，artifact 对相应标的保留显式 data gap，不能写成新 projection
-  已在历史报告中自然存在。
+  已在历史报告中自然存在。最终 artifact 使用 CN 2026-09-30 与 US 2026-10-02；US
+  2026-10-02 来自真实成功 HTML 的原始 Daily Decision 字段重建只读输入。
 
 - `日报历史` 保存 market/session summary，复用已有日报漏斗和展示投影；同一 session
   使用行级 upsert，不清空历史表，不覆盖另一个市场。

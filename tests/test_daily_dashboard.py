@@ -679,13 +679,36 @@ class DailyDashboardTests(unittest.TestCase):
             entry_zone_low=100.0,
             entry_zone_high=105.0,
             structural_invalidation=90.0,
+            wave1_origin=60.0,
         )
 
         row = build_dashboard_projection(payload)["rows"][0]
+        self.assertEqual(row["decision"]["action"], "NO_TRADE")
+        self.assertEqual(row["decision"]["gate_reason"], "ABOVE_ENTRY_ZONE")
+        self.assertIsNone(row["manual_opportunity"]["formal_t1"])
+        self.assertIsNone(row["manual_opportunity"]["first_rr"])
+        self.assertEqual(
+            [item["label"] for item in row["manual_opportunity"]["wave3_targets"]],
+            [
+                "Wave3 结构目标 Fib 1.272",
+                "Wave3 结构目标 Fib 1.618",
+                "Wave3 结构目标 Fib 2.0",
+                "Wave3 结构目标 Fib 2.618",
+            ],
+        )
+        self.assertTrue(
+            all(item["upside_pct"] is not None for item in row["manual_opportunity"]["wave3_targets"])
+        )
         self.assertIn("允许入场区", row["manual_opportunity"]["system_conclusion"])
         rendered = render_dashboard_html(payload)
+        self.assertIn("Wave3 结构目标 / 人工机会空间", rendered)
+        self.assertIn("Fib 1.272", rendered)
+        self.assertIn("Fib 1.618", rendered)
+        self.assertIn("Fib 2.0", rendered)
+        self.assertIn("Fib 2.618", rendered)
+        self.assertIn("不等同正式 T1/T2/T3", rendered)
         self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
-        self.assertIn("正式 Decision 在 ABOVE_ENTRY_ZONE gate 处提前终止", rendered)
+        self.assertNotIn("第一障碍 / T1</div><div class=\"price\">140", rendered)
 
     def test_watch_with_and_without_wave3_context_are_explicit(self):
         base = {
