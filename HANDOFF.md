@@ -4,20 +4,20 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_CROSS_STAGE_CONSISTENCY_PR_READY`：继续 PR #135，PR 保持 open，branch
-`feat/daily-report-human-opportunity-v1` 未合并。本轮已修复并验收 SETUP_02 WATCH/ARMED
-causal projection、ABOVE_ENTRY_ZONE 独立参考诊断、用户可见语言与最终 HTML 本体一致性；
-此前 PR #133/#134 的 CN provider-forward 与 US Candidate lifecycle 状态不变；真实 D1
-activation 未执行。
+`DAILY_REPORT_CROSS_STAGE_CONSISTENCY_MERGED_WAITING_NATURAL_ACCEPTANCE`：PR #135
+已 squash merge 到 `main`。Daily Report human-opportunity、SETUP_02 WATCH/ARMED causal
+projection、ABOVE_ENTRY_ZONE 独立参考诊断、用户可见语言与 cross-stage consistency 已成为
+main 能力；此前 PR #133/#134 的 CN provider-forward 与 US Candidate lifecycle 状态不变；
+真实 D1 activation 未执行。
 
-当前结果只允许继续现有 PR #135；不得新建 PR 或 merge。branch / PR / HEAD / CI 继续从
-GitHub 实时核对，不以本文件作动态证明。最终 validation artifact 是
-`READ_ONLY_VALIDATION_REPLAY`，不代表 natural production acceptance；Opportunity Ledger
-natural acceptance 与 D1 activation 仍保持原边界。
+当前已无 PR #135 实现 blocker；merge commit、main HEAD 与 main CI 继续从 GitHub 实时核对，
+不以本文件作动态证明。最终 validation artifact 是 `READ_ONLY_VALIDATION_REPLAY`，不代表
+natural production acceptance；Opportunity Ledger natural acceptance 与 D1 activation 仍
+保持原边界。
 
 ## Current State / Completed
 
-- Daily Report human-opportunity UI PR：CN/US 使用同一个 `trading/daily_dashboard.py`
+- Daily Report human-opportunity UI（已 merged to main）：CN/US 使用同一个 `trading/daily_dashboard.py`
   renderer；展开顺序为“人工机会判断 → 确认后的交易判断 → 机会新鲜度 → 折叠结构依据 →
   折叠开发者原始数据”。WATCH/ARMED 缺少 anchor 时明确列出缺口，不从价格倒推目标。
 - `CONFIRMED + SETUP_01 + ABOVE_ENTRY_ZONE` 即使正式 target-before gate 提前终止，
@@ -93,16 +93,17 @@ natural acceptance 与 D1 activation 仍保持原边界。
   `artifacts/validation_replay/US/2026-10-02/daily-report.html`；两份最终 HTML 本体的
   `USER_VISIBLE_LANGUAGE_AUDIT` 与 `DAILY_REPORT_CONSISTENCY_MATRIX_V1` 均通过，formal
   T1/RR 未被参考值污染。
-- exact-head CI（test 与五个 generic shadows）均成功；PR 保持 open，未合并。
+- PR #135 exact-head required CI 全绿；merge 后 main CI 也已成功。PR #135 已 merged/closed，
+  main 已包含本轮能力。
 
 ## Blocker / Remaining Risks
 
-- 新 D1 activation 仍需独立治理授权；两次 merge 不写真实 VPS/GCS activation，不运行新
+- 新 D1 activation 仍需独立治理授权；本次 merge 不写真实 VPS/GCS activation，不运行新
   D1 V3 collector，不回填迁移窗口。
 - 601059/601198 保持 stale/unavailable；JMKE 的 `HISTORY_INSUFFICIENT` 与 lifecycle
   exclusions 是合法 fail-closed 结果。真实 prospective 结果必须等待自然 session，不能
   通过历史回填补齐。
-- `DAILY_REPORT_CROSS_STAGE_CONSISTENCY` 修复已完成；剩余风险仅为自然 production
+- `DAILY_REPORT_CROSS_STAGE_CONSISTENCY` 已 merged；剩余风险仅为自然 production
   acceptance、Opportunity Ledger natural acceptance 与独立授权的 D1 activation 边界，
   不把只读历史重放写成自然验收。
 - 旧保存 JSON 的 ARMED/WATCH anchor 缺口只能由未来自然日报重生成解决；不能通过历史
@@ -111,10 +112,10 @@ natural acceptance 与 D1 activation 仍保持原边界。
 
 ## Next Action
 
-等待 PR #135 review/用户决定，保持 PR open、不要 merge；后续自然 CN/US report、
-Opportunity Ledger T+1/10-session acceptance，以及未来经独立授权的 D1 decision 仍按原
-边界处理。不要为清零合法 unavailable/lifecycle 状态继续开发；不把 live probe 写成
-prospective D1 evidence。
+等待首次 post-merge 自然 CN/US Daily Report 与 Opportunity Ledger natural acceptance；
+后续 T+1/10-session acceptance，以及未来经独立授权的 D1 decision 仍按原边界处理。不要
+为清零合法 unavailable/lifecycle 状态继续开发；不把 READ_ONLY_VALIDATION_REPLAY、live
+probe 或历史回放写成 prospective/natural production acceptance。
 
 ## Constraints / Pitfalls
 

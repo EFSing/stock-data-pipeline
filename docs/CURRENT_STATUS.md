@@ -10,8 +10,9 @@
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
 > 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
 > merge 后首个自然 CN Daily Report 与 ledger natural acceptance pending；Daily Report
-> human-opportunity presentation 已在 PR #135（OPEN / PR-ready / proposed）实现于共享
-> renderer；该能力尚未进入 main，只有 PR merge 后才成为正式当前能力。单源 provider、
+> human-opportunity presentation / SETUP_02 causal projection / cross-stage consistency
+> 已随 PR #135 squash merge 进入 main。READ_ONLY_VALIDATION_REPLAY 只证明代码路径的
+> 严格 T 日回放，不等于 natural production acceptance 或 D1 evidence。单源 provider、
 > D1 V2 activation 与 natural production / D1 evidence 边界不变）。
 
 ## 项目身份
@@ -320,7 +321,7 @@
   不倒推价格。该 projection 仍仅供观察；正式确认时以确认日 Decision 重新计算为准，确认时
   超过正式区则不追价、不等待后续回踩补入，结构失效则放弃。它不产生 Decision、event、plan、
   Paper/state write、ranking 或交易 gate，production trading semantics unchanged。
-- PR #135 当前 follow-up 在 branch 上将 SETUP_02 的既有
+- 当前 main 将 SETUP_02 的既有
   `continuation_low0/high1/low2`（及已有 `continuation_high3`）映射到同一 canonical
   Wave3 extension helper，因此 WATCH/ARMED 有四个只读 1.272/1.618/2.0/2.618 目标及
   上涨空间，或明确真实 anchor 缺口；不搜索第二套 Swing，不改变 SETUP_02 状态机。
@@ -328,7 +329,7 @@
   它只消费现有 Production Daily Decision result/JSON，不计算新信号、不改变内部
   enum/protocol/交易语义。共享 CN/US renderer 现以“人工机会判断”优先，展开后先展示
   当前/正式判断参考价、确认价、入场区、结构风险、第一目标/阻力与3浪空间；
-  PR #135 的 proposed projection 还会将 SETUP_02 已生成的 `target_candidates` / provenance
+  已 merged 的 projection 会将 SETUP_02 已生成的 `target_candidates` / provenance
   转为与 SETUP_01 相同的目标卡片；若 `ABOVE_ENTRY_ZONE` 等 gate 在 candidate 生成前提前终止，
   但 continuation anchors 已足够，则只读人工层可展示 canonical Wave3 结构空间，并明确不等同正式 T1。
   随后保留“确认后的交易判断”和机会新鲜度，结构与判断依据、开发者原始数据默认折叠。
@@ -336,8 +337,8 @@
   使用 compact formatting，缺失字段显示可解释原因而非裸 `—`。独立展示修复默认优先显示今日重点，将确认与等待确认放在
   异常之前；“全部/诊断”仍可访问全部结果，静态 HTML 在没有 JavaScript 时也保留完整
   逐标的内容。原始质量/覆盖/前瞻审计默认折叠，报告覆盖数与成功分析数分开；评估失败
-  不冒充普通 NO_TRADE。该共享展示修复属于 PR #135 proposed implementation，待 PR 合并后才进入
-  main 正式能力地图。branch follow-up 另外为 `ABOVE_ENTRY_ZONE` 保存独立
+  不冒充普通 NO_TRADE。该共享展示修复已随 PR #135 merge 进入
+  main 正式能力地图。main 另外为 `ABOVE_ENTRY_ZONE` 保存独立
   `reference_target_diagnostics`（参考第一目标、来源、上涨空间、参考第一目标盈亏比及
   “不参与正式系统放行”说明），不回写 formal targets/RR/action/gate/execution/portfolio；
   并提供按 CN/US、Setup、Stage、Gate 的 `DAILY_REPORT_CONSISTENCY_MATRIX_V1`。股票以 compact row 展示，完整
@@ -346,11 +347,12 @@
    代码/公司名称前端搜索与既有 CN/US、策略类型、行业筛选。`scripts/render_daily_dashboard.py`
    可将已保存 JSON 写为 `reports/daily_dashboard/latest.html` 及日期版本；runner 通过
    显式 `--dashboard-output DIR` 选择性生成相同输出。
- - PR #135 follow-up 增加共享 Dashboard/email 的 `USER_VISIBLE_LANGUAGE_AUDIT`：只扫描普通
+ - merged Daily Report follow-up 增加共享 Dashboard/email 的 `USER_VISIBLE_LANGUAGE_AUDIT`：只扫描普通
    用户区域，开发者原始数据/审计区域不计入；输出 `user_visible_raw_enum_count`、
    `user_visible_internal_field_count`、`user_visible_unnecessary_english_count`、半中英提示计数，
-   并明确列出允许保留的 `SETUP_01`、`SETUP_02`、`T1/T2/T3`、`R/R`、`ATR14`、`CN/US`。当前
-   fixture Dashboard 与 email 均为三项验收计数 0；该能力待 PR 合并后进入 main 正式地图。
+  并明确列出允许保留的 `SETUP_01`、`SETUP_02`、`T1/T2/T3`、`R/R`、`ATR14`、`CN/US`。当前
+  fixture 与最终 READ_ONLY_VALIDATION_REPLAY Dashboard/email 均通过；该能力已进入 main
+  正式地图，但不代表 natural production acceptance。
  - 前瞻模拟交易跟踪 V1 已接入显式 `--paper-track` 路径：只对新 `CONFIRMED` 且已有
    individual `ENTRY_ALLOWED` 的 SETUP_01/02 事件创建 Paper plan，使用独立、append-only
    `策略模拟账本`；正式池与 Candidate-only 均保留原 provenance，Candidate 仍不晋级、不
@@ -570,7 +572,7 @@
   固定 5% gate 的一门移除反事实新增 `ENTRY_ALLOWED=0`；RR 分解报告 stop distance、
   first-target distance、both 与 insufficient-evidence 四类。formal pool 与 live
   Dynamic Candidate 未进入冻结样本，比较状态为
-  `INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE`。PR #135 当前实现已由
+  `INSUFFICIENT_EVIDENCE_FOR_FORMAL_VS_LIVE_CANDIDATE`。merged main 当前实现已由
   `daily_decision_chain` 的只读 context projection 透传 ARMED/WATCH causal snapshot、
   SETUP_01 anchors 与 canonical Wave3 presentation projection；历史保存且未包含新字段的
   JSON 会显示明确 data gap，等待下一次自然日报生成新 projection。最近 production daily-report
