@@ -4,16 +4,16 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_CROSS_STAGE_CONSISTENCY_FIX_IN_PROGRESS`：继续 PR #135，PR 保持 open，branch
-`feat/daily-report-human-opportunity-v1` 未合并。已发现此前 ready 结论与 branch HEAD 的
-真实 SETUP_02 WATCH/ARMED 投影、ABOVE_ENTRY_ZONE 参考诊断及最终 HTML 本体不一致；当前正在
-修复并重新验收，不能报告为 PR-ready。此前 PR #133/#134 的 CN provider-forward 与 US
-Candidate lifecycle 状态不变；真实 D1 activation 未执行。
+`DAILY_REPORT_CROSS_STAGE_CONSISTENCY_PR_READY`：继续 PR #135，PR 保持 open，branch
+`feat/daily-report-human-opportunity-v1` 未合并。本轮已修复并验收 SETUP_02 WATCH/ARMED
+causal projection、ABOVE_ENTRY_ZONE 独立参考诊断、用户可见语言与最终 HTML 本体一致性；
+此前 PR #133/#134 的 CN provider-forward 与 US Candidate lifecycle 状态不变；真实 D1
+activation 未执行。
 
-当前修复只允许继续现有 PR #135；不得新建 PR 或 merge。branch / PR / HEAD / CI 继续从
-GitHub 实时核对，不以本文件作动态证明。修复完成前不把此前 generic fixture audit 或
-旧 HTML 重渲染结果写成最终 acceptance；真实自然 production acceptance、Opportunity
-Ledger natural acceptance 与 D1 activation 仍保持原边界。
+当前结果只允许继续现有 PR #135；不得新建 PR 或 merge。branch / PR / HEAD / CI 继续从
+GitHub 实时核对，不以本文件作动态证明。最终 validation artifact 是
+`READ_ONLY_VALIDATION_REPLAY`，不代表 natural production acceptance；Opportunity Ledger
+natural acceptance 与 D1 activation 仍保持原边界。
 
 ## Current State / Completed
 
@@ -23,17 +23,17 @@ Ledger natural acceptance 与 D1 activation 仍保持原边界。
 - `CONFIRMED + SETUP_01 + ABOVE_ENTRY_ZONE` 即使正式 target-before gate 提前终止，
   也会从既有 Decision anchors 通过共享 canonical Wave3 projection 展示人工空间；正式
   T1/RR 仍为空，正式结论仍为确认有效但超过允许入场区、不追高。
-- 既有 Dashboard/email renderer 已支持 SETUP_02 target candidates 与中文化，但当前
-  follow-up 正在把 causal `continuation_low0/high1/low2` 投影接入 WATCH/ARMED，并为
-  `ABOVE_ENTRY_ZONE` 补独立参考第一目标诊断；正式 gate/action/target/RR 不变。
+- Dashboard/email renderer 已把 causal `continuation_low0/high1/low2`（及已有
+  `continuation_high3`）接入 WATCH/ARMED 的共享 Wave3 geometry helper，并为
+  `ABOVE_ENTRY_ZONE` 保存独立参考第一目标、来源、上涨空间与参考 R/R；正式
+  gate/action/target/RR 不变。
 - 用户可见普通区域已统一使用中文语义：3浪斐波那契、正式判断、参考目标、缺失原因、
   结构失效价等；开发者原始数据/审计区继续保留内部原值。共享 `html_consistency_audit()`
   提供 `USER_VISIBLE_LANGUAGE_AUDIT`，返回 raw enum、内部字段、不必要英文、半中英提示计数，
   以及完整允许保留缩写清单。
-- 实际保存的旧 CN/US Daily Report JSON 已生成新 HTML artifact；这些旧 JSON 尚未携带新
-  ARMED/WATCH anchor fields，artifact 对相应标的保留显式 data gap，不能写成新 projection
-  已在历史报告中自然存在。最终 artifact 使用 CN 2026-09-30 与 US 2026-10-02；US
-  2026-10-02 来自真实成功 HTML 的原始 Daily Decision 字段重建只读输入。
+- 旧 CN/US Daily Report JSON 不含完整历史行情前缀，不能被旧 JSON 重渲染冒充当前代码完整
+  重放。最终 artifact 使用 canonical provider 严格按 T 重建指定标的：CN 2026-09-30 的
+  `002436.SZ`，US 2026-10-02 的 `ANET`、`QCOM`、`SANM`、`SPCX`；均为只读重放。
 
 - `日报历史` 保存 market/session summary，复用已有日报漏斗和展示投影；同一 session
   使用行级 upsert，不清空历史表，不覆盖另一个市场。
@@ -68,8 +68,8 @@ Ledger natural acceptance 与 D1 activation 仍保持原边界。
 
 ## Validation
 
-- 既有 focused/full test 数量属于此前 HEAD 事实；本轮 consistency 修复完成前不沿用其
-  ready 结论，需重新执行完整 `unittest discover`、最终 artifact audit 与 exact-head CI。
+- 本轮 focused tests 141 passed；全量 `python -m unittest discover -s tests -v` 为
+  1007 passed、2 skipped；`compileall`/`py_compile` 与 `git diff --check` 通过。
 - Dashboard 与 email fixture 的 `USER_VISIBLE_LANGUAGE_AUDIT` 均为：
   `user_visible_raw_enum_count=0`、`user_visible_internal_field_count=0`、
   `user_visible_unnecessary_english_count=0`、`user_visible_mixed_language_count=0`；
@@ -88,13 +88,12 @@ Ledger natural acceptance 与 D1 activation 仍保持原边界。
 - post-merge US lifecycle sanity：HOLX → `LIFECYCLE_UNLISTED_OR_NO_MARKET`；VYLR-WI 保持
   identity 并 → `LIFECYCLE_WHEN_ISSUED`；JMKE → `HISTORY_INSUFFICIENT`；blank Exchange
   保持 ACTIVE/non-lifecycle；provider、strategy 与 affordability/history thresholds 未变。
-- 已保存的旧只读 CN/US HTML artifact 曾重新渲染，但旧 JSON 缺少本轮所需的
-  SETUP_02 continuation anchors/reference diagnostics，不能作为当前修复的最终验收：
-  `artifacts/daily_report_human_opportunity_v1/CN/2026-09-30-setup02-projection.html`
-  与 `artifacts/daily_report_human_opportunity_v1/US/2026-10-02-setup02-projection.html`；
-  CN 600901.SH 已展示 T1 + 四个 Fib，US SETUP_02 走同一 renderer。
-- 本轮 exact-head CI、最终 CN/US READ_ONLY_VALIDATION_REPLAY artifact、整页 audit 与
-  consistency matrix 待修复完成后重新取得；PR 保持 open，未合并。
+- 最终 `READ_ONLY_VALIDATION_REPLAY` artifact 为：
+  `artifacts/validation_replay/CN/2026-09-30/daily-report.html` 与
+  `artifacts/validation_replay/US/2026-10-02/daily-report.html`；两份最终 HTML 本体的
+  `USER_VISIBLE_LANGUAGE_AUDIT` 与 `DAILY_REPORT_CONSISTENCY_MATRIX_V1` 均通过，formal
+  T1/RR 未被参考值污染。
+- exact-head CI（test 与五个 generic shadows）均成功；PR 保持 open，未合并。
 
 ## Blocker / Remaining Risks
 
@@ -103,20 +102,19 @@ Ledger natural acceptance 与 D1 activation 仍保持原边界。
 - 601059/601198 保持 stale/unavailable；JMKE 的 `HISTORY_INSUFFICIENT` 与 lifecycle
   exclusions 是合法 fail-closed 结果。真实 prospective 结果必须等待自然 session，不能
   通过历史回填补齐。
-- 当前 blocker 是 `DAILY_REPORT_CROSS_STAGE_CONSISTENCY_FIX_IN_PROGRESS`：必须完成
-  SETUP_02 causal projection、ABOVE_ENTRY_ZONE reference diagnostics、最终 HTML 本体
-  audit 与治理校正后才能恢复 ready。生产自然 acceptance 仍是独立边界。
+- `DAILY_REPORT_CROSS_STAGE_CONSISTENCY` 修复已完成；剩余风险仅为自然 production
+  acceptance、Opportunity Ledger natural acceptance 与独立授权的 D1 activation 边界，
+  不把只读历史重放写成自然验收。
 - 旧保存 JSON 的 ARMED/WATCH anchor 缺口只能由未来自然日报重生成解决；不能通过历史
   artifact 回填伪造 Wave3 projection。浏览器安全策略拒绝本地 `file:` URL 的自动绑定，
   因此保留本地静态 artifact/文件预览验收证据，不把它写成真实浏览器验收已完成。
 
 ## Next Action
 
-完成本轮 consistency 修复、完整测试、CN/US READ_ONLY_VALIDATION_REPLAY artifact
-与最终 HTML audit 后，更新治理状态并推送到 PR #135；保持 PR open、不要 merge。随后再
-等待 PR review/用户决定、自然 CN/US report、Opportunity Ledger T+1/10-session acceptance
-及经独立授权的 D1 decision。不要为清零合法 unavailable/lifecycle 状态继续开发；不把
-live probe 写成 prospective D1 evidence。
+等待 PR #135 review/用户决定，保持 PR open、不要 merge；后续自然 CN/US report、
+Opportunity Ledger T+1/10-session acceptance，以及未来经独立授权的 D1 decision 仍按原
+边界处理。不要为清零合法 unavailable/lifecycle 状态继续开发；不把 live probe 写成
+prospective D1 evidence。
 
 ## Constraints / Pitfalls
 
@@ -136,4 +134,4 @@ live probe 写成 prospective D1 evidence。
 - formal reader 已合并到 main；公开 provider / synthetic 验证仍不能写成真实正式池自然
   恢复或自然生产验收。
 
-`HANDOFF_CURRENT_AND_CONSISTENT`（当前修复进行中；ready 状态须待最终验收后恢复）
+`HANDOFF_CURRENT_AND_CONSISTENT`
