@@ -11,8 +11,8 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 并覆盖 `ABOVE_ENTRY_ZONE` 的 causal Wave3 只读空间。此前 PR #133/#134 的 CN provider-
 forward 与 US Candidate lifecycle 状态不变；真实 D1 activation 未执行。
 
-当前代码 follow-up 尚待提交并推送到现有 PR；不得新建 PR 或 merge。merge 后尚无自然 CN
-Daily Report，状态为
+当前 code follow-up 已提交并推送到现有 PR；不得新建 PR 或 merge。新的 exact-head CI
+仍需从 GitHub 实时核对。merge 后尚无自然 CN Daily Report，状态为
 `WAITING_FOR_FIRST_POST_MERGE_CN_NATURAL_ACCEPTANCE`；Opportunity Ledger natural
 acceptance 也仍未发生。后续只等待自然 production acceptance，不继续扩大 Candidate
 规则或数据架构。branch / PR / HEAD / CI 继续从 GitHub 实时核对，不以本文件作动态证明。
@@ -88,8 +88,8 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
   `artifacts/daily_report_human_opportunity_v1/CN/2026-09-30-setup02-projection.html`
   与 `artifacts/daily_report_human_opportunity_v1/US/2026-10-02-setup02-projection.html`；
   CN 600901.SH 已展示 T1 + 四个 Fib，US SETUP_02 走同一 renderer。
-- 现有 PR 远端 head 的 GitHub checks 已通过；本地 follow-up 提交推送后仍需核对新的
-  exact-head CI。PR 保持 open，未合并。
+- 本次 follow-up 已推送到现有 PR；新的 exact-head CI 仍待 GitHub 实时核对。PR 保持
+  open，未合并。
 
 ## Blocker / Remaining Risks
 
@@ -103,12 +103,12 @@ acceptance 也仍未发生。后续只等待自然 production acceptance，不�
 - 旧保存 JSON 的 ARMED/WATCH anchor 缺口只能由未来自然日报重生成解决；不能通过历史
   artifact 回填伪造 Wave3 projection。浏览器安全策略拒绝本地 `file:` URL 的自动绑定，
   因此保留本地静态 artifact/文件预览验收证据，不把它写成真实浏览器验收已完成。
-- follow-up 尚未提交到远端 PR；在推送前 exact-head CI 尚未针对本次修改运行。
+- follow-up 已提交到远端 PR；在 exact-head CI 完成前，不把本次修改报告为 CI 完整通过。
 
 ## Next Action
 
-提交并推送本地 follow-up 到现有 PR #135，核对新的 exact-head CI 后保持 PR open、不要
-merge；后续自然 CN/US report、Opportunity Ledger T+1/10-session acceptance，以及未来
+核对新的 exact-head CI 后保持 PR open、不要 merge；后续自然 CN/US report、Opportunity
+Ledger T+1/10-session acceptance，以及未来
 经独立授权的 D1 decision 仍按原边界处理。不要为清零合法 unavailable/lifecycle 状态继续
 开发；不把 live probe 写成 prospective D1 evidence。
 
