@@ -361,6 +361,50 @@ def _target_candidates(
     return tuple(sorted(merged, key=lambda item: (item.price, item.source)))
 
 
+def reference_target_candidates(
+    event: Setup01ReplayEvent,
+    quotes: Sequence[Quote],
+    *,
+    swing_lookback: int = 5,
+) -> tuple[Setup01TargetCandidate, ...]:
+    """Rebuild the existing T-known candidates for read-only diagnostics.
+
+    This deliberately calls the same causal prefix and candidate builder used
+    by :func:`evaluate_setup01_decision`.  It does not return a Decision or
+    alter the formal target/gate contract when the formal evaluator stopped at
+    the entry-zone gate.
+    """
+
+    _validated_event(event)
+    prefix = _prefix_at_event(event, quotes)
+    snapshot = event.setup01
+    origin = snapshot.wave1_origin
+    peak = snapshot.wave1_peak
+    wave2_low = snapshot.wave2_low
+    confirmation = snapshot.confirmation_level
+    invalidation = snapshot.structural_invalidation
+    wave_invalidation = snapshot.wave_scenario_invalidation
+    if any(value is None for value in (origin, peak, wave2_low, confirmation, invalidation, wave_invalidation)):
+        return ()
+    planned_entry = float(prefix[-1].close)
+    if not (
+        origin.price < wave2_low.price < peak.price
+        and float(confirmation) == float(peak.price)
+        and float(invalidation) == float(wave2_low.price)
+        and float(wave_invalidation) == float(origin.price)
+        and planned_entry > float(confirmation)
+    ):
+        return ()
+    return _target_candidates(
+        prefix,
+        origin=origin,
+        peak=peak,
+        wave2_low=wave2_low,
+        entry=planned_entry,
+        swing_lookback=swing_lookback,
+    )
+
+
 def _targets_are_reasonable(
     candidates: Sequence[Setup01TargetCandidate],
     *,
@@ -1135,6 +1179,7 @@ __all__ = [
     "evaluate_setup01_decision",
     "evaluate_setup01_decision_stream",
     "execute_setup01_t1_open",
+    "reference_target_candidates",
     "setup01_decision_to_dict",
     "setup01_execution_to_dict",
     "setup01_target_projection",

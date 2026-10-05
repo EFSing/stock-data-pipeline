@@ -6,8 +6,13 @@ import unittest
 from trading.daily_dashboard import (
     build_dashboard_projection,
     dashboard_search_matches,
+    daily_report_consistency_matrix,
+    html_consistency_audit,
     load_dashboard_json,
     render_dashboard_html,
+    render_daily_report_email_html,
+    USER_VISIBLE_ALLOWED_ABBREVIATIONS,
+    user_visible_language_audit,
     write_dashboard_html,
 )
 
@@ -34,6 +39,160 @@ def _new_confirmation_no_trade_payload(gate_reason: str, **decision_fields) -> d
             "primary_action": "NO_TRADE",
             "event_was_new": True,
             "individual_decision": decision,
+            "portfolio_result": None,
+            "position_management": None,
+            "reasons": [],
+            "blocking_prerequisites": [],
+            "final_status": "NO_TRADE",
+        }],
+    }
+
+
+def _setup02_target_candidates(
+    *,
+    planned_entry: float = 6.94,
+    profile: str = "CN",
+) -> list[dict]:
+    if planned_entry == 6.94:
+        prices = (7.046002994011976, 7.0796, 7.2699, 7.48, 7.8199)
+        origin, peak, wave2_low = 6.2, 6.75, 6.38
+    elif profile == "RR":
+        prices = (108.0, 119.08, 124.27, 130.0, 139.27)
+        origin, peak, wave2_low = 90.0, 105.0, 100.0
+    else:
+        prices = (103.0, 103.36, 105.09, 107.0, 110.09)
+        origin, peak, wave2_low = 90.0, 95.0, 97.0
+    return [
+        {
+            "price": prices[0],
+            "source": "CONFIRMED_SWING_HIGH",
+            "reason": "T-known confirmed swing high",
+            "provenance": [{
+                "source": "CONFIRMED_SWING_HIGH",
+                "pivot_date": "2026-05-06",
+                "confirmed_date": "2026-05-07",
+                "extension_ratio": None,
+            }],
+        },
+        {
+            "price": prices[1],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 1.272",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 1.272,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+        {
+            "price": prices[2],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 1.618",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 1.618,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+        {
+            "price": prices[3],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 2.0",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 2.0,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+        {
+            "price": prices[4],
+            "source": "WAVE3_FIB_EXTENSION",
+            "reason": "existing extension 2.618",
+            "provenance": [{
+                "source": "WAVE3_FIB_EXTENSION",
+                "extension_ratio": 2.618,
+                "wave1_origin_price": origin,
+                "wave1_peak_price": peak,
+                "wave2_low_price": wave2_low,
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }],
+        },
+    ]
+
+
+def _setup02_confirmation_payload(
+    gate_reason: str,
+    *,
+    market: str = "CN",
+    symbol: str = "600901.SH",
+    above_entry_zone: bool = False,
+) -> dict:
+    planned_entry = 7.1 if above_entry_zone else (6.94 if market == "CN" else 100.0)
+    candidates = [] if above_entry_zone else _setup02_target_candidates(
+        planned_entry=planned_entry,
+        profile="RR" if gate_reason == "RR_BELOW_MINIMUM" else market,
+    )
+    targets = [item["price"] for item in candidates[:3]]
+    if above_entry_zone:
+        target_upside = None
+        rr = None
+    elif gate_reason == "RR_BELOW_MINIMUM":
+        target_upside = 0.08
+        rr = {"rr_ratios": [1.8, 2.4, 3.1], "quality": "NO_TRADE"}
+    else:
+        target_upside = (targets[0] - planned_entry) / planned_entry
+        rr = {"rr_ratios": [0.1692458211783177, 0.22, 0.53], "quality": "NO_TRADE"}
+    decision = {
+        "action": "NO_TRADE",
+        "gate_reason": gate_reason,
+        "planned_entry": planned_entry,
+        "confirmation_level": 7.0 if above_entry_zone else (6.89 if market == "CN" else 100.0),
+        "entry_zone_low": 7.0 if above_entry_zone else (6.89 if market == "CN" else 99.0),
+        "entry_zone_high": 7.05 if above_entry_zone else (6.9563 if market == "CN" else 102.0),
+        "structural_invalidation": 6.38 if above_entry_zone else (6.38 if market == "CN" else 90.0),
+        "execution_stop": None if above_entry_zone else (6.3137 if market == "CN" else 90.0),
+        "targets": targets,
+        "target_candidates": candidates,
+        "target_upside_pct": target_upside,
+        "target_upside_band": "BELOW_MINIMUM" if gate_reason == "TARGET_UPSIDE_BELOW_MINIMUM" else "PREFERRED_UPSIDE",
+        "minimum_target_upside_pct": 0.05,
+        "rr": rr,
+    }
+    if above_entry_zone:
+        decision.update({
+            "continuation_low0": {"price": 6.2},
+            "continuation_high1": {"price": 6.75},
+            "continuation_low2": {"price": 6.38},
+        })
+    return {
+        "as_of_date": "2026-09-30",
+        "results": [{
+            "symbol": symbol,
+            "market": market,
+            "data_status": "DATA_OK",
+            "primary_wave_scenario": "WAVE_3_CONTINUATION_CANDIDATE",
+            "alternate_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+            "setup01_state": "NONE",
+            "setup02_state": "CONFIRMED",
+            "primary_action": "NO_TRADE",
+            "event_was_new": True,
+            "new_confirmed_event_identities": [f"{symbol}|SETUP_02|2026-09-30|CONFIRMED"],
+            "individual_decision": decision,
+            "opportunity_freshness": {
+                "target_upside_pct": target_upside,
+                "target_upside_band": decision["target_upside_band"],
+                "minimum_target_upside_pct": 0.05,
+                "entry_zone_upper_distance_pct": 0.01 if above_entry_zone else -0.002,
+            },
             "portfolio_result": None,
             "position_management": None,
             "reasons": [],
@@ -79,7 +238,7 @@ class DailyDashboardTests(unittest.TestCase):
             },
         )
         self.assertEqual(projection["as_of_date"], "2026-09-03")
-        self.assertEqual(projection["demo_label"], "示例数据 / Synthetic Demo")
+        self.assertEqual(projection["demo_label"], "示例数据")
         self.assertEqual(
             {item["market"]: item["status_key"] for item in projection["markets"]},
             {"CN": "DATA_OK", "US": "DATA_OK"},
@@ -142,7 +301,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertTrue(any(item["symbol"] == "600001.SH" for item in diagnostics["data_issues"]))
         rendered = render_dashboard_html(payload)
         self.assertIn("异常标的及原因", rendered)
-        self.assertIn("qfq yfinance 数据日期落后于 T", rendered)
+        self.assertIn("复权行情日期早于数据日期", rendered)
         self.assertIn("HISTORY_INSUFFICIENT", rendered)
 
     def test_diagnostics_distinguish_normal_no_signal_from_missing_coverage(self):
@@ -466,7 +625,7 @@ class DailyDashboardTests(unittest.TestCase):
         end = rendered.index("</article>", start)
         float_card = rendered[start:end]
         user_view = float_card.split('<details class="technical-details">', 1)[0]
-        self.assertIn("3.7375", user_view)
+        self.assertIn("3.74", user_view)
         self.assertNotIn("3.737499999999997", user_view)
         self.assertIn("查看技术详情 / 审计信息", rendered)
 
@@ -493,7 +652,7 @@ class DailyDashboardTests(unittest.TestCase):
                     "minimum_target_upside_pct": 0.05,
                     "entry_zone_upper_distance_pct": -0.01,
                 },
-                ("确认成功", "仍在入场区", "T1空间 3.00% < 5.00%", "→ 不交易"),
+                ("确认成功", "仍在入场区", "第一目标空间 3.00% < 5.00%", "→ 不交易"),
             ),
             (
                 "RR_BELOW_MINIMUM",
@@ -502,7 +661,7 @@ class DailyDashboardTests(unittest.TestCase):
                     "entry_zone_upper_distance_pct": -0.01,
                     "rr": {"rr_ratios": [0.88], "quality": "NO_TRADE"},
                 },
-                ("确认成功", "仍在入场区", "T1空间 14.26%", "R/R 0.88", "R/R不足", "→ 不交易"),
+                ("确认成功", "仍在入场区", "第一目标空间 14.26%", "R/R 0.88", "R/R不足", "→ 不交易"),
             ),
             (
                 "STALE_CONFIRMATION_GEOMETRY",
@@ -566,6 +725,204 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertEqual(rows["600002.SH"]["waiting"], "等待收盘突破 123.45。")
         self.assertEqual(rows["600002.SH"]["plan"]["planned_entry"], "尚未形成")
         self.assertEqual(rows["600002.SH"]["plan"]["execution_stop"], "—")
+
+    def test_armed_setup01_shows_estimated_wave3_targets_and_keeps_observation_semantics(self):
+        payload = {
+            "as_of_date": "2026-09-30",
+            "results": [{
+                "symbol": "ARMED.WAVE3",
+                "market": "CN",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "alternate_wave_scenario": "UPTREND_UNKNOWN_WAVE",
+                "setup01_state": "ARMED",
+                "setup02_state": "NONE",
+                "primary_action": "WAIT_CONFIRMATION",
+                "event_was_new": False,
+                "individual_decision": None,
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": ["等待新的 CONFIRMED event"],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+                "armed_opportunity": {
+                    "projection": "ARMED_OPPORTUNITY_PROJECTION_V1",
+                    "status": "AVAILABLE",
+                    "state": "ARMED",
+                    "setup_type": "SETUP_01",
+                    "current_close": 100.0,
+                    "confirmation_level": 105.0,
+                    "distance_to_confirmation": 5.0,
+                    "distance_to_confirmation_pct": 0.05,
+                    "structural_invalidation": 90.0,
+                    "atr14": 2.0,
+                    "expected_entry_zone_low": 105.0,
+                    "expected_entry_zone_high": 106.0,
+                    "wave3_projection_status": "AVAILABLE",
+                    "wave3_missing_reasons": [],
+                    "wave3_fib_extensions": [
+                        {"ratio": 1.272, "ratio_label": "1.272", "price": 120.0, "upside_pct": 0.20},
+                        {"ratio": 1.618, "ratio_label": "1.618", "price": 130.0, "upside_pct": 0.30},
+                        {"ratio": 2.0, "ratio_label": "2.0", "price": 140.0, "upside_pct": 0.40},
+                        {"ratio": 2.618, "ratio_label": "2.618", "price": 160.0, "upside_pct": 0.60},
+                    ],
+                    "guidance": "等待收盘确认；当前仅为观察，不是买入信号。",
+                    "missing_reasons": [],
+                    "is_trade_signal": False,
+                },
+            }],
+        }
+
+        projection = build_dashboard_projection(payload)
+        row = projection["rows"][0]
+        self.assertEqual(row["manual_opportunity"]["wave3_targets"][1]["price"], 130.0)
+        rendered = render_dashboard_html(payload)
+        self.assertIn("人工机会判断", rendered)
+        self.assertIn("预估3浪目标与上涨空间", rendered)
+        self.assertIn("斐波那契 1.618", rendered)
+        self.assertIn("130", rendered)
+        self.assertIn("+30.00%", rendered)
+        self.assertIn("观察中，不是买入信号", rendered)
+        self.assertNotIn("确认后的交易判断", rendered)
+
+    def test_confirmed_target_projection_is_human_first_and_formal_gate_remains_visible(self):
+        payload = _new_confirmation_no_trade_payload(
+            "RR_BELOW_MINIMUM",
+            planned_entry=100.0,
+            confirmation_level=98.0,
+            entry_zone_low=98.0,
+            entry_zone_high=101.0,
+            structural_invalidation=90.0,
+            execution_stop=89.0,
+            targets=[102.0, 130.0, 150.0],
+            target_upside_pct=0.02,
+            minimum_target_upside_pct=0.05,
+            rr={"rr_ratios": [0.2], "quality": "NO_TRADE"},
+            target_projection={
+                "current_effective_t1": 102.0,
+                "effective_t1_source": "CONFIRMED_SWING_HIGH",
+                "nearest_overhead_confirmed_swing_high": {"price": 102.0},
+                "overhead_resistance_upside_pct": 0.02,
+                "wave3_fib_extensions": [
+                    {"ratio": 1.272, "ratio_label": "1.272", "price": 120.0, "upside_pct": 0.20},
+                    {"ratio": 1.618, "ratio_label": "1.618", "price": 140.0, "upside_pct": 0.40},
+                    {"ratio": 2.0, "ratio_label": "2.0", "price": 160.0, "upside_pct": 0.60},
+                    {"ratio": 2.618, "ratio_label": "2.618", "price": 190.0, "upside_pct": 0.90},
+                ],
+            },
+        )
+        payload["results"][0]["opportunity_freshness"] = {
+            "target_upside_pct": 0.02,
+            "target_upside_band": "BELOW_MINIMUM",
+            "minimum_target_upside_pct": 0.05,
+            "entry_zone_upper_distance_pct": -0.01,
+        }
+
+        row = build_dashboard_projection(payload)["rows"][0]
+        self.assertEqual(row["stage_key"], "CONFIRMED")
+        self.assertEqual(row["manual_opportunity"]["formal_t1"], 102.0)
+        rendered = render_dashboard_html(payload)
+        self.assertLess(rendered.index("人工机会判断"), rendered.index("确认后的交易判断"))
+        self.assertIn("3浪斐波那契 1.618", rendered)
+        self.assertIn("第一目标 R/R 未达到系统最低要求", rendered)
+        self.assertIn("确认后的交易判断", rendered)
+        self.assertIn("机会新鲜度", rendered)
+        self.assertIn("结构与判断依据（展开）", rendered)
+        self.assertNotIn("142.8699951171875", rendered)
+
+    def test_above_entry_zone_is_explained_without_recomputing_targets(self):
+        payload = _new_confirmation_no_trade_payload(
+            "ABOVE_ENTRY_ZONE",
+            planned_entry=110.0,
+            confirmation_level=100.0,
+            entry_zone_low=100.0,
+            entry_zone_high=105.0,
+            structural_invalidation=90.0,
+            wave1_origin=60.0,
+        )
+
+        row = build_dashboard_projection(payload)["rows"][0]
+        self.assertEqual(row["decision"]["action"], "NO_TRADE")
+        self.assertEqual(row["decision"]["gate_reason"], "ABOVE_ENTRY_ZONE")
+        self.assertIsNone(row["manual_opportunity"]["formal_t1"])
+        self.assertIsNone(row["manual_opportunity"]["first_rr"])
+        self.assertEqual(
+            [item["label"] for item in row["manual_opportunity"]["wave3_targets"]],
+            [
+                "3浪结构目标 斐波那契 1.272",
+                "3浪结构目标 斐波那契 1.618",
+                "3浪结构目标 斐波那契 2.0",
+                "3浪结构目标 斐波那契 2.618",
+            ],
+        )
+        self.assertTrue(
+            all(item["upside_pct"] is not None for item in row["manual_opportunity"]["wave3_targets"])
+        )
+        self.assertIn("允许入场区", row["manual_opportunity"]["system_conclusion"])
+        rendered = render_dashboard_html(payload)
+        self.assertIn("3浪结构目标 / 人工机会空间", rendered)
+        self.assertIn("斐波那契 1.272", rendered)
+        self.assertIn("斐波那契 1.618", rendered)
+        self.assertIn("斐波那契 2.0", rendered)
+        self.assertIn("斐波那契 2.618", rendered)
+        self.assertIn("不等同正式第一至第三目标", rendered)
+        self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
+        self.assertNotIn("第一障碍 / T1</div><div class=\"price\">140", rendered)
+
+    def test_watch_with_and_without_wave3_context_are_explicit(self):
+        base = {
+            "as_of_date": "2026-09-30",
+            "results": [{
+                "symbol": "WATCH.WAVE3",
+                "market": "US",
+                "data_status": "DATA_OK",
+                "primary_wave_scenario": "WAVE_2_TO_3_CANDIDATE",
+                "alternate_wave_scenario": "UNKNOWN",
+                "setup01_state": "WATCH",
+                "setup02_state": "NONE",
+                "primary_action": "WATCH",
+                "event_was_new": False,
+                "individual_decision": None,
+                "portfolio_result": None,
+                "position_management": None,
+                "reasons": [],
+                "blocking_prerequisites": [],
+                "final_status": "NO_TRADE",
+                "armed_opportunity": {
+                    "status": "AVAILABLE",
+                    "state": "WATCH",
+                    "setup_type": "SETUP_01",
+                    "current_close": 100.0,
+                    "confirmation_level": 105.0,
+                    "distance_to_confirmation_pct": 0.05,
+                    "structural_invalidation": 90.0,
+                    "expected_entry_zone_low": 105.0,
+                    "expected_entry_zone_high": 106.0,
+                    "wave3_projection_status": "DATA_UNAVAILABLE",
+                    "wave3_missing_reasons": ["WAVE1_ORIGIN_UNAVAILABLE"],
+                    "wave3_fib_extensions": [],
+                    "missing_reasons": [],
+                    "guidance": "当前仍在观察阶段；当前仅为观察，不是买入信号。",
+                },
+            }],
+        }
+        missing_html = render_dashboard_html(base)
+        self.assertIn("当前缺少：缺少1浪起点", missing_html)
+        self.assertIn("不能在展示层重新推算", missing_html)
+        self.assertNotIn("斐波那契 1.618", missing_html)
+
+        complete = deepcopy(base)
+        complete["results"][0]["armed_opportunity"].update({
+            "wave3_projection_status": "AVAILABLE",
+            "wave3_missing_reasons": [],
+            "wave3_fib_extensions": [
+                {"ratio": 1.272, "ratio_label": "1.272", "price": 120.0, "upside_pct": 0.20},
+                {"ratio": 1.618, "ratio_label": "1.618", "price": 130.0, "upside_pct": 0.30},
+            ],
+        })
+        complete_html = render_dashboard_html(complete)
+        self.assertIn("斐波那契 1.618", complete_html)
+        self.assertIn("+30.00%", complete_html)
 
     def test_search_matches_ticker_and_company_name(self):
         rows = {row["symbol"]: row for row in build_dashboard_projection(self.payload)["rows"]}
@@ -660,7 +1017,7 @@ class DailyDashboardTests(unittest.TestCase):
         start = rendered.index('data-search="REJECTED')
         end = rendered.index("</article>", start)
         rejected_card = rendered[start:end]
-        self.assertIn("尚未形成交易计划", rejected_card)
+        self.assertIn("人工机会判断", rejected_card)
         self.assertNotIn("关键价格", rejected_card)
         self.assertNotIn("入场区间", rejected_card)
 
@@ -777,9 +1134,197 @@ class DailyDashboardTests(unittest.TestCase):
 
         rendered = render_dashboard_html(payload)
         self.assertIn("保守第一障碍（最近已确认历史阻力）", rendered)
-        self.assertIn("Wave3 结构目标（最近 Fib 投射）", rendered)
-        self.assertIn("系统不是认为 Wave3 只有 1.00% 空间", rendered)
+        self.assertIn("3浪结构目标（最近斐波那契投射）", rendered)
+        self.assertIn("系统不是认为3浪只有 1.00% 空间", rendered)
         self.assertIn("按现有保守规则不交易", rendered)
+
+    def test_setup02_target_candidates_share_setup01_human_target_cards(self):
+        for market, symbol in (("CN", "600901.SH"), ("US", "SETUP02.US")):
+            with self.subTest(market=market):
+                payload = _setup02_confirmation_payload(
+                    "TARGET_UPSIDE_BELOW_MINIMUM",
+                    market=market,
+                    symbol=symbol,
+                )
+                row = build_dashboard_projection(payload)["rows"][0]
+                decision = row["decision"]
+                plan = row["plan"]
+                manual = row["manual_opportunity"]
+                expected_entry = 6.94 if market == "CN" else 100.0
+                expected_t1 = 7.046002994011976 if market == "CN" else 103.0
+                expected_fib = 7.0796 if market == "CN" else 103.36
+
+                self.assertEqual(decision["gate_reason"], "TARGET_UPSIDE_BELOW_MINIMUM")
+                self.assertEqual(plan["target_1"], "7.046" if market == "CN" else "103")
+                self.assertEqual(
+                    plan["target_upside_pct"],
+                    "1.53%" if market == "CN" else "3.00%",
+                )
+                self.assertEqual(
+                    plan["rr"],
+                    "0.17 / 0.22 / 0.53",
+                )
+                self.assertEqual(plan["nearest_wave3_fib_extension_ratio"], "1.272")
+                self.assertEqual(
+                    plan["nearest_wave3_fib_extension"],
+                    "7.0796" if market == "CN" else "103.36",
+                )
+                self.assertEqual(
+                    plan["wave3_fib_upside_pct"],
+                    "2.01%" if market == "CN" else "3.36%",
+                )
+                self.assertEqual(
+                    tuple(item["ratio_label"] for item in plan["target_projection"]["wave3_fib_extensions"]),
+                    ("1.272", "1.618", "2.0", "2.618"),
+                )
+                self.assertEqual(
+                    plan["target_projection"]["wave3_fib_extensions"][0]["provenance"][0]["formula_identity"],
+                    "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+                )
+                self.assertEqual(
+                    [item["label"] for item in manual["wave3_targets"]],
+                    [
+                        "第一障碍 / T1",
+                        "3浪斐波那契 1.272",
+                        "3浪斐波那契 1.618",
+                        "3浪斐波那契 2.0",
+                        "3浪斐波那契 2.618",
+                    ],
+                )
+                self.assertAlmostEqual(
+                    manual["wave3_targets"][1]["upside_pct"],
+                    (expected_fib - expected_entry) / expected_entry,
+                )
+                self.assertEqual(manual["formal_t1"], expected_t1)
+                self.assertEqual(row["today_conclusion"], "不交易：目标上涨空间不足")
+
+                rendered = render_dashboard_html(payload)
+                for label in ("第一障碍 / T1", "3浪斐波那契 1.272", "3浪斐波那契 1.618", "3浪斐波那契 2.0", "3浪斐波那契 2.618"):
+                    self.assertIn(label, rendered)
+                self.assertIn(
+                    "较参考价 +2.01%" if market == "CN" else "较参考价 +3.36%",
+                    rendered,
+                )
+                self.assertIn("确认有效，但第一目标剩余上涨空间不足最低要求，因此不交易。", rendered)
+
+    def test_setup02_rr_gate_keeps_formal_rr_and_shows_all_fib_targets(self):
+        payload = _setup02_confirmation_payload(
+            "RR_BELOW_MINIMUM",
+            market="US",
+            symbol="RR.SETUP02",
+        )
+        row = build_dashboard_projection(payload)["rows"][0]
+
+        self.assertEqual(row["decision"]["gate_reason"], "RR_BELOW_MINIMUM")
+        self.assertEqual(row["plan"]["target_1"], "108")
+        self.assertEqual(row["plan"]["target_upside_pct"], "8.00%")
+        self.assertEqual(row["plan"]["rr"], "1.80 / 2.40 / 3.10")
+        self.assertEqual(
+            [item["label"] for item in row["manual_opportunity"]["wave3_targets"]],
+            [
+                "第一障碍 / T1",
+                "3浪斐波那契 1.272",
+                "3浪斐波那契 1.618",
+                "3浪斐波那契 2.0",
+                "3浪斐波那契 2.618",
+            ],
+        )
+        rendered = render_dashboard_html(payload)
+        self.assertIn("第一目标 R/R", rendered)
+        self.assertIn("确认有效，但第一目标对应的 R/R 未达到系统最低要求，因此不交易。", rendered)
+        self.assertIn("3浪斐波那契 2.618", rendered)
+
+    def test_setup02_above_entry_zone_uses_causal_geometry_as_presentation_only(self):
+        payload = _setup02_confirmation_payload(
+            "ABOVE_ENTRY_ZONE",
+            market="CN",
+            symbol="600901.ABOVE",
+            above_entry_zone=True,
+        )
+        row = build_dashboard_projection(payload)["rows"][0]
+        manual = row["manual_opportunity"]
+
+        self.assertIsNone(manual["formal_t1"])
+        self.assertIsNone(manual["first_rr"])
+        self.assertTrue(manual["wave3_presentation_only"])
+        self.assertEqual(
+            [item["label"] for item in manual["wave3_targets"]],
+            [
+                "3浪结构目标 斐波那契 1.272",
+                "3浪结构目标 斐波那契 1.618",
+                "3浪结构目标 斐波那契 2.0",
+                "3浪结构目标 斐波那契 2.618",
+            ],
+        )
+        self.assertIn("超过允许入场区上沿", manual["system_conclusion"])
+        self.assertEqual(row["decision"]["gate_reason"], "ABOVE_ENTRY_ZONE")
+        rendered = render_dashboard_html(payload)
+        self.assertIn("不等同正式第一至第三目标", rendered)
+        self.assertIn("确认有效，但当前参考价已超过允许入场区上沿，因此本次不追高。", rendered)
+
+    def test_above_entry_zone_renders_reference_target_diagnostics_separately(self):
+        payload = _setup02_confirmation_payload(
+            "ABOVE_ENTRY_ZONE",
+            above_entry_zone=True,
+            symbol="002436.SZ",
+            market="CN",
+        )
+        payload["results"][0]["reference_target_diagnostics"] = {
+            "status": "AVAILABLE",
+            "reference_t1": 44.12,
+            "reference_t1_source": "CONFIRMED_SWING_HIGH",
+            "reference_t1_upside_pct": 0.077,
+            "reference_first_rr": 2.31,
+            "note": (
+                "正式系统已在超过允许入场区处判定不交易，以下数值仅供人工判断，"
+                "不参与正式系统放行。"
+            ),
+        }
+
+        html = render_dashboard_html(payload)
+
+        self.assertIn("第一目标 T1", html)
+        self.assertIn("未生成", html)
+        self.assertIn("参考第一目标", html)
+        self.assertIn("参考上涨空间", html)
+        self.assertIn("参考第一目标盈亏比 R/R", html)
+        self.assertIn("44.12", html)
+        self.assertIn("不参与正式系统放行", html)
+        self.assertEqual(
+            user_visible_language_audit(html)["user_visible_raw_enum_count"],
+            0,
+        )
+
+    def test_consistency_matrix_exposes_market_setup_stage_gate_metrics(self):
+        payload = _setup02_confirmation_payload(
+            "ABOVE_ENTRY_ZONE",
+            above_entry_zone=True,
+            symbol="002436.SZ",
+            market="CN",
+        )
+        payload["results"][0]["reference_target_diagnostics"] = {
+            "status": "AVAILABLE",
+            "reference_t1": 44.12,
+            "reference_t1_upside_pct": 0.077,
+            "reference_first_rr": 2.31,
+        }
+
+        matrix = daily_report_consistency_matrix(payload)
+
+        self.assertEqual(matrix["matrix_name"], "DAILY_REPORT_CONSISTENCY_MATRIX_V1")
+        self.assertIn("CN", matrix["markets"])
+        self.assertIn("SETUP_02", matrix["setups"])
+        self.assertIn("CONFIRMED", matrix["stages"])
+        self.assertIn("ABOVE_ENTRY_ZONE", matrix["gates"])
+        case = next(
+            item for item in matrix["cases"]
+            if item["market"] == "CN"
+            and item["setup"] == "SETUP_02"
+            and item["gate"] == "ABOVE_ENTRY_ZONE"
+        )
+        self.assertEqual(case["count"], 1)
+        self.assertEqual(case["missing_reference_or_formal_t1"], 0)
+        self.assertEqual(case["missing_reference_or_formal_rr"], 0)
 
     def test_identity_metadata_wave_mapping_and_input_immutability(self):
         original = deepcopy(self.payload)
@@ -822,7 +1367,7 @@ class DailyDashboardTests(unittest.TestCase):
         html = render_dashboard_html(self.payload)
 
         self.assertIn("示例科技&lt;&amp;", html)
-        self.assertIn("示例数据 / Synthetic Demo", html)
+        self.assertIn("示例数据", html)
         self.assertIn("专用设备", html)
         self.assertNotIn("示例科技<&", html)
         self.assertIn("关键价格", html)
@@ -873,7 +1418,7 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertNotIn("交易方案", html[armed_start:armed_end])
         self.assertIn("交易方案", html[proposal_start:proposal_end])
         self.assertIn("200", html[proposal_start:proposal_end])
-        self.assertIn("目标价 T1", html[proposal_start:proposal_end])
+        self.assertIn("第一目标 T1", html[proposal_start:proposal_end])
         self.assertIn("已形成交易方案", html[proposal_start:proposal_end])
 
     def test_same_input_is_deterministic_and_writer_creates_latest_and_date_copy(self):
@@ -980,6 +1525,38 @@ class DailyDashboardTests(unittest.TestCase):
         self.assertIn("上涨趋势中的3浪延续结构完成", html)
         self.assertIn("结构失效是波浪结构被破坏的底线", html)
         self.assertIn("DYNAMIC_CANDIDATE", html)
+
+    def test_user_visible_language_audit_excludes_developer_evidence_and_lists_allowed_abbreviations(self):
+        audit = html_consistency_audit(self.payload)
+        self.assertEqual(audit["USER_VISIBLE_LANGUAGE_AUDIT"]["audit_name"], "USER_VISIBLE_LANGUAGE_AUDIT")
+        for key in (
+            "user_visible_raw_enum_count",
+            "user_visible_internal_field_count",
+            "user_visible_unnecessary_english_count",
+            "user_visible_mixed_language_count",
+        ):
+            self.assertEqual(audit[key], 0)
+        self.assertEqual(audit["allowed_abbreviations"], list(USER_VISIBLE_ALLOWED_ABBREVIATIONS))
+        self.assertTrue(audit["passed"])
+
+        synthetic = (
+            "<main>ABOVE_ENTRY_ZONE Decision planned_entry Wave3</main>"
+            '<details class="technical-details"><summary>开发者原始数据</summary>'
+            "<pre>ABOVE_ENTRY_ZONE planned_entry Wave3</pre></details>"
+        )
+        violation = user_visible_language_audit(synthetic)
+        self.assertGreater(violation["user_visible_raw_enum_count"], 0)
+        self.assertGreater(violation["user_visible_internal_field_count"], 0)
+        self.assertGreater(violation["user_visible_unnecessary_english_count"], 0)
+        self.assertEqual(
+            user_visible_language_audit(
+                '<details class="technical-details"><pre>ABOVE_ENTRY_ZONE planned_entry Wave3</pre></details>'
+            )["user_visible_raw_enum_count"],
+            0,
+        )
+
+        email_audit = user_visible_language_audit(render_daily_report_email_html(self.payload))
+        self.assertTrue(email_audit["passed"])
 
 
 if __name__ == "__main__":

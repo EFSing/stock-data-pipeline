@@ -11,7 +11,7 @@ from trading.daily_decision_chain import (
     _armed_opportunity_projection,
 )
 from trading.daily_report_email import render_daily_report_email_html
-from trading.models import SetupState
+from trading.models import SetupState, SwingKind, SwingPoint
 from trading.setup01_decision import SETUP01_ENTRY_ZONE_ATR
 from trading.setup02_decision import SETUP02_ENTRY_ZONE_ATR
 
@@ -66,7 +66,121 @@ def _snapshot(state: SetupState, confirmation=118.0, invalidation=90.0):
     )
 
 
+def _setup01_snapshot_with_anchors(state: SetupState):
+    return SimpleNamespace(
+        state=state,
+        confirmation_level=120.0,
+        structural_invalidation=105.0,
+        wave1_origin=SwingPoint(
+            kind=SwingKind.LOW,
+            price=90.0,
+            pivot_index=5,
+            pivot_date=date(2026, 1, 6),
+            confirmed_index=10,
+            confirmed_date=date(2026, 1, 11),
+        ),
+        wave1_peak=SwingPoint(
+            kind=SwingKind.HIGH,
+            price=120.0,
+            pivot_index=12,
+            pivot_date=date(2026, 1, 13),
+            confirmed_index=17,
+            confirmed_date=date(2026, 1, 18),
+        ),
+        wave2_low=SwingPoint(
+            kind=SwingKind.LOW,
+            price=105.0,
+            pivot_index=18,
+            pivot_date=date(2026, 1, 19),
+            confirmed_index=19,
+            confirmed_date=date(2026, 1, 20),
+        ),
+    )
+
+
+def _setup02_snapshot_with_anchors(state: SetupState):
+    return SimpleNamespace(
+        state=state,
+        confirmation_level=120.0,
+        structural_invalidation=92.0,
+        continuation_low0=SwingPoint(
+            kind=SwingKind.LOW,
+            price=90.0,
+            pivot_index=5,
+            pivot_date=date(2026, 1, 6),
+            confirmed_index=10,
+            confirmed_date=date(2026, 1, 11),
+        ),
+        continuation_high1=SwingPoint(
+            kind=SwingKind.HIGH,
+            price=120.0,
+            pivot_index=12,
+            pivot_date=date(2026, 1, 13),
+            confirmed_index=17,
+            confirmed_date=date(2026, 1, 18),
+        ),
+        continuation_low2=SwingPoint(
+            kind=SwingKind.LOW,
+            price=105.0,
+            pivot_index=18,
+            pivot_date=date(2026, 1, 19),
+            confirmed_index=19,
+            confirmed_date=date(2026, 1, 20),
+        ),
+        continuation_high3=SwingPoint(
+            kind=SwingKind.HIGH,
+            price=120.0,
+            pivot_index=19,
+            pivot_date=date(2026, 1, 20),
+            confirmed_index=19,
+            confirmed_date=date(2026, 1, 20),
+        ),
+    )
+
+
 class ArmedOpportunityProjectionTests(unittest.TestCase):
+    def test_setup01_projection_carries_causal_anchors_and_canonical_wave3_extensions(self):
+        item = _input("US", "ANCHORS")
+        projection = _armed_opportunity_projection(
+            item,
+            _setup01_snapshot_with_anchors(SetupState.ARMED),
+            _snapshot(SetupState.NONE),
+        )
+
+        self.assertEqual(projection["wave3_projection_status"], "AVAILABLE")
+        self.assertEqual(
+            tuple(item["ratio_label"] for item in projection["wave3_fib_extensions"]),
+            ("1.272", "1.618", "2.0", "2.618"),
+        )
+        self.assertAlmostEqual(projection["wave3_fib_extensions"][0]["price"], 143.16)
+        self.assertAlmostEqual(projection["wave3_fib_extensions"][1]["upside_pct"], (153.54 - 115.0) / 115.0)
+        self.assertEqual(projection["wave3_anchors"]["wave1_origin"]["confirmed_index"], 10)
+        self.assertEqual(projection["wave3_fib_extensions"][0]["formula_identity"], "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO")
+
+    def test_watch_projection_uses_same_read_only_wave3_context(self):
+        item = _input("CN", "WATCH.ANCHORS")
+        projection = _armed_opportunity_projection(
+            item,
+            _setup01_snapshot_with_anchors(SetupState.WATCH),
+            _snapshot(SetupState.NONE),
+        )
+
+        self.assertEqual(projection["state"], "WATCH")
+        self.assertEqual(projection["wave3_projection_status"], "AVAILABLE")
+        self.assertIn("当前仍在观察阶段", projection["guidance"])
+
+    def test_missing_wave3_anchor_is_explicit_and_does_not_create_target(self):
+        item = _input("US", "MISSING.ANCHOR")
+        projection = _armed_opportunity_projection(
+            item,
+            _snapshot(SetupState.ARMED),
+            _snapshot(SetupState.NONE),
+        )
+
+        self.assertEqual(projection["wave3_projection_status"], "DATA_UNAVAILABLE")
+        self.assertIn("WAVE1_ORIGIN_UNAVAILABLE", projection["wave3_missing_reasons"])
+        self.assertEqual(projection["wave3_fib_extensions"], ())
+
     def test_setup01_us_projection_is_causal_and_uses_formal_entry_zone(self):
         item = _input("US", "AAA")
         projection = _armed_opportunity_projection(
@@ -106,6 +220,47 @@ class ArmedOpportunityProjectionTests(unittest.TestCase):
             projection["distance_to_confirmation_pct"],
             (120.0 - item.qfq_history[-1].close) / item.qfq_history[-1].close,
         )
+
+    def test_setup02_armed_projection_uses_continuation_anchors_and_four_fib_targets(self):
+        item = _input("US", "SETUP02.ARMED")
+        projection = _armed_opportunity_projection(
+            item,
+            _snapshot(SetupState.NONE),
+            _setup02_snapshot_with_anchors(SetupState.ARMED),
+        )
+
+        self.assertEqual(projection["wave3_projection_status"], "AVAILABLE")
+        self.assertEqual(
+            tuple(item["ratio_label"] for item in projection["wave3_fib_extensions"]),
+            ("1.272", "1.618", "2.0", "2.618"),
+        )
+        self.assertEqual(
+            projection["continuation_anchors"]["continuation_low0"]["price"],
+            90.0,
+        )
+        self.assertAlmostEqual(
+            projection["wave3_fib_extensions"][1]["upside_pct"],
+            (153.54 - 115.0) / 115.0,
+        )
+        self.assertNotIn(
+            "SETUP_TYPE_HAS_NO_WAVE3_WAVE1_ANCHOR_CONTRACT",
+            projection["wave3_missing_reasons"],
+        )
+
+    def test_setup02_watch_projection_reports_real_missing_continuation_anchor(self):
+        item = _input("CN", "SETUP02.WATCH.MISSING")
+        projection = _armed_opportunity_projection(
+            item,
+            _snapshot(SetupState.NONE),
+            _snapshot(SetupState.WATCH, confirmation=120.0, invalidation=92.0),
+        )
+
+        self.assertEqual(projection["wave3_projection_status"], "DATA_UNAVAILABLE")
+        self.assertIn(
+            "CONTINUATION_LOW0_UNAVAILABLE",
+            projection["wave3_missing_reasons"],
+        )
+        self.assertEqual(projection["wave3_fib_extensions"], ())
 
     def test_missing_causal_fields_fail_closed(self):
         projection = _armed_opportunity_projection(
@@ -178,11 +333,11 @@ class ArmedOpportunityProjectionTests(unittest.TestCase):
         email_html = render_daily_report_email_html(payload)
         self.assertIn("机会观察", html)
         self.assertIn("观察中，不是买入信号", html)
-        self.assertIn("预计入场区（按当前 ATR，仅供观察）", html)
-        self.assertIn("预计入场区（按当前 ATR，仅供观察）", email_html)
+        self.assertIn("预计入场区（按当前 ATR14，仅供观察）", html)
+        self.assertIn("预计入场区（按当前 ATR14，仅供观察）", email_html)
         for rendered in (html, email_html):
-            self.assertIn("按当前 ATR 估算", rendered)
-            self.assertIn("未来正式确认时以确认日 Decision 为准", rendered)
+            self.assertIn("按当前 ATR14 估算", rendered)
+            self.assertIn("未来正式确认时以确认日正式判断为准", rendered)
             self.assertIn("不追价，不等待后续回踩补入", rendered)
             self.assertIn("结构失效则放弃", rendered)
             self.assertNotIn("确认后预期观察入场区", rendered)

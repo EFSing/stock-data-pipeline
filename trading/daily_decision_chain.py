@@ -19,6 +19,7 @@ from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 from core import Quote
 from research.market_sessions import DEVELOPMENT_SESSION_IDENTITY
+from trading.fibonacci import EXTENSION_RATIOS, project_extension
 from trading.models import DecisionAction, SetupState, Trend, validate_quote_series
 from trading.portfolio_risk import (
     BASE_RISK_FRACTION,
@@ -40,6 +41,7 @@ from trading.portfolio_risk import (
 from trading.risk import (
     MIN_TARGET_UPSIDE_PCT,
     relative_distance_pct,
+    risk_reward,
     target_upside_band,
     target_upside_pct,
 )
@@ -60,6 +62,7 @@ from trading.setup01_decision import (
     Setup01Decision,
     evaluate_setup01_decision,
     execute_setup01_t1_open,
+    reference_target_candidates as setup01_reference_target_candidates,
     setup01_decision_to_dict,
     setup01_target_projection,
 )
@@ -72,6 +75,7 @@ from trading.setup02_decision import (
     Setup02Decision,
     evaluate_setup02_decision,
     execute_setup02_t1_open,
+    reference_target_candidates as setup02_reference_target_candidates,
 )
 from trading.setup02_replay import Setup02ReplayEvent, Setup02ReplayReport, replay_setup02_history
 from trading.wave import WAVE_ENGINE_PROTOCOL_VERSION, evaluate_wave_scenario, evaluation_to_dict
@@ -266,6 +270,9 @@ class DailyDecisionResult:
     remaining_target_upside_pct: float | None = None
     opportunity_freshness: dict[str, Any] = field(default_factory=dict)
     armed_opportunity: dict[str, Any] = field(default_factory=dict)
+    # Read-only diagnostics for a formal ABOVE_ENTRY_ZONE result.  These facts
+    # are intentionally separate from the formal Decision's targets/RR/action.
+    reference_target_diagnostics: dict[str, Any] = field(default_factory=dict)
     # Retained as an internal bridge for explicit paper tracking and other
     # read-only explainers.  It is the same selected replay event already
     # used by this result; no second event identity or evaluation is created.
@@ -330,6 +337,17 @@ class DailyTradingDecisionReport:
                     f"- Entry Zone：{_range(entry, entry_high)}；Stop：{getattr(decision, 'execution_stop', None) if decision else None}",
                     f"- T1/T2/T3：{_targets(targets)}；T1 RR：{_first_rr(rr)}；RR质量：{getattr(rr, 'quality', None) if rr else None}",
                     *target_projection_markdown(decision),
+                    *(
+                        [
+                            "- 参考目标诊断（仅供人工判断）："
+                            f"参考第一目标 {_value(result.reference_target_diagnostics.get('reference_t1'))}；"
+                            f"参考上涨空间 {_pct(result.reference_target_diagnostics.get('reference_t1_upside_pct'))}；"
+                            f"参考第一目标盈亏比 {_value(result.reference_target_diagnostics.get('reference_first_rr'))}；"
+                            f"{result.reference_target_diagnostics.get('note', '')}"
+                        ]
+                        if result.reference_target_diagnostics
+                        else []
+                    ),
                     f"- 机会新鲜度：T1空间 {_pct(freshness.get('target_upside_pct'))}；入场区上沿距离 {_pct(freshness.get('entry_zone_upper_distance_pct'))}；T+1 gap {_pct(freshness.get('t1_gap_vs_planned_entry_pct'))}；T+1剩余空间 {_pct(freshness.get('remaining_target_upside_pct'))}",
                     f"- Portfolio Risk：{portfolio.status + ' / ' + portfolio.reason if portfolio else '—'}",
                     f"- Position Management：{pm.status + ' / ' + (pm.action or '—') if pm else '—'}",
@@ -1036,6 +1054,11 @@ class DailyDecisionChain:
             setup01_current,
             setup02_current,
         )
+        reference_target_diagnostics = _reference_target_diagnostics(
+            selected_event,
+            decision,
+            item.qfq_history,
+        )
         if prior_result is not None and not settlement:
             prior_freshness = getattr(prior_result, "opportunity_freshness", {})
             if isinstance(prior_freshness, Mapping):
@@ -1076,6 +1099,7 @@ class DailyDecisionChain:
             remaining_target_upside_pct=row.get("remaining_target_upside_pct"),
             opportunity_freshness=opportunity_freshness,
             armed_opportunity=armed_opportunity,
+            reference_target_diagnostics=reference_target_diagnostics,
             reasons=tuple(str(value) for value in row.get("reasons", ())),
             blocking_prerequisites=tuple(str(value) for value in row.get("blocking", ())),
             protocol_versions={
@@ -1343,13 +1367,25 @@ def _armed_opportunity_projection(
     setup01: Any,
     setup02: Any,
 ) -> dict[str, Any]:
-    """Project current causal ARMED context without creating a trade decision."""
+    """Project current causal pre-confirmation context without a trade decision.
+
+    The existing ``armed_opportunity`` field is retained for compatibility with
+    saved reports, but it now also carries WATCH context.  SETUP_01 and
+    SETUP_02 anchors are copied from the already-evaluated causal snapshot and
+    the Wave3 projection calls the canonical Fibonacci extension helper.
+    Nothing here creates a Decision, target gate, event, or persistent
+    lifecycle.
+    """
 
     armed = [
         ("SETUP_01", setup01, SETUP01_ATR_PERIOD, SETUP01_ENTRY_ZONE_ATR),
         ("SETUP_02", setup02, SETUP02_ATR_PERIOD, SETUP02_ENTRY_ZONE_ATR),
     ]
-    armed = [row for row in armed if getattr(row[1], "state", None) is SetupState.ARMED]
+    armed = [
+        row
+        for row in armed
+        if getattr(row[1], "state", None) in {SetupState.WATCH, SetupState.ARMED}
+    ]
     if not armed:
         return {}
 
@@ -1357,6 +1393,7 @@ def _armed_opportunity_projection(
         "projection": ARMED_OPPORTUNITY_PROJECTION_VERSION,
         "status": "DATA_UNAVAILABLE",
         "setup_type": None,
+        "state": None,
         "as_of_date": item.as_of_date.isoformat(),
         "current_close": None,
         "confirmation_level": None,
@@ -1366,6 +1403,11 @@ def _armed_opportunity_projection(
         "atr14": None,
         "expected_entry_zone_low": None,
         "expected_entry_zone_high": None,
+        "wave3_projection_status": "NOT_AVAILABLE",
+        "wave3_fib_extensions": (),
+        "wave3_missing_reasons": (),
+        "wave3_anchors": {},
+        "continuation_anchors": {},
         "guidance": "数据不足，不能形成机会观察投影。",
         "missing_reasons": (),
         "is_trade_signal": False,
@@ -1375,6 +1417,7 @@ def _armed_opportunity_projection(
         return base
 
     setup_type, snapshot, atr_period, entry_zone_atr = armed[0]
+    state = getattr(snapshot, "state", None)
     close = float(item.qfq_history[-1].close) if item.qfq_history else None
     confirmation = _finite_positive(getattr(snapshot, "confirmation_level", None))
     invalidation = _finite_positive(
@@ -1398,16 +1441,35 @@ def _armed_opportunity_projection(
 
     base.update(
         setup_type=setup_type,
+        state=getattr(state, "value", state),
         current_close=close,
         confirmation_level=confirmation,
         structural_invalidation=invalidation,
         atr14=atr14,
         missing_reasons=tuple(missing),
     )
+    if close is not None:
+        if setup_type == "SETUP_01":
+            wave3_projection = _setup01_preconfirmation_wave3_projection(
+                snapshot,
+                current_close=close,
+                as_of_index=len(item.qfq_history) - 1,
+            )
+            base.update(wave3_projection)
+        else:
+            base.update(
+                _setup02_preconfirmation_wave3_projection(
+                    snapshot,
+                    current_close=close,
+                    as_of_index=len(item.qfq_history) - 1,
+                )
+            )
+
     if missing:
         return base
 
     distance = confirmation - close
+    state_label = getattr(state, "value", state)
     base.update(
         status="AVAILABLE",
         distance_to_confirmation=distance,
@@ -1415,13 +1477,285 @@ def _armed_opportunity_projection(
         expected_entry_zone_low=confirmation,
         expected_entry_zone_high=confirmation + entry_zone_atr * atr14,
         guidance=(
-            "等待收盘确认；当前仅为观察，不是买入信号。预计入场区按当前 ATR 估算，"
+            ("当前仍在观察阶段；" if state_label == SetupState.WATCH.value else "等待收盘确认；")
+            + "当前仅为观察，不是买入信号。预计入场区按当前 ATR 估算，"
             "未来正式确认时以确认日 Decision 为准；若确认时已超过正式入场区，则按现有规则"
             "不追价，不等待后续回踩补入。结构失效则放弃。"
         ),
         missing_reasons=(),
     )
     return base
+
+
+def _swing_anchor_projection(swing: Any) -> dict[str, Any] | None:
+    """Serialize an existing causal SwingPoint for a read-only projection."""
+
+    if swing is None:
+        return None
+    pivot_date = getattr(swing, "pivot_date", None)
+    confirmed_date = getattr(swing, "confirmed_date", None)
+    return {
+        "kind": getattr(getattr(swing, "kind", None), "value", getattr(swing, "kind", None)),
+        "price": getattr(swing, "price", None),
+        "pivot_index": getattr(swing, "pivot_index", None),
+        "pivot_date": pivot_date.isoformat() if hasattr(pivot_date, "isoformat") else pivot_date,
+        "confirmed_index": getattr(swing, "confirmed_index", None),
+        "confirmed_date": (
+            confirmed_date.isoformat()
+            if hasattr(confirmed_date, "isoformat")
+            else confirmed_date
+        ),
+    }
+
+
+def _anchor_projection(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if _finite_positive(value) is not None:
+        return {
+            "price": float(value),
+            "pivot_index": None,
+            "pivot_date": None,
+            "confirmed_index": None,
+            "confirmed_date": None,
+        }
+    return _swing_anchor_projection(value)
+
+
+def project_wave3_extensions(
+    anchors: Mapping[str, Any],
+    *,
+    current_close: float,
+    as_of_index: int | None = None,
+    require_confirmed: bool = False,
+    anchor_names: Sequence[str] = (
+        "wave1_origin",
+        "wave1_peak",
+        "wave2_low",
+    ),
+) -> dict[str, Any]:
+    """Project Wave3 geometry from an existing causal anchor set.
+
+    ``anchors`` may contain evaluator SwingPoints or a serialized read-only
+    Decision/event projection.  Callers supply the names used by their
+    already-evaluated structure (for example ``continuation_low0``), while
+    the geometry remains one shared implementation over canonical
+    ``EXTENSION_RATIOS`` and ``project_extension``.
+    """
+
+    names = tuple(anchor_names)
+    if len(names) != 3 or any(not name for name in names):
+        raise ValueError("project_wave3_extensions requires exactly three anchor names")
+    source_names = ("wave1_origin", "wave1_peak", "wave2_low")
+    anchor_values = {
+        name: anchors.get(source_name, anchors.get(name))
+        for source_name, name in zip(source_names, names)
+    }
+    projected_anchors = {
+        name: _anchor_projection(value)
+        for name, value in anchor_values.items()
+    }
+    missing: list[str] = []
+    prices: dict[str, float] = {}
+    for name, anchor in projected_anchors.items():
+        if anchor is None:
+            missing.append(f"{name.upper()}_UNAVAILABLE")
+            continue
+        price = _finite_positive(anchor.get("price"))
+        if price is None:
+            missing.append(f"{name.upper()}_PRICE_UNAVAILABLE")
+        else:
+            prices[name] = price
+        if require_confirmed:
+            confirmed_index = anchor.get("confirmed_index")
+            if confirmed_index is None:
+                missing.append(f"{name.upper()}_NOT_CONFIRMED")
+            else:
+                try:
+                    if as_of_index is not None and int(confirmed_index) > as_of_index:
+                        missing.append(f"{name.upper()}_CONFIRMED_AFTER_AS_OF")
+                except (TypeError, ValueError):
+                    missing.append(f"{name.upper()}_CONFIRMATION_INDEX_INVALID")
+
+    if not missing:
+        origin = prices[names[0]]
+        peak = prices[names[1]]
+        wave2_low = prices[names[2]]
+        if not (origin < wave2_low < peak):
+            missing.append(
+                "WAVE1_WAVE2_ANCHOR_ORDER_INVALID"
+                if names == ("wave1_origin", "wave1_peak", "wave2_low")
+                else f"{names[0].upper()}_{names[2].upper()}_ANCHOR_ORDER_INVALID"
+            )
+        if current_close <= 0 or not math.isfinite(float(current_close)):
+            missing.append("CURRENT_CLOSE_UNAVAILABLE")
+
+    if missing:
+        return {
+            "wave3_projection_status": "DATA_UNAVAILABLE",
+            "wave3_fib_extensions": (),
+            "wave3_missing_reasons": tuple(dict.fromkeys(missing)),
+            "wave3_anchors": projected_anchors,
+        }
+
+    extensions = []
+    for ratio_name, ratio in EXTENSION_RATIOS.items():
+        price = project_extension(wave2_low, origin, peak, ratio)
+        extensions.append(
+            {
+                "ratio": float(ratio),
+                "ratio_label": ratio_name,
+                "price": float(price),
+                "upside_pct": relative_distance_pct(price, current_close),
+                "source": "WAVE3_FIB_EXTENSION",
+                "formula_identity": "LOW2_PLUS_(HIGH1_MINUS_LOW0)_TIMES_EXTENSION_RATIO",
+            }
+        )
+    return {
+        "wave3_projection_status": "AVAILABLE",
+        "wave3_fib_extensions": tuple(extensions),
+        "wave3_missing_reasons": (),
+        "wave3_anchors": projected_anchors,
+        "wave3_reference_price": current_close,
+    }
+
+
+def project_setup01_wave3_extensions(
+    anchors: Mapping[str, Any],
+    *,
+    current_close: float,
+    as_of_index: int | None = None,
+    require_confirmed: bool = False,
+) -> dict[str, Any]:
+    """Backward-compatible SETUP_01 adapter for the shared geometry helper."""
+
+    return project_wave3_extensions(
+        anchors,
+        current_close=current_close,
+        as_of_index=as_of_index,
+        require_confirmed=require_confirmed,
+    )
+
+
+def _setup01_preconfirmation_wave3_projection(
+    snapshot: Any,
+    *,
+    current_close: float,
+    as_of_index: int,
+) -> dict[str, Any]:
+    """Project canonical Wave3 extensions from existing SETUP_01 anchors.
+
+    The evaluator has already enforced the Wave/Swing causal boundary.  This
+    helper only copies those anchors and calls the shared Fibonacci geometry;
+    it never searches swings or infers anchors from prices.
+    """
+
+    return project_wave3_extensions(
+        {
+            "wave1_origin": getattr(snapshot, "wave1_origin", None),
+            "wave1_peak": getattr(snapshot, "wave1_peak", None),
+            "wave2_low": getattr(snapshot, "wave2_low", None),
+        },
+        current_close=current_close,
+        as_of_index=as_of_index,
+        require_confirmed=True,
+    )
+
+
+def _setup02_preconfirmation_wave3_projection(
+    snapshot: Any,
+    *,
+    current_close: float,
+    as_of_index: int,
+) -> dict[str, Any]:
+    """Project SETUP_02 continuation geometry without searching new swings."""
+
+    names = ("continuation_low0", "continuation_high1", "continuation_low2")
+    anchors = {name: getattr(snapshot, name, None) for name in names}
+    projection = project_wave3_extensions(
+        anchors,
+        current_close=current_close,
+        as_of_index=as_of_index,
+        require_confirmed=True,
+        anchor_names=names,
+    )
+    continuation_anchors = {
+        name: _anchor_projection(getattr(snapshot, name, None))
+        for name in (*names, "continuation_high3")
+    }
+    return {
+        **projection,
+        "continuation_anchors": continuation_anchors,
+    }
+
+
+def _reference_target_diagnostics(
+    event: Any,
+    decision: Any,
+    quotes: Sequence[Quote],
+) -> dict[str, Any]:
+    """Build human-only reference T1/RR diagnostics from the causal T prefix."""
+
+    gate_reason = _value(_field_value(decision, "gate_reason"))
+    if event is None or decision is None or gate_reason != "ABOVE_ENTRY_ZONE":
+        return {}
+
+    labels = {
+        "reference_t1_label": "参考第一目标",
+        "reference_t1_upside_label": "参考上涨空间",
+        "reference_first_rr_label": "参考第一目标盈亏比",
+        "note": (
+            "正式系统已在超过允许入场区处判定不交易，以下数值仅供人工判断，"
+            "不参与正式系统放行。"
+        ),
+    }
+    try:
+        if hasattr(event, "setup01"):
+            candidates = setup01_reference_target_candidates(event, quotes)
+        elif hasattr(event, "setup02"):
+            candidates = setup02_reference_target_candidates(event, quotes)
+        else:
+            candidates = ()
+        entry = float(_field_value(decision, "planned_entry"))
+        execution_stop = float(_field_value(decision, "execution_stop"))
+        if not candidates:
+            return {
+                "status": "DATA_UNAVAILABLE",
+                "as_of_date": getattr(getattr(event, "trade_date", None), "isoformat", lambda: None)(),
+                "reference_t1": None,
+                "reference_t1_source": None,
+                "reference_t1_upside_pct": None,
+                "reference_first_rr": None,
+                "missing_reasons": ("NO_VALID_TARGET",),
+                "calculation_boundary": "T_DAY_CAUSAL_PREFIX",
+                **labels,
+            }
+        t1 = candidates[0]
+        upside = relative_distance_pct(float(t1.price), entry)
+        reference_rr = risk_reward(entry, execution_stop, (float(t1.price),))
+        return {
+            "status": "AVAILABLE",
+            "as_of_date": getattr(getattr(event, "trade_date", None), "isoformat", lambda: None)(),
+            "reference_t1": float(t1.price),
+            "reference_t1_source": str(t1.source),
+            "reference_t1_upside_pct": upside,
+            "reference_first_rr": reference_rr.rr_ratios[0],
+            "missing_reasons": (),
+            "calculation_boundary": "T_DAY_CAUSAL_PREFIX",
+            **labels,
+        }
+    except (TypeError, ValueError, AttributeError):
+        return {
+            "status": "DATA_UNAVAILABLE",
+            "as_of_date": getattr(getattr(event, "trade_date", None), "isoformat", lambda: None)(),
+            "reference_t1": None,
+            "reference_t1_source": None,
+            "reference_t1_upside_pct": None,
+            "reference_first_rr": None,
+            "missing_reasons": ("REFERENCE_DIAGNOSTICS_UNAVAILABLE",),
+            "calculation_boundary": "T_DAY_CAUSAL_PREFIX",
+            **labels,
+        }
 
 
 def _finite_positive(value: Any) -> float | None:
@@ -1674,6 +2008,8 @@ __all__ = [
     "daily_decision_result_to_dict",
     "daily_report_json",
     "opportunity_freshness_funnel",
+    "project_wave3_extensions",
+    "project_setup01_wave3_extensions",
     "require_production_universe",
     "target_projection_markdown",
 ]

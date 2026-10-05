@@ -34,13 +34,32 @@ _STATUS_LABELS = {
     "PROVIDER_GLOBAL_FAILURE": "供应商全局故障",
     "FAILED": "数据异常",
 }
+_STATUS_VALUE_LABELS = {
+    "COMPLETED": "已完成",
+    "SUCCESS": "成功",
+    "PARTIAL": "部分完成",
+    "DATA_OK": "数据正常",
+    "NO_TRADE": "不交易",
+    "NOT_RUN": "未运行",
+    "FAILED": "失败",
+    "RUNNING": "运行中",
+}
+_REASON_LABELS = {
+    "ABOVE_ENTRY_ZONE": "已超过允许入场区",
+    "TARGET_UPSIDE_BELOW_MINIMUM": "第一目标上涨空间不足",
+    "RR_BELOW_MINIMUM": "第一目标盈亏比不足",
+    "NO_VALID_TARGET": "没有有效第一目标",
+    "ATR_UNAVAILABLE": "缺少 ATR14",
+    "INVALID_STRUCTURE": "交易结构未通过检查",
+    "STALE_CONFIRMATION_GEOMETRY": "确认结构已过期",
+}
 _MARKET_LABELS = {"CN": "A股", "US": "美股"}
 _PLAN_STAGES = frozenset(("ENTRY_ALLOWED", "STRATEGY_PROPOSAL"))
 _EXECUTION_COPY = {
-    "EXECUTED": "T+1 开盘已通过执行检查并记录模拟成交",
-    "SKIP_TARGET_UPSIDE_BELOW_MINIMUM": "T+1 剩余第一目标空间低于5%，已跳过，不追入",
-    "SKIP_GAP_BELOW_CONFIRMATION": "T+1 低开回到确认价下方，已按原规则跳过",
-    "SKIP_GAP_ABOVE_ENTRY_ZONE": "T+1 高开超过允许入场区，已按原规则跳过",
+    "EXECUTED": "下一交易日开盘已通过执行检查并记录模拟成交",
+    "SKIP_TARGET_UPSIDE_BELOW_MINIMUM": "下一交易日剩余第一目标空间低于5%，已跳过，不追入",
+    "SKIP_GAP_BELOW_CONFIRMATION": "下一交易日低开回到确认价下方，已按原规则跳过",
+    "SKIP_GAP_ABOVE_ENTRY_ZONE": "下一交易日高开超过允许入场区，已按原规则跳过",
 }
 _NO_TRADE_COPY = {
     "RR_BELOW_MINIMUM": ("不交易", "收益风险比不足"),
@@ -97,11 +116,51 @@ def _human(value: Any, default: str) -> str:
     return text
 
 
+def _presentation_text(value: Any, default: str = "") -> str:
+    """Translate retained technical prose for the ordinary mail view."""
+
+    text = _text(value)
+    if not text:
+        return default
+    for source, label in (
+        ("Wave3", "3浪"),
+        ("Wave2", "2浪"),
+        ("Wave1", "1浪"),
+        ("Fib", "斐波那契"),
+        ("Decision", "正式判断"),
+        ("T+1", "下一交易日"),
+        ("ATR", "ATR14"),
+        ("NO_TRADE", "不交易"),
+    ):
+        text = text.replace(source, label)
+    text = text.replace("确认日 正式判断 为准", "确认日正式判断为准")
+    return text
+
+
 def _integer(value: Any, default: int = 0) -> int:
     try:
         return max(int(value), 0)
     except (TypeError, ValueError):
         return default
+
+
+def _status_value(value: Any, default: str = "未提供") -> str:
+    raw = _text(value).upper()
+    if not raw:
+        return default
+    return _STATUS_VALUE_LABELS.get(raw, "数据状态见诊断")
+
+
+def _reason_label(value: Any, default: str = "数据异常") -> str:
+    text = _text(value)
+    raw = text.upper()
+    if not raw:
+        return default
+    if "QFQ" in raw and ("BEFORE T" in raw or "BEFORE" in raw):
+        return "复权行情日期早于数据日期"
+    if "HISTORY_INSUFFICIENT" in raw:
+        return "历史行情不足"
+    return _REASON_LABELS.get(raw, "数据质量异常")
 
 
 def _decision_action(row: Mapping[str, Any]) -> str:
@@ -348,14 +407,14 @@ def _target_semantics_html(
     if not bool(plan.get("has_target_projection")):
         return ""
     fields = (
-        ("当前正式 T1（保持 gate/RR）", plan.get("effective_t1")),
-        ("T1 来源", plan.get("effective_t1_source_label")),
+        ("当前正式第一目标 T1（保持规则与 R/R）", plan.get("effective_t1")),
+        ("第一目标 T1 来源", plan.get("effective_t1_source_label")),
         ("保守第一障碍（最近已确认历史阻力）", plan.get("nearest_overhead_confirmed_swing_high")),
         ("保守第一障碍上涨空间", plan.get("overhead_resistance_upside_pct")),
-        ("Wave3 结构目标（最近 Fib 投射）", plan.get("nearest_wave3_fib_extension")),
-        ("Wave3 结构目标 ratio", plan.get("nearest_wave3_fib_extension_ratio")),
-        ("Wave3 结构目标上涨空间", plan.get("wave3_fib_upside_pct")),
-        ("后续 Wave3 结构目标", plan.get("wave3_fib_extensions")),
+        ("3浪结构目标（最近斐波那契投射）", plan.get("nearest_wave3_fib_extension")),
+        ("3浪结构目标比例", plan.get("nearest_wave3_fib_extension_ratio")),
+        ("3浪结构目标上涨空间", plan.get("wave3_fib_upside_pct")),
+        ("后续3浪结构目标", plan.get("wave3_fib_extensions")),
     )
     rendered = "".join(
         f'<div style="margin:2px 0;">{html.escape(label)}：{_escape(value)}</div>'
@@ -382,45 +441,63 @@ def _no_trade_html(row: Mapping[str, Any]) -> str:
     if reason == "TARGET_UPSIDE_BELOW_MINIMUM":
         return (
             '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
-            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
+            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">正式判断计算依据</div>'
             f'<div style="margin:2px 0;">参考价格：{_escape(plan.get("planned_entry"))}</div>'
             f'<div style="margin:2px 0;">结构止损：{_escape(plan.get("execution_stop"))}</div>'
             f'<div style="margin:2px 0;">第一目标候选：{_escape(plan.get("target_1"))}</div>'
             f'<div style="margin:2px 0;">目标上涨空间：{_escape(plan.get("target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
-            f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
+            f'<div style="margin:2px 0;">对应第一目标 R/R：{_escape(_first_rr_text(plan))}</div>'
             + _target_semantics_html(plan, no_trade=True)
-            + '<div style="margin:7px 0 0 0;color:#687386;">说明：目标空间不足；这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+            + '<div style="margin:7px 0 0 0;color:#687386;">说明：目标空间不足；这些是本次正式规则的计算依据，不是买入/止盈建议。</div>'
             + '</div>'
         )
     if reason == "RR_BELOW_MINIMUM":
         return (
             '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
-            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
+            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">正式判断计算依据</div>'
             f'<div style="margin:2px 0;">参考价格：{_escape(plan.get("planned_entry"))}</div>'
             f'<div style="margin:2px 0;">结构止损：{_escape(plan.get("execution_stop"))}</div>'
             f'<div style="margin:2px 0;">第一目标候选：{_escape(plan.get("target_1"))}</div>'
             f'<div style="margin:2px 0;">目标上涨空间：{_escape(plan.get("target_upside_pct"))}</div>'
             f'<div style="margin:2px 0;">系统最低要求：{_escape(plan.get("minimum_target_upside_pct"))}</div>'
-            f'<div style="margin:2px 0;">对应 RR：{_escape(_first_rr_text(plan))}</div>'
+            f'<div style="margin:2px 0;">对应第一目标 R/R：{_escape(_first_rr_text(plan))}</div>'
             + _target_semantics_html(plan)
-            + '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+            + '<div style="margin:7px 0 0 0;color:#687386;">这些是本次正式规则的计算依据，不是买入/止盈建议。</div>'
             + '</div>'
         )
     if reason == "ABOVE_ENTRY_ZONE":
+        reference = _mapping(row.get("reference_target_diagnostics"))
+        reference_html = ""
+        if _text(reference.get("status")) == "AVAILABLE":
+            source_label = {
+                "CONFIRMED_SWING_HIGH": "已确认历史阻力",
+                "WAVE3_FIB_EXTENSION": "3浪斐波那契投射",
+            }.get(_text(reference.get("reference_t1_source")), "既有目标候选")
+            reference_html = (
+                '<div style="margin-top:9px;padding-top:8px;border-top:1px solid #ead7b6;">'
+                '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">参考目标诊断（仅供人工判断）</div>'
+                f'<div style="margin:2px 0;">参考第一目标 T1：{_escape(reference.get("reference_t1"))}</div>'
+                f'<div style="margin:2px 0;">参考目标来源：{_escape(source_label)}</div>'
+                f'<div style="margin:2px 0;">参考上涨空间：{_escape(reference.get("reference_t1_upside_pct"))}</div>'
+                f'<div style="margin:2px 0;">参考第一目标盈亏比 R/R：{_escape(reference.get("reference_first_rr"))}</div>'
+                '<div style="margin:7px 0 0 0;color:#687386;">正式系统已在超过允许入场区处判定不交易，以下数值仅供人工判断，不参与正式系统放行。</div>'
+                '</div>'
+            )
         return (
             '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
-            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
+            '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">正式判断计算依据</div>'
             f'<div style="margin:2px 0;">允许入场区：{_escape(plan.get("entry_zone_low"))}～{_escape(plan.get("entry_zone_high"))}</div>'
             f'<div style="margin:2px 0;">当前价格：{_escape(plan.get("planned_entry"))}</div>'
             '<div style="margin:2px 0;">原因：已经高于允许入场区上沿</div>'
-            '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
-            '</div>'
+            + reference_html
+            + '<div style="margin:7px 0 0 0;color:#687386;">这些是本次正式规则的计算依据，不是买入/止盈建议。</div>'
+            + '</div>'
         )
     return (
         '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
-        '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">Decision 计算依据</div>'
-        '<div style="margin:7px 0 0 0;color:#687386;">这些是本次 Decision gate 的计算依据，不是买入/止盈建议。</div>'
+        '<div style="margin:0 0 5px 0;color:#8a5510;font-weight:700;">正式判断计算依据</div>'
+        '<div style="margin:7px 0 0 0;color:#687386;">这些是本次正式规则的计算依据，不是买入/止盈建议。</div>'
         '</div>'
     )
 
@@ -429,16 +506,19 @@ def _plan_html(row: Mapping[str, Any]) -> str:
     if not _is_plan(row):
         return ""
     plan = _mapping(row.get("plan"))
+    target_labels = ("第一目标 T1", "第二目标 T2", "第三目标 T3")
     targets = "；".join(
-        f"T{index}：{_escape(plan.get(key))}"
-        for index, key in enumerate(("target_1", "target_2", "target_3"), start=1)
+        f"{label}：{_escape(plan.get(key))}"
+        for label, key in zip(
+            target_labels, ("target_1", "target_2", "target_3")
+        )
     )
     optional_lines = []
     for label, key in (
         ("目标上涨空间", "target_upside_pct"),
         ("空间评价", "target_upside_band"),
-        ("T+1 gap", "t1_gap_vs_planned_entry_pct"),
-        ("T+1 剩余第一目标空间", "remaining_target_upside_pct"),
+        ("下一交易日跳空幅度", "t1_gap_vs_planned_entry_pct"),
+        ("下一交易日剩余第一目标空间", "remaining_target_upside_pct"),
     ):
         value = _text(plan.get(key))
         if value and value not in {"—", "-"}:
@@ -448,17 +528,17 @@ def _plan_html(row: Mapping[str, Any]) -> str:
     outcome = _text(_mapping(row.get("raw_result")).get("execution_outcome"))
     if outcome in _EXECUTION_COPY:
         optional_lines.append(
-            f'<div style="margin:2px 0;">T+1 结果：{_escape(_EXECUTION_COPY[outcome])}</div>'
+        f'<div style="margin:2px 0;">下一交易日结果：{_escape(_EXECUTION_COPY[outcome])}</div>'
         )
     return (
         '<div style="margin-top:10px;padding:10px;background-color:#f4f8ff;border-left:3px solid #356ae6;">'
-        '<div style="margin:0 0 5px 0;color:#244a9b;font-weight:700;">交易计划（来自真实 Decision）</div>'
-        f'<div style="margin:2px 0;">入场（Entry）：{_escape(plan.get("planned_entry"))}</div>'
-        f'<div style="margin:2px 0;">止损（Stop）：{_escape(plan.get("execution_stop"))}</div>'
-        f'<div style="margin:2px 0;">目标（Targets）：{targets}</div>'
+        '<div style="margin:0 0 5px 0;color:#244a9b;font-weight:700;">交易计划（来自正式判断）</div>'
+        f'<div style="margin:2px 0;">入场：{_escape(plan.get("planned_entry"))}</div>'
+        f'<div style="margin:2px 0;">止损：{_escape(plan.get("execution_stop"))}</div>'
+        f'<div style="margin:2px 0;">目标：{targets}</div>'
         + _target_semantics_html(plan)
         + "".join(optional_lines)
-        + f'<div style="margin:2px 0;">风险收益比（RR）：{_escape(plan.get("rr"))}</div>'
+        + f'<div style="margin:2px 0;">风险收益比（R/R）：{_escape(plan.get("rr"))}</div>'
         "</div>"
     )
 
@@ -468,14 +548,13 @@ def _armed_html(row: Mapping[str, Any]) -> str:
         return ""
     armed = _mapping(row.get("armed_opportunity"))
     if armed.get("status") != "AVAILABLE":
-        reasons = "、".join(
-            _text(value) for value in _sequence(armed.get("missing_reasons")) if _text(value)
-        )
+        reasons = _text(_mapping(row.get("manual_opportunity")).get("wave3_missing_text"))
         return (
             '<div style="margin-top:10px;padding:10px;background-color:#fff8ed;border-left:3px solid #d98b20;">'
             '<div style="font-weight:700;">机会观察｜不是买入信号</div>'
-            '<div>数据不足，不能猜测。</div>'
-            f'<div>缺失原因：{_escape(reasons, "机会投影字段不完整")}</div></div>'
+            '<div>当前结构尚未形成可量化机会；观察状态不代表可以买入。</div>'
+            f'<div>缺少：{_escape(reasons, "机会投影字段不完整")}</div>'
+            '<div>下一步：等待结构确认或补齐因果锚点。</div></div>'
         )
     low = _escape(armed.get("expected_entry_zone_low_display"))
     high = _escape(armed.get("expected_entry_zone_high_display"))
@@ -485,9 +564,9 @@ def _armed_html(row: Mapping[str, Any]) -> str:
         f'<div>当前收盘价：{_escape(armed.get("current_close_display"))}</div>'
         f'<div>确认价：{_escape(armed.get("confirmation_level_display"))}</div>'
         f'<div>距确认：{_escape(armed.get("distance_to_confirmation_display"))}（{_escape(armed.get("distance_to_confirmation_pct_display"))}）</div>'
-        f'<div>预计入场区（按当前 ATR，仅供观察）：{low}～{high}</div>'
+        f'<div>预计入场区（按当前 ATR14，仅供观察）：{low}～{high}</div>'
         f'<div>结构失效价：{_escape(armed.get("structural_invalidation_display"))}</div>'
-        f'<div style="margin-top:6px;color:#687386;">{_escape(armed.get("guidance"))}</div></div>'
+        f'<div style="margin-top:6px;color:#687386;">{_escape(_presentation_text(armed.get("guidance"), "继续观察，等待结构确认。"))}</div></div>'
     )
 
 
@@ -556,7 +635,7 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
     }
     status = _text(diagnostics.get("status"))
     issue_lines = "".join(
-        f'<li><strong>{_escape(_mapping(item).get("market"))} · {_escape(_mapping(item).get("symbol"))}</strong>：{_escape(_mapping(item).get("reason"))}</li>'
+        f'<li><strong>{_escape(_mapping(item).get("market"))} · {_escape(_mapping(item).get("symbol"))}</strong>：{_escape(_reason_label(_mapping(item).get("reason")))}</li>'
         for item in _sequence(diagnostics.get("data_issues"))
     )
     market_lines = []
@@ -571,22 +650,27 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
     for value in _sequence(candidate.get("markets")):
         item = _mapping(value)
         reasons = "；".join(
-            f'{_escape(_mapping(reason).get("reason"))}：{_escape(_mapping(reason).get("count"))}'
+            f'{_escape(_reason_label(_mapping(reason).get("reason")))}：{_escape(_mapping(reason).get("count"))}'
             for reason in _sequence(item.get("filter_reasons"))
+        )
+        candidate_errors = "；".join(
+            _reason_label(error, "候选链路异常")
+            for error in _sequence(item.get("candidate_errors"))
+            if _text(error)
         )
         market_lines.append(
             '<div style="margin:7px 0;padding:8px 9px;background:#f8fafc;border-radius:6px;">'
             f'<strong>{_escape(item.get("label"))}</strong><br>'
-            f'CANDIDATE_STATUS：{_escape(item.get("candidate_status"))}<br>'
+            f'候选状态：{_escape(_status_value(item.get("candidate_status")))}<br>'
             f'候选结论：{_escape(outcome_labels.get(_text(item.get("selection_outcome")), _text(item.get("selection_outcome"), "未报告")))}<br>'
-            f'Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}<br>'
+            f'候选种子 {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → 纳入候选 {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}<br>'
             f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}；动态候选 {_escape(item.get("dynamic_candidate_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_count"))}）；动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_analysis_count"))}）<br>'
             f'策略分析尝试 {_escape(item.get("analysis_attempted_count"))}；完成 {_escape(item.get("strategy_analysis_count"))}；数据阻断 {_escape(item.get("analysis_blocked_count"))}<br>'
-            f'实际日报结果 {_escape(item.get("daily_result_count"))}；DATA_OK {_escape(item.get("data_ok_count"))}；NO_TRADE {_escape(item.get("no_trade_count"))}；数据异常 {_escape(item.get("data_blocked_count"))}'
+            f'实际日报结果 {_escape(item.get("daily_result_count"))}；数据正常 {_escape(item.get("data_ok_count"))}；不交易 {_escape(item.get("no_trade_count"))}；数据异常 {_escape(item.get("data_blocked_count"))}'
             + (f'<br><span style="color:#8a5510;">筛选原因：{reasons}</span>' if reasons else "")
             + (
                 '<br><span style="color:#8d2020;">候选链路异常：'
-                + _escape("；".join(_text(error) for error in _sequence(item.get("candidate_errors")) if _text(error)))
+                + _escape(candidate_errors)
                 + "</span>"
                 if _sequence(item.get("candidate_errors"))
                 else ""
@@ -604,7 +688,7 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
         '<tr><td style="padding:10px 0 2px 0;">'
         '<div style="padding:11px;border:1px solid #d9dee8;border-radius:8px;background-color:#ffffff;">'
         f'<strong>覆盖与日报诊断</strong>：{_escape(status_labels.get(status, status))}<br>'
-        f'<span style="color:#536176;">候选 Seed：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；included：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</span>'
+        f'<span style="color:#536176;">候选种子：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；纳入候选：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</span>'
         + issue_block
         + market_block
         + '</div></td></tr>'
@@ -635,14 +719,14 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     status = _escape(_status(projection))
     cloud = _mapping(projection.get("cloud_daily_report"))
     quality = _mapping(cloud.get("data_quality"))
-    run_status = _escape(cloud.get("run_status") or quality.get("run_status") or "UNKNOWN")
-    data_status = _escape(cloud.get("data_status") or quality.get("data_status") or "UNKNOWN")
-    candidate_status = _escape(
+    run_status = _escape(_status_value(cloud.get("run_status") or quality.get("run_status")))
+    data_status = _escape(_status_value(cloud.get("data_status") or quality.get("data_status")))
+    candidate_status = _escape(_status_value(
         cloud.get("candidate_status")
         or cloud.get("CANDIDATE_STATUS")
         or quality.get("candidate_status")
         or "NOT_RUN"
-    )
+    ))
     coverage = _escape(quality.get("coverage_pct"), "—")
     attempted = _escape(quality.get("attempted_universe"), "—")
     data_ok = _escape(quality.get("data_ok_count"), "—")
@@ -651,7 +735,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     blocked = _escape(quality.get("blocked_count"), "—")
     failed_by_reason = _mapping(quality.get("failed_by_reason"))
     reason_text = "、".join(
-        f"{_escape(key)}={len(value) if isinstance(value, (list, tuple, set)) else 1}"
+        f"{_escape(_reason_label(key))}：{len(value) if isinstance(value, (list, tuple, set)) else 1}"
         for key, value in sorted(failed_by_reason.items())
     ) or "无"
     failed_symbols = "、".join(
@@ -672,7 +756,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     if not groups:
         groups.append(
             '<tr><td style="padding:16px 0;color:#536176;">'
-            f"今天没有重点交易信号；完整 HTML 仍保留 {len(all_rows)} 只实际分析结果，诊断区展示候选覆盖和筛选原因。"
+            f"今天没有重点交易信号；完整日报页面仍保留 {len(all_rows)} 只实际分析结果，诊断区展示候选覆盖和筛选原因。"
             "</td></tr>"
         )
 
@@ -680,7 +764,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     if len(all_rows) > EMAIL_MAX_HIGHLIGHTS and remaining:
         groups.append(
             '<tr><td style="padding:12px 0;color:#536176;font-size:13px;">'
-            f"邮件重点摘要未展开 {remaining} 只；完整逐只结果见 HTML 附件。"
+            f"邮件重点摘要未展开 {remaining} 只；完整逐只结果见日报文件附件。"
             "</td></tr>"
         )
 
@@ -701,10 +785,10 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>市场</strong>：{html.escape(market, quote=True)}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>T</strong>：{trade_date}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>数据状态</strong>：{status}</div>'
-        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>RUN_STATUS</strong>：{run_status}</div>'
-        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>DATA_STATUS</strong>：{data_status}；覆盖率：{coverage}%</div>'
-        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>CANDIDATE_STATUS</strong>：{candidate_status}</div>'
-        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>尝试标的</strong>：{attempted}；DATA_OK：{data_ok}；失败：{failed_count}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>运行结果</strong>：{run_status}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>数据状态</strong>：{data_status}；覆盖率：{coverage}%</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>候选状态</strong>：{candidate_status}</div>'
+        f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>尝试标的</strong>：{attempted}；数据正常：{data_ok}；失败：{failed_count}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>策略分析</strong>：{analyzed}；数据阻断：{blocked}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>失败原因</strong>：{reason_text}</div>'
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>新确认数量</strong>：{summary["new_confirmed"]}</div>'
@@ -713,14 +797,14 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
         f'<div style="padding:4px 0;border-bottom:1px solid #edf0f4;"><strong>策略跟踪持仓数量</strong>：{summary["positions"]}</div>'
          f'<div style="padding:4px 0;"><strong>数据异常数量</strong>：{summary["data_issues"]}</div>'
          f'<div style="padding:4px 0;border-top:1px solid #edf0f4;"><strong>异常标的</strong>：{failed_symbols or "无"}</div>'
-         f'<div style="padding:4px 0;border-top:1px solid #edf0f4;"><strong>完整 HTML 实际分析覆盖</strong>：{len(all_rows)} 只；邮件重点摘要：{len(displayed_rows)} 只</div>'
+         f'<div style="padding:4px 0;border-top:1px solid #edf0f4;"><strong>日报页面实际分析覆盖</strong>：{len(all_rows)} 只；邮件重点摘要：{len(displayed_rows)} 只</div>'
          "</td></tr>"
          + _alert_html(projection, summary["data_issues"])
          + _diagnostics_html(projection)
          + "".join(groups)
         + _run_link_html(projection)
         + '<tr><td style="padding:18px 0 0 0;color:#8a94a6;font-size:12px;text-align:center;">'
-        "本邮件为静态阅读摘要；完整交互 Dashboard 仍保留在日报 HTML artifact。"
+        "本邮件为静态阅读摘要；完整交互日报页面仍保留在日报文件。"
         "</td></tr>"
         "</table></td></tr></table></body></html>"
     )
