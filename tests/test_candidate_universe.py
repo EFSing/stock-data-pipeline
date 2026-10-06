@@ -4,6 +4,7 @@ import json
 import unittest
 from datetime import date, timedelta
 from dataclasses import replace
+from pathlib import Path
 from unittest.mock import patch
 
 from core import Quote
@@ -200,6 +201,21 @@ class CandidateUniverseTests(unittest.TestCase):
 
 
 class IwbContractTests(unittest.TestCase):
+    class _Response:
+        def __init__(self, payload, *, status=200, content_type="text/csv"):
+            self.payload = payload
+            self.status = status
+            self.headers = {"Content-Type": content_type}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return self.payload
+
     @staticmethod
     def _csv(snapshot_date):
         return (
@@ -235,6 +251,68 @@ class IwbContractTests(unittest.TestCase):
         for value in ("", "invalid-date"):
             with self.subTest(value=value), self.assertRaisesRegex(CandidateSeedDataError, "SNAPSHOT_DATE_MISSING"):
                 parse_iwb_holdings_csv(self._csv(value))
+
+    def test_real_iwb_response_excerpt_preserves_official_metadata_shape(self):
+        fixture = Path(__file__).with_name("fixtures") / "iwb_holdings_20261002_real_response_excerpt.csv"
+        source_date, seeds = parse_iwb_holdings_csv(
+            fixture.read_bytes(),
+            source_url="https://official.example/IWB_holdings_20261002.csv",
+            snapshot_mode="DATE_QUERY_FALLBACK",
+            requested_as_of=date(2026, 10, 5),
+        )
+        self.assertEqual(source_date, date(2026, 10, 2))
+        self.assertEqual(len(seeds), 4)
+        self.assertEqual(seeds[0].symbol, "AAPL")
+        self.assertEqual(seeds[0].reference_price, 333.69)
+        self.assertIn("snapshot_mode:DATE_QUERY_FALLBACK", seeds[0].provenance)
+        self.assertIn("requested_as_of:2026-10-05", seeds[0].provenance)
+
+    def test_report_date_without_holdings_falls_back_to_earlier_official_session(self):
+        empty = (Path(__file__).with_name("fixtures") / "iwb_holdings_20261005_empty_response.csv").read_bytes()
+        valid = (Path(__file__).with_name("fixtures") / "iwb_holdings_20261002_real_response_excerpt.csv").read_bytes()
+        with patch("trading.candidate_universe_sources.urlopen") as open_url:
+            open_url.side_effect = [self._Response(empty), self._Response(valid)]
+            source_date, seeds = IwbOfficialHoldingsAdapter().load(as_of=date(2026, 10, 5))
+
+        self.assertEqual(source_date, date(2026, 10, 2))
+        self.assertEqual(len(seeds), 4)
+        self.assertIn("asOfDate=20261005", open_url.call_args_list[0].args[0].full_url)
+        self.assertIn("asOfDate=20261002", open_url.call_args_list[1].args[0].full_url)
+        self.assertIn("snapshot_mode:DATE_QUERY_FALLBACK", seeds[0].provenance)
+        self.assertIn("requested_as_of:2026-10-05", seeds[0].provenance)
+
+    def test_iwb_fallback_uses_real_xnys_sessions_across_thanksgiving(self):
+        requested = date(2026, 11, 27)
+        dates = IwbOfficialHoldingsAdapter._historical_request_dates(requested)
+
+        self.assertEqual(dates, (
+            date(2026, 11, 27),
+            date(2026, 11, 25),
+            date(2026, 11, 24),
+            date(2026, 11, 23),
+            date(2026, 11, 20),
+            date(2026, 11, 19),
+        ))
+        self.assertNotIn(date(2026, 11, 26), dates)
+
+    def test_missing_snapshot_evidence_never_uses_request_date(self):
+        empty = (Path(__file__).with_name("fixtures") / "iwb_holdings_20261005_empty_response.csv").read_bytes()
+        with patch(
+            "trading.candidate_universe_sources.urlopen",
+            return_value=self._Response(empty),
+        ) as open_url:
+            with self.assertRaisesRegex(CandidateSeedDataError, "IWB_HOLDINGS_SNAPSHOT_DATE_MISSING"):
+                IwbOfficialHoldingsAdapter().load(as_of=date(2026, 10, 5))
+
+        self.assertLessEqual(len(open_url.call_args_list), 6)
+
+    def test_iwb_response_content_type_is_validated_before_csv_parse(self):
+        with patch(
+            "trading.candidate_universe_sources.urlopen",
+            return_value=self._Response(self._csv("Sep 03, 2026"), content_type="text/html"),
+        ):
+            with self.assertRaisesRegex(CandidateSeedDataError, "CONTENT_TYPE_UNEXPECTED:text/html"):
+                IwbOfficialHoldingsAdapter().load(as_of=date(2026, 9, 3))
 
     def test_selector_rejects_future_metadata_in_both_markets(self):
         for market, symbol in (("CN", "600001.SH"), ("US", "AAPL")):

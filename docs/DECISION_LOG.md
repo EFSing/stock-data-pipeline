@@ -1131,3 +1131,45 @@ to be numerically equivalent to `CN_FORWARD_ADJUSTMENT_ENGINE_V1`; the two bases
 **Reason:** the user approved a production CN QFQ basis migration after a live provider-forward
 probe. Explicit adjustment/source-contract identity preserves D1 prospective purity and prevents
 old evidence from being reinterpreted under a materially different historical price basis.
+
+## 2026-10-06 — Daily Report delivery readiness and final-notification finality
+
+**Decision for PR #136:** Cloud Daily Report V1 exposes the operational contract
+`DAILY_REPORT_DELIVERY_READINESS_V1` with four delivery outcomes:
+`FINAL_REPORT_ELIGIBLE`, `DEGRADED_DIAGNOSTIC_ONLY`, `UPSTREAM_NOT_READY`, and `FAILED`.
+The contract consumes the existing completed-session identity, Candidate seed/component state,
+formal-universe coverage, provider-global state, run/data status, and actual strategy-analysis
+coverage. Partial symbol-level data failure remains compatible with a final report when the
+Candidate component is usable and the remaining analysis is exact-T; Candidate-wide failure,
+zero usable symbols, incomplete session, or missing analysis cannot be represented as a final
+report.
+
+Only `FINAL_REPORT_ELIGIBLE` may create Opportunity Ledger birth/follow-up writes or claim the
+final notification marker. Non-final runs may produce a diagnostic artifact and at most one
+state-specific alert. Final notification claims use the independent create-only
+`DAILY_REPORT_FINAL_NOTIFICATION_IDEMPOTENCY_V2` namespace; degraded alerts use
+`DAILY_REPORT_DEGRADED_ALERT_IDEMPOTENCY_V1`. Legacy V1 normal-notification markers are not
+deleted or reinterpreted: a valid V1 marker is still duplicate-delivery evidence and blocks an
+automatic V2 final claim. A corrected final for a known bad historical V1 session requires an
+operator-supplied exact legacy marker identity. The code verifies that identity against the
+read-back legacy marker, writes a separate create-only
+`DAILY_REPORT_LEGACY_V1_TO_V2_RECOVERY_V1` migration marker, and only then claims the V2 final
+identity. This recovery contract is default-off, auditable, and does not contain a date-specific
+branch. The V2 final identity remains exactly one per market/session, while alert identity is one
+per stable degraded state.
+
+CN and US Daily Report workflows accept a `workflow_run` only when the market-close workflow
+completed successfully on `main` from a scheduled event; manual `workflow_dispatch` close runs
+do not launch an automatic Daily Report. The workflows retain an earlier and a later bounded
+schedule fallback, and each report run performs at most six readiness-gated attempts at five-minute
+intervals (a 25-minute finite recovery window). A failed close does not launch a final report
+through this dependency; an upstream-not-ready result remains diagnostic/retryable.
+
+This is an operational delivery and evidence-integrity contract only. It does not change Wave,
+Swing, Fibonacci, Setup, Entry Zone, Stop, Target, R/R, Portfolio Risk, Paper, broker, Candidate
+selection formulas, or D1 semantics.
+
+**Reason:** a production run that had no IWB snapshot and no exact-T usable symbols claimed the
+same final marker as a valid report, suppressing a later recovered report. Separating readiness,
+alert identity, final identity, and ledger eligibility preserves truthful delivery without
+turning transient upstream timing into a strategy or research rule.

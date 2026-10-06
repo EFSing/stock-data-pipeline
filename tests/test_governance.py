@@ -106,8 +106,8 @@ class GovernanceTests(unittest.TestCase):
 
     def test_cloud_report_remains_a_separate_read_only_schedule(self):
         for relative_path, cron, market in (
-            (".github/workflows/cn-daily-report.yml", 'cron: "30 9 * * 1-5"', "CN"),
-            (".github/workflows/us-daily-report.yml", 'cron: "0 1 * * 2-6"', "US"),
+            (".github/workflows/cn-daily-report.yml", 'cron: "0 10 * * 1-5"', "CN"),
+            (".github/workflows/us-daily-report.yml", 'cron: "30 1 * * 2-6"', "US"),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("schedule:", source)
@@ -119,16 +119,21 @@ class GovernanceTests(unittest.TestCase):
             self.assertNotIn('if [ "${{ github.event_name }}" = "workflow_dispatch" ]', source)
             self.assertIn("run_cloud_daily_report.py", source)
             self.assertNotIn("main.py --group", source)
+            self.assertIn("workflow_run:", source)
+            self.assertIn("types: [completed]", source)
+            self.assertIn("--retry-not-ready-attempts 6 --retry-not-ready-delay-seconds 300", source)
 
     def test_cloud_report_workflows_keep_exact_market_schedules(self):
         for relative_path, cron, market in (
-            (".github/workflows/cn-daily-report.yml", 'cron: "30 9 * * 1-5"', "CN"),
-            (".github/workflows/us-daily-report.yml", 'cron: "0 1 * * 2-6"', "US"),
+            (".github/workflows/cn-daily-report.yml", 'cron: "0 10 * * 1-5"', "CN"),
+            (".github/workflows/us-daily-report.yml", 'cron: "30 1 * * 2-6"', "US"),
         ):
             source = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("schedule:", source)
             self.assertIn(cron, source)
             self.assertIn(f"--market {market}", source)
+            self.assertIn("workflow_run:", source)
+            self.assertIn("workflow_run.conclusion == 'success'", source)
 
         main_source = (ROOT / "main.py").read_text(encoding="utf-8")
         self.assertIn("latest_completed_market_session", main_source)

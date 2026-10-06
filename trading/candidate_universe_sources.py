@@ -10,6 +10,7 @@ import csv
 import io
 from datetime import date, datetime
 from typing import Any, Callable
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
@@ -33,6 +34,15 @@ IWB_HISTORICAL_HOLDINGS_URL = (
     "https://www.ishares.com/ch/professionals/en/products/239707/"
     "ishares-russell-1000-etf/1495092304805.ajax"
 )
+# Five prior sessions plus the requested session are attempted.  The window
+# is measured in exchange sessions, not civil calendar days.
+IWB_HISTORICAL_LOOKBACK_SESSIONS = 5
+_IWB_ACCEPTED_CONTENT_TYPES = frozenset({
+    "text/csv",
+    "text/plain",
+    "application/csv",
+    "application/octet-stream",
+})
 
 
 class CandidateSeedDataError(RuntimeError):
@@ -372,7 +382,7 @@ def _us_lifecycle_status(source_symbol: str, exchange: str | None) -> str:
 
 def parse_iwb_holdings_csv(
     payload: bytes | str, *, source_url: str = IWB_OFFICIAL_HOLDINGS_URL,
-    snapshot_mode: str = "CURRENT_ONLY",
+    snapshot_mode: str = "CURRENT_ONLY", requested_as_of: date | None = None,
 ) -> tuple[date | None, tuple[SeedSecurity, ...]]:
     """Parse the actual iShares CSV shape, including its metadata preamble."""
 
@@ -409,6 +419,8 @@ def parse_iwb_holdings_csv(
         exchange = row[positions["Exchange"]].strip() or None
         lifecycle_status = _us_lifecycle_status(source_symbol, exchange)
         provenance = [source_url, f"snapshot_mode:{snapshot_mode}"]
+        if requested_as_of is not None:
+            provenance.append(f"requested_as_of:{requested_as_of.isoformat()}")
         if lifecycle_status != LIFECYCLE_ACTIVE:
             provenance.append(f"lifecycle_status:{lifecycle_status}")
         output.append(
@@ -441,15 +453,49 @@ class IwbOfficialHoldingsAdapter:
         self.url = url
         self.timeout = timeout
 
-    def load(self, as_of: date | None = None) -> tuple[date | None, tuple[SeedSecurity, ...]]:
-        source_url = self.url
-        snapshot_mode = "CURRENT_ONLY"
-        if as_of is not None:
-            source_url = IWB_HISTORICAL_HOLDINGS_URL + "?" + urlencode({
-                "fileType": "csv", "fileName": "IWB_holdings", "dataType": "fund",
-                "asOfDate": as_of.strftime("%Y%m%d"),
-            })
-            snapshot_mode = "DATE_QUERY"
+    @staticmethod
+    def _historical_request_dates(as_of: date) -> tuple[date, ...]:
+        """Return T, T-1, ... from the bounded XNYS session calendar."""
+
+        return ExactExchangeCalendarProvider().recent_session_dates(
+            "US",
+            end_date=as_of,
+            count=IWB_HISTORICAL_LOOKBACK_SESSIONS + 1,
+        )
+
+    @staticmethod
+    def _response_payload(response: Any) -> bytes:
+        status = getattr(response, "status", None)
+        if not isinstance(status, int) and hasattr(response, "getcode"):
+            candidate = response.getcode()
+            status = candidate if isinstance(candidate, int) else None
+        if isinstance(status, int) and status != 200:
+            raise CandidateSeedDataError(f"IWB_HOLDINGS_HTTP_STATUS:{status}")
+
+        headers = getattr(response, "headers", None)
+        content_type = ""
+        if headers is not None:
+            getter = getattr(headers, "get_content_type", None)
+            if callable(getter):
+                value = getter()
+                if isinstance(value, str):
+                    content_type = value.strip().lower()
+            if not content_type:
+                value = headers.get("Content-Type") if hasattr(headers, "get") else None
+                if isinstance(value, str):
+                    content_type = value.split(";", 1)[0].strip().lower()
+        if content_type and content_type not in _IWB_ACCEPTED_CONTENT_TYPES:
+            raise CandidateSeedDataError(
+                f"IWB_HOLDINGS_CONTENT_TYPE_UNEXPECTED:{content_type}"
+            )
+        payload = response.read()
+        if isinstance(payload, str):
+            payload = payload.encode("utf-8")
+        if not isinstance(payload, (bytes, bytearray)):
+            raise CandidateSeedDataError("IWB_HOLDINGS_RESPONSE_BODY_INVALID")
+        return bytes(payload)
+
+    def _download(self, source_url: str) -> bytes:
         request = Request(
             source_url,
             headers={
@@ -457,13 +503,70 @@ class IwbOfficialHoldingsAdapter:
                 "Accept": "text/csv,application/octet-stream;q=0.9,*/*;q=0.1",
             },
         )
-        with urlopen(request, timeout=self.timeout) as response:
-            payload = response.read()
-        source_as_of, seeds = parse_iwb_holdings_csv(
-            payload, source_url=source_url, snapshot_mode=snapshot_mode,
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                return self._response_payload(response)
+        except HTTPError as exc:
+            raise CandidateSeedDataError(
+                f"IWB_HOLDINGS_HTTP_STATUS:{exc.code}"
+            ) from exc
+        except URLError as exc:
+            raise CandidateSeedDataError(
+                f"IWB_HOLDINGS_NETWORK_ERROR:{exc.reason}"
+            ) from exc
+
+    @staticmethod
+    def _historical_url(requested_date: date) -> str:
+        return IWB_HISTORICAL_HOLDINGS_URL + "?" + urlencode({
+            "fileType": "csv", "fileName": "IWB_holdings", "dataType": "fund",
+            "asOfDate": requested_date.strftime("%Y%m%d"),
+        })
+
+    def load(self, as_of: date | None = None) -> tuple[date | None, tuple[SeedSecurity, ...]]:
+        if as_of is None:
+            source_url = self.url
+            snapshot_mode = "CURRENT_ONLY"
+            payload = self._download(source_url)
+            source_as_of, seeds = parse_iwb_holdings_csv(
+                payload, source_url=source_url, snapshot_mode=snapshot_mode,
+            )
+            require_snapshot_as_of(
+                source_as_of, None, source="IWB_HOLDINGS", snapshot_mode=snapshot_mode,
+            )
+            return source_as_of, seeds
+
+        missing_evidence: list[str] = []
+        for index, requested_date in enumerate(self._historical_request_dates(as_of)):
+            source_url = self._historical_url(requested_date)
+            snapshot_mode = "DATE_QUERY" if index == 0 else "DATE_QUERY_FALLBACK"
+            try:
+                payload = self._download(source_url)
+                source_as_of, seeds = parse_iwb_holdings_csv(
+                    payload,
+                    source_url=source_url,
+                    snapshot_mode=snapshot_mode,
+                    requested_as_of=as_of,
+                )
+            except CandidateSeedDataError as exc:
+                if "IWB_HOLDINGS_SNAPSHOT_DATE_MISSING" not in str(exc):
+                    raise
+                missing_evidence.append(
+                    f"requested={requested_date.isoformat()}:{exc}"
+                )
+                continue
+            # The response date is authoritative.  A future response is a
+            # contract violation, never a reason to accept another request.
+            require_snapshot_as_of(
+                source_as_of, as_of, source="IWB_HOLDINGS", snapshot_mode=snapshot_mode,
+            )
+            return source_as_of, seeds
+
+        attempted = ",".join(item.isoformat() for item in self._historical_request_dates(as_of))
+        detail = ";".join(missing_evidence)
+        raise CandidateSeedDataError(
+            "IWB_HOLDINGS_SNAPSHOT_DATE_MISSING:"
+            f"report_as_of={as_of.isoformat()}:attempted={attempted}:evidence={detail}"
         )
-        require_snapshot_as_of(source_as_of, as_of, source="IWB_HOLDINGS", snapshot_mode=snapshot_mode)
-        return source_as_of, seeds
 
 
 __all__ = [

@@ -626,6 +626,7 @@ def _alert_html(projection: Mapping[str, Any], issue_count: int) -> str:
 
 def _diagnostics_html(projection: Mapping[str, Any]) -> str:
     diagnostics = _mapping(projection.get("diagnostics"))
+    cloud = _mapping(projection.get("cloud_daily_report"))
     coverage = _mapping(diagnostics.get("coverage"))
     status_labels = {
         "DATA_ISSUE": "数据异常，停止生成新信号",
@@ -634,8 +635,15 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
         "SIGNAL_AVAILABLE": "已完成覆盖，存在已计算信号",
     }
     status = _text(diagnostics.get("status"))
+    category_labels = {
+        "CANDIDATE_COMPONENT": "候选发现组件",
+        "SYSTEM": "系统",
+        "SYMBOL_DATA": "标的数据",
+    }
     issue_lines = "".join(
-        f'<li><strong>{_escape(_mapping(item).get("market"))} · {_escape(_mapping(item).get("symbol"))}</strong>：{_escape(_reason_label(_mapping(item).get("reason")))}</li>'
+        f'<li><strong>{_escape(_mapping(item).get("market"))} · '
+        f'{_escape(category_labels.get(_text(_mapping(item).get("category")), _mapping(item).get("symbol")))}</strong>：'
+        f'{_escape(_reason_label(_mapping(item).get("reason")))}</li>'
         for item in _sequence(diagnostics.get("data_issues"))
     )
     market_lines = []
@@ -683,12 +691,38 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
         + "</ul></div>"
         if issue_lines else ""
     )
+    readiness = _text(cloud.get("delivery_readiness"))
+    readiness_copy = {
+        "FINAL_REPORT_ELIGIBLE": "正式日报可发送",
+        "UPSTREAM_NOT_READY": "上游数据尚未就绪",
+        "DEGRADED_DIAGNOSTIC_ONLY": "仅供异常诊断",
+        "FAILED": "日报核心运行失败",
+    }
+    readiness_reason_copy = {
+        "NON_SESSION": "非交易日",
+        "SESSION_NOT_COMPLETED": "交易时段尚未完成",
+        "NO_USABLE_SYMBOLS": "没有可用标的数据",
+        "CANDIDATE_UNAVAILABLE_NO_ANALYSIS": "候选发现不可用且没有策略分析覆盖",
+        "CANDIDATE_UNAVAILABLE_FORMAL_ONLY": "候选发现不可用，但已有正式标的完成分析",
+        "CANDIDATE_COVERAGE_INCOMPLETE": "候选覆盖未完成",
+        "CANDIDATE_ANALYSIS_NOT_COVERED": "候选进入后续分析的覆盖不足",
+        "REPORT_COVERAGE_NOT_COMPLETE": "日报分析覆盖未完成",
+        "NO_STRATEGY_ANALYSIS": "没有完成策略分析",
+        "PROVIDER_GLOBAL_FAILURE": "行情供应商全局故障",
+        "REPORT_EXECUTION_FAILED": "日报运行失败",
+    }
+    readiness_line = (
+        f'正式日报状态：{_escape(readiness_copy.get(readiness, "状态未确定"))}；'
+        f'原因：{_escape(readiness_reason_copy.get(_text(cloud.get("delivery_readiness_reason")), "未提供"))}<br>'
+        if readiness else ""
+    )
     market_block = "".join(market_lines)
     return (
         '<tr><td style="padding:10px 0 2px 0;">'
         '<div style="padding:11px;border:1px solid #d9dee8;border-radius:8px;background-color:#ffffff;">'
         f'<strong>覆盖与日报诊断</strong>：{_escape(status_labels.get(status, status))}<br>'
-        f'<span style="color:#536176;">候选种子：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；纳入候选：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</span>'
+        + readiness_line
+        + f'<span style="color:#536176;">候选种子：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；纳入候选：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</span>'
         + issue_block
         + market_block
         + '</div></td></tr>'
