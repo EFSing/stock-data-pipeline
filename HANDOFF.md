@@ -4,16 +4,17 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_PRODUCTION_READINESS_FIX_IN_PROGRESS`：从最新 `main` 创建独立分支
+`DAILY_REPORT_PRODUCTION_READINESS_PR_READY`：从最新 `main` 创建独立分支
 `fix/daily-report-production-readiness-v1`，修复 IWB Candidate seed 的生产日期证据解析、
 Daily Report readiness 分类、degraded/final 通知幂等语义、CN/US 调度竞态与诊断分类；
-保持交易策略、Paper、broker、Opportunity Ledger 的既有语义不变。PR 尚未创建，保持不 merge。
+保持交易策略、Paper、broker、Opportunity Ledger 的既有语义不变。PR #136 已创建并保持
+OPEN，exact-head required CI 全部通过；本任务不 merge。
 
-本轮真实 blocker 已确认：US early Daily Report 在上游 exact-T / IWB seed 不可用时仍进入
+本轮真实 blocker 已确认并修复：US early Daily Report 在上游 exact-T / IWB seed 不可用时仍进入
 发送路径，并占用了最终日报 notification marker；后续恢复报告被旧 marker 阻断。已从
 GitHub runs/artifacts 与官方 response 查明：2026-10-05 IWB target response 为 HTTP 200
 CSV 但 snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`；代码修复、
-readiness/marker/workflow 方案与高价值回归已在本分支完成，PR 尚未创建。
+  readiness/marker/workflow 方案与高价值回归已在本分支完成。
 
 ## Current State / Completed
 
@@ -78,6 +79,12 @@ readiness/marker/workflow 方案与高价值回归已在本分支完成，PR 尚
 - `GENERIC_OPERATIONAL_SHADOW`：Daily Decision Chain、SETUP_01、SETUP_02、Portfolio
   Risk、Paper lifecycle、Position Management 均 SUCCESS；均未访问 broker/真实持仓或
   Sheets。
+- 真实 main run artifact 重新套用新 contract：US early = `UPSTREAM_NOT_READY`；同 session
+  后续 formal-only = `DEGRADED_DIAGNOSTIC_ONLY`；CN 800 seed / 735 included / partial
+  Candidate = `FINAL_REPORT_ELIGIBLE`。这三份 artifact 是历史只读证据，不写成新代码的
+  natural acceptance。
+- PR #136 exact-head required checks：CI Test Gate、Daily Decision Chain shadow、Paper
+  shadow、Portfolio Risk shadow 全部通过；PR 保持 OPEN。
 - Dashboard 与 email fixture 的 `USER_VISIBLE_LANGUAGE_AUDIT` 均为：
   `user_visible_raw_enum_count=0`、`user_visible_internal_field_count=0`、
   `user_visible_unnecessary_english_count=0`、`user_visible_mixed_language_count=0`；
@@ -106,12 +113,14 @@ readiness/marker/workflow 方案与高价值回归已在本分支完成，PR 尚
 
 ## Blocker / Remaining Risks
 
-- 完整 1026-symbol production Candidate runtime 的本地批量 probe 未完成；需要依赖 PR
-  exact-head CI 或受控只读 validation replay 继续确认完整 included/deep-ready/strategy
-  analysis 数量，不能用 seed count 代替这些数量。
-- 真实 Cloud recovered final 的 end-to-end notification delivery 尚未在本分支触发；当前
-  证据为纯 marker state-machine 回归与已有 main run artifacts，不能写成自然验收。
-- PR、exact-head CI 与最终 US/CN replay artifact 仍待完成。
+- 完整 1026-symbol production Candidate runtime 的本地批量 probe 曾因 Yahoo 请求超出
+  有界验证时间终止；PR 只读证据不把该 probe 写成 production acceptance，完整自然
+  Candidate included/deep-ready/strategy 数量仍以未来正常运行 artifact 为准。
+- 真实 Cloud recovered final 的 end-to-end notification delivery 未在本分支触发；当前
+  证据为官方 IWB/exact-T provider probe、真实历史 artifact readiness replay 与 marker
+  state-machine 回归，不能写成 natural acceptance。
+- 新 D1 activation、natural CN/US acceptance 与 Opportunity Ledger natural acceptance
+  仍保持原治理边界，不是本 PR 的 merge blocker。
 - 新 D1 activation 仍需独立治理授权；本次修复不写真实 VPS/GCS activation，不运行新
   D1 V3 collector，不回填迁移窗口。
 - 601059/601198、JMKE 等既有合法 fail-closed 数据状态不因本任务改变；真实 prospective
@@ -119,9 +128,9 @@ readiness/marker/workflow 方案与高价值回归已在本分支完成，PR 尚
 
 ## Next Action
 
-检查 docs-only closeout 与 workflow YAML，完成可复现的 US/CN 只读 validation replay，
-推送本分支并创建 PR；确认 exact-head CI 后更新现场到
-`DAILY_REPORT_PRODUCTION_READINESS_PR_READY`，保持 PR OPEN、不 merge。
+等待 reviewer 对 PR #136 进行审查；保持 PR OPEN、不 merge。后续自然日报按新的
+readiness/final-notification contract 观察，不把历史 artifact 或本地 probe 记为 natural
+acceptance。
 
 ## Constraints / Pitfalls
 
