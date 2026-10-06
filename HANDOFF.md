@@ -4,18 +4,18 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_PRODUCTION_READINESS_FIX_IN_PROGRESS`：继续在现有 PR #136 的独立分支
+`DAILY_REPORT_PRODUCTION_READINESS_PR_READY`：继续在现有 PR #136 的独立分支
 `fix/daily-report-production-readiness-v1`，修复 IWB Candidate seed 的生产日期证据解析、
 Daily Report readiness 分类、degraded/final 通知幂等语义、CN/US 调度竞态与诊断分类；
 保持交易策略、Paper、broker、Opportunity Ledger 的既有语义不变。PR #136 保持 OPEN，
 不新建 PR、不 merge。本轮重点是 legacy V1 marker 的受控迁移、workflow_run 调度合同、
 真实交易 session fallback 与 provider readiness 恢复窗口。
 
-本轮真实 blocker 已确认并修复：US early Daily Report 在上游 exact-T / IWB seed 不可用时仍进入
-发送路径，并占用了最终日报 notification marker；后续恢复报告被旧 marker 阻断。已从
-GitHub runs/artifacts 与官方 response 查明：2026-10-05 IWB target response 为 HTTP 200
-CSV 但 snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`；代码修复、
-  readiness/marker/workflow 方案与高价值回归已在本分支完成。
+本轮已修复并验证：legacy V1 marker 默认继续阻止 V2 重复 final，显式 recovery identity
+才可创建一次 V1→V2 migration audit；manual close 不再触发自动日报；IWB fallback 使用真实
+XNYS session；retry 覆盖有限的 25 分钟 provider 恢复窗口。此前已从 GitHub
+runs/artifacts 与官方 response 查明：2026-10-05 IWB target response 为 HTTP 200 CSV 但
+snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`。
 
 ## Current State / Completed
 
@@ -70,28 +70,29 @@ CSV 但 snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026
 
 ## Validation
 
-- 本轮新增的 IWB/source-contract、delivery-readiness、marker、dashboard/email 与 Cloud
-  focused suite 已通过；完整 `python -m unittest discover -s tests -v` 为 `1019 passed`、
-  `2 skipped`，退出码 0；`compileall`、`py_compile` 与 `git diff --check` 通过。
+- 本轮 focused suite 已通过；local `python -m unittest discover -s tests -v` 为
+  `1028 passed`、`2 skipped`，退出码 0；`compileall`、目标文件 `py_compile` 与
+  `git diff --check` 通过。
 - 官方 IWB 只读验证已采用 `source_as_of=2026-10-02`、`seed_count=1026`，provenance
   保留 fallback 请求与 `requested_as_of=2026-10-05`；BABA/RKLB direct Yahoo raw/qfq
   均已验证 exact `2026-10-05`。完整 1026-symbol 本地 Candidate runtime probe 因批量
   Yahoo 请求超出有界本地验证时间而终止，未写成 production acceptance。
-- `GENERIC_OPERATIONAL_SHADOW`：Daily Decision Chain、SETUP_01、SETUP_02、Portfolio
-  Risk、Paper lifecycle、Position Management 均 SUCCESS；均未访问 broker/真实持仓或
+- exact-head GitHub checks（仅列 GitHub 实际存在的）：CI Test Gate `test`、Daily Decision
+  Chain `generic-shadow`、Paper trade lifecycle `generic-shadow`、Portfolio Risk
+  `generic-shadow` 均 SUCCESS；PR #136 保持 OPEN。
+- independent/manual shadows（不称为 exact-head GitHub checks）：SETUP_01、SETUP_02 与
+  Position Management generic operational shadow 均 SUCCESS；均未访问 broker/真实持仓或
   Sheets。
 - 真实 main run artifact 重新套用新 contract：US early = `UPSTREAM_NOT_READY`；同 session
   后续 formal-only = `DEGRADED_DIAGNOSTIC_ONLY`；CN 800 seed / 735 included / partial
   Candidate = `FINAL_REPORT_ELIGIBLE`。这三份 artifact 是历史只读证据，不写成新代码的
   natural acceptance。
-- PR #136 exact-head required checks：CI Test Gate、Daily Decision Chain shadow、Paper
-  shadow、Portfolio Risk shadow 全部通过；PR 保持 OPEN。
 - Dashboard 与 email fixture 的 `USER_VISIBLE_LANGUAGE_AUDIT` 均为：
   `user_visible_raw_enum_count=0`、`user_visible_internal_field_count=0`、
   `user_visible_unnecessary_english_count=0`、`user_visible_mixed_language_count=0`；
   允许清单为 `SETUP_01`、`SETUP_02`、`T1`、`T2`、`T3`、`R/R`、`ATR14`、`CN`、`US`。
-- Daily Decision Chain、Paper lifecycle、Portfolio Risk 三个 `GENERIC_OPERATIONAL_SHADOW`
-  均为 SUCCESS；均未读取真实持仓、凭证或 broker，也未写 Sheets。
+- local/full-suite generic operational evidence 也覆盖 Daily Decision Chain、Paper lifecycle、
+  Portfolio Risk；均未读取真实持仓、凭证或 broker，也未写 Sheets。
 - 2026-09-30 已保存的只读诊断中5个 new CONFIRMED、ENTRY_ALLOWED=0，fixture 得到5/5
   birth（3个目标空间不足、1个RR不足、1个超过入场区）。fixture不写正式 prospective rows。
 - 受控 synthetic 验证同session重跑零重复，T+1产生follow-up，掉出Candidate仍续载，
@@ -129,9 +130,9 @@ CSV 但 snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026
 
 ## Next Action
 
-完成本轮 marker migration、workflow contract、IWB session fallback 与 readiness retry
-修复，运行 focused/full validation，更新治理文档并重新核对 PR #136 exact-head checks；
-最终将状态切换为 `DAILY_REPORT_PRODUCTION_READINESS_PR_READY`，保持 PR OPEN、不 merge。
+等待 reviewer 对 PR #136 进行审查；保持现有 PR OPEN，不新建 PR、不 merge。后续自然日报
+继续按新 readiness、marker migration 与 scheduled/manual workflow contract 观察，不把历史
+artifact、本地测试或独立 shadow 记为 natural acceptance。
 
 ## Constraints / Pitfalls
 
