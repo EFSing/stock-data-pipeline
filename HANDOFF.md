@@ -4,16 +4,16 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_CROSS_STAGE_CONSISTENCY_MERGED_WAITING_NATURAL_ACCEPTANCE`：PR #135
-已 squash merge 到 `main`。Daily Report human-opportunity、SETUP_02 WATCH/ARMED causal
-projection、ABOVE_ENTRY_ZONE 独立参考诊断、用户可见语言与 cross-stage consistency 已成为
-main 能力；此前 PR #133/#134 的 CN provider-forward 与 US Candidate lifecycle 状态不变；
-真实 D1 activation 未执行。
+`DAILY_REPORT_PRODUCTION_READINESS_FIX_IN_PROGRESS`：从最新 `main` 创建独立分支
+`fix/daily-report-production-readiness-v1`，修复 IWB Candidate seed 的生产日期证据解析、
+Daily Report readiness 分类、degraded/final 通知幂等语义、CN/US 调度竞态与诊断分类；
+保持交易策略、Paper、broker、Opportunity Ledger 的既有语义不变。PR 尚未创建，保持不 merge。
 
-当前已无 PR #135 实现 blocker；merge commit、main HEAD 与 main CI 继续从 GitHub 实时核对，
-不以本文件作动态证明。最终 validation artifact 是 `READ_ONLY_VALIDATION_REPLAY`，不代表
-natural production acceptance；Opportunity Ledger natural acceptance 与 D1 activation 仍
-保持原边界。
+本轮真实 blocker 已确认：US early Daily Report 在上游 exact-T / IWB seed 不可用时仍进入
+发送路径，并占用了最终日报 notification marker；后续恢复报告被旧 marker 阻断。已从
+GitHub runs/artifacts 与官方 response 查明：2026-10-05 IWB target response 为 HTTP 200
+CSV 但 snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`；代码修复、
+readiness/marker/workflow 方案与高价值回归已在本分支完成，PR 尚未创建。
 
 ## Current State / Completed
 
@@ -68,8 +68,16 @@ natural production acceptance；Opportunity Ledger natural acceptance 与 D1 act
 
 ## Validation
 
-- 本轮 focused tests 141 passed；全量 `python -m unittest discover -s tests -v` 为
-  1007 passed、2 skipped；`compileall`/`py_compile` 与 `git diff --check` 通过。
+- 本轮新增的 IWB/source-contract、delivery-readiness、marker、dashboard/email 与 Cloud
+  focused suite 已通过；完整 `python -m unittest discover -s tests -v` 为 `1019 passed`、
+  `2 skipped`，退出码 0；`compileall`、`py_compile` 与 `git diff --check` 通过。
+- 官方 IWB 只读验证已采用 `source_as_of=2026-10-02`、`seed_count=1026`，provenance
+  保留 fallback 请求与 `requested_as_of=2026-10-05`；BABA/RKLB direct Yahoo raw/qfq
+  均已验证 exact `2026-10-05`。完整 1026-symbol 本地 Candidate runtime probe 因批量
+  Yahoo 请求超出有界本地验证时间而终止，未写成 production acceptance。
+- `GENERIC_OPERATIONAL_SHADOW`：Daily Decision Chain、SETUP_01、SETUP_02、Portfolio
+  Risk、Paper lifecycle、Position Management 均 SUCCESS；均未访问 broker/真实持仓或
+  Sheets。
 - Dashboard 与 email fixture 的 `USER_VISIBLE_LANGUAGE_AUDIT` 均为：
   `user_visible_raw_enum_count=0`、`user_visible_internal_field_count=0`、
   `user_visible_unnecessary_english_count=0`、`user_visible_mixed_language_count=0`；
@@ -98,24 +106,22 @@ natural production acceptance；Opportunity Ledger natural acceptance 与 D1 act
 
 ## Blocker / Remaining Risks
 
-- 新 D1 activation 仍需独立治理授权；本次 merge 不写真实 VPS/GCS activation，不运行新
+- 完整 1026-symbol production Candidate runtime 的本地批量 probe 未完成；需要依赖 PR
+  exact-head CI 或受控只读 validation replay 继续确认完整 included/deep-ready/strategy
+  analysis 数量，不能用 seed count 代替这些数量。
+- 真实 Cloud recovered final 的 end-to-end notification delivery 尚未在本分支触发；当前
+  证据为纯 marker state-machine 回归与已有 main run artifacts，不能写成自然验收。
+- PR、exact-head CI 与最终 US/CN replay artifact 仍待完成。
+- 新 D1 activation 仍需独立治理授权；本次修复不写真实 VPS/GCS activation，不运行新
   D1 V3 collector，不回填迁移窗口。
-- 601059/601198 保持 stale/unavailable；JMKE 的 `HISTORY_INSUFFICIENT` 与 lifecycle
-  exclusions 是合法 fail-closed 结果。真实 prospective 结果必须等待自然 session，不能
-  通过历史回填补齐。
-- `DAILY_REPORT_CROSS_STAGE_CONSISTENCY` 已 merged；剩余风险仅为自然 production
-  acceptance、Opportunity Ledger natural acceptance 与独立授权的 D1 activation 边界，
-  不把只读历史重放写成自然验收。
-- 旧保存 JSON 的 ARMED/WATCH anchor 缺口只能由未来自然日报重生成解决；不能通过历史
-  artifact 回填伪造 Wave3 projection。浏览器安全策略拒绝本地 `file:` URL 的自动绑定，
-  因此保留本地静态 artifact/文件预览验收证据，不把它写成真实浏览器验收已完成。
+- 601059/601198、JMKE 等既有合法 fail-closed 数据状态不因本任务改变；真实 prospective
+  / natural acceptance 不以历史回放替代。
 
 ## Next Action
 
-等待首次 post-merge 自然 CN/US Daily Report 与 Opportunity Ledger natural acceptance；
-后续 T+1/10-session acceptance，以及未来经独立授权的 D1 decision 仍按原边界处理。不要
-为清零合法 unavailable/lifecycle 状态继续开发；不把 READ_ONLY_VALIDATION_REPLAY、live
-probe 或历史回放写成 prospective/natural production acceptance。
+检查 docs-only closeout 与 workflow YAML，完成可复现的 US/CN 只读 validation replay，
+推送本分支并创建 PR；确认 exact-head CI 后更新现场到
+`DAILY_REPORT_PRODUCTION_READINESS_PR_READY`，保持 PR OPEN、不 merge。
 
 ## Constraints / Pitfalls
 

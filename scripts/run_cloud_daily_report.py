@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import time
 from typing import Any, Mapping
 
 try:
@@ -44,6 +45,11 @@ from trading.setup02_decision import SETUP02_MINIMUM_RR
 
 
 CLOUD_DAILY_REPORT_PROTOCOL_VERSION = "CLOUD-DAILY-REPORT-MOBILE-V1-2026-09-14"
+DAILY_REPORT_DELIVERY_READINESS_VERSION = "DAILY_REPORT_DELIVERY_READINESS_V1"
+FINAL_REPORT_ELIGIBLE = "FINAL_REPORT_ELIGIBLE"
+DEGRADED_DIAGNOSTIC_ONLY = "DEGRADED_DIAGNOSTIC_ONLY"
+UPSTREAM_NOT_READY = "UPSTREAM_NOT_READY"
+DELIVERY_FAILED = "FAILED"
 MARKET_LABELS = {"CN": "A股", "US": "美股"}
 ARTIFACT_ALLOWLIST = ("daily-report.json", "daily-report.html")
 PROSPECTIVE_FUNNEL_PROTOCOL_VERSION = "PROSPECTIVE_EXACT_T_FUNNEL_V1"
@@ -412,6 +418,173 @@ def _status_from_result(
     return status, quality
 
 
+def _integer_value(value: Any, default: int = 0) -> int:
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _candidate_readiness_snapshot(
+    result: Mapping[str, Any], quality: Mapping[str, Any], market: str,
+) -> dict[str, Any]:
+    candidate_markets = result.get("candidate_markets")
+    candidate = (
+        candidate_markets.get(market)
+        if isinstance(candidate_markets, Mapping)
+        else None
+    )
+    candidate = candidate if isinstance(candidate, Mapping) else {}
+    candidate_status = str(
+        quality.get("candidate_status")
+        or candidate.get("candidate_status")
+        or candidate.get("status")
+        or "NOT_REPORTED"
+    ).strip().upper()
+    selection = str(candidate.get("candidate_selection_outcome") or "").strip().upper()
+    included = _integer_value(candidate.get("candidate_included_count"))
+    dynamic_analysis: int | None = None
+    for entry in result.get("reports", ()) if isinstance(result.get("reports"), list) else ():
+        if not isinstance(entry, Mapping) or str(entry.get("市场") or "").upper() != market:
+            continue
+        scope = (entry.get("universe") or {}).get("analysis_scope_counts")
+        if isinstance(scope, Mapping):
+            dynamic_analysis = _integer_value(scope.get("dynamic_candidate_strategy_analysis"))
+            break
+    if dynamic_analysis is None:
+        dynamic_analysis = _integer_value(
+            candidate.get("strategy_analysis_count"),
+            _integer_value(candidate.get("deep_analysis_count")),
+        )
+    return {
+        "candidate_status": candidate_status,
+        "selection_outcome": selection,
+        "included_count": included,
+        "dynamic_strategy_analysis_count": dynamic_analysis,
+        "candidate": candidate,
+    }
+
+
+def _delivery_readiness(
+    *,
+    market: str,
+    status: str,
+    session_identity: Any,
+    result: Mapping[str, Any],
+    data_quality: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Evaluate whether this run is a final report or diagnostic-only output.
+
+    This is an operational delivery contract.  It consumes existing session,
+    provider, Candidate, and strategy coverage facts and never evaluates a
+    Wave, Setup, target, risk, or entry rule.
+    """
+
+    run_status = str(data_quality.get("run_status") or status).strip().upper()
+    data_status = str(
+        data_quality.get("data_status") or data_quality.get("status") or status
+    ).strip().upper()
+    provider_global_failure = bool(data_quality.get("provider_global_failure"))
+    candidate_snapshot = _candidate_readiness_snapshot(result, data_quality, market)
+    candidate_status = candidate_snapshot["candidate_status"]
+    selection_outcome = candidate_snapshot["selection_outcome"]
+    included_count = candidate_snapshot["included_count"]
+    dynamic_analysis = candidate_snapshot["dynamic_strategy_analysis_count"]
+    if "strategy_analyzed_count" in data_quality:
+        strategy_analyzed = _integer_value(data_quality.get("strategy_analyzed_count"))
+    else:
+        strategy_analyzed = sum(
+            1
+            for entry in result.get("reports", ())
+            if isinstance(entry, Mapping)
+            for row in ((entry.get("报告") or {}).get("results") or ())
+            if isinstance(row, Mapping) and str(row.get("data_status") or "").upper() == "DATA_OK"
+        )
+    operationally_complete = data_quality.get("operationally_complete")
+    if operationally_complete is None:
+        operationally_complete = bool(result.get("reports")) or run_status == "COMPLETED"
+    candidate_errors = bool(
+        data_quality.get("candidate_runtime_failed")
+        or data_quality.get("candidate_quality_errors")
+        or candidate_snapshot["candidate"].get("errors")
+    )
+
+    def outcome(
+        classification: str, reason: str, *, retryable: bool, notify: str,
+    ) -> dict[str, Any]:
+        return {
+            "version": DAILY_REPORT_DELIVERY_READINESS_VERSION,
+            "classification": classification,
+            "final_report_eligible": classification == FINAL_REPORT_ELIGIBLE,
+            "reason": reason,
+            "retryable": retryable,
+            "notification_mode": notify,
+        }
+
+    if status == "SKIPPED_NON_SESSION":
+        return outcome(UPSTREAM_NOT_READY, "NON_SESSION", retryable=False, notify="NONE")
+    if provider_global_failure or run_status == "PROVIDER_GLOBAL_FAILURE":
+        return outcome(DELIVERY_FAILED, "PROVIDER_GLOBAL_FAILURE", retryable=False, notify="ALERT")
+    if run_status == "FAILED" or status in {"FAILED", "SESSION_RESOLUTION_ERROR"}:
+        return outcome(DELIVERY_FAILED, "REPORT_EXECUTION_FAILED", retryable=False, notify="ALERT")
+    if session_identity is None:
+        return outcome(UPSTREAM_NOT_READY, "SESSION_NOT_COMPLETED", retryable=True, notify="ALERT")
+    if run_status == "COMPLETED_NO_USABLE_SYMBOLS" or data_status == "NO_USABLE_SYMBOLS":
+        return outcome(UPSTREAM_NOT_READY, "NO_USABLE_SYMBOLS", retryable=True, notify="ALERT")
+
+    if candidate_status in {"UNAVAILABLE", "NO_USABLE_SYMBOLS", "NOT_RUN", "NOT_REPORTED"}:
+        if strategy_analyzed == 0:
+            return outcome(
+                UPSTREAM_NOT_READY,
+                "CANDIDATE_UNAVAILABLE_NO_ANALYSIS",
+                retryable=True,
+                notify="ALERT",
+            )
+        return outcome(
+            DEGRADED_DIAGNOSTIC_ONLY,
+            "CANDIDATE_UNAVAILABLE_FORMAL_ONLY",
+            retryable=True,
+            notify="ALERT",
+        )
+    if candidate_status == "NO_CANDIDATES":
+        if selection_outcome != "NO_CANDIDATES" or candidate_errors:
+            return outcome(
+                DEGRADED_DIAGNOSTIC_ONLY,
+                "CANDIDATE_DISCOVERY_INCOMPLETE",
+                retryable=True,
+                notify="ALERT",
+            )
+        if not operationally_complete:
+            return outcome(UPSTREAM_NOT_READY, "REPORT_COVERAGE_NOT_COMPLETE", retryable=True, notify="ALERT")
+        return outcome(FINAL_REPORT_ELIGIBLE, "CANDIDATE_STAGE_COMPLETE_NO_CANDIDATES", retryable=False, notify="FINAL")
+    if candidate_status not in {"SUCCESS", "PARTIAL"}:
+        return outcome(
+            DEGRADED_DIAGNOSTIC_ONLY,
+            "CANDIDATE_STATUS_UNTRUSTED",
+            retryable=True,
+            notify="ALERT",
+        )
+    if candidate_status == "PARTIAL" and included_count == 0:
+        return outcome(
+            UPSTREAM_NOT_READY if strategy_analyzed == 0 else DEGRADED_DIAGNOSTIC_ONLY,
+            "CANDIDATE_COVERAGE_INCOMPLETE",
+            retryable=True,
+            notify="ALERT",
+        )
+    if candidate_status == "PARTIAL" and included_count and dynamic_analysis == 0 and strategy_analyzed:
+        return outcome(
+            DEGRADED_DIAGNOSTIC_ONLY,
+            "CANDIDATE_ANALYSIS_NOT_COVERED",
+            retryable=True,
+            notify="ALERT",
+        )
+    if not operationally_complete:
+        return outcome(UPSTREAM_NOT_READY, "REPORT_COVERAGE_NOT_COMPLETE", retryable=True, notify="ALERT")
+    if strategy_analyzed == 0:
+        return outcome(UPSTREAM_NOT_READY, "NO_STRATEGY_ANALYSIS", retryable=True, notify="ALERT")
+    return outcome(FINAL_REPORT_ELIGIBLE, "EXACT_SESSION_AND_ANALYSIS_COVERAGE", retryable=False, notify="FINAL")
+
+
 def _has_report_signal(result: Mapping[str, Any]) -> bool:
     """Return whether the completed report contains a user-facing signal."""
 
@@ -564,6 +737,13 @@ def _cloud_metadata(
     if isinstance(candidate_errors, Mapping):
         metadata_errors.extend(str(value) for value in candidate_errors.values() if value)
     metadata_errors.extend(str(value) for value in (data_quality.get("candidate_quality_errors") or ()) if value)
+    readiness = _delivery_readiness(
+        market=market,
+        status=status,
+        session_identity=session_identity,
+        result=result,
+        data_quality=data_quality,
+    )
     return {
         "protocol_version": CLOUD_DAILY_REPORT_PROTOCOL_VERSION,
         "market": market,
@@ -579,6 +759,12 @@ def _cloud_metadata(
         "data_status": data_quality.get("data_status", data_quality.get("status", "UNKNOWN")),
         "candidate_status": data_quality.get("candidate_status", "NOT_RUN"),
         "reliability_classification": reliability_classification or status,
+        "delivery_readiness_version": readiness["version"],
+        "delivery_readiness": readiness["classification"],
+        "final_report_eligible": readiness["final_report_eligible"],
+        "delivery_readiness_reason": readiness["reason"],
+        "delivery_readiness_retryable": readiness["retryable"],
+        "delivery_notification_mode": readiness["notification_mode"],
         "session_identity": _session_payload(session_identity),
         "session_resolution": dict(session_resolution or {}),
         "calendar_gate": "EXACT_COMPLETED_SESSION" if session_identity is not None else status,
@@ -765,12 +951,41 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     candidate_status = str(
         cloud.get("candidate_status") or cloud.get("CANDIDATE_STATUS") or "NOT_RUN"
     )
+    readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
+    readiness_reason = str(cloud.get("delivery_readiness_reason") or "").strip()
     projection = build_dashboard_projection(payload)
     summary = projection.get("summary", {})
     freshness = projection.get("freshness_funnel", {})
     plan_count = int(summary.get("strategy_proposal_count", 0) or 0) + int(
         summary.get("entry_allowed_count", 0) or 0
     )
+    if readiness and readiness != FINAL_REPORT_ELIGIBLE:
+        quality = cloud.get("data_quality") or {}
+        failed = quality.get("failed_symbols") or []
+        retryable = "是" if cloud.get("delivery_readiness_retryable") else "否"
+        title = (
+            f"{label}日报等待数据"
+            if readiness == UPSTREAM_NOT_READY
+            else f"{label}日报仅诊断"
+            if readiness == DEGRADED_DIAGNOSTIC_ONLY
+            else f"{label}日报异常"
+        )
+        body = (
+            f"市场：{label}\n"
+            f"数据日期：{projection.get('as_of_date', '—')}\n"
+            f"日报就绪状态：{readiness}\n"
+            f"原因：{readiness_reason or '未提供'}\n"
+            f"RUN_STATUS：{run_status}\n"
+            f"DATA_STATUS：{data_status}\n"
+            f"CANDIDATE_STATUS：{candidate_status}\n"
+            f"策略分析：{quality.get('strategy_analyzed_count', '—')}；异常标的：{', '.join(failed[:20]) or '无'}\n"
+            f"允许后续重试：{retryable}\n"
+            "本次输出仅作等待/异常诊断，未形成可发送的正式交易日报。"
+        )
+        run_url = cloud.get("github_run_url")
+        if run_url:
+            body += f"\n查看本次运行：{run_url}"
+        return title, body
     if run_status in {"COMPLETED", "COMPLETED_NO_USABLE_SYMBOLS"}:
         failed = ((cloud.get("data_quality") or {}).get("failed_symbols") or [])
         quality = cloud.get("data_quality") or {}
@@ -866,10 +1081,19 @@ def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
     try:
         claim = claim_report_notification(payload)
         cloud["notification_idempotency"] = claim
-        if claim.get("status") == "NOOP_REPORT_ALREADY_SENT":
+        if claim.get("status") in {
+            "NOOP_REPORT_ALREADY_SENT",
+            "NOOP_DEGRADED_ALERT_ALREADY_SENT",
+        }:
             cloud["notifications"] = {
-                "bark": {"status": "NOOP_REPORT_ALREADY_SENT", "configured": True},
-                "email": {"status": "NOOP_REPORT_ALREADY_SENT", "configured": True},
+                "bark": {"status": claim["status"], "configured": True},
+                "email": {"status": claim["status"], "configured": True},
+            }
+            return
+        if claim.get("status") in {"NOT_NOTIFYABLE", "NOT_ELIGIBLE_FINAL_REPORT"}:
+            cloud["notifications"] = {
+                "bark": {"status": "NOT_SENT_NOT_NOTIFYABLE", "configured": False},
+                "email": {"status": "NOT_SENT_NOT_NOTIFYABLE", "configured": False},
             }
             return
         if claim.get("status") == "IDEMPOTENCY_UNAVAILABLE":
@@ -890,7 +1114,11 @@ def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
             html_attachment=dashboard_html,
             attachment_filename=_notification_attachment_filename(payload),
         )
-        cloud["notifications"] = {"bark": bark, "email": email}
+        cloud["notifications"] = {
+            "kind": "FINAL_REPORT" if cloud.get("delivery_readiness") == FINAL_REPORT_ELIGIBLE else "DEGRADED_ALERT",
+            "bark": bark,
+            "email": email,
+        }
     except Exception as exc:
         cloud["notifications"] = {
             "bark": {"status": "FAILED", "configured": bool(os.environ.get("BARK_ENDPOINT")), "error": _error_text(exc)},
@@ -1094,7 +1322,17 @@ def run_cloud_daily_report(
     }
     # A manual rerun of the current natural session uses the same ledger.
     # Historical dates are diagnostic-only; births must precede next open.
-    eligible = as_of_date > RELEASE_DATE
+    # An upstream/degraded report is not a reliable Daily Decision and must
+    # not create prospective birth/follow-up evidence.
+    delivery_readiness = str(
+        payload["cloud_daily_report"].get("delivery_readiness") or ""
+    ).upper()
+    eligible = (
+        as_of_date > RELEASE_DATE
+        and delivery_readiness == FINAL_REPORT_ELIGIBLE
+    )
+    if as_of_date > RELEASE_DATE and delivery_readiness != FINAL_REPORT_ELIGIBLE:
+        opportunity_status = "NOT_ELIGIBLE_DELIVERY_READINESS"
     if eligible:
         try:
             window = provider.completed_session_window(normalized_market, as_of_date, now=generated_at)
@@ -1146,6 +1384,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-notify", action="store_true")
     parser.add_argument("--require-complete", action="store_true",
                         help="Exit nonzero for a delivered PARTIAL_DATA_QUALITY report")
+    parser.add_argument(
+        "--retry-not-ready-attempts", type=int, default=1,
+        help="Bounded attempts for retryable UPSTREAM_NOT_READY/diagnostic runs",
+    )
+    parser.add_argument(
+        "--retry-not-ready-delay-seconds", type=float, default=0.0,
+        help="Delay between bounded readiness attempts",
+    )
     args = parser.parse_args(argv)
     generated_at = datetime.now(timezone.utc)
     calendar_provider = ExactExchangeCalendarProvider()
@@ -1185,15 +1431,30 @@ def main(argv: list[str] | None = None) -> int:
         _write_and_notify(payload, args.output, notify=not args.no_notify)
         print(json.dumps(payload["cloud_daily_report"], ensure_ascii=False, indent=2, default=str))
         return 1
-    payload = run_cloud_daily_report(
-        market=args.market,
-        as_of_date=trade_date,
-        output_dir=args.output,
-        now=generated_at,
-        calendar_provider=calendar_provider,
-        notify=not args.no_notify,
-        automatic_resolution=args.trade_date is None,
-    )
+    attempts = min(max(int(args.retry_not_ready_attempts), 1), 5)
+    delay_seconds = max(float(args.retry_not_ready_delay_seconds), 0.0)
+    payload = None
+    for attempt in range(attempts):
+        payload = run_cloud_daily_report(
+            market=args.market,
+            as_of_date=trade_date,
+            output_dir=args.output,
+            now=datetime.now(timezone.utc) if attempt else generated_at,
+            calendar_provider=calendar_provider,
+            notify=not args.no_notify,
+            automatic_resolution=args.trade_date is None,
+        )
+        readiness = str(
+            (payload.get("cloud_daily_report") or {}).get("delivery_readiness") or ""
+        ).upper()
+        retryable = bool(
+            (payload.get("cloud_daily_report") or {}).get("delivery_readiness_retryable")
+        )
+        if not retryable or readiness not in {UPSTREAM_NOT_READY, DEGRADED_DIAGNOSTIC_ONLY} or attempt + 1 >= attempts:
+            break
+        if delay_seconds:
+            time.sleep(delay_seconds)
+    assert payload is not None
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))
     metadata = payload.get("cloud_daily_report", {})
     if metadata.get("OPPORTUNITY_LEDGER_STATUS") in {"FAILED", "MISSED_PROSPECTIVE_SESSION"} or payload.get("opportunity_tracking", {}).get("provider_global_failure"):
@@ -1201,6 +1462,11 @@ def main(argv: list[str] | None = None) -> int:
     status = str(metadata.get("status") or "FAILED")
     run_status = str(metadata.get("run_status") or metadata.get("RUN_STATUS") or status)
     data_status = str(metadata.get("data_status") or metadata.get("DATA_STATUS") or "UNKNOWN")
+    delivery_readiness = str(metadata.get("delivery_readiness") or "").upper()
+    if delivery_readiness in {UPSTREAM_NOT_READY, DEGRADED_DIAGNOSTIC_ONLY}:
+        return 2
+    if delivery_readiness == DELIVERY_FAILED:
+        return 1
     if status in {"SUCCESS", "SKIPPED_NON_SESSION"} or run_status in {
         "COMPLETED", "COMPLETED_NO_USABLE_SYMBOLS"
     }:

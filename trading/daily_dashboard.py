@@ -2267,15 +2267,15 @@ def _candidate_diagnostics(
 def _diagnostic_data_issues(
     payload: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]
 ) -> list[dict[str, str]]:
-    """Collect abnormal symbols from existing quality/provider error fields."""
+    """Collect symbol data issues separately from Candidate component issues."""
 
-    issues: dict[tuple[str, str, str], None] = {}
+    issues: dict[tuple[str, str, str, str], None] = {}
 
-    def add(market: Any, symbol: Any, reason: Any) -> None:
+    def add(market: Any, symbol: Any, reason: Any, *, category: str = "SYMBOL_DATA") -> None:
         normalized_market = _normalised_market(market) or "—"
         normalized_symbol = _text(symbol) or "系统"
         normalized_reason = _text(reason) or "数据质量检查未通过"
-        issues[(normalized_market, normalized_symbol, normalized_reason)] = None
+        issues[(category, normalized_market, normalized_symbol, normalized_reason)] = None
 
     def add_error(value: Any, market: Any) -> None:
         text = _text(value)
@@ -2298,7 +2298,6 @@ def _diagnostic_data_issues(
         "errors",
         "ephemeral_errors",
         "preflight_errors",
-        "candidate_quality_errors",
     ):
         values = cloud.get(key) if key == "errors" else quality.get(key)
         for value in _sequence(values):
@@ -2308,11 +2307,11 @@ def _diagnostic_data_issues(
         for candidate_market, value in runtime_errors.items():
             text = _text(value)
             if text:
-                add(candidate_market, "候选链路", text)
+                add(candidate_market, "候选发现组件", text, category="CANDIDATE_COMPONENT")
     for value in _sequence(quality.get("candidate_quality_errors")):
         text = _text(value)
         if text:
-            add(market, "候选链路", text)
+            add(market, "候选发现组件", text, category="CANDIDATE_COMPONENT")
     for symbol, provider in _mapping(cloud.get("provider_status")).items():
         provider = _mapping(provider)
         for value in _sequence(provider.get("errors")):
@@ -2329,11 +2328,11 @@ def _diagnostic_data_issues(
         candidate_market = _normalised_market(candidate.get("market")) or market
         for value in _sequence(candidate.get("errors")):
             if _text(value):
-                add(candidate_market, "候选链路", value)
+                add(candidate_market, "候选发现组件", value, category="CANDIDATE_COMPONENT")
         deep_errors = _mapping(candidate.get("deep_history_errors"))
         for symbol, values in deep_errors.items():
             for value in _sequence(values) or (values,):
-                add(candidate_market, symbol, value)
+                add(candidate_market, "候选发现组件", f"{symbol}：{value}", category="CANDIDATE_COMPONENT")
     if rows and not _mapping(payload.get("candidate_markets")) and not any(
         _mapping(entry.get("candidate")) for entry in _report_entries(payload)
     ):
@@ -2353,10 +2352,10 @@ def _diagnostic_data_issues(
         "FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY",
         "PROVIDER_GLOBAL_FAILURE", "COMPLETED_NO_USABLE_SYMBOLS",
     } and not issues:
-        add(market, "系统", f"日报状态：{cloud_status}")
+        add(market, "系统", f"日报状态：{cloud_status}", category="SYSTEM")
     return [
-        {"market": market, "symbol": symbol, "reason": reason}
-        for market, symbol, reason in sorted(issues)
+        {"category": category, "market": market, "symbol": symbol, "reason": reason}
+        for category, market, symbol, reason in sorted(issues)
     ]
 
 
@@ -3965,6 +3964,7 @@ def _render_prospective_observation(projection: Mapping[str, Any]) -> str:
 
 def _render_diagnostics(projection: Mapping[str, Any]) -> str:
     diagnostics = _mapping(projection.get("diagnostics"))
+    cloud = _mapping(projection.get("cloud_daily_report"))
     status = _text(diagnostics.get("status"), "—")
     status_labels = {
         "DATA_ISSUE": "部分标的无法评估，请分别查看已完成结果与异常",
@@ -3973,8 +3973,15 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
         "SIGNAL_AVAILABLE": "已完成覆盖，存在已计算信号",
     }
     issues = tuple(_mapping(item) for item in _sequence(diagnostics.get("data_issues")))
+    category_labels = {
+        "CANDIDATE_COMPONENT": "候选发现组件",
+        "SYSTEM": "系统",
+        "SYMBOL_DATA": "标的数据",
+    }
     issue_html = "".join(
-        f'<li><strong>{_escape(item.get("market"))} · {_escape(item.get("symbol"))}</strong>：{_escape(_translate_reason(item.get("reason")) or "数据异常")}</li>'
+        f'<li><strong>{_escape(item.get("market"))} · '
+        f'{_escape(category_labels.get(_text(item.get("category")), item.get("symbol")))}</strong>：'
+        f'{_escape(_translate_reason(item.get("reason")) or "数据异常")}</li>'
         for item in issues
     )
     candidate = _mapping(diagnostics.get("candidate"))
@@ -4034,10 +4041,36 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
         + "</ul></details>"
         if issues else ""
     )
+    readiness = _text(cloud.get("delivery_readiness"))
+    readiness_copy = {
+        "FINAL_REPORT_ELIGIBLE": "正式日报可发送",
+        "UPSTREAM_NOT_READY": "上游数据尚未就绪",
+        "DEGRADED_DIAGNOSTIC_ONLY": "仅供异常诊断",
+        "FAILED": "日报核心运行失败",
+    }
+    readiness_reason_copy = {
+        "NON_SESSION": "非交易日",
+        "SESSION_NOT_COMPLETED": "交易时段尚未完成",
+        "NO_USABLE_SYMBOLS": "没有可用标的数据",
+        "CANDIDATE_UNAVAILABLE_NO_ANALYSIS": "候选发现不可用且没有策略分析覆盖",
+        "CANDIDATE_UNAVAILABLE_FORMAL_ONLY": "候选发现不可用，但已有正式标的完成分析",
+        "CANDIDATE_COVERAGE_INCOMPLETE": "候选覆盖未完成",
+        "CANDIDATE_ANALYSIS_NOT_COVERED": "候选进入后续分析的覆盖不足",
+        "REPORT_COVERAGE_NOT_COMPLETE": "日报分析覆盖未完成",
+        "NO_STRATEGY_ANALYSIS": "没有完成策略分析",
+        "PROVIDER_GLOBAL_FAILURE": "行情供应商全局故障",
+        "REPORT_EXECUTION_FAILED": "日报运行失败",
+    }
+    readiness_block = (
+        f'<div class="diagnostic-coverage">正式日报状态：{_escape(readiness_copy.get(readiness, "状态未确定"))}；'
+        f'原因：{_escape(readiness_reason_copy.get(_text(cloud.get("delivery_readiness_reason")), "未提供") )}</div>'
+        if readiness else ""
+    )
     return (
         f'<section class="diagnostic-panel {"diagnostic-danger" if issues else ""}" aria-label="日报诊断">'
         f'<div class="diagnostic-heading"><h2>覆盖与日报诊断</h2><span>{_escape(status_labels.get(status, "状态未确定"))}</span></div>'
-        f'<div class="diagnostic-coverage">候选种子 {_escape(coverage.get("seed_count"))} → 数据合格 {_escape(coverage.get("data_qualified_count"))} → 纳入候选 {_escape(coverage.get("included_count"))}；成功分析 {_escape(projection["summary"]["completed_analysis_count"])}；无法评估 {_escape(projection["summary"]["data_blocked_count"])}</div>'
+        + readiness_block
+        + f'<div class="diagnostic-coverage">候选种子 {_escape(coverage.get("seed_count"))} → 数据合格 {_escape(coverage.get("data_qualified_count"))} → 纳入候选 {_escape(coverage.get("included_count"))}；成功分析 {_escape(projection["summary"]["completed_analysis_count"])}；无法评估 {_escape(projection["summary"]["data_blocked_count"])}</div>'
         + issue_block
         + '<details class="diagnostic-technical"><summary>查看完整覆盖与筛选诊断</summary><div class="diagnostic-markets">'
         + "".join(market_html)
@@ -4490,7 +4523,8 @@ def render_dashboard_html(value: Any) -> str:
         if demo_label
         else ""
     )
-    cloud_status = _text(_mapping(projection.get("cloud_daily_report")).get("status"))
+    cloud_metadata = _mapping(projection.get("cloud_daily_report"))
+    cloud_status = _text(cloud_metadata.get("status"))
     cloud_banner_labels = {
         "SKIPPED_NON_SESSION": "本日非交易日，已跳过（不使用上一交易日替代）",
         "INCOMPLETE_SESSION": "交易时段尚未完成，本日不生成新的交易信号",
@@ -4503,6 +4537,17 @@ def render_dashboard_html(value: Any) -> str:
         if cloud_status in cloud_banner_labels
         else ""
     )
+    readiness = _text(cloud_metadata.get("delivery_readiness"))
+    readiness_labels = {
+        "UPSTREAM_NOT_READY": "上游数据尚未就绪，本次仅发送等待/异常诊断，不形成正式日报",
+        "DEGRADED_DIAGNOSTIC_ONLY": "候选或覆盖不完整，本次仅供诊断，不形成正式日报",
+        "FAILED": "日报核心运行失败，本次仅供诊断，不形成正式日报",
+    }
+    if readiness in readiness_labels and cloud_status not in {"SKIPPED_NON_SESSION", "INCOMPLETE_SESSION"}:
+        cloud_banner = (
+            f'<div class="cloud-status-banner status-{_escape(cloud_status or "FAILED")}">'
+            f'{_escape(readiness_labels[readiness])}</div>'
+        )
     workspace_specs = (
         ("today", "今日重点"),
         ("paper", "模拟交易"),

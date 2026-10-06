@@ -125,8 +125,9 @@
   仍 `UNAVAILABLE`，诊断保留 source/report date 与 `NO_ELIGIBLE_SNAPSHOT`。
 - US 新 adapter 在指定 report date 时从 iShares 官方 IWB 历史下载传 `asOfDate=YYYYMMDD`，
   response `Fund Holdings as of` 是日期事实源；保留日期查询 URL/provenance，并兼容官方
-  historical CSV 日期/数字格式。不把 request date 赋给响应；缺日期或未来 snapshot fail
-  closed。未指定日期的直接下载仍为 current-only。当前 production 无 persistent
+  historical CSV 日期/数字格式。不把 request date 赋给响应；目标 response 无可信日期时，
+  只在有限的更早真实 XNYS session 窗口内重试，最终仍必须采用官方 response 的日期；
+  缺日期或未来 snapshot fail closed。未指定日期的直接下载仍为 current-only。当前 production 无 persistent
   snapshot cache；所有新加载或 cache-backed loader 的输入均须重验日期。US live seed
   仅为 IWB Russell 1000，Yahoo 只供价格；S&P500/QQQ/SOX frozen research snapshots 独立。
 - US IWB Equity rows retain generic lifecycle metadata and source provenance. Explicit
@@ -382,9 +383,17 @@
   provenance；stale/no exact-session、provider-wide failure、核心计算异常、artifact
   失败继续 non-zero；`COMPLETED_NO_USABLE_SYMBOLS` 先生成完整诊断再由 strict audit
   决定是否 non-zero。
+- Cloud 日报现有正式能力边界增加 `DAILY_REPORT_DELIVERY_READINESS_V1`：只有
+  `FINAL_REPORT_ELIGIBLE` 才是可发送的正式日报；`DEGRADED_DIAGNOSTIC_ONLY`、
+  `UPSTREAM_NOT_READY`、`FAILED` 只允许异常/等待诊断，不占用正式日报最终通知身份。
+  Candidate 全部不可用且没有动态策略分析、没有可用标的、未完成 exchange session 或
+  provider-wide failure 均不会被冒充为 final；CN 少量 symbol stale 在 Candidate 与其余
+  策略覆盖合法时仍可 final。非 final readiness 不产生 Opportunity Ledger birth/follow-up
+  写入。
 - `scripts/run_cloud_daily_report.py` 提供一个严格 `CN` 或 `US` 的日报入口；新增的
-  `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 保留既有 primary
-  schedules，并通过共享 `ExactExchangeCalendarProvider.latest_completed_session()` 选择
+  `.github/workflows/cn-daily-report.yml` 与 `us-daily-report.yml` 以成功的
+  `asia-close` / `us-close` `workflow_run` 为 primary trigger，保留 schedule fallback，
+  并通过共享 `ExactExchangeCalendarProvider.latest_completed_session()` 选择
   最近一个真实收盘已过去的 `XSHG` / `XNYS` session。跨北京时间午夜、周末、节假日、US
   DST/EST 和 schedule 延迟都不会把 runner 当前 civil date 当成未完成 T；显式
   `--date/--trade-date` 继续严格使用指定日期并进入 exact-session gate。日报 metadata
@@ -432,9 +441,12 @@
   follow-up观察记录（含单session OHLC），不写行情历史表。`asia-close` / `us-close` 是独立的 Sheet-backed
   scheduled writer；Cloud Daily Report 仍只读配置、在内存取行情，不读写 `最新行情` /
   `历史行情_前复权`，也不改变 writer 的事实源边界。Bark/SMTP 仍为可选通知；配置 D1
-  VPS credentials 后，通知会先在独立 `system/operational/daily-report-notifications/`
-  namespace create-only claim，同一 market/session/protocol 的 fallback 返回
-  `NOOP_REPORT_ALREADY_SENT`，不混入 formal D1 session graph。
+  VPS credentials 后，final notification 使用独立的
+  `system/operational/daily-report-notifications/final-v2/` create-only namespace，
+  degraded/upstream alert 使用独立 `system/operational/daily-report-alerts/` namespace；
+  同一 market/session 的 degraded alert 不重复，恢复后的 final 仍可发送一次，final 重跑
+  返回 `NOOP_REPORT_ALREADY_SENT`，不混入 formal D1 session graph。旧 V1 marker 不删除、
+  不复用，避免历史坏 marker 阻断恢复报告。
 - 自然运行与只读诊断已证实 US provider 尾部可暂时落后 exact T，且相邻任务读取 Sheets
   曾遇到 429。CN 9/23 writer 已完成正式 QFQ 3/3，但 US 同日 latest 待复核、正式 QFQ
   更新 0；Candidate 大规模历史不足和绿色日报掩盖部分质量亦已形成独立修复 PR。

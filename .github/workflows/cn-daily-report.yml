@@ -2,7 +2,12 @@ name: CN Daily Report
 
 on:
   schedule:
-    - cron: "30 9 * * 1-5"
+    # Fallback only; the primary trigger is the successful asia-close
+    # workflow_run below.  Readiness is checked by the report itself.
+    - cron: "0 10 * * 1-5"
+  workflow_run:
+    workflows: ["亚洲市场收盘更新"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       trade_date:
@@ -24,6 +29,10 @@ concurrency:
 
 jobs:
   daily-report:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     env:
       REPORT_DATE: ${{ inputs.trade_date }}
@@ -51,6 +60,8 @@ jobs:
       D1_VPS_DANGER_FREE_BYTES: ${{ vars.D1_VPS_DANGER_FREE_BYTES }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -62,10 +73,11 @@ jobs:
           if [ "${{ inputs.require_complete }}" = "true" ]; then
             STRICT_FLAG="--require-complete"
           fi
+          RETRY_FLAGS="--retry-not-ready-attempts 3 --retry-not-ready-delay-seconds 60"
           if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" $STRICT_FLAG
+            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" $RETRY_FLAGS $STRICT_FLAG
           else
-            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" $STRICT_FLAG
+            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" $RETRY_FLAGS $STRICT_FLAG
           fi
       - name: Upload final CN artifacts
         if: always()
