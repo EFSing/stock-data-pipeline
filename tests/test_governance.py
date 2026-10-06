@@ -121,7 +121,7 @@ class GovernanceTests(unittest.TestCase):
             self.assertNotIn("main.py --group", source)
             self.assertIn("workflow_run:", source)
             self.assertIn("types: [completed]", source)
-            self.assertIn("--retry-not-ready-attempts 3", source)
+            self.assertIn("--retry-not-ready-attempts 6 --retry-not-ready-delay-seconds 300", source)
 
     def test_cloud_report_workflows_keep_exact_market_schedules(self):
         for relative_path, cron, market in (

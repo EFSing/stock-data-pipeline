@@ -5,6 +5,8 @@ on:
     # Fallback only; the primary trigger is the successful asia-close
     # workflow_run below.  Readiness is checked by the report itself.
     - cron: "0 10 * * 1-5"
+    # Later bounded fallback for provider recovery after a slow close/source.
+    - cron: "30 10 * * 1-5"
   workflow_run:
     workflows: ["亚洲市场收盘更新"]
     types: [completed]
@@ -19,6 +21,11 @@ on:
         required: false
         type: boolean
         default: false
+      legacy_recovery_identity:
+        description: "Explicit one-time legacy V1 marker identity to migrate"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -32,10 +39,12 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'schedule')
     runs-on: ubuntu-latest
     env:
       REPORT_DATE: ${{ inputs.trade_date }}
+      LEGACY_RECOVERY_IDENTITY: ${{ inputs.legacy_recovery_identity }}
       BARK_ENDPOINT: ${{ secrets.BARK_ENDPOINT }}
       SMTP_HOST: ${{ secrets.SMTP_HOST }}
       SMTP_PORT: ${{ secrets.SMTP_PORT }}
@@ -73,11 +82,15 @@ jobs:
           if [ "${{ inputs.require_complete }}" = "true" ]; then
             STRICT_FLAG="--require-complete"
           fi
-          RETRY_FLAGS="--retry-not-ready-attempts 3 --retry-not-ready-delay-seconds 60"
+          RETRY_FLAGS="--retry-not-ready-attempts 6 --retry-not-ready-delay-seconds 300"
+          RECOVERY_FLAGS=()
+          if [ -n "$LEGACY_RECOVERY_IDENTITY" ]; then
+            RECOVERY_FLAGS=(--legacy-recovery-identity "$LEGACY_RECOVERY_IDENTITY")
+          fi
           if [ -n "$REPORT_DATE" ]; then
-            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" $RETRY_FLAGS $STRICT_FLAG
+            python scripts/run_cloud_daily_report.py --market CN --date "$REPORT_DATE" --output "$RUNNER_TEMP/cloud-daily-report/CN" $RETRY_FLAGS $STRICT_FLAG "${RECOVERY_FLAGS[@]}"
           else
-            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" $RETRY_FLAGS $STRICT_FLAG
+            python scripts/run_cloud_daily_report.py --market CN --output "$RUNNER_TEMP/cloud-daily-report/CN" $RETRY_FLAGS $STRICT_FLAG "${RECOVERY_FLAGS[@]}"
           fi
       - name: Upload final CN artifacts
         if: always()

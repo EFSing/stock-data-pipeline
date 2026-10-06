@@ -281,6 +281,20 @@ class IwbContractTests(unittest.TestCase):
         self.assertIn("snapshot_mode:DATE_QUERY_FALLBACK", seeds[0].provenance)
         self.assertIn("requested_as_of:2026-10-05", seeds[0].provenance)
 
+    def test_iwb_fallback_uses_real_xnys_sessions_across_thanksgiving(self):
+        requested = date(2026, 11, 27)
+        dates = IwbOfficialHoldingsAdapter._historical_request_dates(requested)
+
+        self.assertEqual(dates, (
+            date(2026, 11, 27),
+            date(2026, 11, 25),
+            date(2026, 11, 24),
+            date(2026, 11, 23),
+            date(2026, 11, 20),
+            date(2026, 11, 19),
+        ))
+        self.assertNotIn(date(2026, 11, 26), dates)
+
     def test_missing_snapshot_evidence_never_uses_request_date(self):
         empty = (Path(__file__).with_name("fixtures") / "iwb_holdings_20261005_empty_response.csv").read_bytes()
         with patch(

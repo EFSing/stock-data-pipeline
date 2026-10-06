@@ -4,11 +4,12 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_PRODUCTION_READINESS_PR_READY`：从最新 `main` 创建独立分支
+`DAILY_REPORT_PRODUCTION_READINESS_FIX_IN_PROGRESS`：继续在现有 PR #136 的独立分支
 `fix/daily-report-production-readiness-v1`，修复 IWB Candidate seed 的生产日期证据解析、
 Daily Report readiness 分类、degraded/final 通知幂等语义、CN/US 调度竞态与诊断分类；
-保持交易策略、Paper、broker、Opportunity Ledger 的既有语义不变。PR #136 已创建并保持
-OPEN，exact-head required CI 全部通过；本任务不 merge。
+保持交易策略、Paper、broker、Opportunity Ledger 的既有语义不变。PR #136 保持 OPEN，
+不新建 PR、不 merge。本轮重点是 legacy V1 marker 的受控迁移、workflow_run 调度合同、
+真实交易 session fallback 与 provider readiness 恢复窗口。
 
 本轮真实 blocker 已确认并修复：US early Daily Report 在上游 exact-T / IWB seed 不可用时仍进入
 发送路径，并占用了最终日报 notification marker；后续恢复报告被旧 marker 阻断。已从
@@ -128,9 +129,9 @@ CSV 但 snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026
 
 ## Next Action
 
-等待 reviewer 对 PR #136 进行审查；保持 PR OPEN、不 merge。后续自然日报按新的
-readiness/final-notification contract 观察，不把历史 artifact 或本地 probe 记为 natural
-acceptance。
+完成本轮 marker migration、workflow contract、IWB session fallback 与 readiness retry
+修复，运行 focused/full validation，更新治理文档并重新核对 PR #136 exact-head checks；
+最终将状态切换为 `DAILY_REPORT_PRODUCTION_READINESS_PR_READY`，保持 PR OPEN、不 merge。
 
 ## Constraints / Pitfalls
 

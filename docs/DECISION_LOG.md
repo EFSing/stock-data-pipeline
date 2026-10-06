@@ -1134,7 +1134,7 @@ old evidence from being reinterpreted under a materially different historical pr
 
 ## 2026-10-06 — Daily Report delivery readiness and final-notification finality
 
-**Decision:** Cloud Daily Report V1 now exposes the operational contract
+**Decision for PR #136:** Cloud Daily Report V1 exposes the operational contract
 `DAILY_REPORT_DELIVERY_READINESS_V1` with four delivery outcomes:
 `FINAL_REPORT_ELIGIBLE`, `DEGRADED_DIAGNOSTIC_ONLY`, `UPSTREAM_NOT_READY`, and `FAILED`.
 The contract consumes the existing completed-session identity, Candidate seed/component state,
@@ -1149,14 +1149,21 @@ final notification marker. Non-final runs may produce a diagnostic artifact and 
 state-specific alert. Final notification claims use the independent create-only
 `DAILY_REPORT_FINAL_NOTIFICATION_IDEMPOTENCY_V2` namespace; degraded alerts use
 `DAILY_REPORT_DEGRADED_ALERT_IDEMPOTENCY_V1`. Legacy V1 normal-notification markers are not
-deleted or reinterpreted and are ignored by the V2 final claim, so a historical degraded marker
-cannot permanently block a recovered final report. The V2 final identity remains exactly one per
-market/session, while alert identity is one per stable degraded state.
+deleted or reinterpreted: a valid V1 marker is still duplicate-delivery evidence and blocks an
+automatic V2 final claim. A corrected final for a known bad historical V1 session requires an
+operator-supplied exact legacy marker identity. The code verifies that identity against the
+read-back legacy marker, writes a separate create-only
+`DAILY_REPORT_LEGACY_V1_TO_V2_RECOVERY_V1` migration marker, and only then claims the V2 final
+identity. This recovery contract is default-off, auditable, and does not contain a date-specific
+branch. The V2 final identity remains exactly one per market/session, while alert identity is one
+per stable degraded state.
 
-CN and US Daily Report workflows use the successful market-close workflow as the primary
-`workflow_run` trigger. Their existing schedule remains a fallback, and the report performs at
-most three readiness-gated attempts with a bounded delay. A failed close does not launch a final
-report through this dependency; an upstream-not-ready result remains diagnostic/retryable.
+CN and US Daily Report workflows accept a `workflow_run` only when the market-close workflow
+completed successfully on `main` from a scheduled event; manual `workflow_dispatch` close runs
+do not launch an automatic Daily Report. The workflows retain an earlier and a later bounded
+schedule fallback, and each report run performs at most six readiness-gated attempts at five-minute
+intervals (a 25-minute finite recovery window). A failed close does not launch a final report
+through this dependency; an upstream-not-ready result remains diagnostic/retryable.
 
 This is an operational delivery and evidence-integrity contract only. It does not change Wave,
 Swing, Fibonacci, Setup, Entry Zone, Stop, Target, R/R, Portfolio Risk, Paper, broker, Candidate

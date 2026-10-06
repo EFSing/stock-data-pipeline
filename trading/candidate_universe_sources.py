@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -34,6 +34,8 @@ IWB_HISTORICAL_HOLDINGS_URL = (
     "https://www.ishares.com/ch/professionals/en/products/239707/"
     "ishares-russell-1000-etf/1495092304805.ajax"
 )
+# Five prior sessions plus the requested session are attempted.  The window
+# is measured in exchange sessions, not civil calendar days.
 IWB_HISTORICAL_LOOKBACK_SESSIONS = 5
 _IWB_ACCEPTED_CONTENT_TYPES = frozenset({
     "text/csv",
@@ -453,15 +455,13 @@ class IwbOfficialHoldingsAdapter:
 
     @staticmethod
     def _historical_request_dates(as_of: date) -> tuple[date, ...]:
-        """Return a bounded exact-session fallback window ending at ``as_of``."""
+        """Return T, T-1, ... from the bounded XNYS session calendar."""
 
-        calendar = ExactExchangeCalendarProvider()
-        values: list[date] = []
-        for offset in range(IWB_HISTORICAL_LOOKBACK_SESSIONS + 1):
-            candidate = as_of - timedelta(days=offset)
-            if offset == 0 or calendar.is_session("US", candidate):
-                values.append(candidate)
-        return tuple(values)
+        return ExactExchangeCalendarProvider().recent_session_dates(
+            "US",
+            end_date=as_of,
+            count=IWB_HISTORICAL_LOOKBACK_SESSIONS + 1,
+        )
 
     @staticmethod
     def _response_payload(response: Any) -> bytes:

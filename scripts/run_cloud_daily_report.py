@@ -52,7 +52,26 @@ UPSTREAM_NOT_READY = "UPSTREAM_NOT_READY"
 DELIVERY_FAILED = "FAILED"
 MARKET_LABELS = {"CN": "A股", "US": "美股"}
 ARTIFACT_ALLOWLIST = ("daily-report.json", "daily-report.html")
+# The normal automatic path has a finite 25-minute recovery window: t=0, 5,
+# 10, 15, 20, and 25 minutes.  A later schedule fallback remains useful when
+# the close workflow itself is delayed, while this window covers the observed
+# US provider lag without an unbounded runner wait.
+DEFAULT_RETRY_NOT_READY_ATTEMPTS = 6
+DEFAULT_RETRY_NOT_READY_DELAY_SECONDS = 300.0
+MAX_RETRY_NOT_READY_ATTEMPTS = 8
+MAX_RETRY_NOT_READY_DELAY_SECONDS = 900.0
 PROSPECTIVE_FUNNEL_PROTOCOL_VERSION = "PROSPECTIVE_EXACT_T_FUNNEL_V1"
+
+
+def bounded_readiness_attempt_offsets(
+    attempts: int = DEFAULT_RETRY_NOT_READY_ATTEMPTS,
+    delay_seconds: float = DEFAULT_RETRY_NOT_READY_DELAY_SECONDS,
+) -> tuple[float, ...]:
+    """Return the finite elapsed-second schedule used by the CLI retry loop."""
+
+    count = min(max(int(attempts), 1), MAX_RETRY_NOT_READY_ATTEMPTS)
+    delay = min(max(float(delay_seconds), 0.0), MAX_RETRY_NOT_READY_DELAY_SECONDS)
+    return tuple(index * delay for index in range(count))
 
 
 def _iso(value: Any) -> str | None:
@@ -668,6 +687,7 @@ def _cloud_metadata(
     errors: list[str],
     reliability_classification: str | None = None,
     session_resolution: Mapping[str, Any] | None = None,
+    legacy_recovery_identity: str | None = None,
 ) -> dict[str, Any]:
     candidate_markets = result.get("candidate_markets")
     seed_sources = {}
@@ -744,7 +764,7 @@ def _cloud_metadata(
         result=result,
         data_quality=data_quality,
     )
-    return {
+    metadata = {
         "protocol_version": CLOUD_DAILY_REPORT_PROTOCOL_VERSION,
         "market": market,
         "market_label": MARKET_LABELS.get(market, market),
@@ -788,6 +808,9 @@ def _cloud_metadata(
         "errors": list(dict.fromkeys(metadata_errors)),
         "github_run_url": github_run_url(),
     }
+    if legacy_recovery_identity:
+        metadata["legacy_recovery_identity"] = str(legacy_recovery_identity).strip()
+    return metadata
 
 
 def _known_rejection_gates(decision: Mapping[str, Any] | None, setup: str) -> tuple[list[str], bool]:
@@ -1084,6 +1107,8 @@ def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
         if claim.get("status") in {
             "NOOP_REPORT_ALREADY_SENT",
             "NOOP_DEGRADED_ALERT_ALREADY_SENT",
+            "LEGACY_V1_MARKER_PRESENT",
+            "LEGACY_RECOVERY_NOT_AUTHORIZED",
         }:
             cloud["notifications"] = {
                 "bark": {"status": claim["status"], "configured": True},
@@ -1149,6 +1174,7 @@ def run_cloud_daily_report(
     calendar_provider: ExactExchangeCalendarProvider | None = None,
     notify: bool = True,
     automatic_resolution: bool = False,
+    legacy_recovery_identity: str | None = None,
 ) -> dict[str, Any]:
     """Run and persist exactly one market/T report."""
 
@@ -1318,6 +1344,7 @@ def run_cloud_daily_report(
                 automatic_scheduler_delay=scheduler_delay,
             ),
             session_resolution=session_resolution,
+            legacy_recovery_identity=legacy_recovery_identity,
         ),
     }
     # A manual rerun of the current natural session uses the same ledger.
@@ -1385,11 +1412,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--require-complete", action="store_true",
                         help="Exit nonzero for a delivered PARTIAL_DATA_QUALITY report")
     parser.add_argument(
-        "--retry-not-ready-attempts", type=int, default=1,
+        "--legacy-recovery-identity", default=None,
+        help=(
+            "Explicit one-time legacy V1 marker identity, for example "
+            "US|2026-10-05|CLOUD-DAILY-REPORT-MOBILE-V1-2026-09-14"
+        ),
+    )
+    parser.add_argument(
+        "--retry-not-ready-attempts", type=int,
+        default=DEFAULT_RETRY_NOT_READY_ATTEMPTS,
         help="Bounded attempts for retryable UPSTREAM_NOT_READY/diagnostic runs",
     )
     parser.add_argument(
-        "--retry-not-ready-delay-seconds", type=float, default=0.0,
+        "--retry-not-ready-delay-seconds", type=float,
+        default=DEFAULT_RETRY_NOT_READY_DELAY_SECONDS,
         help="Delay between bounded readiness attempts",
     )
     args = parser.parse_args(argv)
@@ -1431,10 +1467,12 @@ def main(argv: list[str] | None = None) -> int:
         _write_and_notify(payload, args.output, notify=not args.no_notify)
         print(json.dumps(payload["cloud_daily_report"], ensure_ascii=False, indent=2, default=str))
         return 1
-    attempts = min(max(int(args.retry_not_ready_attempts), 1), 5)
-    delay_seconds = max(float(args.retry_not_ready_delay_seconds), 0.0)
+    retry_offsets = bounded_readiness_attempt_offsets(
+        args.retry_not_ready_attempts,
+        args.retry_not_ready_delay_seconds,
+    )
     payload = None
-    for attempt in range(attempts):
+    for attempt, _elapsed_seconds in enumerate(retry_offsets):
         payload = run_cloud_daily_report(
             market=args.market,
             as_of_date=trade_date,
@@ -1443,6 +1481,7 @@ def main(argv: list[str] | None = None) -> int:
             calendar_provider=calendar_provider,
             notify=not args.no_notify,
             automatic_resolution=args.trade_date is None,
+            legacy_recovery_identity=args.legacy_recovery_identity,
         )
         readiness = str(
             (payload.get("cloud_daily_report") or {}).get("delivery_readiness") or ""
@@ -1450,10 +1489,15 @@ def main(argv: list[str] | None = None) -> int:
         retryable = bool(
             (payload.get("cloud_daily_report") or {}).get("delivery_readiness_retryable")
         )
-        if not retryable or readiness not in {UPSTREAM_NOT_READY, DEGRADED_DIAGNOSTIC_ONLY} or attempt + 1 >= attempts:
+        if (
+            not retryable
+            or readiness not in {UPSTREAM_NOT_READY, DEGRADED_DIAGNOSTIC_ONLY}
+            or attempt + 1 >= len(retry_offsets)
+        ):
             break
-        if delay_seconds:
-            time.sleep(delay_seconds)
+        delay = retry_offsets[attempt + 1] - retry_offsets[attempt]
+        if delay:
+            time.sleep(delay)
     assert payload is not None
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))
     metadata = payload.get("cloud_daily_report", {})

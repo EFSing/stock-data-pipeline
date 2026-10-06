@@ -730,6 +730,35 @@ class ExactExchangeCalendarProvider:
                 "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
             ) from exc
 
+    def recent_session_dates(
+        self, market: str, *, end_date: date, count: int,
+    ) -> tuple[date, ...]:
+        """Return up to ``count`` real exchange sessions ending at ``end_date``.
+
+        The bounded calendar window is only a lookup range; returned values
+        are exchange labels from the provider, never calendar-day guesses.
+        Results are newest first so callers can try T, T-1, T-2, ... .
+        """
+
+        requested = max(int(count), 0)
+        if requested == 0:
+            return ()
+        try:
+            import exchange_calendars as xc
+            import pandas as pd
+            calendar = xc.get_calendar(self.calendar_name(market))
+            lookback_days = max(30, requested * 10)
+            sessions = calendar.sessions_in_range(
+                pd.Timestamp(end_date - timedelta(days=lookback_days)),
+                pd.Timestamp(end_date),
+            )
+            dates = tuple(session.date() for session in sessions)
+            return tuple(reversed(dates[-requested:]))
+        except (ImportError, KeyError, TypeError, ValueError) as exc:
+            raise ProductionPrerequisiteError(
+                "PRODUCTION_T1_EXECUTION_DISABLED_CALENDAR_REQUIRED"
+            ) from exc
+
     def market_local_date(self, market: str, *, now: datetime) -> date:
         """Return the exchange calendar's local civil date for an aware instant.
 

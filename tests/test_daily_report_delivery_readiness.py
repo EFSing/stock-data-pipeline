@@ -6,10 +6,14 @@ import unittest
 from unittest.mock import Mock, patch
 
 from scripts.run_cloud_daily_report import (
+    DEFAULT_RETRY_NOT_READY_ATTEMPTS,
+    DEFAULT_RETRY_NOT_READY_DELAY_SECONDS,
     DEGRADED_DIAGNOSTIC_ONLY,
     FINAL_REPORT_ELIGIBLE,
     UPSTREAM_NOT_READY,
     _delivery_readiness,
+    bounded_readiness_attempt_offsets,
+    main as cloud_report_main,
     run_cloud_daily_report,
 )
 from trading.operational_markers import (
@@ -21,12 +25,22 @@ from trading.operational_markers import (
 class _MarkerStore:
     def __init__(self):
         self.names = set()
+        self.objects = {}
 
     def put_bytes(self, name, payload, **kwargs):
         if name in self.names:
             return {"status": "IDEMPOTENT_REPLAY"}
         self.names.add(name)
+        self.objects[name] = bytes(payload)
         return {"status": "CREATED"}
+
+    def scan(self, prefix="", *, with_hash=False):
+        del with_hash
+        return [{"name": name} for name in sorted(self.objects) if name.startswith(prefix)]
+
+    def read_bytes(self, name, **kwargs):
+        del kwargs
+        return self.objects[name], {"sha256": ""}
 
 
 def _result(
@@ -200,6 +214,58 @@ class DailyReportDeliveryReadinessTests(unittest.TestCase):
         self.assertEqual(payload["cloud_daily_report"]["delivery_readiness"], UPSTREAM_NOT_READY)
         self.assertEqual(payload["cloud_daily_report"]["OPPORTUNITY_LEDGER_STATUS"], "NOT_ELIGIBLE_DELIVERY_READINESS")
         client.ensure_worksheet.assert_not_called()
+
+    def test_observed_us_twenty_five_minute_lag_has_a_final_retry_attempt(self):
+        offsets = bounded_readiness_attempt_offsets(
+            DEFAULT_RETRY_NOT_READY_ATTEMPTS,
+            DEFAULT_RETRY_NOT_READY_DELAY_SECONDS,
+        )
+        self.assertEqual(offsets, (0.0, 300.0, 600.0, 900.0, 1200.0, 1500.0))
+        calls = []
+        sleeps = []
+
+        def fake_run(**kwargs):
+            calls.append(kwargs)
+            ready = offsets[len(calls) - 1] >= 1500.0
+            return {
+                "cloud_daily_report": {
+                    "status": "SUCCESS" if ready else "PARTIAL_DATA_QUALITY",
+                    "delivery_readiness": FINAL_REPORT_ELIGIBLE if ready else UPSTREAM_NOT_READY,
+                    "delivery_readiness_retryable": not ready,
+                    "run_status": "COMPLETED",
+                    "data_status": "OK" if ready else "NO_USABLE_SYMBOLS",
+                }
+            }
+
+        with TemporaryDirectory() as directory, \
+                patch("scripts.run_cloud_daily_report.resolve_cloud_trade_date", return_value=date(2026, 10, 5)), \
+                patch("scripts.run_cloud_daily_report.run_cloud_daily_report", side_effect=fake_run), \
+                patch("scripts.run_cloud_daily_report.time.sleep", side_effect=sleeps.append):
+            exit_code = cloud_report_main(["--market", "US", "--output", directory])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(calls), 6)
+        self.assertEqual(sleeps, [300.0] * 5)
+
+    def test_observed_lag_trigger_order_model_keeps_a_bounded_recovery_path(self):
+        offsets = bounded_readiness_attempt_offsets()
+        trigger_orders = {
+            "workflow_run_first": (0.0, 3600.0, 0.0),
+            "fallback_first": (0.0, 600.0, 0.0),
+            "both_before_provider_ready": (0.0, 300.0, 0.0),
+            "close_delayed_hours": (3600.0, 14400.0, 14400.0),
+        }
+        for name, (fallback_start, workflow_start, close_time) in trigger_orders.items():
+            with self.subTest(name=name):
+                attempt_times = [
+                    fallback_start + offset for offset in offsets
+                ] + [
+                    workflow_start + offset for offset in offsets
+                ]
+                self.assertTrue(any(
+                    timestamp >= close_time + 1500.0
+                    for timestamp in attempt_times
+                ))
 
 
 if __name__ == "__main__":
