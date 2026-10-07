@@ -74,8 +74,8 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 ## Validation
 
 - 当前 focused suite、完整 `python -m unittest discover -s tests -v`（1036 passed、2 skipped）、
-  compileall、目标文件 `py_compile` 与 `git diff --check` 均已通过；exact-head CI 与 PR
-  shadow 仍待远端分支/PR closeout。
+  compileall、目标文件 `py_compile` 与 `git diff --check` 均已通过；PR #137 当前 tip 的
+  exact-head CI 与 generic shadows 已由 GitHub 验证通过，动态 run 事实以 GitHub 为准。
 - 官方 IWB 只读验证已采用 `source_as_of=2026-10-02`、`seed_count=1026`，provenance
   保留 fallback 请求与 `requested_as_of=2026-10-05`；BABA/RKLB direct Yahoo raw/qfq
   均已验证 exact `2026-10-05`。完整 1026-symbol 本地 Candidate runtime probe 因批量
