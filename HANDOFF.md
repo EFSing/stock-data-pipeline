@@ -19,9 +19,18 @@ Candidate broad exact-T stale 不得 final；Opportunity Ledger 使用
 `DailySymbolInput.qfq_history` / `data_quality_status`；ledger failure 阻断 final marker 并
 发送独立幂等 alert；V2 错误 marker 有显式、审计化、默认关闭的 corrected-final recovery
 contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON。
+本轮继续修复 Yahoo forensic observability：latest-row completeness 按实际最后 timestamp
+判断；US exact-T stale 最终失败时增加 bounded query1/query2 diagnostic-only comparison；
+不改变 readiness threshold、Opportunity Ledger、交易策略或调度。
 
 ## Current State / Completed
 
+- Yahoo latest-row diagnostics 已同时保留 `timestamp_last_date`、实际最后 timestamp 的
+  raw/adjclose availability、`latest_complete_raw_session` 与
+  `latest_complete_qfq_session`；兼容字段 `raw_latest_row_complete` /
+  `adjclose_latest_available` 已与实际最后 timestamp 对齐。US exact-T stale 的
+  `stale_host_comparison` 仅记录 query1/query2 的有限状态与尾部诊断，不改变 query1
+  正式选源或 query2 fallback 语义。
 - Daily Report human-opportunity UI（已 merged to main）：CN/US 使用同一个 `trading/daily_dashboard.py`
   renderer；展开顺序为“人工机会判断 → 确认后的交易判断 → 机会新鲜度 → 折叠结构依据 →
   折叠开发者原始数据”。WATCH/ARMED 缺少 anchor 时明确列出缺口，不从价格倒推目标。
@@ -73,9 +82,11 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Validation
 
-- 当前 focused suite、完整 `python -m unittest discover -s tests -v`（1036 passed、2 skipped）、
-  compileall、目标文件 `py_compile` 与 `git diff --check` 均已通过；PR #137 当前 tip 的
-  exact-head CI 与 generic shadows 已由 GitHub 验证通过，动态 run 事实以 GitHub 为准。
+- 本轮 Yahoo focused suite（23 passed）、readiness/Opportunity Ledger/cloud 相关回归（63
+  passed）、完整 `python -m unittest discover -s tests -v`（1040 passed、2 skipped）、
+  compileall、目标文件 `py_compile` 与 `git diff --check` 均已通过；新 HEAD 的 CI Test Gate、
+  Daily Decision Chain generic operational shadow、Portfolio Risk generic operational shadow
+  均已由 GitHub 验证通过，动态 run 事实以 GitHub 为准。
 - 官方 IWB 只读验证已采用 `source_as_of=2026-10-02`、`seed_count=1026`，provenance
   保留 fallback 请求与 `requested_as_of=2026-10-05`；BABA/RKLB direct Yahoo raw/qfq
   均已验证 exact `2026-10-05`。完整 1026-symbol 本地 Candidate runtime probe 因批量
@@ -130,7 +141,8 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 - 2026-10-06 09:21 的历史 artifact 未保存足够 Yahoo raw JSON，故
   `YAHOO_EXACT_T_FORENSIC_PENDING_NATURAL_EVIDENCE`：当前可确认 readiness/ledger 顺序
   与 stale 分布，不能把 CDN、host、incomplete row 等假设写成已确认根因；新 adapter
-  仅增加下一自然 session 的有限 provider diagnostics。
+  已增加下一自然 session 所需的实际尾行字段与有限 query1/query2 comparison，但尚无
+  natural evidence。
 - 新 D1 activation、natural CN/US acceptance 与 Opportunity Ledger natural acceptance
   仍保持原治理边界，不是本 PR 的 merge blocker。
 - 新 D1 activation 仍需独立治理授权；本次修复不写真实 VPS/GCS activation，不运行新
@@ -140,9 +152,9 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Next Action
 
-继续观察 PR #137 的 exact-head CI / relevant shadows 与 reviewer 意见；保持 PR OPEN、不
-merge。后续自然日报继续按新 readiness、final delivery 与 provider diagnostics 观察；不
-发送 corrected final，除非用户另行明确授权。
+继续观察 PR #137 新 HEAD 的 exact-head CI / relevant shadows 与 reviewer 意见；保持 PR
+OPEN、不 merge。后续自然日报继续按新 readiness、final delivery 与 provider diagnostics
+观察；不发送 corrected final，除非用户另行明确授权。
 
 ## Constraints / Pitfalls
 
