@@ -52,6 +52,12 @@ RAW_SNAPSHOT_FALLBACKS: dict[str, dict[str, tuple[str, ...]]] = {
     },
 }
 
+YAHOO_CHART_HOSTS = (
+    "query1.finance.yahoo.com",
+    "query2.finance.yahoo.com",
+)
+YAHOO_STALE_DIAGNOSTIC_TIMEOUT_SECONDS = 10
+
 
 def _number(value):
     if value is None or value == "":
@@ -1097,7 +1103,7 @@ def _fetch_yahoo_chart_with_diagnostics(
     global_errors: list[str] = []
     payload = None
     selected_host = None
-    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+    for host in YAHOO_CHART_HOSTS:
         url = (
             f"https://{host}/v8/finance/chart/{urlquote(symbol, safe='')}"
             f"?period1={period1}&period2={period2}&interval=1d&events=history"
@@ -1166,88 +1172,27 @@ def _fetch_yahoo_chart_with_diagnostics(
             raise ProviderSymbolError("YAHOO_CHART_SYMBOL_ERROR:" + "；".join(symbol_errors))
         raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_FAILURE")
 
-    chart = payload.get("chart")
-    if not isinstance(chart, dict):
-        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
-    results = chart.get("result") or []
-    if not isinstance(results, list):
-        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
-    if not results:
+    (
+        result,
+        timestamps,
+        indicators,
+        price,
+        adjusted,
+        timezone_name,
+        exchange_timezone,
+    ) = _yahoo_chart_payload_components(payload, adjust)
+    if not result:
         return []
-    result = results[0]
-    if not isinstance(result, dict):
-        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
-    timestamps = result.get("timestamp") or []
-    indicators = result.get("indicators") or {}
-    if not isinstance(timestamps, list) or not isinstance(indicators, dict):
-        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
-    price = (indicators.get("quote") or [{}])[0]
-    if not isinstance(price, dict):
-        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
-    adjusted_block = indicators.get("adjclose") or []
-    if adjust == "qfq" and (
-        not isinstance(adjusted_block, list)
-        or not adjusted_block
-        or not isinstance(adjusted_block[0], dict)
-        or not isinstance(adjusted_block[0].get("adjclose"), list)
-    ):
-        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID_ADJCLOSE")
-    adjusted = (
-        adjusted_block[0].get("adjclose")
-        if adjusted_block and isinstance(adjusted_block[0], dict)
-        else []
-    ) or []
-    timezone_name = (result.get("meta") or {}).get("exchangeTimezoneName") or "UTC"
-    try:
-        exchange_timezone = ZoneInfo(timezone_name)
-    except Exception:
-        exchange_timezone = timezone.utc
-
-    meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
-
-    def timestamp_date(value) -> str | None:
-        try:
-            return datetime.fromtimestamp(float(value), exchange_timezone).date().isoformat()
-        except (TypeError, ValueError, OSError, OverflowError):
-            return None
-
-    def complete_raw(index: int) -> bool:
-        return all(
-            _indexed(price.get(field), index, None) is not None
-            for field in ("open", "high", "low", "close", "volume")
-        )
-
-    raw_dates = [
-        timestamp_date(value)
-        for index, value in enumerate(timestamps)
-        if timestamp_date(value) is not None and complete_raw(index)
-    ]
-    qfq_dates = [
-        timestamp_date(value)
-        for index, value in enumerate(timestamps)
-        if timestamp_date(value) is not None
-        and complete_raw(index)
-        and _indexed(adjusted, index, None) is not None
-    ]
-    regular_market_time = meta.get("regularMarketTime")
-    current_period = meta.get("currentTradingPeriod")
-    regular_period = current_period.get("regular") if isinstance(current_period, dict) else {}
     diag.update({
         "host": selected_host,
-        "response_meta_timezone": timezone_name,
-        "timestamp_count": len(timestamps),
-        "timestamp_last_date": timestamp_date(timestamps[-1]) if timestamps else None,
-        "latest_raw_session": max(raw_dates) if raw_dates else None,
-        "latest_qfq_session": max(qfq_dates) if qfq_dates else None,
-        "raw_quote_block_present": isinstance(indicators.get("quote"), list) and bool(indicators.get("quote")),
-        "raw_latest_row_complete": bool(raw_dates and raw_dates[-1] == max(raw_dates)),
-        "adjclose_block_present": bool(adjusted_block),
-        "adjclose_latest_available": bool(qfq_dates and qfq_dates[-1] == max(qfq_dates)),
-        "regular_market_time_date": timestamp_date(regular_market_time),
-        "current_trading_period_regular_end_date": (
-            timestamp_date(regular_period.get("end"))
-            if isinstance(regular_period, dict)
-            else None
+        **_yahoo_chart_session_diagnostics(
+            result=result,
+            timestamps=timestamps,
+            indicators=indicators,
+            price=price,
+            adjusted=adjusted,
+            exchange_timezone=exchange_timezone,
+            timezone_name=timezone_name,
         ),
     })
 
@@ -1280,6 +1225,225 @@ def _fetch_yahoo_chart_with_diagnostics(
     import pandas as pd
 
     return _records_to_quotes(pd.DataFrame(rows), watch, "YahooChart")
+
+
+def _yahoo_chart_payload_components(
+    payload: object,
+    adjust: str,
+) -> tuple[dict, list, dict, dict, list, str, ZoneInfo]:
+    """Validate a Yahoo chart payload and return only parsed chart components."""
+
+    chart = payload.get("chart") if isinstance(payload, dict) else None
+    if not isinstance(chart, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+    results = chart.get("result") or []
+    if not isinstance(results, list):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+    if not results:
+        return {}, [], {}, {}, [], "UTC", timezone.utc
+    result = results[0]
+    if not isinstance(result, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+    timestamps = result.get("timestamp") or []
+    indicators = result.get("indicators") or {}
+    if not isinstance(timestamps, list) or not isinstance(indicators, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+    price = (indicators.get("quote") or [{}])[0]
+    if not isinstance(price, dict):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID")
+    adjusted_block = indicators.get("adjclose") or []
+    if adjust == "qfq" and (
+        not isinstance(adjusted_block, list)
+        or not adjusted_block
+        or not isinstance(adjusted_block[0], dict)
+        or not isinstance(adjusted_block[0].get("adjclose"), list)
+    ):
+        raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_SCHEMA_INVALID_ADJCLOSE")
+    adjusted = (
+        adjusted_block[0].get("adjclose")
+        if adjusted_block and isinstance(adjusted_block[0], dict)
+        else []
+    ) or []
+    timezone_name = (result.get("meta") or {}).get("exchangeTimezoneName") or "UTC"
+    try:
+        exchange_timezone = ZoneInfo(timezone_name)
+    except Exception:
+        exchange_timezone = timezone.utc
+    return result, timestamps, indicators, price, adjusted, timezone_name, exchange_timezone
+
+
+def _yahoo_chart_session_diagnostics(
+    *,
+    result: dict,
+    timestamps: list,
+    indicators: dict,
+    price: dict,
+    adjusted: list,
+    exchange_timezone: ZoneInfo,
+    timezone_name: str,
+) -> dict[str, object]:
+    """Return bounded session/row metadata without retaining Yahoo payloads."""
+
+    def timestamp_date(value) -> str | None:
+        try:
+            return datetime.fromtimestamp(float(value), exchange_timezone).date().isoformat()
+        except (TypeError, ValueError, OSError, OverflowError):
+            return None
+
+    def complete_raw(index: int) -> bool:
+        return all(
+            _indexed(price.get(field), index, None) is not None
+            for field in ("open", "high", "low", "close", "volume")
+        )
+
+    raw_dates = [
+        timestamp_date(value)
+        for index, value in enumerate(timestamps)
+        if timestamp_date(value) is not None and complete_raw(index)
+    ]
+    qfq_dates = [
+        timestamp_date(value)
+        for index, value in enumerate(timestamps)
+        if timestamp_date(value) is not None
+        and complete_raw(index)
+        and _indexed(adjusted, index, None) is not None
+    ]
+    timestamp_last_date = timestamp_date(timestamps[-1]) if timestamps else None
+    last_index = len(timestamps) - 1
+    latest_timestamp_raw_complete = bool(
+        timestamps and timestamp_last_date is not None and complete_raw(last_index)
+    )
+    latest_timestamp_adjclose_available = bool(
+        timestamps
+        and timestamp_last_date is not None
+        and _indexed(adjusted, last_index, None) is not None
+    )
+    meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+    regular_market_time = meta.get("regularMarketTime")
+    current_period = meta.get("currentTradingPeriod")
+    regular_period = current_period.get("regular") if isinstance(current_period, dict) else {}
+    latest_complete_raw_session = max(raw_dates) if raw_dates else None
+    latest_complete_qfq_session = max(qfq_dates) if qfq_dates else None
+    return {
+        "response_meta_timezone": timezone_name,
+        "timestamp_count": len(timestamps),
+        "timestamp_last_date": timestamp_last_date,
+        "latest_complete_raw_session": latest_complete_raw_session,
+        "latest_complete_qfq_session": latest_complete_qfq_session,
+        # Keep the original names as explicit aliases for existing artifacts.
+        "latest_raw_session": latest_complete_raw_session,
+        "latest_qfq_session": latest_complete_qfq_session,
+        "raw_quote_block_present": isinstance(indicators.get("quote"), list) and bool(indicators.get("quote")),
+        "latest_timestamp_raw_complete": latest_timestamp_raw_complete,
+        "raw_latest_row_complete": latest_timestamp_raw_complete,
+        "adjclose_block_present": bool(indicators.get("adjclose")),
+        "latest_timestamp_adjclose_available": latest_timestamp_adjclose_available,
+        "adjclose_latest_available": latest_timestamp_adjclose_available,
+        "regular_market_time_date": timestamp_date(regular_market_time),
+        "current_trading_period_regular_end_date": (
+            timestamp_date(regular_period.get("end"))
+            if isinstance(regular_period, dict)
+            else None
+        ),
+    }
+
+
+def _empty_yahoo_host_diagnostic(host: str, request_status: str) -> dict[str, object]:
+    return {
+        "host": host,
+        "request_status": request_status,
+        "timestamp_last_date": None,
+        "latest_complete_raw_session": None,
+        "latest_complete_qfq_session": None,
+        "latest_timestamp_raw_complete": None,
+        "latest_timestamp_adjclose_available": None,
+        "response_meta_timezone": None,
+        "regular_market_time_date": None,
+    }
+
+
+def _fetch_yahoo_host_diagnostic(
+    host: str,
+    watch: dict,
+    adjust: str,
+    start: date,
+    end: date,
+) -> dict[str, object]:
+    """Probe one Yahoo host for stale forensics; never raises or returns raw data."""
+
+    symbol = str(watch["yfinance代码"])
+    period1 = int(datetime.combine(start, datetime_time.min, timezone.utc).timestamp())
+    period2 = int(datetime.combine(end + timedelta(days=1), datetime_time.min, timezone.utc).timestamp())
+    url = (
+        f"https://{host}/v8/finance/chart/{urlquote(symbol, safe='')}"
+        f"?period1={period1}&period2={period2}&interval=1d&events=history"
+    )
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=YAHOO_STALE_DIAGNOSTIC_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        chart = payload.get("chart") if isinstance(payload, dict) else None
+        if not isinstance(chart, dict):
+            return _empty_yahoo_host_diagnostic(host, "SCHEMA_ERROR")
+        if chart.get("error"):
+            return _empty_yahoo_host_diagnostic(host, "CHART_ERROR")
+        (
+            result,
+            timestamps,
+            indicators,
+            price,
+            adjusted,
+            timezone_name,
+            exchange_timezone,
+        ) = _yahoo_chart_payload_components(payload, adjust)
+        if not result:
+            return _empty_yahoo_host_diagnostic(host, "EMPTY_RESULT")
+        return {
+            "host": host,
+            "request_status": "OK",
+            **_yahoo_chart_session_diagnostics(
+                result=result,
+                timestamps=timestamps,
+                indicators=indicators,
+                price=price,
+                adjusted=adjusted,
+                exchange_timezone=exchange_timezone,
+                timezone_name=timezone_name,
+            ),
+        }
+    except HTTPError as exc:
+        code = int(getattr(exc, "code", 0) or 0)
+        return _empty_yahoo_host_diagnostic(host, f"HTTP_{code or 'UNKNOWN'}")
+    except (URLError, TimeoutError, OSError) as exc:
+        return _empty_yahoo_host_diagnostic(host, type(exc).__name__)
+    except ProviderGlobalFailure as exc:
+        status = "ADJCLOSE_SCHEMA_ERROR" if "ADJCLOSE" in str(exc) else "SCHEMA_ERROR"
+        return _empty_yahoo_host_diagnostic(host, status)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        return _empty_yahoo_host_diagnostic(host, type(exc).__name__)
+    except Exception as exc:
+        return _empty_yahoo_host_diagnostic(host, type(exc).__name__)
+
+
+def _collect_yahoo_stale_host_comparison(
+    watch: dict,
+    adjust: str,
+    start: date,
+    end: date,
+) -> dict[str, dict[str, object]]:
+    """Compare both Yahoo hosts for a confirmed stale exact-T response."""
+
+    comparison: dict[str, dict[str, object]] = {}
+    for host in YAHOO_CHART_HOSTS:
+        try:
+            comparison[host] = _fetch_yahoo_host_diagnostic(
+                host, watch, adjust, start, end
+            )
+        except Exception as exc:
+            # A forensic probe must never hide the original exact-T stale
+            # result.  Keep the host key and return only safe status metadata.
+            comparison[host] = _empty_yahoo_host_diagnostic(host, type(exc).__name__)
+    return comparison
 
 
 def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
@@ -1360,9 +1524,22 @@ def fetch_single_source_with_retry(
                 result = fetch_yahoo_chart_with_provenance(watch, adjust, start, end)
             last_provenance = dict(result.provenance)
             quotes = tuple(sorted(result.quotes, key=lambda item: item.trade_date))
-            if target_trade_date is not None and (
-                not quotes or quotes[-1].trade_date < target_trade_date
-            ):
+            is_exact_t_stale = bool(
+                target_trade_date is not None
+                and quotes
+                and quotes[-1].trade_date < target_trade_date
+            )
+            if target_trade_date is not None and (not quotes or is_exact_t_stale):
+                if (
+                    provider == US_SINGLE_SOURCE_PROVIDER
+                    and attempt == attempts
+                    and isinstance(last_provenance.get("provider_diagnostics"), dict)
+                ):
+                    last_provenance["provider_diagnostics"]["stale_host_comparison"] = (
+                        _collect_yahoo_stale_host_comparison(
+                            watch, adjust, start, end
+                        )
+                    )
                 raise LookupError(
                     f"{provider}返回日期落后于目标交易日："
                     f"{quotes[-1].trade_date.isoformat() if quotes else 'empty'}<"
