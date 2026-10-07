@@ -485,6 +485,14 @@ class SingleSourceMarketDataTests(TestCase):
             )
         self.assertEqual(result.quotes[0].open, 9.0)
         self.assertIn("adjclose", result.provenance["adjusted_ohlcv_source"])
+        diagnostics = result.provenance["provider_diagnostics"]
+        self.assertEqual(diagnostics["selected_host"], "query1.finance.yahoo.com")
+        self.assertEqual(diagnostics["response_meta_timezone"], "America/New_York")
+        self.assertEqual(diagnostics["timestamp_last_date"], "2026-09-28")
+        self.assertEqual(diagnostics["latest_raw_session"], "2026-09-28")
+        self.assertEqual(diagnostics["latest_qfq_session"], "2026-09-28")
+        self.assertTrue(diagnostics["raw_latest_row_complete"])
+        self.assertTrue(diagnostics["adjclose_latest_available"])
 
     def test_yahoo_chart_network_failure_is_provider_global(self):
         with patch("providers.urlopen", side_effect=RuntimeError("outage")):

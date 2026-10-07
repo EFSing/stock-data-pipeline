@@ -566,6 +566,8 @@ def _load_single_source_symbol(
         status["latest"] = _single_source_error_status(exc, latest=True)
         detail["latest_error_type"] = type(exc).__name__
         detail["latest_error"] = _safe_error(exc)
+        if getattr(exc, "provider_diagnostics", None):
+            detail["latest_provider_diagnostics"] = dict(exc.provider_diagnostics)
         detail["global_failure"] = detail.get("global_failure", False) or isinstance(exc, ProviderGlobalFailure)
         errors.append(f"latest {provider} {status['latest']}: {_safe_error(exc)}")
         if isinstance(exc, ProviderGlobalFailure):
@@ -578,6 +580,8 @@ def _load_single_source_symbol(
             status["decision_status"] = unavailable_reason(PROVIDER_GLOBAL_FAILURE)
             detail["qfq_error_type"] = type(exc).__name__
             detail["qfq_error"] = _safe_error(exc)
+            if getattr(exc, "provider_diagnostics", None):
+                detail["qfq_provider_diagnostics"] = dict(exc.provider_diagnostics)
             detail["source_contract"] = SINGLE_SOURCE_MARKET_DATA_VERSION
             return latest_rows, qfq_rows, status, detail, list(dict.fromkeys(errors))
 
@@ -617,6 +621,8 @@ def _load_single_source_symbol(
         status["qfq"] = _single_source_error_status(exc)
         detail["qfq_error_type"] = type(exc).__name__
         detail["qfq_error"] = _safe_error(exc)
+        if getattr(exc, "provider_diagnostics", None):
+            detail["qfq_provider_diagnostics"] = dict(exc.provider_diagnostics)
         detail["global_failure"] = detail.get("global_failure", False) or isinstance(exc, ProviderGlobalFailure)
         errors.append(f"qfq {provider} {status['qfq']}: {_safe_error(exc)}")
 

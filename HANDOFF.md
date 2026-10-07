@@ -4,18 +4,21 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_PRODUCTION_READINESS_PR_READY`：继续在现有 PR #136 的独立分支
-`fix/daily-report-production-readiness-v1`，修复 IWB Candidate seed 的生产日期证据解析、
-Daily Report readiness 分类、degraded/final 通知幂等语义、CN/US 调度竞态与诊断分类；
-保持交易策略、Paper、broker、Opportunity Ledger 的既有语义不变。PR #136 保持 OPEN，
-不新建 PR、不 merge。本轮重点是 legacy V1 marker 的受控迁移、workflow_run 调度合同、
-真实交易 session fallback 与 provider readiness 恢复窗口。
+`US_DAILY_REPORT_FINALIZATION_AND_LEDGER_FIX_IN_PROGRESS`：从最新 main 创建独立分支
+`fix/us-daily-report-finalization-ledger-v1`，修复 US/CN 共用的 Daily Report formal
+readiness、Opportunity Ledger 输入接线、final delivery 顺序与 Yahoo 运维诊断；保持交易
+策略、Paper、broker 与既有 ledger 观察语义不变。PR #136 已在 GitHub 合并并关闭，本任务
+不修改 main、不 merge，最终保持新 PR OPEN。
 
-本轮已修复并验证：legacy V1 marker 默认继续阻止 V2 重复 final，显式 recovery identity
-才可创建一次 V1→V2 migration audit；manual close 不再触发自动日报；IWB fallback 使用真实
-XNYS session；retry 覆盖有限的 25 分钟 provider 恢复窗口。此前已从 GitHub
-runs/artifacts 与官方 response 查明：2026-10-05 IWB target response 为 HTTP 200 CSV 但
-snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`。
+#136 merge closeout 已客观核对：GitHub 状态为 MERGED，main 已包含其最终提交；其 required
+checks 与 generic operational shadows 均为成功。历史状态仅作为只读 evidence，不写成当前
+任务的 natural acceptance。
+
+本任务已实现：formal exact-T coverage 与 dynamic Candidate coverage 分离；formal 0% 或
+Candidate broad exact-T stale 不得 final；Opportunity Ledger 使用
+`DailySymbolInput.qfq_history` / `data_quality_status`；ledger failure 阻断 final marker 并
+发送独立幂等 alert；V2 错误 marker 有显式、审计化、默认关闭的 corrected-final recovery
+contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON。
 
 ## Current State / Completed
 
@@ -70,23 +73,26 @@ snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`。
 
 ## Validation
 
-- 本轮 focused suite 已通过；local `python -m unittest discover -s tests -v` 为
-  `1028 passed`、`2 skipped`，退出码 0；`compileall`、目标文件 `py_compile` 与
-  `git diff --check` 通过。
+- 当前 focused suite、完整 `python -m unittest discover -s tests -v`（1036 passed、2 skipped）、
+  compileall、目标文件 `py_compile` 与 `git diff --check` 均已通过；exact-head CI 与 PR
+  shadow 仍待远端分支/PR closeout。
 - 官方 IWB 只读验证已采用 `source_as_of=2026-10-02`、`seed_count=1026`，provenance
   保留 fallback 请求与 `requested_as_of=2026-10-05`；BABA/RKLB direct Yahoo raw/qfq
   均已验证 exact `2026-10-05`。完整 1026-symbol 本地 Candidate runtime probe 因批量
   Yahoo 请求超出有界本地验证时间而终止，未写成 production acceptance。
-- exact-head GitHub checks（仅列 GitHub 实际存在的）：CI Test Gate `test`、Daily Decision
-  Chain `generic-shadow`、Paper trade lifecycle `generic-shadow`、Portfolio Risk
-  `generic-shadow` 均 SUCCESS；PR #136 保持 OPEN。
+- #136 的 GitHub merge closeout 已核对：PR 状态为 MERGED，main 已包含其结果；其
+  required CI 与 generic operational checks 均为 SUCCESS。该证据不等于本 PR 的 CI。
 - independent/manual shadows（不称为 exact-head GitHub checks）：SETUP_01、SETUP_02 与
   Position Management generic operational shadow 均 SUCCESS；均未访问 broker/真实持仓或
   Sheets。
-- 真实 main run artifact 重新套用新 contract：US early = `UPSTREAM_NOT_READY`；同 session
-  后续 formal-only = `DEGRADED_DIAGNOSTIC_ONLY`；CN 800 seed / 735 included / partial
-  Candidate = `FINAL_REPORT_ELIGIBLE`。这三份 artifact 是历史只读证据，不写成新代码的
-  natural acceptance。
+- 真实 main run artifact 重新套用本分支 contract：US 早期为 formal `0/2`、Candidate
+  stale `306/717`，判 `UPSTREAM_NOT_READY`；恢复 run 的 BABA/RKLB 为 exact-T、formal
+  `2/2`、Candidate stale `0`，判 `FINAL_REPORT_ELIGIBLE`；CN 为 formal `3/3`、800 seed /
+  735 included，少数 Candidate error 仍判 final。均为历史只读证据，不写成 natural acceptance。
+- GitHub 最近 10 次 `us-close` scheduled run 的实时审计已完成：当前 nominal `00:30 UTC`
+  后，2026-09-25 至 2026-10-07 的 created/start delay 约 282–371 分钟；concurrency
+  仅为 `holdings-market-data-us`，未发现其他 workflow 共用该组。调度延迟与 Yahoo stale
+  已分开记录，本 PR 不先改 cron。
 - Dashboard 与 email fixture 的 `USER_VISIBLE_LANGUAGE_AUDIT` 均为：
   `user_visible_raw_enum_count=0`、`user_visible_internal_field_count=0`、
   `user_visible_unnecessary_english_count=0`、`user_visible_mixed_language_count=0`；
@@ -121,6 +127,10 @@ snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`。
 - 真实 Cloud recovered final 的 end-to-end notification delivery 未在本分支触发；当前
   证据为官方 IWB/exact-T provider probe、真实历史 artifact readiness replay 与 marker
   state-machine 回归，不能写成 natural acceptance。
+- 2026-10-06 09:21 的历史 artifact 未保存足够 Yahoo raw JSON，故
+  `YAHOO_EXACT_T_FORENSIC_PENDING_NATURAL_EVIDENCE`：当前可确认 readiness/ledger 顺序
+  与 stale 分布，不能把 CDN、host、incomplete row 等假设写成已确认根因；新 adapter
+  仅增加下一自然 session 的有限 provider diagnostics。
 - 新 D1 activation、natural CN/US acceptance 与 Opportunity Ledger natural acceptance
   仍保持原治理边界，不是本 PR 的 merge blocker。
 - 新 D1 activation 仍需独立治理授权；本次修复不写真实 VPS/GCS activation，不运行新
@@ -130,9 +140,9 @@ snapshot date 为 `-`，2026-10-02 response 才提供可信 `02/Oct/2026`。
 
 ## Next Action
 
-等待 reviewer 对 PR #136 进行审查；保持现有 PR OPEN，不新建 PR、不 merge。后续自然日报
-继续按新 readiness、marker migration 与 scheduled/manual workflow contract 观察，不把历史
-artifact、本地测试或独立 shadow 记为 natural acceptance。
+完成本分支 full unittest、compileall、exact-head CI 与 relevant shadows；更新 PR 说明后
+保持新 PR OPEN、不 merge。后续自然日报继续按新 readiness、final delivery 与 provider
+diagnostics 观察；不发送 corrected final，除非用户另行明确授权。
 
 ## Constraints / Pitfalls
 

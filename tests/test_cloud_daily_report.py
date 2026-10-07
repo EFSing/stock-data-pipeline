@@ -667,6 +667,46 @@ class CloudDailyReportTests(unittest.TestCase):
         self.assertTrue(quality["candidate_runtime_failed"])
         self.assertTrue(any("DISCOVERY_FAILED" in error for error in quality["candidate_quality_errors"]))
 
+    def test_candidate_provider_diagnostics_separate_broad_stale_from_symbol_error(self):
+        snapshot = EphemeralMarketDataSnapshot(
+            market="US", as_of_date=US_T_DAY, fetched_at=US_AFTER_CLOSE,
+            required_symbols=("AAPL",), active_paper_symbols=(),
+            latest_rows=({"统一代码": "AAPL", "市场": "US", "交易日期": US_T_DAY.isoformat(), "校验状态": "已验证"},),
+            qfq_rows=({"统一代码": "AAPL", "市场": "US", "交易日期": US_T_DAY.isoformat()},),
+            symbol_status={"AAPL": {"status": "DATA_OK", "errors": []}},
+            provider_status={}, errors=(), input_fingerprint="test",
+            retry_count=1, history_days=1000,
+        )
+        stale = [
+            f"SYM{index}:LookupError:YAHOO_CHART返回日期落后于目标交易日：2026-09-14<2026-09-15"
+            for index in range(3)
+        ]
+        result = {
+            "preflight": {"production readiness": "READY"},
+            "candidate_markets": {"US": {
+                "status": "PARTIAL_DATA_QUALITY",
+                "candidate_status": "PARTIAL",
+                "candidate_data_qualified_count": 10,
+                "candidate_included_count": 8,
+                "candidate_selection_outcome": "CANDIDATES_INCLUDED",
+                "candidate_exclusion_reason_counts": {"INCLUDED": 8, "HISTORY_INSUFFICIENT": 2},
+                "errors": stale + [
+                    "BAD:PROVIDER_SYMBOL_ERROR:YAHOO_CHART_SYMBOL_ERROR:HTTP_404",
+                ],
+            }},
+            "reports": [{"市场": "US", "报告": {"results": [{
+                "market": "US", "as_of_date": US_T_DAY.isoformat(), "data_status": "DATA_OK",
+                "symbol": "AAPL",
+            }]}}],
+        }
+        _, quality = _status_from_result(result, snapshot)
+        self.assertEqual(quality["formal_exact_t_usable_count"], 1)
+        self.assertEqual(quality["candidate_exact_t_stale_count"], 3)
+        self.assertAlmostEqual(quality["candidate_exact_t_stale_ratio"], .3)
+        self.assertEqual(quality["candidate_provider_symbol_error_count"], 1)
+        self.assertTrue(quality["candidate_broad_stale"])
+        self.assertEqual(quality["candidate_normal_exclusion_count"], 2)
+
     def test_single_source_partial_data_is_completed_with_explicit_coverage(self):
         snapshot = EphemeralMarketDataSnapshot(
             market="CN", as_of_date=T_DAY, fetched_at=US_AFTER_CLOSE,

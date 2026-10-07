@@ -52,6 +52,27 @@ SCHEMAS = {
 LEVELS = ("T1", "T2", "T3", "execution_stop", "structural_invalidation")
 
 
+def _daily_input_contract(item: Any) -> tuple[tuple[Any, ...], str]:
+    """Read the canonical production input contract used by the ledger.
+
+    ``DailySymbolInput`` deliberately exposes QFQ history as ``qfq_history``
+    and its data gate as ``data_quality_status``.  Keep this adapter explicit
+    so a future dataclass rename fails at the ledger boundary instead of
+    silently dropping the signal bar or treating an unavailable series as
+    reusable continuation data.
+    """
+
+    try:
+        history = tuple(item.qfq_history)
+        status = str(item.data_quality_status)
+    except AttributeError as exc:
+        raise TypeError(
+            "Opportunity Ledger requires DailySymbolInput.qfq_history and "
+            "DailySymbolInput.data_quality_status"
+        ) from exc
+    return history, status
+
+
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False)
 
@@ -117,7 +138,11 @@ def birth_snapshots(payload: Mapping[str, Any], inputs=()) -> list[dict[str, Any
                 decision = decisions.get(identity) or {}
                 key = canonical_key(market, result["symbol"])
                 item = inputs_by_key.get(key)
-                signal_bar = next((bar for bar in item.quotes if bar.trade_date.isoformat() == t), None) if item else None
+                history, _ = _daily_input_contract(item) if item else ((), "")
+                signal_bar = next(
+                    (bar for bar in history if bar.trade_date.isoformat() == t),
+                    None,
+                )
                 signal_close = signal_bar.close if signal_bar is not None else result.get("signal_close")
                 targets = decision.get("targets") or ()
                 ratios = (decision.get("rr") or {}).get("rr_ratios") or ()
@@ -331,8 +356,13 @@ def persist_daily_opportunities(client, payload, inputs, calendar, runtime, now)
     active = set(active_symbols(births, [row for row in follows if row["as_of_date"] <= t.isoformat()], market)) & {
         birth["symbol"] for birth in births if birth["market"] == market and birth["T"] < t.isoformat()
     }
-    reused = {item.symbol: tuple(item.quotes) for item in inputs
-              if item.market == market and item.symbol in active and item.data_status == "DATA_OK"}
+    reused = {}
+    for item in inputs:
+        if item.market != market or item.symbol not in active:
+            continue
+        history, status = _daily_input_contract(item)
+        if status == "DATA_OK":
+            reused[item.symbol] = history
     histories = dict(reused)
     provenance = {symbol: _market_data_provenance(payload, symbol) for symbol in reused}
     load_error = None

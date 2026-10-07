@@ -621,16 +621,29 @@ def fetch_yahoo_chart_with_provenance(
 ) -> SingleSourceFetchResult:
     if str(watch.get("市场")) != "US":
         raise ProviderSymbolError("YAHOO_CHART_MARKET_UNSUPPORTED")
+    diagnostics: dict[str, object] = {}
     try:
-        quotes = _fetch_yahoo_chart(watch, adjust, start, end)
-    except ProviderGlobalFailure:
+        quotes = _fetch_yahoo_chart_with_diagnostics(
+            watch, adjust, start, end, diagnostics=diagnostics,
+        )
+    except ProviderGlobalFailure as exc:
+        # The caller may project this finite diagnostic onto provider_status;
+        # the raw Yahoo response itself is intentionally never retained.
+        setattr(exc, "provider_diagnostics", diagnostics)
         raise
-    except ProviderSymbolError:
+    except ProviderSymbolError as exc:
+        setattr(exc, "provider_diagnostics", diagnostics)
         raise
     except Exception as exc:
-        raise ProviderGlobalFailure(f"YAHOO_CHART_PROVIDER_FAILURE:{type(exc).__name__}") from exc
+        failure = ProviderGlobalFailure(
+            f"YAHOO_CHART_PROVIDER_FAILURE:{type(exc).__name__}"
+        )
+        setattr(failure, "provider_diagnostics", diagnostics)
+        raise failure from exc
     if not quotes:
-        raise ProviderSymbolError("YAHOO_CHART_SYMBOL_NO_HISTORY")
+        failure = ProviderSymbolError("YAHOO_CHART_SYMBOL_NO_HISTORY")
+        setattr(failure, "provider_diagnostics", diagnostics)
+        raise failure
     provenance = source_provenance(
         market="US",
         provider=US_SINGLE_SOURCE_PROVIDER,
@@ -650,6 +663,7 @@ def fetch_yahoo_chart_with_provenance(
         if adjust == "qfq"
         else None
     )
+    provenance["provider_diagnostics"] = diagnostics
     return SingleSourceFetchResult(tuple(quotes), US_SINGLE_SOURCE_PROVIDER, provenance, 1)
 
 
@@ -1050,7 +1064,14 @@ def _fetch_yahoo_chart_latest(watch: dict, end: date) -> list[Quote]:
     return []
 
 
-def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
+def _fetch_yahoo_chart_with_diagnostics(
+    watch: dict,
+    adjust: str,
+    start: date,
+    end: date,
+    *,
+    diagnostics: dict[str, object] | None = None,
+) -> list[Quote]:
     """Fetch daily bars from Yahoo's keyless chart endpoint.
 
     This endpoint does not need the cookie/crumb session used by yfinance, so it
@@ -1060,9 +1081,22 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
     symbol = str(watch["yfinance代码"])
     period1 = int(datetime.combine(start, datetime_time.min, timezone.utc).timestamp())
     period2 = int(datetime.combine(end + timedelta(days=1), datetime_time.min, timezone.utc).timestamp())
+    diag = diagnostics if diagnostics is not None else {}
+    diag.update({
+        "requested_symbol": symbol,
+        "requested_start": start.isoformat(),
+        "requested_end": end.isoformat(),
+        "period1": period1,
+        "period2_exclusive": period2,
+        "adjust": adjust,
+        "acquired_at": datetime.now(timezone.utc).isoformat(),
+        "host_attempts": [],
+        "selected_host": None,
+    })
     symbol_errors: list[str] = []
     global_errors: list[str] = []
     payload = None
+    selected_host = None
     for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
         url = (
             f"https://{host}/v8/finance/chart/{urlquote(symbol, safe='')}"
@@ -1085,10 +1119,17 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
                     symbol_errors.append(f"{host}:{error_text}")
                 else:
                     global_errors.append(f"{host}:{error_text}")
+                diag["host_attempts"].append({
+                    "host": host,
+                    "status": "CHART_ERROR",
+                })
                 payload = None
                 continue
+            diag["host_attempts"].append({"host": host, "status": "OK"})
+            selected_host = host
             break
         except ProviderGlobalFailure as exc:
+            diag["host_attempts"].append({"host": host, "status": "SCHEMA_ERROR"})
             global_errors.append(f"{host}:{exc}")
             payload = None
         except HTTPError as exc:
@@ -1100,16 +1141,24 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
                 symbol_errors.append(f"{host}:{error_text}")
             else:
                 global_errors.append(f"{host}:{error_text}")
+            diag["host_attempts"].append({"host": host, "status": error_text})
             payload = None
         except (URLError, TimeoutError, OSError) as exc:
+            diag["host_attempts"].append({"host": host, "status": type(exc).__name__})
             global_errors.append(f"{host}:{type(exc).__name__}")
             payload = None
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            diag["host_attempts"].append({
+                "host": host,
+                "status": "SCHEMA_ERROR",
+            })
             global_errors.append(f"{host}:YAHOO_CHART_PROVIDER_SCHEMA_INVALID:{type(exc).__name__}")
             payload = None
         except Exception as exc:
+            diag["host_attempts"].append({"host": host, "status": type(exc).__name__})
             global_errors.append(f"{host}:{type(exc).__name__}:{exc}")
             payload = None
+    diag["selected_host"] = selected_host
     if payload is None:
         if global_errors:
             raise ProviderGlobalFailure("YAHOO_CHART_PROVIDER_FAILURE:" + "；".join(global_errors))
@@ -1154,6 +1203,54 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
     except Exception:
         exchange_timezone = timezone.utc
 
+    meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+
+    def timestamp_date(value) -> str | None:
+        try:
+            return datetime.fromtimestamp(float(value), exchange_timezone).date().isoformat()
+        except (TypeError, ValueError, OSError, OverflowError):
+            return None
+
+    def complete_raw(index: int) -> bool:
+        return all(
+            _indexed(price.get(field), index, None) is not None
+            for field in ("open", "high", "low", "close", "volume")
+        )
+
+    raw_dates = [
+        timestamp_date(value)
+        for index, value in enumerate(timestamps)
+        if timestamp_date(value) is not None and complete_raw(index)
+    ]
+    qfq_dates = [
+        timestamp_date(value)
+        for index, value in enumerate(timestamps)
+        if timestamp_date(value) is not None
+        and complete_raw(index)
+        and _indexed(adjusted, index, None) is not None
+    ]
+    regular_market_time = meta.get("regularMarketTime")
+    current_period = meta.get("currentTradingPeriod")
+    regular_period = current_period.get("regular") if isinstance(current_period, dict) else {}
+    diag.update({
+        "host": selected_host,
+        "response_meta_timezone": timezone_name,
+        "timestamp_count": len(timestamps),
+        "timestamp_last_date": timestamp_date(timestamps[-1]) if timestamps else None,
+        "latest_raw_session": max(raw_dates) if raw_dates else None,
+        "latest_qfq_session": max(qfq_dates) if qfq_dates else None,
+        "raw_quote_block_present": isinstance(indicators.get("quote"), list) and bool(indicators.get("quote")),
+        "raw_latest_row_complete": bool(raw_dates and raw_dates[-1] == max(raw_dates)),
+        "adjclose_block_present": bool(adjusted_block),
+        "adjclose_latest_available": bool(qfq_dates and qfq_dates[-1] == max(qfq_dates)),
+        "regular_market_time_date": timestamp_date(regular_market_time),
+        "current_trading_period_regular_end_date": (
+            timestamp_date(regular_period.get("end"))
+            if isinstance(regular_period, dict)
+            else None
+        ),
+    })
+
     rows = []
     for index, timestamp in enumerate(timestamps):
         raw_close = (price.get("close") or [None] * len(timestamps))[index]
@@ -1183,6 +1280,12 @@ def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list
     import pandas as pd
 
     return _records_to_quotes(pd.DataFrame(rows), watch, "YahooChart")
+
+
+def _fetch_yahoo_chart(watch: dict, adjust: str, start: date, end: date) -> list[Quote]:
+    """Compatibility wrapper used by the bounded latest probe and tests."""
+
+    return _fetch_yahoo_chart_with_diagnostics(watch, adjust, start, end)
 
 
 def _indexed(values, index: int, default):
@@ -1238,6 +1341,7 @@ def fetch_single_source_with_retry(
     provider = CN_SINGLE_SOURCE_PROVIDER if normalized_market == "CN" else US_SINGLE_SOURCE_PROVIDER
     attempts = max(1, int(retry_count))
     last_error: Exception | None = None
+    last_provenance: dict[str, object] = {}
     for attempt in range(1, attempts + 1):
         try:
             if provider == CN_SINGLE_SOURCE_PROVIDER:
@@ -1254,6 +1358,7 @@ def fetch_single_source_with_retry(
                 )
             else:
                 result = fetch_yahoo_chart_with_provenance(watch, adjust, start, end)
+            last_provenance = dict(result.provenance)
             quotes = tuple(sorted(result.quotes, key=lambda item: item.trade_date))
             if target_trade_date is not None and (
                 not quotes or quotes[-1].trade_date < target_trade_date
@@ -1272,21 +1377,29 @@ def fetch_single_source_with_retry(
                 provider=provider,
                 provenance=provenance,
             )
-        except ProviderSymbolError:
+        except ProviderSymbolError as exc:
+            if last_provenance.get("provider_diagnostics"):
+                setattr(exc, "provider_diagnostics", last_provenance["provider_diagnostics"])
             raise
         except ProviderGlobalFailure as exc:
+            if getattr(exc, "provider_diagnostics", None) is None and last_provenance.get("provider_diagnostics"):
+                setattr(exc, "provider_diagnostics", last_provenance["provider_diagnostics"])
             last_error = exc
             if attempt < attempts:
                 time.sleep(max(0, retry_wait_seconds))
         except (AdjustmentUnverifiedError, ValueError):
             raise
         except LookupError as exc:
+            if last_provenance.get("provider_diagnostics"):
+                setattr(exc, "provider_diagnostics", last_provenance["provider_diagnostics"])
             last_error = exc
             if attempt < attempts:
                 time.sleep(max(0, retry_wait_seconds))
                 continue
             raise
         except Exception as exc:
+            if last_provenance.get("provider_diagnostics"):
+                setattr(exc, "provider_diagnostics", last_provenance["provider_diagnostics"])
             last_error = exc
             if attempt < attempts:
                 time.sleep(max(0, retry_wait_seconds))
