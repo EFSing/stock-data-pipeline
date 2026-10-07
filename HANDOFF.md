@@ -4,11 +4,11 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`US_DAILY_REPORT_FINALIZATION_AND_LEDGER_FIX_IN_PROGRESS`：从最新 main 创建独立分支
+`US_DAILY_REPORT_FINALIZATION_AND_LEDGER_PR_READY`：从最新 main 创建独立分支
 `fix/us-daily-report-finalization-ledger-v1`，修复 US/CN 共用的 Daily Report formal
 readiness、Opportunity Ledger 输入接线、final delivery 顺序与 Yahoo 运维诊断；保持交易
-策略、Paper、broker 与既有 ledger 观察语义不变。PR #136 已在 GitHub 合并并关闭，本任务
-不修改 main、不 merge，最终保持新 PR OPEN。
+策略、Paper、broker 与既有 ledger 观察语义不变。PR #136 已在 GitHub 合并并关闭；PR #137
+已创建并保持 OPEN。本任务不修改 main、不 merge。
 
 #136 merge closeout 已客观核对：GitHub 状态为 MERGED，main 已包含其最终提交；其 required
 checks 与 generic operational shadows 均为成功。历史状态仅作为只读 evidence，不写成当前
@@ -140,9 +140,9 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Next Action
 
-完成本分支 full unittest、compileall、exact-head CI 与 relevant shadows；更新 PR 说明后
-保持新 PR OPEN、不 merge。后续自然日报继续按新 readiness、final delivery 与 provider
-diagnostics 观察；不发送 corrected final，除非用户另行明确授权。
+继续观察 PR #137 的 exact-head CI / relevant shadows 与 reviewer 意见；保持 PR OPEN、不
+merge。后续自然日报继续按新 readiness、final delivery 与 provider diagnostics 观察；不
+发送 corrected final，除非用户另行明确授权。
 
 ## Constraints / Pitfalls
 
