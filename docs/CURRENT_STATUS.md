@@ -470,6 +470,28 @@
 - IWB 缺少可信 snapshot date 时，只按真实 XNYS sessions 做有界回退；response source date
   是唯一可信的日期证据，request date 不得冒充 snapshot date。
 
+### Daily Report finalization and diagnostics V1（已进入 main）
+
+- 报告 readiness 将 formal exact-T coverage 与 dynamic Candidate coverage 分开：formal
+  universe 非空但 exact-T usable coverage 为 0% 时不得 `FINAL_REPORT_ELIGIBLE`；broad
+  Candidate exact-T stale 可进入 upstream readiness gate；少量 isolated symbol stale（包括
+  CN 的少量标的异常）在 formal coverage 与其余分析可用时仍允许整份日报 final。
+- Opportunity Ledger 使用 canonical `qfq_history` / `data_quality_status`。Ledger failure
+  不 claim final marker，改为独立 exactly-once alert；同一 session 后续恢复成功时仍可
+  claim/send 真正 final。
+- V2 erroneous final marker 只能通过显式、受审计的 corrected-final recovery contract
+  恢复；Yahoo latest timestamp、raw、adjclose 尾部与 query1/query2 comparison 只提供诊断，
+  不改变正式 provider selection。
+- Candidate Yahoo forensic 为 run-level bounded deterministic sampling：stale `<= 3`、
+  control `<= 2`、额外 host 请求 `<= 10`；不进入 Candidate ranking 或 strategy logic，也不
+  保存 raw JSON。
+- 日报 diagnostics presentation 将组件级状态、标的异常、正常筛选排除与 Ledger blocker
+  分离；partial Candidate 使用 warning，不把正常分析覆盖误渲染为系统级故障；用户可见
+  诊断已中文化并在翻译后去重。
+- 这些是生产可靠性、诊断、展示与证据完整性修复，不改变任何交易策略规则；CN/US
+  natural Daily Report acceptance、Ledger natural write、真实 corrected final 发送与 D1
+  activation 仍是独立后续验收边界。
+
 ### Daily Opportunity Ledger V1（已合并并接入 production Cloud path，natural acceptance pending）
 
 - Cloud 日报 production path 已接入“日报历史”和 SETUP_01/02 new CONFIRMED 的观察账本；

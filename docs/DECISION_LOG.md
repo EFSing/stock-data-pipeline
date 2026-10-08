@@ -1176,7 +1176,7 @@ turning transient upstream timing into a strategy or research rule.
 
 ## 2026-10-07 — Daily Report formal coverage and final-delivery sequencing correction
 
-**Decision for the follow-up finalization PR:** Report data readiness must evaluate the formal
+**Decision for the merged finalization implementation:** Report data readiness must evaluate the formal
 exact-T universe separately from dynamic Candidate analysis. If the formal attempted universe is
 non-empty and has zero exact-T usable symbols, the result is `UPSTREAM_NOT_READY` even when a
 large Candidate subset completed strategy analysis. Candidate-wide exact-T stale symptoms are
@@ -1196,4 +1196,5 @@ identity; the recovery contract itself never sends a duplicate notification.
 
 This remains an operational evidence-integrity contract only. It does not change Wave, Swing,
 Fibonacci, Setup, Entry Zone, Stop, Target, R/R, Portfolio Risk, Paper, broker, Candidate
-selection formulas, or D1 semantics. The implementation is pending merge of its independent PR.
+selection formulas, or D1 semantics. The implementation is merged into `main`; natural
+production acceptance remains a separate evidence boundary.

@@ -4,9 +4,9 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`US_DAILY_REPORT_FINALIZATION_AND_DIAGNOSTICS_PR_READY`：继续现有 PR #137 的
-`fix/us-daily-report-finalization-ledger-v1`，完成 US/CN Daily Report diagnostics
-presentation closeout；不新建 PR、不修改 main、不 merge。
+`US_DAILY_REPORT_FINALIZATION_AND_DIAGNOSTICS_MERGED_WAITING_NATURAL_ACCEPTANCE`：PR #137
+`fix/us-daily-report-finalization-ledger-v1` 已 squash merge 进入 `main`；当前只等待
+自然日报证据，不新建功能 PR、不改变交易策略或重复使用历史 replay 冒充 natural acceptance。
 
 本轮只处理用户可见诊断分类、中文提示、重复收敛、真实历史 artifact 回归，以及 Candidate
 Yahoo forensic 的有界采样记录；不改变 readiness threshold、ledger 语义、交易策略、
@@ -20,8 +20,8 @@ checks 与 generic operational shadows 均为成功。历史状态仅作为只�
 Candidate broad exact-T stale 不得 final；Opportunity Ledger 使用
 `DailySymbolInput.qfq_history` / `data_quality_status`；ledger failure 阻断 final marker 并
 发送独立幂等 alert；V2 错误 marker 有显式、审计化、默认关闭的 corrected-final recovery
-contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON。上述能力是 PR #137
-的既有基础，本轮在其上只收口日报诊断呈现。
+contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON。上述能力已随 PR #137
+进入 `main`，本轮已完成日报诊断呈现收口。
 
 ## Current State / Completed
 
@@ -150,14 +150,14 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Blocker / Remaining Risks
 
-- 当前代码 closeout 与 exact-head checks 已完成；剩余是 reviewer 意见及未来自然日报的
-  production evidence，PR 保持 OPEN，不 merge。历史 US artifact 的 Opportunity Ledger
+- PR #137 已 squash merge；当前无 code blocker，剩余是未来自然日报的 production evidence。
+  历史 US artifact 的 Opportunity Ledger
   `FAILED` 已按独立 blocker 呈现，且来自旧 main 的 `DailySymbolInput.quotes` 接线问题，
   不应与本轮 Candidate symbol 异常合并。
 - 完整 1026-symbol production Candidate runtime 的本地批量 probe 曾因 Yahoo 请求超出
   有界验证时间终止；PR 只读证据不把该 probe 写成 production acceptance，完整自然
   Candidate included/deep-ready/strategy 数量仍以未来正常运行 artifact 为准。
-- 真实 Cloud recovered final 的 end-to-end notification delivery 未在本分支触发；当前
+- 真实 Cloud recovered final 的 end-to-end notification delivery 未在本次修复中触发；当前
   证据为官方 IWB/exact-T provider probe、真实历史 artifact readiness replay 与 marker
   state-machine 回归，不能写成 natural acceptance。
 - 2026-10-06 09:21 的历史 artifact 未保存足够 Yahoo raw JSON，故
@@ -166,7 +166,7 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
   已增加下一自然 session 所需的实际尾行字段与有限 query1/query2 comparison，但尚无
   natural evidence。
 - 新 D1 activation、natural CN/US acceptance 与 Opportunity Ledger natural acceptance
-  仍保持原治理边界，不是本 PR 的 merge blocker。
+  仍保持原治理边界，不是当前 code blocker。
 - 新 D1 activation 仍需独立治理授权；本次修复不写真实 VPS/GCS activation，不运行新
   D1 V3 collector，不回填迁移窗口。
 - 601059/601198、JMKE 等既有合法 fail-closed 数据状态不因本任务改变；真实 prospective
@@ -174,8 +174,8 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Next Action
 
-保持 PR #137 OPEN，等待 reviewer 意见；不 merge。后续自然日报继续观察新的 readiness、
-final delivery 与 provider diagnostics；不发送 corrected final，除非用户另行明确授权。
+保持当前 `main` 状态，后续自然日报继续观察新的 readiness、final delivery 与 provider
+diagnostics；不发送 corrected final，除非用户另行明确授权。
 
 ## Constraints / Pitfalls
 
