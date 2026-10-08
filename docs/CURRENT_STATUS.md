@@ -5,7 +5,7 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-06（CN A-share provider-forward QFQ 合同迁移与 US Candidate lifecycle structural fixes 已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 最后实质更新：2026-10-08（CN A-share provider-forward QFQ 合同迁移与 US Candidate lifecycle structural fixes 已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
 > 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
 > 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
@@ -455,6 +455,20 @@
    最低要求及可用的 RR 诊断。SETUP_01 target projection 额外把“保守第一障碍
    （最近已确认历史阻力）”与“Wave3 结构目标（最近 Fib 投射）”分开显示；邮件与
    Dashboard 均不重新计算交易几何。
+
+### Daily Report delivery readiness V1（已进入 main）
+
+- Cloud Daily Report 使用 `DAILY_REPORT_DELIVERY_READINESS_V1`，正式结果为
+  `FINAL_REPORT_ELIGIBLE`、`DEGRADED_DIAGNOSTIC_ONLY`、`UPSTREAM_NOT_READY` 或
+  `FAILED`。
+- 只有 `FINAL_REPORT_ELIGIBLE` 才允许正式写入 Opportunity Ledger（birth / follow-up）并
+  claim final notification；其他结果只能保留诊断 artifact 和对应告警。
+- degraded alert 与 final notification 使用独立幂等 identity。legacy V1 marker 默认继续
+  作为防重复证据；只有显式 recovery 才允许一次经审计的迁移。
+- CN/US scheduled market-close 成功的 `workflow_run` 是日报 primary trigger；manual close
+  (`workflow_dispatch`) 不自动触发日报。bounded readiness retry / fallback 已进入生产 workflow。
+- IWB 缺少可信 snapshot date 时，只按真实 XNYS sessions 做有界回退；response source date
+  是唯一可信的日期证据，request date 不得冒充 snapshot date。
 
 ### Daily Opportunity Ledger V1（已合并并接入 production Cloud path，natural acceptance pending）
 
