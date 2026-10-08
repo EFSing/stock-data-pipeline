@@ -1120,6 +1120,13 @@ def _translate_reason(value: Any) -> str:
         ("ARMED", "等待确认"),
         ("CONFIRMED", "已确认"),
         ("DATA_BLOCKED", "数据异常，无法评估"),
+        ("EXACT_SESSION_AND_ANALYSIS_COVERAGE", "数据日期与分析覆盖满足正式日报要求"),
+        ("US_ONE_SHARE_NOTIONAL_OVER_1000", "单股价格超过1000美元预算"),
+        ("CN_MINIMUM_NOTIONAL_OVER_20000", "单股最低金额超过2万元预算"),
+        ("SECTOR_TOP_N_EXCEEDED", "行业候选名额已满"),
+        ("HISTORY_STALE", "历史行情过旧"),
+        ("LIFECYCLE_UNLISTED_OR_NO_MARKET", "已退市或无正常市场"),
+        ("LIFECYCLE_WHEN_ISSUED", "非当前正常上市状态"),
         ("SKIP_TARGET_UPSIDE_BELOW_MINIMUM", "下一交易日剩余第一目标空间不足5%，不追入"),
         ("等待新的 CONFIRMED event", "等待新的确认事件"),
         ("T 日没有新的 CONFIRMED event", "今天没有新的确认事件"),
@@ -1140,6 +1147,80 @@ def _translate_reason(value: Any) -> str:
     if re.search(r"[A-Za-z]{3,}", text):
         return "暂时无法评估（技术原因见开发者原始数据）"
     return text
+
+
+_CANDIDATE_COMPONENT_ERROR_PREFIXES = frozenset({
+    "STATUS",
+    "CANDIDATE_STATUS",
+    "CANDIDATE_SHORT_HISTORY",
+    "CANDIDATE_SELECTOR",
+    "CANDIDATE_DEEP_HISTORY",
+    "DEEP_HISTORY",
+    "STAGE_A",
+    "STAGE_B",
+})
+
+
+def _candidate_symbol_error(value: Any, default_market: Any) -> tuple[str, str, str] | None:
+    """Parse an existing Candidate error envelope without guessing symbols."""
+
+    text = _text(value)
+    if not text:
+        return None
+    market = _normalised_market(default_market)
+    match = re.match(r"^(?:(CN|US)\s+)?Candidate:\s*(.+)$", text, re.IGNORECASE)
+    if match:
+        market = _normalised_market(match.group(1)) or market
+        text = match.group(2).strip()
+    if "|" in text.split(":", 1)[0]:
+        left, separator, reason = text.partition(":")
+        error_market, symbol = left.split("|", 1)
+        symbol = symbol.strip().upper()
+        if symbol and re.fullmatch(r"[A-Z0-9][A-Z0-9._+\-]{1,}", symbol):
+            return _normalised_market(error_market) or market, symbol, reason.strip() if separator else text
+    symbol, separator, reason = text.partition(":")
+    symbol = symbol.strip().upper()
+    if (
+        not separator
+        or not market
+        or symbol in _CANDIDATE_COMPONENT_ERROR_PREFIXES
+        or symbol.startswith("CANDIDATE_")
+        or " " in symbol
+        or not re.fullmatch(r"[A-Z0-9][A-Z0-9._+\-]{1,}", symbol)
+    ):
+        return None
+    return market, symbol, reason.strip() or text
+
+
+def _diagnostic_reason_text(value: Any) -> str:
+    """Translate provider diagnostics to useful, non-technical user copy."""
+
+    text = _text(value)
+    upper = text.upper()
+    if "日报状态" in text:
+        if "PROVIDER_GLOBAL_FAILURE" in upper:
+            return "行情供应商全局故障"
+        if "FAILED" in upper:
+            return "日报运行失败"
+        if "PARTIAL_DATA_QUALITY" in upper:
+            return "日报存在部分数据异常"
+        return "日报状态需要复核"
+    if "HTTP_404" in upper or "YAHOO_CHART_SYMBOL_ERROR" in upper:
+        return "行情接口未提供该标的数据"
+    if "LIFECYCLE_UNLISTED_OR_NO_MARKET" in upper:
+        return "已退市或无正常市场"
+    if "LIFECYCLE_WHEN_ISSUED" in upper:
+        return "非当前正常上市状态"
+    if "QFQ" in upper and ("BEFORE" in upper or "日期" in text):
+        return "复权行情日期早于数据日期"
+    if "返回日期落后于目标交易日" in text or "DATA_STALE" in upper:
+        dates = re.search(r"(\d{4}-\d{2}-\d{2})\s*<\s*(\d{4}-\d{2}-\d{2})", text)
+        if dates:
+            return f"行情日期落后于本次数据日期；最新 {dates.group(1)}，要求 {dates.group(2)}"
+        return "行情日期落后于本次数据日期"
+    if "PROVIDER_SYMBOL_ERROR" in upper:
+        return "行情标识未被接口识别"
+    return _translate_reason(text) or "数据异常"
 
 
 def _reason_text(result: Mapping[str, Any]) -> str:
@@ -2289,6 +2370,16 @@ def _diagnostic_data_issues(
         # banner and artifact metadata, not copied verbatim into the user mail.
         # Symbol-scoped provider errors remain visible above.
 
+    def add_candidate_error(value: Any, candidate_market: Any) -> None:
+        parsed = _candidate_symbol_error(value, candidate_market)
+        if parsed is None:
+            # Component-level Candidate status and stage errors are retained in
+            # the raw artifact and represented by one summary, not as fake
+            # symbol failures.
+            return
+        error_market, symbol, reason = parsed
+        add(error_market, symbol, reason)
+
     cloud = _mapping(payload.get("cloud_daily_report"))
     market = _normalised_market(cloud.get("market"))
     quality = _mapping(cloud.get("data_quality"))
@@ -2305,13 +2396,10 @@ def _diagnostic_data_issues(
     runtime_errors = quality.get("candidate_runtime_errors")
     if isinstance(runtime_errors, Mapping):
         for candidate_market, value in runtime_errors.items():
-            text = _text(value)
-            if text:
-                add(candidate_market, "候选发现组件", text, category="CANDIDATE_COMPONENT")
+            for item in _sequence(value) or (value,):
+                add_candidate_error(item, candidate_market)
     for value in _sequence(quality.get("candidate_quality_errors")):
-        text = _text(value)
-        if text:
-            add(market, "候选发现组件", text, category="CANDIDATE_COMPONENT")
+        add_candidate_error(value, market)
     for symbol, provider in _mapping(cloud.get("provider_status")).items():
         provider = _mapping(provider)
         for value in _sequence(provider.get("errors")):
@@ -2319,7 +2407,11 @@ def _diagnostic_data_issues(
         for key in ("latest_status", "qfq"):
             value = _text(provider.get(key))
             if value and (
-                value.upper().startswith(("FAILED", "ERROR", "DATA_"))
+                value.upper().startswith(("FAILED", "ERROR"))
+                or (
+                    value.upper().startswith("DATA_")
+                    and value.upper() != "DATA_OK"
+                )
                 or any(marker in value for marker in ("失败", "失效", "待复核", "单源"))
             ):
                 add(market, symbol, f"{key}：{value}")
@@ -2327,12 +2419,11 @@ def _diagnostic_data_issues(
         candidate = _mapping(candidate)
         candidate_market = _normalised_market(candidate.get("market")) or market
         for value in _sequence(candidate.get("errors")):
-            if _text(value):
-                add(candidate_market, "候选发现组件", value, category="CANDIDATE_COMPONENT")
+            add_candidate_error(value, candidate_market)
         deep_errors = _mapping(candidate.get("deep_history_errors"))
         for symbol, values in deep_errors.items():
             for value in _sequence(values) or (values,):
-                add(candidate_market, "候选发现组件", f"{symbol}：{value}", category="CANDIDATE_COMPONENT")
+                add(candidate_market, symbol, value)
     if rows and not _mapping(payload.get("candidate_markets")) and not any(
         _mapping(entry.get("candidate")) for entry in _report_entries(payload)
     ):
@@ -2351,12 +2442,98 @@ def _diagnostic_data_issues(
     if cloud_status in {
         "FAILED", "INCOMPLETE_SESSION", "PARTIAL_DATA_QUALITY",
         "PROVIDER_GLOBAL_FAILURE", "COMPLETED_NO_USABLE_SYMBOLS",
-    } and not issues:
+    } and not issues and _text(cloud.get("delivery_readiness")) != "FINAL_REPORT_ELIGIBLE":
         add(market, "系统", f"日报状态：{cloud_status}", category="SYSTEM")
     return [
         {"category": category, "market": market, "symbol": symbol, "reason": reason}
         for category, market, symbol, reason in sorted(issues)
     ]
+
+
+def _diagnostic_presentation_issues(
+    issues: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, str]], int]:
+    """Normalize translated diagnostics before rendering the user zone."""
+
+    rendered: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for item in issues:
+        category = _text(item.get("category"), "SYMBOL_DATA")
+        market = _text(item.get("market"), "—")
+        symbol = _text(item.get("symbol"), "系统")
+        reason = _diagnostic_reason_text(item.get("reason"))
+        key = (category, market, symbol, reason)
+        if key in seen:
+            continue
+        seen.add(key)
+        rendered.append({
+            "category": category,
+            "market": market,
+            "symbol": symbol,
+            "reason": reason,
+        })
+    return rendered, max(len(issues) - len(rendered), 0)
+
+
+def _diagnostic_component_summaries(
+    candidate: Mapping[str, Any],
+    data_issues: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for item in _sequence(candidate.get("markets")):
+        item = _mapping(item)
+        status = _text(item.get("status"))
+        candidate_status = _text(item.get("candidate_status"))
+        stage_a = _text(item.get("stage_a_status"))
+        stage_b = _text(item.get("stage_b_status"))
+        partial = (
+            status in {"PARTIAL_DATA_QUALITY", "FAILED"}
+            or candidate_status in {"PARTIAL", "UNAVAILABLE"}
+            or stage_a in {"PARTIAL_DATA_QUALITY", "FAILED"}
+            or stage_b in {"PARTIAL_DATA_QUALITY", "FAILED"}
+        )
+        if not partial:
+            continue
+        market = _text(item.get("market"), "—")
+        symbol_issue_count = sum(
+            _text(issue.get("market")) == market
+            and _text(issue.get("category")) == "SYMBOL_DATA"
+            for issue in data_issues
+        )
+        if candidate_status == "UNAVAILABLE" or status == "FAILED":
+            status_label = "不可用"
+        else:
+            status_label = "部分完成"
+        summaries.append({
+            "market": market,
+            "label": _text(item.get("label"), market),
+            "status": status,
+            "status_label": status_label,
+            "seed_count": _integer_count(item.get("seed_count")),
+            "data_qualified_count": _integer_count(item.get("data_qualified_count")),
+            "included_count": _integer_count(item.get("included_count")),
+            "deep_analysis_count": _integer_count(item.get("deep_analysis_count")),
+            "symbol_issue_count": symbol_issue_count,
+        })
+    return summaries
+
+
+def _diagnostic_ledger_blocker(cloud: Mapping[str, Any]) -> dict[str, str] | None:
+    ledger_status = _text(
+        cloud.get("OPPORTUNITY_LEDGER_STATUS")
+        or cloud.get("opportunity_ledger_status")
+    ).upper()
+    final_delivery = _text(cloud.get("final_delivery_eligibility")).upper()
+    if ledger_status not in {"FAILED", "MISSED_PROSPECTIVE_SESSION"} and final_delivery != "FINAL_DELIVERY_BLOCKED_LEDGER":
+        return None
+    reason = _text(cloud.get("opportunity_ledger_error"))
+    return {
+        "status": ledger_status or "FAILED",
+        "title": "机会观察账本写入失败",
+        "message": "日报数据已完成，但机会观察账本写入失败；该阻断项与候选标的异常分开处理。",
+        "retry_message": "本次不改变正式日报数据资格，修复账本后可在同一交易日重新生成正式日报。",
+        "raw_reason": reason,
+    }
 
 
 def _diagnostics(
@@ -2366,6 +2543,8 @@ def _diagnostics(
 ) -> dict[str, Any]:
     candidate = _candidate_diagnostics(payload, entries, rows)
     data_issues = _diagnostic_data_issues(payload, rows)
+    presentation_issues, deduplicated_count = _diagnostic_presentation_issues(data_issues)
+    component_summaries = _diagnostic_component_summaries(candidate, data_issues)
     totals = candidate["totals"]
     has_candidate_summary = bool(candidate["markets"])
     signal_count = (
@@ -2384,9 +2563,32 @@ def _diagnostics(
         status = "NORMAL_NO_SIGNAL"
     else:
         status = "SIGNAL_AVAILABLE"
+    cloud = _mapping(payload.get("cloud_daily_report"))
+    readiness = _text(cloud.get("delivery_readiness"))
+    blocking = bool(
+        any(item.get("category") == "SYSTEM" for item in data_issues)
+        or readiness in {
+            "UPSTREAM_NOT_READY",
+            "DEGRADED_DIAGNOSTIC_ONLY",
+            "FAILED",
+        }
+    )
+    severity = (
+        "BLOCKING_ERROR"
+        if blocking
+        else "PARTIAL_WARNING"
+        if presentation_issues or component_summaries
+        else "NORMAL"
+    )
     return {
         "status": status,
+        "severity": severity,
         "data_issues": data_issues,
+        "presentation_issues": presentation_issues,
+        "presentation_deduplicated_count": deduplicated_count,
+        "presentation_duplicate_count": 0,
+        "component_summaries": component_summaries,
+        "ledger_blocker": _diagnostic_ledger_blocker(cloud),
         "candidate": candidate,
         "coverage": {
             **totals,
@@ -2741,7 +2943,6 @@ _USER_VISIBLE_UNNECESSARY_ENGLISH = (
     "Reference",
     "Current",
     "Missing",
-    "Target",
     "Projection",
     "Opportunity",
     "Freshness",
@@ -3541,7 +3742,7 @@ def _render_opportunity_freshness(row: Mapping[str, Any]) -> str:
             explanation = _text(plan.get("target_boundary_explanation"))
             if explanation:
                 bullets.append(explanation + "；所以按现有保守规则不交易。")
-            bullets.append("这些是 Decision gate 计算依据，不是买入/止盈建议")
+            bullets.append("这些是正式判断的计算依据，不是买入/止盈建议")
         elif band == "LOW_UPSIDE":
             bullets.append(
                 f"第一目标剩余空间：{_format_percent(target_upside)}；偏小，但达到最低交易门槛"
@@ -3966,77 +4167,123 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
     diagnostics = _mapping(projection.get("diagnostics"))
     cloud = _mapping(projection.get("cloud_daily_report"))
     status = _text(diagnostics.get("status"), "—")
+    severity = _text(diagnostics.get("severity"), "NORMAL")
     status_labels = {
         "DATA_ISSUE": "部分标的无法评估，请分别查看已完成结果与异常",
         "COVERAGE_INSUFFICIENT": "候选覆盖不足，不能据此判断没有机会",
         "NORMAL_NO_SIGNAL": "覆盖已完成，今天没有交易信号",
         "SIGNAL_AVAILABLE": "已完成覆盖，存在已计算信号",
     }
-    issues = tuple(_mapping(item) for item in _sequence(diagnostics.get("data_issues")))
-    category_labels = {
-        "CANDIDATE_COMPONENT": "候选发现组件",
-        "SYSTEM": "系统",
-        "SYMBOL_DATA": "标的数据",
+    severity_labels = {
+        "NORMAL": status_labels.get(status, "覆盖已完成"),
+        "PARTIAL_WARNING": "日报主体可用，少量候选标的数据异常",
+        "BLOCKING_ERROR": "日报不能作为正式结果，请先处理阻断项",
     }
+    issues = tuple(
+        _mapping(item) for item in _sequence(diagnostics.get("presentation_issues"))
+    )
     issue_html = "".join(
         f'<li><strong>{_escape(item.get("market"))} · '
-        f'{_escape(category_labels.get(_text(item.get("category")), item.get("symbol")))}</strong>：'
-        f'{_escape(_translate_reason(item.get("reason")) or "数据异常")}</li>'
+        f'{_escape("系统" if _text(item.get("category")) == "SYSTEM" else item.get("symbol"))}</strong>：'
+        f'{_escape(item.get("reason") or "数据异常")}</li>'
         for item in issues
     )
     candidate = _mapping(diagnostics.get("candidate"))
     coverage = _mapping(diagnostics.get("coverage"))
-    market_html = []
-    for item in _sequence(candidate.get("markets")):
-        item = _mapping(item)
+    component_html_parts: list[str] = []
+    for raw_item in _sequence(diagnostics.get("component_summaries")):
+        item = _mapping(raw_item)
+        component_html_parts.append(
+            '<div class="diagnostic-component-summary">'
+            f'<strong>候选发现：{_escape(item.get("status_label"))}</strong>'
+            f'<span>{_escape(item.get("seed_count"))}只候选种子中，'
+            f'{_escape(item.get("data_qualified_count"))}只数据合格，'
+            f'{_escape(item.get("included_count"))}只纳入候选，'
+            f'{_escape(item.get("deep_analysis_count"))}只完成策略分析。</span>'
+            + (
+                f'<span>少量标的数据异常：{_escape(item.get("symbol_issue_count"))}只；不影响其余候选分析。</span>'
+                if _integer_count(item.get("symbol_issue_count"))
+                else ""
+            )
+            + '</div>'
+        )
+    component_html = "".join(component_html_parts)
+    status_value_labels = {
+        "PARTIAL": "部分完成",
+        "SUCCESS": "已完成",
+        "UNAVAILABLE": "不可用",
+        "NO_CANDIDATES": "无候选",
+        "NOT_RUN": "未运行",
+        "FAILED": "失败",
+    }
+    stage_value_labels = {
+        "SUCCESS": "完成",
+        "PARTIAL_DATA_QUALITY": "部分完成",
+        "FAILED": "失败",
+        "NOT_RUN": "未运行",
+        "NOT_REQUIRED": "无需运行",
+        "BLOCKED": "已阻断",
+        "NO_CANDIDATES": "无候选",
+    }
+    outcome_labels = {
+        "CANDIDATES_INCLUDED": "已有候选进入后续分析",
+        "NO_CANDIDATES": "初筛数据完整，按既有规则没有候选",
+        "DISCOVERY_FAILED": "候选发现失败，覆盖不完整",
+        "NOT_REPORTED": "候选链路未报告，覆盖不完整",
+        "NOT_RUN": "候选链路未运行",
+    }
+    market_html: list[str] = []
+    for raw_item in _sequence(candidate.get("markets")):
+        item = _mapping(raw_item)
         reasons = "；".join(
-            f'{_escape(_mapping(reason).get("reason"))}：{_escape(_mapping(reason).get("count"))}'
+            f'{_escape(_translate_reason(_mapping(reason).get("reason")) or "其他筛选原因")}：'
+            f'{_escape(_mapping(reason).get("count"))}只'
             for reason in _sequence(item.get("filter_reasons"))
         )
         reason_line = (
-            f'<div class="diagnostic-reasons">筛选原因：{reasons}</div>'
+            f'<div class="diagnostic-reasons">正常筛选排除：{reasons}</div>'
             if reasons else ""
         )
-        outcome_labels = {
-            "CANDIDATES_INCLUDED": "已有候选进入后续分析",
-            "NO_CANDIDATES": "Stage A 数据完整，按既有规则筛选后确实没有候选",
-            "DISCOVERY_FAILED": "候选发现失败，覆盖不完整",
-            "NOT_REPORTED": "候选链路未报告，覆盖不完整",
-            "NOT_RUN": "候选链路未运行",
-        }
         outcome = _text(item.get("selection_outcome"), "NOT_REPORTED")
-        candidate_errors = "；".join(
-            _text(error) for error in _sequence(item.get("candidate_errors")) if _text(error)
-        )
         scope_line = (
-            f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}；'
-            f'动态候选 {_escape(item.get("dynamic_candidate_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_count"))}）；'
-            f'动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_analysis_count"))}）'
+            f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}只；'
+            f'动态候选 {_escape(item.get("dynamic_candidate_count"))}只（仅动态 '
+            f'{_escape(item.get("dynamic_candidate_only_count"))}只）；'
+            f'动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}只（仅动态 '
+            f'{_escape(item.get("dynamic_candidate_only_analysis_count"))}只）'
         )
         analysis_line = (
-            f'策略分析尝试 {_escape(item.get("analysis_attempted_count"))}；'
-            f'完成 {_escape(item.get("strategy_analysis_count"))}；'
-            f'因数据阻断 {_escape(item.get("analysis_blocked_count"))}'
+            f'策略分析尝试 {_escape(item.get("analysis_attempted_count"))}只；'
+            f'完成 {_escape(item.get("strategy_analysis_count"))}只；'
+            f'因数据阻断 {_escape(item.get("analysis_blocked_count"))}只'
         )
+        candidate_errors = _sequence(item.get("candidate_errors"))
         market_html.append(
             '<div class="diagnostic-market">'
             f'<strong>{_escape(item.get("label"))}</strong>'
-            f'<span>CANDIDATE_STATUS：{_escape(item.get("candidate_status"))}</span>'
-            f'<span>候选结论：{_escape(outcome_labels.get(outcome, outcome))}</span>'
-            f'<span>Seed {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → included {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}</span>'
+            f'<span>候选状态：{_escape(status_value_labels.get(_text(item.get("candidate_status")), "暂时无法评估"))}</span>'
+            f'<span>候选结论：{_escape(outcome_labels.get(outcome, "暂时无法评估"))}</span>'
+            f'<span>候选种子 {_escape(item.get("seed_count"))}只 → 数据合格 {_escape(item.get("data_qualified_count"))}只 → '
+            f'纳入候选 {_escape(item.get("included_count"))}只 → 深度分析 {_escape(item.get("deep_analysis_count"))}只</span>'
             f'<span>{scope_line}</span>'
-            f'<span>{analysis_line}；Stage A {_escape(item.get("stage_a_status"))}；Stage B {_escape(item.get("stage_b_status"))}</span>'
-            f'<span>实际日报结果 {_escape(item.get("daily_result_count"))}；DATA_OK {_escape(item.get("data_ok_count"))}；NO_TRADE {_escape(item.get("no_trade_count"))}；数据异常 {_escape(item.get("data_blocked_count"))}</span>'
+            f'<span>{analysis_line}；初筛数据{_escape(stage_value_labels.get(_text(item.get("stage_a_status")), "暂时无法评估"))}；'
+            f'深度分析{_escape(stage_value_labels.get(_text(item.get("stage_b_status")), "暂时无法评估"))}</span>'
+            f'<span>实际日报结果 {_escape(item.get("daily_result_count"))}只；数据正常 {_escape(item.get("data_ok_count"))}只；'
+            f'不交易 {_escape(item.get("no_trade_count"))}只；数据阻断 {_escape(item.get("data_blocked_count"))}只</span>'
             f'{reason_line}'
-            + (f'<div class="diagnostic-reasons">候选链路异常：{_escape(candidate_errors)}</div>' if candidate_errors else "")
+            + (
+                '<div class="diagnostic-reasons">候选链路存在少量待复核项；具体标的异常已单独列出。</div>'
+                if candidate_errors else ""
+            )
             + '</div>'
         )
     if not market_html:
         market_html.append(
-            f'<div class="diagnostic-market">实际日报结果 {_escape(coverage.get("daily_result_count"))}；DATA_OK {_escape(coverage.get("data_ok_count"))}；NO_TRADE {_escape(coverage.get("no_trade_count"))}</div>'
+            f'<div class="diagnostic-market">实际日报结果 {_escape(coverage.get("daily_result_count"))}只；数据正常 '
+            f'{_escape(coverage.get("data_ok_count"))}只；不交易 {_escape(coverage.get("no_trade_count"))}只</div>'
         )
     issue_block = (
-        '<details class="diagnostic-issues"><summary>异常标的及原因（展开原始诊断）</summary><ul>'
+        '<details class="diagnostic-issues"><summary>少量标的数据异常（展开查看）</summary><ul>'
         + issue_html
         + "</ul></details>"
         if issues else ""
@@ -4052,29 +4299,79 @@ def _render_diagnostics(projection: Mapping[str, Any]) -> str:
         "NON_SESSION": "非交易日",
         "SESSION_NOT_COMPLETED": "交易时段尚未完成",
         "NO_USABLE_SYMBOLS": "没有可用标的数据",
+        "FORMAL_EXACT_T_NOT_READY": "正式标的没有覆盖到数据日期",
         "CANDIDATE_UNAVAILABLE_NO_ANALYSIS": "候选发现不可用且没有策略分析覆盖",
         "CANDIDATE_UNAVAILABLE_FORMAL_ONLY": "候选发现不可用，但已有正式标的完成分析",
         "CANDIDATE_COVERAGE_INCOMPLETE": "候选覆盖未完成",
         "CANDIDATE_ANALYSIS_NOT_COVERED": "候选进入后续分析的覆盖不足",
+        "CANDIDATE_DISCOVERY_INCOMPLETE": "候选发现未完整完成",
+        "CANDIDATE_EXACT_T_BROADLY_STALE": "候选标的大范围落后于数据日期",
+        "CANDIDATE_STATUS_UNTRUSTED": "候选状态无法确认",
         "REPORT_COVERAGE_NOT_COMPLETE": "日报分析覆盖未完成",
         "NO_STRATEGY_ANALYSIS": "没有完成策略分析",
+        "EXACT_SESSION_AND_ANALYSIS_COVERAGE": "数据日期与分析覆盖满足正式日报要求",
+        "CANDIDATE_STAGE_COMPLETE_NO_CANDIDATES": "初筛完成，按既有规则没有候选",
         "PROVIDER_GLOBAL_FAILURE": "行情供应商全局故障",
         "REPORT_EXECUTION_FAILED": "日报运行失败",
     }
+    readiness_reason = _text(cloud.get("delivery_readiness_reason"))
     readiness_block = (
         f'<div class="diagnostic-coverage">正式日报状态：{_escape(readiness_copy.get(readiness, "状态未确定"))}；'
-        f'原因：{_escape(readiness_reason_copy.get(_text(cloud.get("delivery_readiness_reason")), "未提供") )}</div>'
+        f'原因：{_escape(readiness_reason_copy.get(readiness_reason, "暂时无法评估"))}</div>'
         if readiness else ""
     )
+    ledger = _mapping(diagnostics.get("ledger_blocker"))
+    ledger_html = (
+        '<div class="diagnostic-ledger-blocker">'
+        f'<strong>{_escape(ledger.get("title"))}</strong><br>'
+        f'{_escape(ledger.get("message"))}<br>'
+        f'{_escape(ledger.get("retry_message"))}'
+        '</div>'
+        if ledger else ""
+    )
+    raw_evidence = {
+        "data_issues": list(_sequence(diagnostics.get("data_issues"))),
+        "candidate_errors": [
+            {
+                "market": _mapping(item).get("market"),
+                "errors": list(_sequence(_mapping(item).get("candidate_errors"))),
+            }
+            for item in _sequence(candidate.get("markets"))
+            if _sequence(_mapping(item).get("candidate_errors"))
+        ],
+        "opportunity_ledger_error": ledger.get("raw_reason") if ledger else None,
+    }
+    panel_class = (
+        "diagnostic-danger" if severity == "BLOCKING_ERROR"
+        else "diagnostic-warning" if severity == "PARTIAL_WARNING"
+        else ""
+    )
     return (
-        f'<section class="diagnostic-panel {"diagnostic-danger" if issues else ""}" aria-label="日报诊断">'
-        f'<div class="diagnostic-heading"><h2>覆盖与日报诊断</h2><span>{_escape(status_labels.get(status, "状态未确定"))}</span></div>'
+        f'<section class="diagnostic-panel {panel_class}" aria-label="日报诊断">'
+        f'<div class="diagnostic-heading"><h2>覆盖与日报诊断</h2><span>{_escape(severity_labels.get(severity, "状态未确定"))}</span></div>'
         + readiness_block
-        + f'<div class="diagnostic-coverage">候选种子 {_escape(coverage.get("seed_count"))} → 数据合格 {_escape(coverage.get("data_qualified_count"))} → 纳入候选 {_escape(coverage.get("included_count"))}；成功分析 {_escape(projection["summary"]["completed_analysis_count"])}；无法评估 {_escape(projection["summary"]["data_blocked_count"])}</div>'
+        + f'<div class="diagnostic-coverage">候选种子 {_escape(coverage.get("seed_count"))}只 → 数据合格 {_escape(coverage.get("data_qualified_count"))}只 → '
+        + f'纳入候选 {_escape(coverage.get("included_count"))}只；全日报完成策略分析 '
+        + f'{_escape(coverage.get("strategy_analysis_count"))}只；数据阻断 {_escape(coverage.get("data_blocked_count"))}只</div>'
+        + component_html
+        + (
+            '<div class="diagnostic-normal-exclusions"><strong>正常筛选排除：</strong>'
+            + _escape("；".join(
+                f'{_translate_reason(_mapping(item).get("reason")) or "其他筛选原因"}：{_mapping(item).get("count")}只'
+                for item in _sequence(candidate.get("filter_reasons"))
+            ))
+            + '</div>'
+            if _sequence(candidate.get("filter_reasons")) else ""
+        )
+        + (f'<div class="diagnostic-coverage">少量候选异常：{_escape(len(issues))}只</div>' if issues else "")
         + issue_block
+        + ledger_html
         + '<details class="diagnostic-technical"><summary>查看完整覆盖与筛选诊断</summary><div class="diagnostic-markets">'
         + "".join(market_html)
-        + "</div></details></section>"
+        + "</div></details>"
+        + '<details class="diagnostic-technical"><summary>开发者原始诊断</summary><pre>'
+        + html.escape(_json_text(raw_evidence), quote=False)
+        + '</pre></details></section>'
     )
 
 
@@ -4579,7 +4876,7 @@ def render_dashboard_html(value: Any) -> str:
 .metric-label,.field-label {{ color:var(--muted); font-size:12px; }} .metric-value {{ display:block; margin-top:3px; font-size:23px; line-height:1.1; font-weight:750; }} .summary-primary .metric:nth-child(1) .metric-value,.summary-primary .metric:nth-child(2) .metric-value {{ color:var(--teal); }} .summary-primary .metric:nth-child(6) .metric-value {{ color:var(--red); }}
 .summary-secondary .metric {{ min-height:48px; padding:8px 12px; display:flex; align-items:center; gap:10px; }} .summary-secondary .metric-value {{ margin:0; font-size:20px; }}
 .diagnostic-issues > summary,.diagnostic-technical > summary,.diagnostic-card > summary {{ cursor:pointer; min-height:44px; padding:10px 0; font-size:13px; color:var(--blue); font-weight:700; }}
-.market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:8px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:8px 13px; display:flex; justify-content:space-between; align-items:center; }} .diagnostic-panel {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:11px 13px; margin:0 0 10px; }} .diagnostic-danger {{ border-color:#efb4b4; background:#fffafa; }} .diagnostic-heading {{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }} .diagnostic-heading h2 {{ margin:0; font-size:16px; }} .diagnostic-heading span {{ color:var(--muted); font-size:12px; }} .diagnostic-coverage {{ margin-top:5px; color:#53687b; font-size:13px; }} .diagnostic-issues {{ margin-top:8px; color:var(--red); font-size:13px; }} .diagnostic-issues ul {{ margin:4px 0 0; padding-left:20px; }} .diagnostic-markets {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin-top:9px; }} .diagnostic-market {{ display:flex; flex-direction:column; gap:2px; background:#f8fafc; border-radius:8px; padding:8px 10px; color:#53687b; font-size:12px; overflow-wrap:anywhere; }} .diagnostic-market strong {{ color:var(--ink); font-size:13px; }} .diagnostic-reasons {{ color:var(--amber); }}
+.market-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:8px; }} .market-card {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:8px 13px; display:flex; justify-content:space-between; align-items:center; }} .diagnostic-panel {{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:11px 13px; margin:0 0 10px; }} .diagnostic-danger {{ border-color:#efb4b4; background:#fffafa; }} .diagnostic-warning {{ border-color:#e5c979; background:#fffdf5; }} .diagnostic-heading {{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }} .diagnostic-heading h2 {{ margin:0; font-size:16px; }} .diagnostic-heading span {{ color:var(--muted); font-size:12px; }} .diagnostic-coverage {{ margin-top:5px; color:#53687b; font-size:13px; }} .diagnostic-issues {{ margin-top:8px; color:#8a6514; font-size:13px; }} .diagnostic-issues ul {{ margin:4px 0 0; padding-left:20px; }} .diagnostic-markets {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin-top:9px; }} .diagnostic-market {{ display:flex; flex-direction:column; gap:2px; background:#f8fafc; border-radius:8px; padding:8px 10px; color:#53687b; font-size:12px; overflow-wrap:anywhere; }} .diagnostic-market strong {{ color:var(--ink); font-size:13px; }} .diagnostic-reasons {{ color:var(--amber); }} .diagnostic-component-summary {{ margin-top:8px; padding:8px 10px; border-radius:8px; background:#fff8dc; color:#725710; display:flex; flex-direction:column; gap:2px; font-size:13px; }} .diagnostic-component-summary strong {{ color:#59430b; }} .diagnostic-normal-exclusions {{ margin-top:8px; padding:7px 9px; background:#f8fafc; color:#53687b; font-size:13px; border-radius:7px; }} .diagnostic-ledger-blocker {{ margin-top:9px; padding:9px 10px; border:1px solid #efb4b4; border-radius:8px; background:#fff5f5; color:#8d2020; font-size:13px; line-height:1.5; }}
 .market-name {{ font-weight:750; margin-right:8px; }} .market-label {{ color:var(--muted); font-size:12px; }} .data-status {{ border-radius:999px; padding:3px 9px; font-weight:700; font-size:12px; }} .status-DATA_OK {{ background:var(--teal-soft); color:var(--teal); }} .status-DATA_BLOCKED {{ background:var(--red-soft); color:var(--red); }} .status-NOT_RUN {{ background:#edf1f6; color:var(--muted); }}
 .stage-nav {{ position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:4px; margin:8px 0 9px; padding:7px 8px; align-items:center; background:#f5f7fbeF; border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 14px #18324b12; backdrop-filter:blur(8px); }} .stage-nav-label {{ color:var(--muted); font-weight:700; margin-right:2px; white-space:nowrap; }} .stage-link {{ min-height:44px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--blue); font:inherit; font-size:13px; font-weight:700; cursor:pointer; padding:6px 8px; white-space:nowrap; }} .stage-link:hover,.stage-link[aria-pressed="true"] {{ color:var(--teal); background:#e8f5f2; border-color:#b9ddd5; }} .nav-count {{ color:var(--muted); font-weight:650; }}
 .filters {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:#eaf0f6; border:1px solid var(--line); border-radius:11px; padding:9px 10px; margin-bottom:10px; }} .filters label {{ display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }} .search-field {{ flex:1 1 250px; }} select,input[type="search"] {{ min-height:44px; border:1px solid #cbd6e2; border-radius:8px; background:#fff; color:var(--ink); padding:6px 9px; font:inherit; min-width:100px; }} input[type="search"] {{ width:100%; min-width:200px; }}

@@ -51,6 +51,7 @@ from trading.production_candidate_runtime import (
     STAGE_A_HISTORY_BUFFER_SESSIONS,
     _default_deep_qfq_history_loader,
     _default_single_source_history_loader,
+    _new_yahoo_candidate_forensic_budget,
     _default_short_history_loader,
 )
 
@@ -742,6 +743,63 @@ class ProductionCandidateRuntimeTests(unittest.TestCase):
                     len([error for error in result.errors if "PROVIDER_SYMBOL_ERROR" in error]),
                     failure_count,
                 )
+
+    def test_candidate_yahoo_forensics_are_globally_bounded_and_deterministic(self):
+        stale = tuple(_seed("US", f"STALE{index:03d}") for index in range(6))
+        controls = tuple(_seed("US", f"CONTROL{index:03d}") for index in range(2))
+        seeds = stale + controls
+
+        def fetch(market, watch, adjustment, start, end, *args, **kwargs):
+            del adjustment, start, end, args, kwargs
+            symbol = watch["统一代码"]
+            if symbol.startswith("STALE"):
+                raise LookupError(
+                    "YAHOO_CHART返回日期落后于目标交易日：2026-10-06<2026-10-07"
+                )
+            return SingleSourceFetchResult(
+                _history(symbol, market, "USD", bars=60),
+                "YAHOO_CHART",
+                source_provenance(
+                    market=market,
+                    provider="YAHOO_CHART",
+                    adjustment="raw",
+                    adjustment_engine_version="YAHOO_CHART_ADJCLOSE_ENGINE_V1",
+                ),
+            )
+
+        comparison = {
+            host: {"host": host, "request_status": "OK"}
+            for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com")
+        }
+        with (
+            patch("providers.fetch_single_source_with_retry", side_effect=fetch),
+            patch(
+                "providers._collect_yahoo_stale_host_comparison",
+                return_value=comparison,
+            ) as probe,
+        ):
+            result = _default_single_source_history_loader(
+                seeds,
+                T_DAY - timedelta(days=69),
+                T_DAY,
+                adjustment="raw",
+                forensic_budget=_new_yahoo_candidate_forensic_budget(),
+            )
+
+        self.assertEqual(probe.call_count, 5)
+        self.assertEqual(result.diagnostics["stale_population_count"], 6)
+        self.assertEqual(result.diagnostics["sampled_count"], 5)
+        self.assertEqual(result.diagnostics["stale_sampled_count"], 3)
+        self.assertEqual(result.diagnostics["control_sampled_count"], 2)
+        self.assertEqual(result.diagnostics["diagnostic_request_count"], 10)
+        self.assertEqual(
+            result.diagnostics["stale_sampled_symbols"],
+            ["STALE000", "STALE001", "STALE002"],
+        )
+        self.assertEqual(
+            result.diagnostics["control_sampled_symbols"],
+            ["CONTROL000", "CONTROL001"],
+        )
 
     def test_all_individual_single_source_failures_complete_without_usable_symbols(self):
         seeds = tuple(_seed("CN", f"BAD{index:03d}.SH") for index in range(3))

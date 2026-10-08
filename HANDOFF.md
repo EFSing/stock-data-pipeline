@@ -4,11 +4,13 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`US_DAILY_REPORT_FINALIZATION_AND_LEDGER_PR_READY`：从最新 main 创建独立分支
-`fix/us-daily-report-finalization-ledger-v1`，修复 US/CN 共用的 Daily Report formal
-readiness、Opportunity Ledger 输入接线、final delivery 顺序与 Yahoo 运维诊断；保持交易
-策略、Paper、broker 与既有 ledger 观察语义不变。PR #136 已在 GitHub 合并并关闭；PR #137
-已创建并保持 OPEN。本任务不修改 main、不 merge。
+`US_DAILY_REPORT_FINALIZATION_AND_DIAGNOSTICS_PR_READY`：继续现有 PR #137 的
+`fix/us-daily-report-finalization-ledger-v1`，完成 US/CN Daily Report diagnostics
+presentation closeout；不新建 PR、不修改 main、不 merge。
+
+本轮只处理用户可见诊断分类、中文提示、重复收敛、真实历史 artifact 回归，以及 Candidate
+Yahoo forensic 的有界采样记录；不改变 readiness threshold、ledger 语义、交易策略、
+Candidate ranking、marker 或 cron。
 
 #136 merge closeout 已客观核对：GitHub 状态为 MERGED，main 已包含其最终提交；其 required
 checks 与 generic operational shadows 均为成功。历史状态仅作为只读 evidence，不写成当前
@@ -18,12 +20,23 @@ checks 与 generic operational shadows 均为成功。历史状态仅作为只�
 Candidate broad exact-T stale 不得 final；Opportunity Ledger 使用
 `DailySymbolInput.qfq_history` / `data_quality_status`；ledger failure 阻断 final marker 并
 发送独立幂等 alert；V2 错误 marker 有显式、审计化、默认关闭的 corrected-final recovery
-contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON。
-本轮继续修复 Yahoo forensic observability：latest-row completeness 按实际最后 timestamp
-判断；US exact-T stale 最终失败时增加 bounded query1/query2 diagnostic-only comparison；
-不改变 readiness threshold、Opportunity Ledger、交易策略或调度。
+contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON。上述能力是 PR #137
+的既有基础，本轮在其上只收口日报诊断呈现。
 
 ## Current State / Completed
+
+- Daily Report diagnostics 已将 Candidate component/stage 状态合并为单一中文摘要，真正的
+  symbol-level provider/stale 错误按标的展示，正常筛选排除单独放在中性区域；不会再把
+  `DATA_OK`、Candidate stage 状态或正常规则排除误报成标的故障。
+- US/CN dashboard 与 email 已使用中文用户可见文案；partial Candidate 使用 warning，
+  formal readiness/system failure 才使用 blocking danger；Opportunity Ledger failure
+  单独显示，不改变 `FINAL_REPORT_ELIGIBLE` 的数据资格。
+- US 历史 artifact 回归已确认：1024 seed、1017 data-qualified、999 included、999
+  strategy-analyzed；5 个真实标的异常与 25 个正常筛选排除分离，Candidate component 只保留
+  1 个摘要。CN 历史 artifact 也已回归，2 个标的异常与正常排除分离。
+- Candidate Yahoo forensic 为 diagnostic-only、确定性、全局有界采样：最多 3 个 stale
+  样本和 2 个 control 样本；两 host comparison 最多产生 10 个额外请求；population、
+  sample、request count 与 sampled symbols 写入 Candidate runtime artifact。
 
 - Yahoo latest-row diagnostics 已同时保留 `timestamp_last_date`、实际最后 timestamp 的
   raw/adjclose availability、`latest_complete_raw_session` 与
@@ -82,11 +95,15 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Validation
 
-- 本轮 Yahoo focused suite（23 passed）、readiness/Opportunity Ledger/cloud 相关回归（63
-  passed）、完整 `python -m unittest discover -s tests -v`（1040 passed、2 skipped）、
-  compileall、目标文件 `py_compile` 与 `git diff --check` 均已通过；新 HEAD 的 CI Test Gate、
-  Daily Decision Chain generic operational shadow、Portfolio Risk generic operational shadow
-  均已由 GitHub 验证通过，动态 run 事实以 GitHub 为准。
+- 本轮 focused suite（122 passed）、完整 `python -m unittest discover -s tests -v`
+  （1049 passed、4 skipped）、compileall、目标文件 `py_compile` 与 `git diff --check`
+  均已通过；此前 PR head 的 CI Test Gate、Daily Decision Chain generic operational shadow、
+  Portfolio Risk generic operational shadow 均已由 GitHub 验证通过，动态 run 事实以 GitHub
+  为准；本轮 closeout 推送后的 exact-head 结果仍待核对。
+- 本轮真实历史 US/CN artifact 的 dashboard/email `USER_VISIBLE_LANGUAGE_AUDIT` 均为
+  raw enum、内部字段、不必要英文、半中英提示计数全为 0；US presentation duplicate
+  count 为 0，Candidate component placeholder count 为 0，partial 页面未使用 danger
+  panel。
 - 官方 IWB 只读验证已采用 `source_as_of=2026-10-02`、`seed_count=1026`，provenance
   保留 fallback 请求与 `requested_as_of=2026-10-05`；BABA/RKLB direct Yahoo raw/qfq
   均已验证 exact `2026-10-05`。完整 1026-symbol 本地 Candidate runtime probe 因批量
@@ -132,6 +149,10 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Blocker / Remaining Risks
 
+- 当前剩余动作是把已通过本地验证的 closeout commit 推送到 PR #137，并等待该新 HEAD 的
+  exact-head CI / relevant shadows 与 reviewer 意见；PR 保持 OPEN，不 merge。历史 US
+  artifact 的 Opportunity Ledger `FAILED` 已按独立 blocker 呈现，且来自旧 main 的
+  `DailySymbolInput.quotes` 接线问题，不应与本轮 Candidate symbol 异常合并。
 - 完整 1026-symbol production Candidate runtime 的本地批量 probe 曾因 Yahoo 请求超出
   有界验证时间终止；PR 只读证据不把该 probe 写成 production acceptance，完整自然
   Candidate included/deep-ready/strategy 数量仍以未来正常运行 artifact 为准。
@@ -152,9 +173,9 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Next Action
 
-继续观察 PR #137 新 HEAD 的 exact-head CI / relevant shadows 与 reviewer 意见；保持 PR
-OPEN、不 merge。后续自然日报继续按新 readiness、final delivery 与 provider diagnostics
-观察；不发送 corrected final，除非用户另行明确授权。
+提交并推送本轮 closeout 到 PR #137，随后只核对新 HEAD 的 exact-head CI / relevant shadows
+与 PR 状态；保持 PR OPEN、不 merge。后续自然日报继续观察新的 readiness、final delivery
+与 provider diagnostics；不发送 corrected final，除非用户另行明确授权。
 
 ## Constraints / Pitfalls
 

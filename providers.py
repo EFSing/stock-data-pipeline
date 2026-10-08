@@ -1496,8 +1496,15 @@ def fetch_single_source_with_retry(
     retry_wait_seconds: float,
     target_trade_date: date | None = None,
     cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    stale_host_comparison: bool = False,
 ) -> SingleSourceFetchResult:
-    """Fetch one market through its canonical provider, with no vendor fallback."""
+    """Fetch one market through its canonical provider, with no vendor fallback.
+
+    The Yahoo host comparison is diagnostic-only and deliberately opt-in.  A
+    normal exact-session fetch must not fan out into two extra host requests
+    for every stale symbol; callers that own a bounded forensic budget can
+    explicitly enable it.
+    """
 
     normalized_market = str(market).strip().upper()
     if normalized_market not in {"CN", "US"}:
@@ -1532,6 +1539,7 @@ def fetch_single_source_with_retry(
             if target_trade_date is not None and (not quotes or is_exact_t_stale):
                 if (
                     provider == US_SINGLE_SOURCE_PROVIDER
+                    and stale_host_comparison
                     and attempt == attempts
                     and isinstance(last_provenance.get("provider_diagnostics"), dict)
                 ):

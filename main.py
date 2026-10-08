@@ -339,6 +339,7 @@ def run(group: str, mode: str = "full") -> dict:
                     retry_count,
                     retry_wait,
                     target_trade_date=end,
+                    stale_host_comparison=str(watch.get("市场") or "").strip().upper() == "US",
                 )
                 contract_errors = validate_single_source_quotes(
                     result.quotes,
@@ -491,6 +492,7 @@ def run(group: str, mode: str = "full") -> dict:
                                 retry_count,
                                 retry_wait,
                                 target_trade_date=chosen.trade_date,
+                                stale_host_comparison=str(watch.get("市场") or "").strip().upper() == "US",
                             )
                             contract_errors = validate_single_source_quotes(
                                 adjusted_result.quotes,

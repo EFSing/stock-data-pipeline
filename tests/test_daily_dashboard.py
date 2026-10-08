@@ -48,6 +48,59 @@ def _new_confirmation_no_trade_payload(gate_reason: str, **decision_fields) -> d
     }
 
 
+def _candidate_closeout_payload(
+    *,
+    candidate_status: str = "PARTIAL",
+    candidate_runtime_status: str = "PARTIAL_DATA_QUALITY",
+    quality_errors: list[str] | None = None,
+    exclusions: dict[str, int] | None = None,
+    readiness: str = "FINAL_REPORT_ELIGIBLE",
+    readiness_reason: str = "EXACT_SESSION_AND_ANALYSIS_COVERAGE",
+    ledger_status: str = "NOT_RUN",
+) -> dict:
+    return {
+        "as_of_date": "2026-10-07",
+        "results": [],
+        "candidate_markets": {
+            "US": {
+                "market": "US",
+                "status": candidate_runtime_status,
+                "candidate_status": candidate_status,
+                "candidate_selection_outcome": "CANDIDATES_INCLUDED",
+                "seed_count": 1024,
+                "candidate_data_qualified_count": 1017,
+                "candidate_included_count": 999,
+                "deep_history_requested_count": 999,
+                "deep_history_ready_count": 999,
+                "deep_analysis_count": 999,
+                "strategy_analysis_count": 999,
+                "candidate_exclusion_reason_counts": exclusions or {
+                    "INCLUDED": 999,
+                    "US_ONE_SHARE_NOTIONAL_OVER_1000": 18,
+                    "HISTORY_INSUFFICIENT": 6,
+                    "LIFECYCLE_UNLISTED_OR_NO_MARKET": 1,
+                },
+                "stage_timings": {
+                    "candidate_short_history": {"status": candidate_runtime_status},
+                    "deep_history": {"status": "SUCCESS"},
+                },
+            }
+        },
+        "cloud_daily_report": {
+            "market": "US",
+            "status": candidate_runtime_status,
+            "delivery_readiness": readiness,
+            "delivery_readiness_reason": readiness_reason,
+            "final_report_eligible": readiness == "FINAL_REPORT_ELIGIBLE",
+            "OPPORTUNITY_LEDGER_STATUS": ledger_status,
+            "data_quality": {
+                "candidate_quality_errors": list(quality_errors or ()),
+                "failed_symbols": [],
+            },
+        },
+    }
+
+
 def _setup02_target_candidates(
     *,
     planned_entry: float = 6.94,
@@ -300,9 +353,118 @@ class DailyDashboardTests(unittest.TestCase):
         )
         self.assertTrue(any(item["symbol"] == "600001.SH" for item in diagnostics["data_issues"]))
         rendered = render_dashboard_html(payload)
-        self.assertIn("异常标的及原因", rendered)
+        self.assertIn("少量标的数据异常", rendered)
         self.assertIn("复权行情日期早于数据日期", rendered)
-        self.assertIn("HISTORY_INSUFFICIENT", rendered)
+        self.assertIn("历史行情不足", rendered)
+
+    def test_closeout_case_a_partial_candidate_keeps_report_warning_level(self):
+        payload = _candidate_closeout_payload(
+            quality_errors=[
+                "US Candidate status: PARTIAL_DATA_QUALITY",
+                "US Candidate candidate_short_history: PARTIAL_DATA_QUALITY",
+                "US Candidate candidate_selector: PARTIAL_DATA_QUALITY",
+                "US Candidate: HOLX:PROVIDER_SYMBOL_ERROR:YAHOO_CHART_SYMBOL_ERROR:HTTP_404",
+                "US Candidate: HUBB:LookupError:YAHOO_CHART返回日期落后于目标交易日：2026-10-06<2026-10-07",
+                "US Candidate: UHAL-B:LookupError:YAHOO_CHART返回日期落后于目标交易日：2026-10-06<2026-10-07",
+                "US Candidate: UWMC-RTWI:PROVIDER_SYMBOL_ERROR:YAHOO_CHART_SYMBOL_ERROR:HTTP_404",
+                "US Candidate: WBD:LookupError:YAHOO_CHART返回日期落后于目标交易日：2026-10-05<2026-10-07",
+            ],
+        )
+        projection = build_dashboard_projection(payload)
+        diagnostics = projection["diagnostics"]
+        rendered = render_dashboard_html(payload)
+
+        self.assertEqual(diagnostics["severity"], "PARTIAL_WARNING")
+        self.assertEqual(len(diagnostics["presentation_issues"]), 5)
+        self.assertEqual(len(diagnostics["component_summaries"]), 1)
+        self.assertIn("候选发现：部分完成", rendered)
+        self.assertEqual(rendered.count("候选发现：部分完成"), 1)
+        self.assertIn("日报主体可用，少量候选标的数据异常", rendered)
+        self.assertIn("正常筛选排除", rendered)
+        self.assertIn("单股价格超过1000美元预算", rendered)
+        self.assertNotIn('class="diagnostic-panel diagnostic-danger"', rendered)
+
+    def test_closeout_case_b_translated_component_reasons_are_one_summary(self):
+        payload = _candidate_closeout_payload(
+            quality_errors=[
+                "US Candidate status: PARTIAL_DATA_QUALITY",
+                "US Candidate candidate_short_history: PARTIAL_DATA_QUALITY",
+                "US Candidate candidate_selector: PARTIAL_DATA_QUALITY",
+                "US Candidate: HOLX:PROVIDER_SYMBOL_ERROR:YAHOO_CHART_SYMBOL_ERROR:query1:HTTP_404",
+                "US Candidate: HOLX:LookupError:YAHOO_CHART_SYMBOL_ERROR:query2:HTTP_404",
+            ]
+        )
+        projection = build_dashboard_projection(payload)
+        rendered = render_dashboard_html(payload)
+        self.assertEqual(len(projection["diagnostics"]["data_issues"]), 2)
+        self.assertEqual(len(projection["diagnostics"]["presentation_issues"]), 1)
+        self.assertEqual(projection["diagnostics"]["presentation_deduplicated_count"], 1)
+        self.assertEqual(projection["diagnostics"]["presentation_duplicate_count"], 0)
+        self.assertEqual(rendered.count("候选发现：部分完成"), 1)
+        self.assertEqual(rendered.count("行情接口未提供该标的数据"), 1)
+        self.assertNotIn("候选发现组件", rendered)
+
+    def test_closeout_case_c_symbol_prefixed_error_keeps_symbol_identity(self):
+        payload = _candidate_closeout_payload(
+            quality_errors=[
+                "US Candidate: HOLX:PROVIDER_SYMBOL_ERROR:YAHOO_CHART_SYMBOL_ERROR:HTTP_404",
+            ]
+        )
+        diagnostics = build_dashboard_projection(payload)["diagnostics"]
+        self.assertEqual(diagnostics["presentation_issues"][0]["symbol"], "HOLX")
+        self.assertNotIn("候选发现组件", str(diagnostics["presentation_issues"]))
+        rendered = render_dashboard_html(payload)
+        self.assertIn("HOLX", rendered)
+        self.assertIn("行情接口未提供该标的数据", rendered)
+
+    def test_closeout_case_d_normal_exclusions_are_not_abnormal_issues(self):
+        payload = _candidate_closeout_payload(
+            candidate_status="SUCCESS",
+            candidate_runtime_status="SUCCESS",
+            quality_errors=[],
+        )
+        projection = build_dashboard_projection(payload)
+        rendered = render_dashboard_html(payload)
+        self.assertEqual(projection["diagnostics"]["presentation_issues"], [])
+        self.assertIn("正常筛选排除", rendered)
+        self.assertIn("历史行情不足", rendered)
+        self.assertNotIn('class="diagnostic-issues"', rendered)
+
+    def test_closeout_case_e_exact_session_readiness_reason_is_translated(self):
+        payload = _candidate_closeout_payload(quality_errors=[])
+        rendered = render_dashboard_html(payload)
+        self.assertIn("数据日期与分析覆盖满足正式日报要求", rendered)
+        self.assertNotIn("正式日报状态：正式日报可发送；原因：未提供", rendered)
+
+    def test_closeout_case_f_formal_not_ready_is_blocking_red(self):
+        payload = _candidate_closeout_payload(
+            candidate_status="SUCCESS",
+            candidate_runtime_status="SUCCESS",
+            quality_errors=[],
+            readiness="UPSTREAM_NOT_READY",
+            readiness_reason="FORMAL_EXACT_T_NOT_READY",
+        )
+        projection = build_dashboard_projection(payload)
+        rendered = render_dashboard_html(payload)
+        self.assertEqual(projection["diagnostics"]["severity"], "BLOCKING_ERROR")
+        self.assertIn("diagnostic-danger", rendered)
+        self.assertIn("正式标的没有覆盖到数据日期", rendered)
+
+    def test_closeout_case_g_ledger_failure_is_separate_from_candidate_warning(self):
+        payload = _candidate_closeout_payload(
+            quality_errors=[
+                "US Candidate: HOLX:PROVIDER_SYMBOL_ERROR:YAHOO_CHART_SYMBOL_ERROR:HTTP_404",
+            ],
+            ledger_status="FAILED",
+        )
+        projection = build_dashboard_projection(payload)
+        rendered = render_dashboard_html(payload)
+        self.assertEqual(projection["diagnostics"]["severity"], "PARTIAL_WARNING")
+        self.assertIsNotNone(projection["diagnostics"]["ledger_blocker"])
+        self.assertIn("机会观察账本写入失败", rendered)
+        self.assertIn("候选发现：部分完成", rendered)
+        self.assertIn("diagnostic-warning", rendered)
+        self.assertLess(rendered.index("候选发现：部分完成"), rendered.index("机会观察账本写入失败"))
 
     def test_diagnostics_distinguish_normal_no_signal_from_missing_coverage(self):
         payload = _new_confirmation_no_trade_payload("RR_BELOW_MINIMUM")
@@ -374,7 +536,7 @@ class DailyDashboardTests(unittest.TestCase):
             }
         }
         normal_html = render_dashboard_html(normal)
-        self.assertIn("Stage A 数据完整，按既有规则筛选后确实没有候选", normal_html)
+        self.assertIn("初筛数据完整，按既有规则没有候选", normal_html)
         self.assertIn("覆盖已完成，今天没有交易信号", normal_html)
         self.assertIn("CONFIRM_REJECT", normal_html)
 
@@ -389,8 +551,8 @@ class DailyDashboardTests(unittest.TestCase):
             },
         })
         partial_html = render_dashboard_html(partial)
-        self.assertIn("候选链路异常", partial_html)
-        self.assertIn("部分标的无法评估，请分别查看已完成结果与异常", partial_html)
+        self.assertIn("候选链路存在少量待复核项", partial_html)
+        self.assertIn("日报主体可用，少量候选标的数据异常", partial_html)
         self.assertIn("CANDIDATE_SHORT_HISTORY_INCOMPLETE", partial_html)
 
         unavailable = _new_confirmation_no_trade_payload("DATA_QUALITY_STALE")
@@ -421,7 +583,7 @@ class DailyDashboardTests(unittest.TestCase):
         }
         unavailable_html = render_dashboard_html(unavailable)
         self.assertIn("候选发现失败，覆盖不完整", unavailable_html)
-        self.assertIn("异常标的及原因", unavailable_html)
+        self.assertIn("少量标的数据异常", unavailable_html)
         self.assertIn("NO_DATA", unavailable_html)
 
     def test_default_focus_contains_only_actionable_or_exception_rows(self):

@@ -650,6 +650,7 @@ class SingleSourceMarketDataTests(TestCase):
                     retry_count=1,
                     retry_wait_seconds=0,
                     target_trade_date=T_DAY,
+                    stale_host_comparison=True,
                 )
 
         self.assertIn("2026-09-25<2026-09-28", str(raised.exception))
@@ -667,6 +668,41 @@ class SingleSourceMarketDataTests(TestCase):
         self.assertIn("query1.finance.yahoo.com", requests[0])
         self.assertIn("query1.finance.yahoo.com", requests[1])
         self.assertIn("query2.finance.yahoo.com", requests[2])
+
+    def test_yahoo_stale_host_comparison_is_opt_in(self):
+        t_minus_1 = int(datetime(2026, 9, 25, 13, tzinfo=timezone.utc).timestamp())
+        stale_payload = _yahoo_chart_payload(
+            [t_minus_1],
+            opens=[10.0], highs=[11.0], lows=[9.0], closes=[10.0],
+            volumes=[100.0], adjusted=[9.0],
+        )
+        requests = []
+
+        def response_for(request, **_kwargs):
+            requests.append(request.full_url)
+            return _YahooResponse(stale_payload)
+
+        with patch("providers.urlopen", side_effect=response_for):
+            with self.assertRaises(LookupError) as raised:
+                fetch_single_source_with_retry(
+                    "US",
+                    {
+                        "统一代码": "AAPL", "名称": "fixture", "市场": "US", "币种": "USD",
+                        "yfinance代码": "AAPL",
+                    },
+                    "qfq",
+                    date(2026, 9, 25),
+                    T_DAY,
+                    retry_count=1,
+                    retry_wait_seconds=0,
+                    target_trade_date=T_DAY,
+                )
+
+        self.assertEqual(len(requests), 1)
+        self.assertNotIn(
+            "stale_host_comparison",
+            raised.exception.provider_diagnostics,
+        )
 
     def test_yahoo_exact_t_stale_diagnostics_reach_provider_status(self):
         t_minus_1 = int(datetime(2026, 9, 25, 13, tzinfo=timezone.utc).timestamp())
@@ -734,6 +770,7 @@ class SingleSourceMarketDataTests(TestCase):
                     retry_count=1,
                     retry_wait_seconds=0,
                     target_trade_date=T_DAY,
+                    stale_host_comparison=True,
                 )
 
         self.assertIn("2026-09-25<2026-09-28", str(raised.exception))

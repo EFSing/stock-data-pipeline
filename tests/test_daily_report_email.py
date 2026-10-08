@@ -158,7 +158,7 @@ class DailyReportEmailTests(unittest.TestCase):
         rendered = render_daily_report_email_html(payload)
 
         self.assertIn("候选发现失败，覆盖不完整", rendered)
-        self.assertIn("候选链路异常", rendered)
+        self.assertIn("候选链路存在少量待复核项", rendered)
         self.assertIn("日报页面实际分析覆盖", rendered)
 
     def test_no_decision_plan_never_fabricates_price_fields(self):
@@ -467,7 +467,7 @@ class DailyReportEmailTests(unittest.TestCase):
 
         rendered = render_daily_report_email_html(payload)
         self.assertIn("覆盖与日报诊断", rendered)
-        self.assertIn("深度分析：2", rendered)
+        self.assertIn("深度分析 2只", rendered)
         self.assertIn("BABA", rendered)
         self.assertIn("复权行情日期早于数据日期", rendered)
         self.assertIn("历史行情不足", rendered)
