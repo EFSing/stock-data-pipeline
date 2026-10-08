@@ -52,6 +52,13 @@ _REASON_LABELS = {
     "ATR_UNAVAILABLE": "缺少 ATR14",
     "INVALID_STRUCTURE": "交易结构未通过检查",
     "STALE_CONFIRMATION_GEOMETRY": "确认结构已过期",
+    "US_ONE_SHARE_NOTIONAL_OVER_1000": "单股价格超过1000美元预算",
+    "CN_MINIMUM_NOTIONAL_OVER_20000": "单股最低金额超过2万元预算",
+    "SECTOR_TOP_N_EXCEEDED": "行业候选名额已满",
+    "HISTORY_STALE": "历史行情过旧",
+    "LIFECYCLE_UNLISTED_OR_NO_MARKET": "已退市或无正常市场",
+    "LIFECYCLE_WHEN_ISSUED": "非当前正常上市状态",
+    "EXACT_SESSION_AND_ANALYSIS_COVERAGE": "数据日期与分析覆盖满足正式日报要求",
 }
 _MARKET_LABELS = {"CN": "A股", "US": "美股"}
 _PLAN_STAGES = frozenset(("ENTRY_ALLOWED", "STRATEGY_PROPOSAL"))
@@ -160,6 +167,14 @@ def _reason_label(value: Any, default: str = "数据异常") -> str:
         return "复权行情日期早于数据日期"
     if "HISTORY_INSUFFICIENT" in raw:
         return "历史行情不足"
+    if "HTTP_404" in raw or "YAHOO_CHART_SYMBOL_ERROR" in raw:
+        return "行情接口未提供该标的数据"
+    if "返回日期落后于目标交易日" in text or "DATA_STALE" in raw:
+        import re
+        dates = re.search(r"(\d{4}-\d{2}-\d{2})\s*<\s*(\d{4}-\d{2}-\d{2})", text)
+        if dates:
+            return f"行情日期落后于本次数据日期；最新 {dates.group(1)}，要求 {dates.group(2)}"
+        return "行情日期落后于本次数据日期"
     return _REASON_LABELS.get(raw, "数据质量异常")
 
 
@@ -635,22 +650,26 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
         "SIGNAL_AVAILABLE": "已完成覆盖，存在已计算信号",
     }
     status = _text(diagnostics.get("status"))
-    category_labels = {
-        "CANDIDATE_COMPONENT": "候选发现组件",
-        "SYSTEM": "系统",
-        "SYMBOL_DATA": "标的数据",
+    severity = _text(diagnostics.get("severity"), "NORMAL")
+    severity_labels = {
+        "NORMAL": status_labels.get(status, "覆盖已完成"),
+        "PARTIAL_WARNING": "日报主体可用，少量候选标的数据异常",
+        "BLOCKING_ERROR": "日报不能作为正式结果，请先处理阻断项",
     }
+    issues = tuple(
+        _mapping(item) for item in _sequence(diagnostics.get("presentation_issues"))
+    )
     issue_lines = "".join(
-        f'<li><strong>{_escape(_mapping(item).get("market"))} · '
-        f'{_escape(category_labels.get(_text(_mapping(item).get("category")), _mapping(item).get("symbol")))}</strong>：'
-        f'{_escape(_reason_label(_mapping(item).get("reason")))}</li>'
-        for item in _sequence(diagnostics.get("data_issues"))
+        f'<li><strong>{_escape(item.get("market"))} · '
+        f'{_escape("系统" if _text(item.get("category")) == "SYSTEM" else item.get("symbol"))}</strong>：'
+        f'{_escape(item.get("reason") or "数据异常")}</li>'
+        for item in issues
     )
     market_lines = []
     candidate = _mapping(diagnostics.get("candidate"))
     outcome_labels = {
         "CANDIDATES_INCLUDED": "已有候选进入后续分析",
-        "NO_CANDIDATES": "Stage A 数据完整，按既有规则筛选后确实没有候选",
+        "NO_CANDIDATES": "初筛数据完整，按既有规则没有候选",
         "DISCOVERY_FAILED": "候选发现失败，覆盖不完整",
         "NOT_REPORTED": "候选链路未报告，覆盖不完整",
         "NOT_RUN": "候选链路未运行",
@@ -658,35 +677,34 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
     for value in _sequence(candidate.get("markets")):
         item = _mapping(value)
         reasons = "；".join(
-            f'{_escape(_reason_label(_mapping(reason).get("reason")))}：{_escape(_mapping(reason).get("count"))}'
+            f'{_escape(_reason_label(_mapping(reason).get("reason")))}：{_escape(_mapping(reason).get("count"))}只'
             for reason in _sequence(item.get("filter_reasons"))
         )
-        candidate_errors = "；".join(
-            _reason_label(error, "候选链路异常")
-            for error in _sequence(item.get("candidate_errors"))
-            if _text(error)
-        )
+        candidate_errors = _sequence(item.get("candidate_errors"))
         market_lines.append(
             '<div style="margin:7px 0;padding:8px 9px;background:#f8fafc;border-radius:6px;">'
             f'<strong>{_escape(item.get("label"))}</strong><br>'
             f'候选状态：{_escape(_status_value(item.get("candidate_status")))}<br>'
-            f'候选结论：{_escape(outcome_labels.get(_text(item.get("selection_outcome")), _text(item.get("selection_outcome"), "未报告")))}<br>'
-            f'候选种子 {_escape(item.get("seed_count"))} → 数据合格 {_escape(item.get("data_qualified_count"))} → 纳入候选 {_escape(item.get("included_count"))} → 深度分析 {_escape(item.get("deep_analysis_count"))}<br>'
-            f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}；动态候选 {_escape(item.get("dynamic_candidate_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_count"))}）；动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}（仅动态 {_escape(item.get("dynamic_candidate_only_analysis_count"))}）<br>'
-            f'策略分析尝试 {_escape(item.get("analysis_attempted_count"))}；完成 {_escape(item.get("strategy_analysis_count"))}；数据阻断 {_escape(item.get("analysis_blocked_count"))}<br>'
-            f'实际日报结果 {_escape(item.get("daily_result_count"))}；数据正常 {_escape(item.get("data_ok_count"))}；不交易 {_escape(item.get("no_trade_count"))}；数据异常 {_escape(item.get("data_blocked_count"))}'
-            + (f'<br><span style="color:#8a5510;">筛选原因：{reasons}</span>' if reasons else "")
+            f'候选结论：{_escape(outcome_labels.get(_text(item.get("selection_outcome")), "暂时无法评估"))}<br>'
+            f'候选种子 {_escape(item.get("seed_count"))}只 → 数据合格 {_escape(item.get("data_qualified_count"))}只 → '
+            f'纳入候选 {_escape(item.get("included_count"))}只 → 深度分析 {_escape(item.get("deep_analysis_count"))}只<br>'
+            f'正式策略池 {_escape(item.get("formal_strategy_pool_count"))}只；动态候选 {_escape(item.get("dynamic_candidate_count"))}只（仅动态 '
+            f'{_escape(item.get("dynamic_candidate_only_count"))}只）；动态候选完成策略分析 {_escape(item.get("dynamic_candidate_analysis_count"))}只（仅动态 '
+            f'{_escape(item.get("dynamic_candidate_only_analysis_count"))}只）<br>'
+            f'策略分析尝试 {_escape(item.get("analysis_attempted_count"))}只；完成 {_escape(item.get("strategy_analysis_count"))}只；'
+            f'数据阻断 {_escape(item.get("analysis_blocked_count"))}只<br>'
+            f'实际日报结果 {_escape(item.get("daily_result_count"))}只；数据正常 {_escape(item.get("data_ok_count"))}只；'
+            f'不交易 {_escape(item.get("no_trade_count"))}只；数据阻断 {_escape(item.get("data_blocked_count"))}只'
+            + (f'<br><span style="color:#8a5510;">正常筛选排除：{reasons}</span>' if reasons else "")
             + (
-                '<br><span style="color:#8d2020;">候选链路异常：'
-                + _escape(candidate_errors)
-                + "</span>"
+                '<br><span style="color:#8a5510;">候选链路存在少量待复核项；具体标的异常已单独列出。</span>'
                 if _sequence(item.get("candidate_errors"))
                 else ""
             )
             + '</div>'
         )
     issue_block = (
-        '<div style="margin-top:8px;color:#8d2020;"><strong>异常标的及原因</strong><ul style="margin:4px 0 0 18px;padding:0;">'
+        '<div style="margin-top:8px;color:#8a6514;"><strong>少量标的数据异常</strong><ul style="margin:4px 0 0 18px;padding:0;">'
         + issue_lines
         + "</ul></div>"
         if issue_lines else ""
@@ -706,24 +724,40 @@ def _diagnostics_html(projection: Mapping[str, Any]) -> str:
         "CANDIDATE_UNAVAILABLE_FORMAL_ONLY": "候选发现不可用，但已有正式标的完成分析",
         "CANDIDATE_COVERAGE_INCOMPLETE": "候选覆盖未完成",
         "CANDIDATE_ANALYSIS_NOT_COVERED": "候选进入后续分析的覆盖不足",
+        "FORMAL_EXACT_T_NOT_READY": "正式标的没有覆盖到数据日期",
+        "CANDIDATE_DISCOVERY_INCOMPLETE": "候选发现未完整完成",
+        "CANDIDATE_EXACT_T_BROADLY_STALE": "候选标的大范围落后于数据日期",
+        "CANDIDATE_STATUS_UNTRUSTED": "候选状态无法确认",
         "REPORT_COVERAGE_NOT_COMPLETE": "日报分析覆盖未完成",
         "NO_STRATEGY_ANALYSIS": "没有完成策略分析",
+        "EXACT_SESSION_AND_ANALYSIS_COVERAGE": "数据日期与分析覆盖满足正式日报要求",
+        "CANDIDATE_STAGE_COMPLETE_NO_CANDIDATES": "初筛完成，按既有规则没有候选",
         "PROVIDER_GLOBAL_FAILURE": "行情供应商全局故障",
         "REPORT_EXECUTION_FAILED": "日报运行失败",
     }
     readiness_line = (
         f'正式日报状态：{_escape(readiness_copy.get(readiness, "状态未确定"))}；'
-        f'原因：{_escape(readiness_reason_copy.get(_text(cloud.get("delivery_readiness_reason")), "未提供"))}<br>'
+        f'原因：{_escape(readiness_reason_copy.get(_text(cloud.get("delivery_readiness_reason")), "暂时无法评估"))}<br>'
         if readiness else ""
+    )
+    ledger = _mapping(diagnostics.get("ledger_blocker"))
+    ledger_block = (
+        '<div style="margin-top:8px;padding:9px;border:1px solid #efb4b4;border-radius:8px;background:#fff5f5;color:#8d2020;">'
+        f'<strong>{_escape(ledger.get("title"))}</strong><br>'
+        f'{_escape(ledger.get("message"))}<br>{_escape(ledger.get("retry_message"))}</div>'
+        if ledger else ""
     )
     market_block = "".join(market_lines)
     return (
         '<tr><td style="padding:10px 0 2px 0;">'
         '<div style="padding:11px;border:1px solid #d9dee8;border-radius:8px;background-color:#ffffff;">'
-        f'<strong>覆盖与日报诊断</strong>：{_escape(status_labels.get(status, status))}<br>'
+        f'<strong>覆盖与日报诊断</strong>：{_escape(severity_labels.get(severity, "状态未确定"))}<br>'
         + readiness_line
-        + f'<span style="color:#536176;">候选种子：{_escape(coverage.get("seed_count"))}；数据合格：{_escape(coverage.get("data_qualified_count"))}；纳入候选：{_escape(coverage.get("included_count"))}；深度分析：{_escape(coverage.get("deep_analysis_count"))}；已计算信号：{_escape(coverage.get("signal_count"))}</span>'
+        + f'<span style="color:#536176;">候选种子：{_escape(coverage.get("seed_count"))}只；数据合格：{_escape(coverage.get("data_qualified_count"))}只；'
+        + f'纳入候选：{_escape(coverage.get("included_count"))}只；完成策略分析：{_escape(coverage.get("strategy_analysis_count"))}只；'
+        + f'数据阻断：{_escape(coverage.get("data_blocked_count"))}只</span>'
         + issue_block
+        + ledger_block
         + market_block
         + '</div></td></tr>'
     )

@@ -264,7 +264,9 @@ records cache失效；不自动重试写入，下一次运行从真实Sheets恢�
 | `机会观察账本` | opportunity_id, market, symbol, setup, event_identity, T, source_identity, signal_close, action, primary_reject_reason, entry_zone_low/high, probe_entry, confirmation_entry, structural_invalidation, execution_stop, T1/T2/T3, t1_upside, rr, payload_json | opportunity_id=`market|existing event identity`；不可变birth；payload保留原Decision稳定字段、Wave/Setup context、formal/candidate身份、provider/adjustment/session/code provenance；不存在的字段为null |
 | `机会观察跟踪` | opportunity_id, as_of_date, sessions_since_confirmation, market, symbol, coverage_status, open/high/low/close, close_return, cumulative_max_favorable_move, cumulative_max_adverse_move, coverage_complete, bar_order_status, payload_json | opportunity_id + as_of_date；payload中touches与first_touch_sessions包含T1/T2/T3/execution_stop/structural_invalidation，另保留provider provenance |
 
-Runner仅把同一次分析所用的DailySymbolInput引用交给观察层，以保存exact-T signal close
+Runner仅把同一次分析所用的DailySymbolInput引用交给观察层，以保存exact-T signal close。
+账本读取生产输入的canonical字段为`qfq_history`与`data_quality_status`；不得使用旧的
+`quotes`/`data_status`别名，否则必须在输入边界显式失败而不能吞掉接口漂移。
 并复用有效历史；不增加Daily Chain evaluation。掉出Candidate的active observation用
 `ProductionCandidateRuntime.load_opportunity_continuation`复用已有deep QFQ loader、
 exact session window与US latest-QFQ门；身份为OPPORTUNITY_OBSERVATION，绝不作为
@@ -284,7 +286,9 @@ Cloud自然session默认启用（schedule/manual/fallback使用同一记录路�
 自然completed session的close→next-open窗口；历史--date是诊断、不写正式账本；手动指定仍在close→next-open窗口的当前session也幂等记录。
 三个tab已在既有Cloud Google credentials下创建并核验写权限，未写生产历史observation。
 OPPORTUNITY_LEDGER_STATUS与RUN_STATUS分离；ledger失败仍尽量生成诊断JSON/HTML并
-non-zero exit。若报告本身失败，仍可持久化已有结果/失败summary与continuation gaps。
+non-zero exit。报告数据ready但ledger失败时，最终发送identity保持未占用，另发一次
+ledger-specific alert；账本修复后的同session重跑才可 claim final。若报告本身失败，仍可
+持久化已有结果/失败summary与continuation gaps。
 策略状态、Paper、持仓、broker、market-history与D1 evidence不写。
 
 ### trading/ephemeral_market_data.py

@@ -1173,3 +1173,27 @@ selection formulas, or D1 semantics.
 same final marker as a valid report, suppressing a later recovered report. Separating readiness,
 alert identity, final identity, and ledger eligibility preserves truthful delivery without
 turning transient upstream timing into a strategy or research rule.
+
+## 2026-10-07 — Daily Report formal coverage and final-delivery sequencing correction
+
+**Decision for the follow-up finalization PR:** Report data readiness must evaluate the formal
+exact-T universe separately from dynamic Candidate analysis. If the formal attempted universe is
+non-empty and has zero exact-T usable symbols, the result is `UPSTREAM_NOT_READY` even when a
+large Candidate subset completed strategy analysis. Candidate-wide exact-T stale symptoms are
+recorded as operational diagnostics only; the observed 2026-10-06 distribution (306 stale errors
+over 717 data-qualified symbols) supports a bounded broad-stale gate of at least three symbols
+and 25% of the qualified/included base. Isolated symbol errors remain compatible with a final
+report when formal coverage and the remaining analysis are usable. These diagnostics never enter
+Candidate ranking or strategy rules.
+
+`REPORT_DATA_READINESS` and `FINAL_DELIVERY_ELIGIBILITY` are separate states. A natural report
+whose data is final-ready but whose required Opportunity Ledger write fails must emit one
+ledger-specific alert, must not claim the final V2 marker, and may claim/send the normal final on
+a later same-session run after the ledger succeeds. Diagnostic/replay scope does not claim a
+natural final identity. A previously incorrect V2 marker is recoverable only through an explicit
+read-back-verified, create-only V2 corrected-final recovery audit and a separate corrected-final
+identity; the recovery contract itself never sends a duplicate notification.
+
+This remains an operational evidence-integrity contract only. It does not change Wave, Swing,
+Fibonacci, Setup, Entry Zone, Stop, Target, R/R, Portfolio Risk, Paper, broker, Candidate
+selection formulas, or D1 semantics. The implementation is pending merge of its independent PR.

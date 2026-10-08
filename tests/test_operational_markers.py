@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from scripts.run_cloud_daily_report import _notify
 from trading.operational_markers import (
+    claim_corrected_final_recovery,
     claim_final_report_notification,
     claim_report_notification,
 )
@@ -154,6 +155,92 @@ class OperationalMarkerTests(unittest.TestCase):
             payload["cloud_daily_report"]["notifications"]["email"]["status"],
             "NOOP_REPORT_ALREADY_SENT",
         )
+
+    def test_report_ready_ledger_failure_alert_does_not_claim_final_and_recovery_does(self):
+        store = _MarkerStore()
+        payload = _us_payload()
+        payload["cloud_daily_report"].update({
+            "OPPORTUNITY_LEDGER_STATUS": "FAILED",
+            "opportunity_ledger_error": "controlled ledger failure",
+            "final_delivery_eligibility": "FINAL_DELIVERY_BLOCKED_LEDGER",
+            "final_delivery_reason": "OPPORTUNITY_LEDGER_FAILED",
+            "delivery_notification_mode": "ALERT",
+            "data_quality": {"formal_exact_t_coverage_pct": 100},
+        })
+        with patch(
+            "scripts.run_cloud_daily_report.claim_report_notification",
+            side_effect=lambda value: claim_report_notification(value, store=store),
+        ), patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}) as bark, patch(
+            "scripts.run_cloud_daily_report.send_optional_email",
+            return_value={"status": "SENT"},
+        ) as email:
+            _notify(payload, dashboard_html="<html></html>")
+            self.assertTrue(any("daily-report-alerts" in name for name in store.objects))
+            self.assertFalse(any("final-v2" in name for name in store.objects))
+            _notify(payload, dashboard_html="<html></html>")
+            self.assertEqual(bark.call_count, 1)
+            self.assertEqual(email.call_count, 1)
+
+        payload["cloud_daily_report"].update({
+            "OPPORTUNITY_LEDGER_STATUS": "SUCCESS",
+            "opportunity_ledger_error": None,
+            "final_delivery_eligibility": "FINAL_DELIVERY_ELIGIBLE",
+            "final_delivery_reason": "REPORT_DATA_AND_LEDGER_READY",
+            "delivery_notification_mode": "FINAL",
+        })
+        with patch(
+            "scripts.run_cloud_daily_report.claim_report_notification",
+            side_effect=lambda value: claim_report_notification(value, store=store),
+        ), patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}) as bark, patch(
+            "scripts.run_cloud_daily_report.send_optional_email",
+            return_value={"status": "SENT"},
+        ) as email:
+            _notify(payload, dashboard_html="<html></html>")
+            _notify(payload, dashboard_html="<html></html>")
+            self.assertEqual(bark.call_count, 1)
+            self.assertEqual(email.call_count, 1)
+        self.assertTrue(any("final-v2" in name for name in store.objects))
+
+    def test_v2_corrected_final_recovery_is_explicit_audited_and_exactly_once(self):
+        store = _MarkerStore()
+        payload = _us_payload()
+        payload["cloud_daily_report"].update({
+            "final_delivery_eligibility": "FINAL_DELIVERY_ELIGIBLE",
+            "delivery_scope": "NATURAL",
+        })
+        original = claim_final_report_notification(payload, store=store)
+        recovery_identity = original["identity"]
+
+        first = claim_corrected_final_recovery(
+            payload, recovery_identity=recovery_identity, store=store,
+        )
+        second = claim_corrected_final_recovery(
+            payload, recovery_identity=recovery_identity, store=store,
+        )
+        self.assertEqual(first["status"], "CORRECTED_FINAL_RECOVERY_CLAIMED")
+        self.assertEqual(second["status"], "NOOP_CORRECTED_FINAL_ALREADY_SENT")
+        self.assertFalse(first["send_performed"])
+        self.assertTrue(any("v2-correction-audit" in name for name in store.objects))
+        self.assertTrue(any("v2-corrected-final" in name for name in store.objects))
+        self.assertEqual(
+            claim_corrected_final_recovery(
+                payload,
+                recovery_identity="US|2026-10-05|WRONG",
+                store=store,
+            )["status"],
+            "CORRECTED_FINAL_RECOVERY_IDENTITY_MISMATCH",
+        )
+
+    def test_diagnostic_scope_does_not_claim_natural_final_identity(self):
+        store = _MarkerStore()
+        payload = _us_payload()
+        payload["cloud_daily_report"].update({
+            "delivery_scope": "DIAGNOSTIC",
+            "final_delivery_eligibility": "FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC",
+        })
+        result = claim_report_notification(payload, store=store)
+        self.assertEqual(result["status"], "NOT_NOTIFYABLE_DIAGNOSTIC")
+        self.assertEqual(store.calls, [])
 
 
 if __name__ == "__main__":

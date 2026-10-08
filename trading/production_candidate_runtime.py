@@ -83,6 +83,10 @@ YFINANCE_DEEP_HISTORY_WORKERS = 4
 # and Yahoo Chart response.  Keep the existing provider path, but give the
 # candidate Stage B one bounded second attempt; never accept the stale tail.
 EXACT_QFQ_MIN_RETRY_ATTEMPTS = 2
+# Candidate Yahoo forensic checks are diagnostic-only.  The population may be
+# large, but the comparison itself is globally bounded across Stage A and B.
+YAHOO_CANDIDATE_FORENSIC_MAX_STALE_SAMPLES = 3
+YAHOO_CANDIDATE_FORENSIC_MAX_CONTROL_SAMPLES = 2
 US_HISTORICAL_QFQ_ASOF_UNVERIFIED = "US_HISTORICAL_QFQ_ASOF_UNVERIFIED"
 US_COMPLETED_SESSION_REQUIRED = "US_COMPLETED_SESSION_REQUIRED"
 PRODUCTION_CANDIDATE_ACCOUNT_ROUTING_REQUIRED = (
@@ -110,6 +114,7 @@ class HistoryLoadResult:
     errors: tuple[str, ...] = ()
     provenance: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     provider_global_failure: str | None = None
+    diagnostics: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         normalized = {
@@ -135,6 +140,11 @@ class HistoryLoadResult:
                 for symbol, value in (self.provenance or {}).items()
                 if isinstance(value, Mapping)
             },
+        )
+        object.__setattr__(
+            self,
+            "diagnostics",
+            dict(self.diagnostics or {}),
         )
 
 
@@ -349,6 +359,7 @@ class CandidateMarketRuntimeResult:
                 name: dict(values)
                 for name, values in self.stage_timings.items()
             },
+            "yahoo_forensic": dict(self.stage_timings.get("yahoo_forensic", {})),
             "errors": list(self.errors),
             "status": self.status,
             "provider_global_failure": self.provider_global_failure,
@@ -833,6 +844,189 @@ def _default_deep_qfq_history_loader(
     return HistoryLoadResult(histories, len(seeds), rows, tuple(errors))
 
 
+def _new_yahoo_candidate_forensic_budget() -> dict[str, Any]:
+    return {
+        "stale_population_symbols": set(),
+        "control_population_symbols": set(),
+        "stale_sampled_symbols": [],
+        "control_sampled_symbols": [],
+        "sampled_symbols": set(),
+        "diagnostic_request_count": 0,
+    }
+
+
+def _yahoo_candidate_forensic_snapshot(
+    budget: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if budget is None:
+        return {
+            "status": "NOT_APPLICABLE",
+            "stale_population_count": 0,
+            "control_population_count": 0,
+            "population_count": 0,
+            "sampled_count": 0,
+            "stale_sampled_count": 0,
+            "control_sampled_count": 0,
+            "diagnostic_request_count": 0,
+            "host_count": 0,
+            "max_stale_samples": YAHOO_CANDIDATE_FORENSIC_MAX_STALE_SAMPLES,
+            "max_control_samples": YAHOO_CANDIDATE_FORENSIC_MAX_CONTROL_SAMPLES,
+            "sampled_symbols": [],
+            "stale_sampled_symbols": [],
+            "control_sampled_symbols": [],
+        }
+    stale_population = sorted(
+        str(symbol).strip().upper()
+        for symbol in budget.get("stale_population_symbols", ())
+        if str(symbol).strip()
+    )
+    control_population = sorted(
+        str(symbol).strip().upper()
+        for symbol in budget.get("control_population_symbols", ())
+        if str(symbol).strip()
+    )
+    stale_sampled = sorted(
+        str(symbol).strip().upper()
+        for symbol in budget.get("stale_sampled_symbols", ())
+        if str(symbol).strip()
+    )
+    control_sampled = sorted(
+        str(symbol).strip().upper()
+        for symbol in budget.get("control_sampled_symbols", ())
+        if str(symbol).strip()
+    )
+    return {
+        "status": "BOUNDED",
+        "stale_population_count": len(stale_population),
+        "control_population_count": len(control_population),
+        "population_count": len(set(stale_population) | set(control_population)),
+        "sampled_count": len(stale_sampled) + len(control_sampled),
+        "stale_sampled_count": len(stale_sampled),
+        "control_sampled_count": len(control_sampled),
+        "diagnostic_request_count": int(budget.get("diagnostic_request_count", 0) or 0),
+        "host_count": 2,
+        "max_stale_samples": YAHOO_CANDIDATE_FORENSIC_MAX_STALE_SAMPLES,
+        "max_control_samples": YAHOO_CANDIDATE_FORENSIC_MAX_CONTROL_SAMPLES,
+        "sampled_symbols": sorted(set(stale_sampled) | set(control_sampled)),
+        "stale_sampled_symbols": stale_sampled,
+        "control_sampled_symbols": control_sampled,
+    }
+
+
+def _stale_error_symbol(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text or not (
+        "返回日期落后于目标交易日" in text
+        or "DATA_STALE" in text.upper()
+    ):
+        return None
+    symbol, separator, _ = text.partition(":")
+    symbol = symbol.strip().upper()
+    if not separator or not symbol or any(char.isspace() for char in symbol):
+        return None
+    if symbol in {"PROVIDER_GLOBAL_FAILURE", "CANDIDATE", "US CANDIDATE", "CN CANDIDATE"}:
+        return None
+    return symbol
+
+
+def _collect_bounded_yahoo_candidate_forensics(
+    *,
+    seeds: Sequence[Any],
+    histories: Mapping[str, Sequence[Quote]],
+    errors: Sequence[str],
+    market: str,
+    adjustment: str,
+    start_date: date,
+    end_date: date,
+    budget: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Run the globally bounded, deterministic Candidate host sample."""
+
+    if budget is None or str(market).strip().upper() != "US":
+        return _yahoo_candidate_forensic_snapshot(budget)
+
+    from providers import (
+        YAHOO_CHART_HOSTS,
+        _collect_yahoo_stale_host_comparison,
+    )
+
+    stale_symbols = sorted(
+        {
+            symbol
+            for symbol in (_stale_error_symbol(error) for error in errors)
+            if symbol
+        }
+    )
+    control_symbols = sorted(
+        str(symbol).strip().upper()
+        for symbol in histories
+        if str(symbol).strip()
+    )
+    budget.setdefault("stale_population_symbols", set()).update(stale_symbols)
+    budget.setdefault("control_population_symbols", set()).update(control_symbols)
+    seed_by_symbol = {
+        str(getattr(seed, "symbol", "")).strip().upper(): seed
+        for seed in seeds
+        if str(getattr(seed, "symbol", "")).strip()
+    }
+
+    sampled_symbols = budget.setdefault("sampled_symbols", set())
+    stale_sampled = budget.setdefault("stale_sampled_symbols", [])
+    control_sampled = budget.setdefault("control_sampled_symbols", [])
+    samples: list[dict[str, Any]] = []
+
+    def sample(kind: str, candidates: Sequence[str], limit: int, output: list[str]) -> None:
+        remaining = max(limit - len(output), 0)
+        for symbol in candidates:
+            if remaining <= 0:
+                break
+            if symbol in sampled_symbols or symbol not in seed_by_symbol:
+                continue
+            seed = seed_by_symbol[symbol]
+            try:
+                comparison = _collect_yahoo_stale_host_comparison(
+                    _provider_watch(seed), adjustment, start_date, end_date
+                )
+            except Exception as exc:
+                comparison = {
+                    host: {
+                        "host": host,
+                        "request_status": type(exc).__name__,
+                    }
+                    for host in YAHOO_CHART_HOSTS
+                }
+            sampled_symbols.add(symbol)
+            output.append(symbol)
+            budget["diagnostic_request_count"] = int(
+                budget.get("diagnostic_request_count", 0) or 0
+            ) + len(YAHOO_CHART_HOSTS)
+            samples.append({
+                "symbol": symbol,
+                "kind": kind,
+                "adjustment": adjustment,
+                "host_comparison": comparison,
+            })
+            remaining -= 1
+
+    sample(
+        "STALE",
+        stale_symbols,
+        YAHOO_CANDIDATE_FORENSIC_MAX_STALE_SAMPLES,
+        stale_sampled,
+    )
+    sample(
+        "CONTROL",
+        control_symbols,
+        YAHOO_CANDIDATE_FORENSIC_MAX_CONTROL_SAMPLES,
+        control_sampled,
+    )
+    snapshot = _yahoo_candidate_forensic_snapshot(budget)
+    snapshot["stage_stale_population_count"] = len(stale_symbols)
+    snapshot["stage_control_population_count"] = len(control_symbols)
+    snapshot["stage_samples"] = samples
+    return snapshot
+
+
 def _default_single_source_history_loader(
     seeds: tuple[Any, ...],
     start_date: date,
@@ -840,6 +1034,7 @@ def _default_single_source_history_loader(
     *,
     adjustment: str,
     cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    forensic_budget: dict[str, Any] | None = None,
 ) -> HistoryLoadResult:
     """Load Candidate history one symbol at a time from its canonical vendor.
 
@@ -938,12 +1133,30 @@ def _default_single_source_history_loader(
         histories[symbol] = tuple(quotes)
         provenance[symbol] = dict(item_provenance)
         rows += len(quotes)
-    return HistoryLoadResult(histories, requests, rows, tuple(errors), provenance)
+    diagnostics = _collect_bounded_yahoo_candidate_forensics(
+        seeds=seeds,
+        histories=histories,
+        errors=errors,
+        market=str(getattr(seeds[0], "market", "")).strip().upper() if seeds else "",
+        adjustment=adjustment,
+        start_date=start_date,
+        end_date=end_date,
+        budget=forensic_budget,
+    )
+    return HistoryLoadResult(
+        histories,
+        requests,
+        rows,
+        tuple(errors),
+        provenance,
+        diagnostics=diagnostics,
+    )
 
 
 def _default_single_source_short_history_loader(
     seeds: tuple[Any, ...], start_date: date, end_date: date,
     *, cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    forensic_budget: dict[str, Any] | None = None,
 ) -> HistoryLoadResult:
     return _default_single_source_history_loader(
         seeds,
@@ -951,12 +1164,14 @@ def _default_single_source_short_history_loader(
         end_date,
         adjustment="raw",
         cn_qfq_contract_version=cn_qfq_contract_version,
+        forensic_budget=forensic_budget,
     )
 
 
 def _default_single_source_deep_history_loader(
     seeds: tuple[Any, ...], start_date: date, end_date: date,
     *, cn_qfq_contract_version: str = CN_PROVIDER_FORWARD_QFQ_CONTRACT_VERSION,
+    forensic_budget: dict[str, Any] | None = None,
 ) -> HistoryLoadResult:
     return _default_single_source_history_loader(
         seeds,
@@ -964,6 +1179,7 @@ def _default_single_source_deep_history_loader(
         end_date,
         adjustment="qfq",
         cn_qfq_contract_version=cn_qfq_contract_version,
+        forensic_budget=forensic_budget,
     )
 
 
@@ -1076,12 +1292,14 @@ class ProductionCandidateRuntime:
                 for key, value in (seed_loaders or {}).items()
             },
         }
+        self._candidate_forensic_budget: dict[str, Any] | None = None
         self.short_history_loader = short_history_loader or (
             lambda seeds, start, end: _default_single_source_short_history_loader(
                 seeds,
                 start,
                 end,
                 cn_qfq_contract_version=self.cn_qfq_contract_version,
+                forensic_budget=self._candidate_forensic_budget,
             )
         )
         self.deep_history_loader = deep_history_loader or (
@@ -1090,6 +1308,7 @@ class ProductionCandidateRuntime:
                 start,
                 end,
                 cn_qfq_contract_version=self.cn_qfq_contract_version,
+                forensic_budget=self._candidate_forensic_budget,
             )
         )
         self.session_window_loader = session_window_loader or _completed_session_window
@@ -1142,6 +1361,11 @@ class ProductionCandidateRuntime:
 
         run_started = time.perf_counter()
         timings = _new_stage_timings()
+        self._candidate_forensic_budget = (
+            _new_yahoo_candidate_forensic_budget()
+            if normalized_market == "US"
+            else None
+        )
         errors: list[str] = []
         qfq_contract = dict(self.SOURCE_CONTRACT[normalized_market])
         if normalized_market == "CN":
@@ -1310,6 +1534,10 @@ class ProductionCandidateRuntime:
                 batch_chunk_size=YFINANCE_BATCH_CHUNK,
                 batch_threads=YFINANCE_BATCH_THREADS,
                 missing_or_short_count=max(len(seeds) - short_usable, 0),
+                **{
+                    f"yahoo_forensic_{key}": value
+                    for key, value in short_result.diagnostics.items()
+                },
             )
         except ProviderGlobalFailure as exc:
             provider_global_failure = f"{type(exc).__name__}:{exc}"
@@ -1507,6 +1735,10 @@ class ProductionCandidateRuntime:
                     minimum_bars=MIN_HISTORY_BARS,
                     worker_count=YFINANCE_DEEP_HISTORY_WORKERS,
                     qfq_as_of_gate="SUCCESS" if normalized_market != "US" else "SUCCESS",
+                    **{
+                        f"yahoo_forensic_{key}": value
+                        for key, value in deep_result.diagnostics.items()
+                    },
                 )
             except ProviderGlobalFailure as exc:
                 provider_global_failure = f"{type(exc).__name__}:{exc}"
@@ -1609,6 +1841,10 @@ class ProductionCandidateRuntime:
             status = "PARTIAL_DATA_QUALITY"
         else:
             status = "FAILED"
+        timings["yahoo_forensic"] = _yahoo_candidate_forensic_snapshot(
+            self._candidate_forensic_budget
+        )
+        self._candidate_forensic_budget = None
         timings["total"] = {
             "elapsed_seconds": round(time.perf_counter() - run_started, 3),
             "api_requests": sum(

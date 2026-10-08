@@ -15,6 +15,8 @@ DEGRADED_ALERT_MARKER_VERSION = "DAILY_REPORT_DEGRADED_ALERT_IDEMPOTENCY_V1"
 # authorizes a one-time V1 -> V2 migration.
 LEGACY_REPORT_NOTIFICATION_MARKER_VERSION = "DAILY_REPORT_NOTIFICATION_IDEMPOTENCY_V1"
 LEGACY_RECOVERY_MIGRATION_VERSION = "DAILY_REPORT_LEGACY_V1_TO_V2_RECOVERY_V1"
+CORRECTED_FINAL_RECOVERY_VERSION = "DAILY_REPORT_FINAL_V2_CORRECTION_RECOVERY_V1"
+CORRECTED_FINAL_MARKER_VERSION = "DAILY_REPORT_CORRECTED_FINAL_NOTIFICATION_IDEMPOTENCY_V1"
 # Kept as a compatibility export for callers that only need the operational
 # marker family name.  New claims use the V2 final contract.
 REPORT_NOTIFICATION_MARKER_VERSION = FINAL_REPORT_NOTIFICATION_MARKER_VERSION
@@ -100,6 +102,24 @@ def _migration_marker_name(
     return (
         "system/operational/daily-report-notification-migrations/v1-to-v2/"
         f"{market}/{session_date}/{_safe_component(legacy_identity)}.json"
+    )
+
+
+def _corrected_final_marker_name(
+    market: str, session_date: str, recovery_identity: str,
+) -> str:
+    return (
+        "system/operational/daily-report-notification-recoveries/v2-corrected-final/"
+        f"{market}/{session_date}/{_safe_component(recovery_identity)}.json"
+    )
+
+
+def _correction_audit_marker_name(
+    market: str, session_date: str, recovery_identity: str,
+) -> str:
+    return (
+        "system/operational/daily-report-notification-recoveries/v2-correction-audit/"
+        f"{market}/{session_date}/{_safe_component(recovery_identity)}.json"
     )
 
 
@@ -258,6 +278,7 @@ def _claim_marker(
         "marker_name": marker_name,
         "marker_version": marker_version,
         "marker_sha256": sha256(_canonical(marker)).hexdigest(),
+        "delivery_kind": "DEGRADED_ALERT" if alert else "FINAL_REPORT",
         "legacy_v1_marker_policy": "BLOCKED_BY_DEFAULT_IF_PRESENT",
     }
     if legacy_marker_names:
@@ -320,6 +341,183 @@ def _claim_legacy_recovery_migration(
     }
 
 
+def claim_corrected_final_recovery(
+    payload: Mapping[str, Any],
+    *,
+    recovery_identity: str,
+    store: OperationalMarkerStore | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Audit and claim one corrected final after a bad V2 marker.
+
+    This is an explicit recovery contract, not part of ordinary notification
+    flow.  It verifies the existing V2 object by read-back, writes a separate
+    create-only audit object, and then claims a separate corrected-final
+    identity.  It never sends Bark or email.
+    """
+
+    cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
+    readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
+    if readiness != "FINAL_REPORT_ELIGIBLE":
+        return {
+            "status": "NOT_ELIGIBLE_FINAL_REPORT",
+            "configured": True,
+            "delivery_readiness": readiness,
+        }
+    if str(cloud.get("delivery_scope") or "").strip().upper() == "DIAGNOSTIC":
+        return {"status": "NOT_NOTIFYABLE_DIAGNOSTIC", "configured": True}
+    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
+    if final_delivery and final_delivery != "FINAL_DELIVERY_ELIGIBLE":
+        return {
+            "status": "NOT_ELIGIBLE_FINAL_DELIVERY",
+            "configured": True,
+            "final_delivery_eligibility": final_delivery,
+        }
+    market, session_date, report_protocol = _report_context(payload)
+    if market not in {"CN", "US"} or not session_date:
+        return {"status": "NOT_CONFIGURED", "configured": False}
+    explicit_identity = str(recovery_identity or "").strip()
+    expected_identity = f"{market}|{session_date}|{FINAL_REPORT_NOTIFICATION_MARKER_VERSION}"
+    if explicit_identity != expected_identity:
+        return {
+            "status": "CORRECTED_FINAL_RECOVERY_IDENTITY_MISMATCH",
+            "configured": True,
+            "expected_recovery_identity": expected_identity,
+            "recovery_identity": explicit_identity,
+        }
+    resolved_store, unavailable = _configured_store(
+        store=store,
+        environ=environ if environ is not None else os.environ,
+    )
+    if unavailable is not None:
+        return unavailable
+    assert resolved_store is not None
+
+    old_marker_name = _marker_name(
+        market, session_date, FINAL_REPORT_NOTIFICATION_MARKER_VERSION,
+    )
+    try:
+        old_raw, old_receipt = resolved_store.read_bytes(old_marker_name)
+        old_marker = json.loads(old_raw.decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001 - recovery must fail closed
+        return {
+            "status": "CORRECTED_FINAL_OLD_MARKER_UNAVAILABLE",
+            "configured": True,
+            "old_marker_name": old_marker_name,
+            "error": str(exc).replace("\r", " ").replace("\n", " ")[:240],
+        }
+    if not isinstance(old_marker, Mapping):
+        return {
+            "status": "CORRECTED_FINAL_OLD_MARKER_INVALID",
+            "configured": True,
+            "old_marker_name": old_marker_name,
+        }
+    if (
+        old_marker.get("schema_version") != FINAL_REPORT_NOTIFICATION_MARKER_VERSION
+        or str(old_marker.get("market") or "").upper() != market
+        or str(old_marker.get("session_date") or "") != session_date
+        or str(old_marker.get("identity") or "") != expected_identity
+    ):
+        return {
+            "status": "CORRECTED_FINAL_OLD_MARKER_MISMATCH",
+            "configured": True,
+            "old_marker_name": old_marker_name,
+            "recovery_identity": explicit_identity,
+        }
+    old_marker_sha256 = str(old_receipt.get("sha256") or sha256(old_raw).hexdigest())
+    corrected_marker_name = _corrected_final_marker_name(
+        market, session_date, explicit_identity,
+    )
+    audit_marker_name = _correction_audit_marker_name(
+        market, session_date, explicit_identity,
+    )
+    audit = {
+        "schema_version": CORRECTED_FINAL_RECOVERY_VERSION,
+        "identity": f"{market}|{session_date}|{explicit_identity}",
+        "market": market,
+        "session_date": session_date,
+        "recovery_identity": explicit_identity,
+        "old_v2_marker_name": old_marker_name,
+        "old_v2_marker_sha256": old_marker_sha256,
+        "corrected_final_marker_name": corrected_marker_name,
+        "report_protocol_version": report_protocol,
+        "recovery_mode": "EXPLICIT_ONE_TIME_V2_CORRECTED_FINAL",
+        "policy": "DEFAULT_OFF_OPERATOR_AUTHORIZATION_REQUIRED",
+        "d1_evidence_namespace": "SEPARATE_FROM_FORMAL_D1_SESSION_GRAPH",
+    }
+    try:
+        audit_receipt = resolved_store.put_bytes(
+            audit_marker_name,
+            _canonical(audit),
+            role="OPERATIONAL_REPORT_FINAL_V2_CORRECTION_AUDIT",
+            market=market,
+            session_date=session_date,
+            protocol=CORRECTED_FINAL_RECOVERY_VERSION,
+        )
+    except Exception as exc:  # noqa: BLE001 - never bypass audit
+        return {
+            "status": "IDEMPOTENCY_UNAVAILABLE",
+            "configured": True,
+            "audit_marker_name": audit_marker_name,
+            "error": str(exc).replace("\r", " ").replace("\n", " ")[:240],
+        }
+    if str(audit_receipt.get("status") or "CREATED").upper() not in {
+        "CREATED", "IDEMPOTENT_REPLAY",
+    }:
+        return {
+            "status": "CORRECTED_FINAL_AUDIT_REJECTED",
+            "configured": True,
+            "audit_marker_name": audit_marker_name,
+        }
+    corrected = {
+        "schema_version": CORRECTED_FINAL_MARKER_VERSION,
+        "identity": f"{market}|{session_date}|{CORRECTED_FINAL_MARKER_VERSION}|{explicit_identity}",
+        "market": market,
+        "session_date": session_date,
+        "recovery_identity": explicit_identity,
+        "old_v2_marker_name": old_marker_name,
+        "old_v2_marker_sha256": old_marker_sha256,
+        "audit_marker_name": audit_marker_name,
+        "delivery_kind": "CORRECTED_FINAL_REPORT",
+        "policy": "AT_MOST_ONE_CORRECTED_FINAL_REPORT_NOTIFICATION",
+        "send_authorization": "EXPLICIT_RECOVERY_CONTRACT_ONLY",
+        "d1_evidence_namespace": "SEPARATE_FROM_FORMAL_D1_SESSION_GRAPH",
+    }
+    try:
+        corrected_receipt = resolved_store.put_bytes(
+            corrected_marker_name,
+            _canonical(corrected),
+            role="OPERATIONAL_REPORT_CORRECTED_FINAL_CLAIM",
+            market=market,
+            session_date=session_date,
+            protocol=CORRECTED_FINAL_MARKER_VERSION,
+        )
+    except Exception as exc:  # noqa: BLE001 - no send without durable claim
+        return {
+            "status": "IDEMPOTENCY_UNAVAILABLE",
+            "configured": True,
+            "audit_marker_name": audit_marker_name,
+            "corrected_final_marker_name": corrected_marker_name,
+            "error": str(exc).replace("\r", " ").replace("\n", " ")[:240],
+        }
+    raw_status = str(corrected_receipt.get("status") or "CREATED").upper()
+    return {
+        "status": (
+            "NOOP_CORRECTED_FINAL_ALREADY_SENT"
+            if raw_status == "IDEMPOTENT_REPLAY"
+            else "CORRECTED_FINAL_RECOVERY_CLAIMED"
+        ),
+        "configured": True,
+        "recovery_identity": explicit_identity,
+        "old_v2_marker_name": old_marker_name,
+        "old_v2_marker_sha256": old_marker_sha256,
+        "audit_marker_name": audit_marker_name,
+        "corrected_final_marker_name": corrected_marker_name,
+        "corrected_final_marker_sha256": sha256(_canonical(corrected)).hexdigest(),
+        "send_performed": False,
+    }
+
+
 def claim_final_report_notification(
     payload: Mapping[str, Any], *, store: OperationalMarkerStore | None = None,
     environ: Mapping[str, str] | None = None,
@@ -333,6 +531,19 @@ def claim_final_report_notification(
             "status": "NOT_ELIGIBLE_FINAL_REPORT",
             "configured": True,
             "delivery_readiness": readiness,
+        }
+    if str(cloud.get("delivery_scope") or "").strip().upper() == "DIAGNOSTIC":
+        return {
+            "status": "NOT_NOTIFYABLE_DIAGNOSTIC",
+            "configured": True,
+            "delivery_scope": "DIAGNOSTIC",
+        }
+    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
+    if final_delivery and final_delivery != "FINAL_DELIVERY_ELIGIBLE":
+        return {
+            "status": "NOT_ELIGIBLE_FINAL_DELIVERY",
+            "configured": True,
+            "final_delivery_eligibility": final_delivery,
         }
     market, session_date, _ = _report_context(payload)
     if market not in {"CN", "US"} or not session_date:
@@ -396,15 +607,28 @@ def claim_degraded_alert(
 
     cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
     readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
-    if readiness in {"", "FINAL_REPORT_ELIGIBLE"}:
+    ledger_failure = (
+        str(cloud.get("OPPORTUNITY_LEDGER_STATUS") or "").strip().upper()
+        in {"FAILED", "MISSED_PROSPECTIVE_SESSION"}
+        or str(cloud.get("final_delivery_eligibility") or "").strip().upper()
+        == "FINAL_DELIVERY_BLOCKED_LEDGER"
+    )
+    if readiness in {"", "FINAL_REPORT_ELIGIBLE"} and not ledger_failure:
         return {"status": "NOT_ELIGIBLE_DEGRADED_ALERT", "configured": True}
-    if str(cloud.get("delivery_notification_mode") or "").strip().upper() == "NONE":
+    if (
+        str(cloud.get("delivery_notification_mode") or "").strip().upper() == "NONE"
+        and not ledger_failure
+    ):
         return {
             "status": "NOT_NOTIFYABLE",
             "configured": True,
             "delivery_readiness": readiness,
         }
-    reason = str(cloud.get("delivery_readiness_reason") or "UNKNOWN_REASON").strip().upper()
+    reason = str(
+        (cloud.get("final_delivery_reason") or "OPPORTUNITY_LEDGER_FAILED")
+        if ledger_failure
+        else (cloud.get("delivery_readiness_reason") or "UNKNOWN_REASON")
+    ).strip().upper()
     state_key = f"{readiness}|{_safe_component(reason)}"
     return _claim_marker(
         payload=payload,
@@ -432,6 +656,9 @@ def claim_report_notification(
 
     cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
     readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
+    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
+    if final_delivery == "FINAL_DELIVERY_BLOCKED_LEDGER":
+        return claim_degraded_alert(payload, store=store, environ=environ)
     if readiness and readiness != "FINAL_REPORT_ELIGIBLE":
         return claim_degraded_alert(payload, store=store, environ=environ)
     return claim_final_report_notification(payload, store=store, environ=environ)
@@ -439,11 +666,14 @@ def claim_report_notification(
 
 __all__ = [
     "DEGRADED_ALERT_MARKER_VERSION",
+    "CORRECTED_FINAL_MARKER_VERSION",
+    "CORRECTED_FINAL_RECOVERY_VERSION",
     "FINAL_REPORT_NOTIFICATION_MARKER_VERSION",
     "LEGACY_RECOVERY_MIGRATION_VERSION",
     "LEGACY_REPORT_NOTIFICATION_MARKER_VERSION",
     "REPORT_NOTIFICATION_MARKER_VERSION",
     "claim_degraded_alert",
+    "claim_corrected_final_recovery",
     "claim_final_report_notification",
     "claim_report_notification",
 ]

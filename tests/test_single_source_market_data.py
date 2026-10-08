@@ -33,6 +33,7 @@ from market_data_contract import (
 from providers import (
     SingleSourceFetchResult,
     fetch_hithink_with_provenance,
+    fetch_single_source_with_retry,
     fetch_yahoo_chart_with_provenance,
 )
 from trading.ephemeral_market_data import load_ephemeral_market_data
@@ -89,6 +90,54 @@ class _FakeSheets:
 
     def records(self, sheet_name: str):
         return list(self.rows.get(sheet_name, []))
+
+
+class _YahooResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+
+def _yahoo_chart_payload(
+    timestamps,
+    *,
+    opens,
+    highs,
+    lows,
+    closes,
+    volumes,
+    adjusted,
+):
+    return {
+        "chart": {
+            "error": None,
+            "result": [{
+                "timestamp": list(timestamps),
+                "meta": {
+                    "exchangeTimezoneName": "America/New_York",
+                    "regularMarketTime": timestamps[-1] if timestamps else None,
+                },
+                "indicators": {
+                    "quote": [{
+                        "open": list(opens),
+                        "high": list(highs),
+                        "low": list(lows),
+                        "close": list(closes),
+                        "volume": list(volumes),
+                    }],
+                    "adjclose": [{"adjclose": list(adjusted)}],
+                },
+            }],
+        }
+    }
 
 
 class SingleSourceMarketDataTests(TestCase):
@@ -485,6 +534,251 @@ class SingleSourceMarketDataTests(TestCase):
             )
         self.assertEqual(result.quotes[0].open, 9.0)
         self.assertIn("adjclose", result.provenance["adjusted_ohlcv_source"])
+        diagnostics = result.provenance["provider_diagnostics"]
+        self.assertEqual(diagnostics["selected_host"], "query1.finance.yahoo.com")
+        self.assertEqual(diagnostics["response_meta_timezone"], "America/New_York")
+        self.assertEqual(diagnostics["timestamp_last_date"], "2026-09-28")
+        self.assertEqual(diagnostics["latest_raw_session"], "2026-09-28")
+        self.assertEqual(diagnostics["latest_qfq_session"], "2026-09-28")
+        self.assertTrue(diagnostics["raw_latest_row_complete"])
+        self.assertTrue(diagnostics["adjclose_latest_available"])
+        self.assertTrue(diagnostics["latest_timestamp_raw_complete"])
+        self.assertTrue(diagnostics["latest_timestamp_adjclose_available"])
+        self.assertEqual(diagnostics["latest_complete_raw_session"], "2026-09-28")
+        self.assertEqual(diagnostics["latest_complete_qfq_session"], "2026-09-28")
+
+    def test_yahoo_latest_timestamp_diagnostics_cover_incomplete_tail_cases(self):
+        t_minus_1 = int(datetime(2026, 9, 25, 13, tzinfo=timezone.utc).timestamp())
+        t = int(datetime(2026, 9, 28, 13, tzinfo=timezone.utc).timestamp())
+        watch = {
+            "统一代码": "AAPL", "名称": "fixture", "市场": "US", "币种": "USD",
+            "yfinance代码": "AAPL",
+        }
+        cases = {
+            "A": (
+                _yahoo_chart_payload(
+                    [t_minus_1, t],
+                    opens=[10.0, 11.0], highs=[11.0, 12.0], lows=[9.0, 10.0],
+                    closes=[10.0, None], volumes=[100.0, 110.0], adjusted=[9.0, 9.5],
+                ),
+                {
+                    "timestamp_last_date": "2026-09-28",
+                    "latest_complete_raw_session": "2026-09-25",
+                    "latest_timestamp_raw_complete": False,
+                },
+            ),
+            "B": (
+                _yahoo_chart_payload(
+                    [t_minus_1, t],
+                    opens=[10.0, 11.0], highs=[11.0, 12.0], lows=[9.0, 10.0],
+                    closes=[10.0, 11.0], volumes=[100.0, 110.0], adjusted=[9.0, None],
+                ),
+                {
+                    "latest_timestamp_raw_complete": True,
+                    "latest_timestamp_adjclose_available": False,
+                    "latest_complete_raw_session": "2026-09-28",
+                    "latest_complete_qfq_session": "2026-09-25",
+                },
+            ),
+            "C": (
+                _yahoo_chart_payload(
+                    [t_minus_1, t],
+                    opens=[10.0, 11.0], highs=[11.0, 12.0], lows=[9.0, 10.0],
+                    closes=[10.0, 11.0], volumes=[100.0, 110.0], adjusted=[9.0, 9.9],
+                ),
+                {
+                    "latest_timestamp_raw_complete": True,
+                    "latest_timestamp_adjclose_available": True,
+                    "latest_complete_raw_session": "2026-09-28",
+                    "latest_complete_qfq_session": "2026-09-28",
+                },
+            ),
+        }
+
+        for case, (payload, expected) in cases.items():
+            with self.subTest(case=case):
+                with patch("providers.urlopen", return_value=_YahooResponse(payload)):
+                    result = fetch_yahoo_chart_with_provenance(
+                        watch, "qfq", date(2026, 9, 25), T_DAY
+                    )
+                diagnostics = result.provenance["provider_diagnostics"]
+                for field, value in expected.items():
+                    self.assertEqual(diagnostics[field], value)
+                self.assertEqual(
+                    diagnostics["raw_latest_row_complete"],
+                    diagnostics["latest_timestamp_raw_complete"],
+                )
+                self.assertEqual(
+                    diagnostics["adjclose_latest_available"],
+                    diagnostics["latest_timestamp_adjclose_available"],
+                )
+
+    def test_yahoo_stale_host_comparison_is_diagnostic_only(self):
+        t_minus_1 = int(datetime(2026, 9, 25, 13, tzinfo=timezone.utc).timestamp())
+        t = int(datetime(2026, 9, 28, 13, tzinfo=timezone.utc).timestamp())
+        stale_payload = _yahoo_chart_payload(
+            [t_minus_1],
+            opens=[10.0], highs=[11.0], lows=[9.0], closes=[10.0],
+            volumes=[100.0], adjusted=[9.0],
+        )
+        exact_payload = _yahoo_chart_payload(
+            [t_minus_1, t],
+            opens=[10.0, 11.0], highs=[11.0, 12.0], lows=[9.0, 10.0],
+            closes=[10.0, 11.0], volumes=[100.0, 110.0], adjusted=[9.0, 9.9],
+        )
+        requests = []
+
+        def response_for(request, **_kwargs):
+            requests.append(request.full_url)
+            return _YahooResponse(
+                stale_payload
+                if "query1.finance.yahoo.com" in request.full_url
+                else exact_payload
+            )
+
+        with patch("providers.urlopen", side_effect=response_for):
+            with self.assertRaises(LookupError) as raised:
+                fetch_single_source_with_retry(
+                    "US",
+                    {
+                        "统一代码": "AAPL", "名称": "fixture", "市场": "US", "币种": "USD",
+                        "yfinance代码": "AAPL",
+                    },
+                    "qfq",
+                    date(2026, 9, 25),
+                    T_DAY,
+                    retry_count=1,
+                    retry_wait_seconds=0,
+                    target_trade_date=T_DAY,
+                    stale_host_comparison=True,
+                )
+
+        self.assertIn("2026-09-25<2026-09-28", str(raised.exception))
+        diagnostics = raised.exception.provider_diagnostics
+        comparison = diagnostics["stale_host_comparison"]
+        self.assertEqual(set(comparison), {
+            "query1.finance.yahoo.com", "query2.finance.yahoo.com",
+        })
+        self.assertEqual(comparison["query1.finance.yahoo.com"]["request_status"], "OK")
+        self.assertEqual(comparison["query1.finance.yahoo.com"]["timestamp_last_date"], "2026-09-25")
+        self.assertEqual(comparison["query1.finance.yahoo.com"]["latest_complete_qfq_session"], "2026-09-25")
+        self.assertEqual(comparison["query2.finance.yahoo.com"]["timestamp_last_date"], "2026-09-28")
+        self.assertEqual(comparison["query2.finance.yahoo.com"]["latest_complete_qfq_session"], "2026-09-28")
+        self.assertEqual(len(requests), 3)
+        self.assertIn("query1.finance.yahoo.com", requests[0])
+        self.assertIn("query1.finance.yahoo.com", requests[1])
+        self.assertIn("query2.finance.yahoo.com", requests[2])
+
+    def test_yahoo_stale_host_comparison_is_opt_in(self):
+        t_minus_1 = int(datetime(2026, 9, 25, 13, tzinfo=timezone.utc).timestamp())
+        stale_payload = _yahoo_chart_payload(
+            [t_minus_1],
+            opens=[10.0], highs=[11.0], lows=[9.0], closes=[10.0],
+            volumes=[100.0], adjusted=[9.0],
+        )
+        requests = []
+
+        def response_for(request, **_kwargs):
+            requests.append(request.full_url)
+            return _YahooResponse(stale_payload)
+
+        with patch("providers.urlopen", side_effect=response_for):
+            with self.assertRaises(LookupError) as raised:
+                fetch_single_source_with_retry(
+                    "US",
+                    {
+                        "统一代码": "AAPL", "名称": "fixture", "市场": "US", "币种": "USD",
+                        "yfinance代码": "AAPL",
+                    },
+                    "qfq",
+                    date(2026, 9, 25),
+                    T_DAY,
+                    retry_count=1,
+                    retry_wait_seconds=0,
+                    target_trade_date=T_DAY,
+                )
+
+        self.assertEqual(len(requests), 1)
+        self.assertNotIn(
+            "stale_host_comparison",
+            raised.exception.provider_diagnostics,
+        )
+
+    def test_yahoo_exact_t_stale_diagnostics_reach_provider_status(self):
+        t_minus_1 = int(datetime(2026, 9, 25, 13, tzinfo=timezone.utc).timestamp())
+        stale_payload = _yahoo_chart_payload(
+            [t_minus_1],
+            opens=[10.0], highs=[11.0], lows=[9.0], closes=[10.0],
+            volumes=[100.0], adjusted=[9.0],
+        )
+        exact_payload = _yahoo_chart_payload(
+            [t_minus_1, int(datetime(2026, 9, 28, 13, tzinfo=timezone.utc).timestamp())],
+            opens=[10.0, 11.0], highs=[11.0, 12.0], lows=[9.0, 10.0],
+            closes=[10.0, 11.0], volumes=[100.0, 110.0], adjusted=[9.0, 9.9],
+        )
+
+        def response_for(request, **_kwargs):
+            return _YahooResponse(
+                stale_payload
+                if "query1.finance.yahoo.com" in request.full_url
+                else exact_payload
+            )
+
+        with patch("providers.urlopen", side_effect=response_for):
+            snapshot = load_ephemeral_market_data(
+                _FakeSheets(("AAPL",), market="US"),
+                market="US",
+                as_of_date=T_DAY,
+                now=AFTER_CLOSE,
+            )
+
+        self.assertEqual(snapshot.symbol_status["AAPL"]["status"], DATA_STALE)
+        provider_status = snapshot.to_dict()["provider_status"]["AAPL"]
+        latest_comparison = provider_status["latest_provider_diagnostics"]["stale_host_comparison"]
+        qfq_comparison = provider_status["qfq_provider_diagnostics"]["stale_host_comparison"]
+        self.assertEqual(latest_comparison["query1.finance.yahoo.com"]["timestamp_last_date"], "2026-09-25")
+        self.assertEqual(qfq_comparison["query2.finance.yahoo.com"]["timestamp_last_date"], "2026-09-28")
+        self.assertEqual(provider_status["latest_provider_diagnostics"]["timestamp_last_date"], "2026-09-25")
+
+    def test_yahoo_stale_probe_failure_does_not_mask_original_stale_error(self):
+        t_minus_1 = int(datetime(2026, 9, 25, 13, tzinfo=timezone.utc).timestamp())
+        stale_payload = _yahoo_chart_payload(
+            [t_minus_1],
+            opens=[10.0], highs=[11.0], lows=[9.0], closes=[10.0],
+            volumes=[100.0], adjusted=[9.0],
+        )
+        calls = 0
+
+        def response_for(_request, **_kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _YahooResponse(stale_payload)
+            raise RuntimeError("diagnostic outage")
+
+        with patch("providers.urlopen", side_effect=response_for):
+            with self.assertRaises(LookupError) as raised:
+                fetch_single_source_with_retry(
+                    "US",
+                    {
+                        "统一代码": "AAPL", "名称": "fixture", "市场": "US", "币种": "USD",
+                        "yfinance代码": "AAPL",
+                    },
+                    "qfq",
+                    date(2026, 9, 25),
+                    T_DAY,
+                    retry_count=1,
+                    retry_wait_seconds=0,
+                    target_trade_date=T_DAY,
+                    stale_host_comparison=True,
+                )
+
+        self.assertIn("2026-09-25<2026-09-28", str(raised.exception))
+        self.assertEqual(
+            raised.exception.provider_diagnostics["stale_host_comparison"]
+            ["query1.finance.yahoo.com"]["request_status"],
+            "RuntimeError",
+        )
 
     def test_yahoo_chart_network_failure_is_provider_global(self):
         with patch("providers.urlopen", side_effect=RuntimeError("outage")):

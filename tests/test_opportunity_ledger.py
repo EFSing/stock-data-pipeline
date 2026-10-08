@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from core import Quote
+from trading.daily_decision_chain import CompletedSessionIdentity, DailySymbolInput
 from scripts.run_cloud_daily_report import main, run_cloud_daily_report
 from trading.daily_dashboard import render_dashboard_html
 from trading.opportunity_ledger import (
@@ -80,7 +81,22 @@ def payload(t=T, *, allowed=False, setup="SETUP_01", market="US", symbol="GENERI
 
 
 def inputs(bars, *, market="US", symbol="GENERIC.A"):
-    return [SimpleNamespace(market=market, symbol=symbol, quotes=bars, data_status="DATA_OK")]
+    bars = tuple(bars)
+    as_of = bars[-1].trade_date if bars else T
+    return [DailySymbolInput(
+        market=market,
+        symbol=symbol,
+        as_of_date=as_of,
+        qfq_history=bars,
+        data_quality_status="DATA_OK",
+        completed_session_identity=CompletedSessionIdentity(
+            market=market,
+            trade_date=as_of,
+            identity=f"exchange_calendars:{market}:{as_of.isoformat()}",
+            exact_exchange_calendar=True,
+            next_session_date=CALENDAR.next_session(market, as_of),
+        ),
+    )]
 
 
 class OpportunityLedgerTests(unittest.TestCase):
@@ -211,6 +227,46 @@ class OpportunityLedgerTests(unittest.TestCase):
         self.assertNotIn("PAPER_TRACKED", seeds[0].provenance)
         with self.assertRaisesRegex(RuntimeError, "QFQ"):
             runtime.load_opportunity_continuation(market="US", symbols=("GENERIC.A",), as_of_date=date(2026, 10, 2), now=NOW)
+
+    def test_daily_report_birth_and_followup_use_production_daily_symbol_input(self):
+        sheets = Sheets()
+        next_day = CALENDAR.next_session("US", T)
+        first_input = inputs([quote()])[0]
+        second_input = inputs([quote(), quote(next_day, close=102, high=104)])[0]
+        ephemeral = SimpleNamespace(
+            latest_rows=(), qfq_rows=(), symbol_status={}, active_paper_symbols=(),
+            to_dict=lambda: {},
+        )
+        quality = {"run_status": "COMPLETED", "data_status": "OK", "candidate_status": "SUCCESS"}
+
+        def report_for(_client, *, as_of_date, observation_inputs, **_kwargs):
+            observation_inputs.append(first_input if as_of_date == T else second_input)
+            report = payload(as_of_date)
+            if as_of_date == next_day:
+                report["reports"][0]["报告"]["results"][0]["new_confirmed_event_identities"] = []
+                report["reports"][0]["报告"]["results"][0]["individual_decision_candidates"] = []
+            return report
+
+        with TemporaryDirectory() as directory, \
+                patch("scripts.run_cloud_daily_report.load_ephemeral_market_data", return_value=ephemeral), \
+                patch("scripts.run_cloud_daily_report.run_production_daily_decision", side_effect=report_for), \
+                patch("scripts.run_cloud_daily_report._status_from_result", return_value=("SUCCESS", quality)):
+            first = run_cloud_daily_report(
+                market="US", as_of_date=T, now=NOW, output_dir=directory,
+                client=sheets, notify=False,
+            )
+            second = run_cloud_daily_report(
+                market="US", as_of_date=next_day,
+                now=datetime(2026, 10, 6, 21, tzinfo=timezone.utc),
+                output_dir=directory, client=sheets, notify=False,
+            )
+
+        self.assertEqual(first["cloud_daily_report"]["OPPORTUNITY_LEDGER_STATUS"], "SUCCESS")
+        self.assertEqual(second["cloud_daily_report"]["OPPORTUNITY_LEDGER_STATUS"], "SUCCESS")
+        self.assertEqual(second["opportunity_tracking"]["followup_rows_written"], 1)
+        row = json.loads(sheets.rows[FOLLOWUP_SHEET][0]["payload_json"])
+        self.assertEqual(row["coverage_status"], "DATA_OK")
+        self.assertAlmostEqual(row["close_return"], .02)
 
     def test_failed_read_is_not_empty_and_missed_followup_remains_gap(self):
         sheets, runtime, p = Sheets(), Mock(), payload()

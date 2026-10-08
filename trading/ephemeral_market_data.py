@@ -471,6 +471,7 @@ def _load_single_source_symbol(
     qfq_start: date,
     close_tolerance: float,
     volume_tolerance: float,
+    stale_host_comparison: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any], list[str]]:
     """Fetch one CN/US identity through exactly one canonical provider."""
 
@@ -502,6 +503,7 @@ def _load_single_source_symbol(
             retry_count,
             retry_wait,
             target_trade_date=as_of_date,
+            stale_host_comparison=stale_host_comparison,
         )
         latest_errors = validate_single_source_quotes(
             latest_result.quotes,
@@ -566,6 +568,8 @@ def _load_single_source_symbol(
         status["latest"] = _single_source_error_status(exc, latest=True)
         detail["latest_error_type"] = type(exc).__name__
         detail["latest_error"] = _safe_error(exc)
+        if getattr(exc, "provider_diagnostics", None):
+            detail["latest_provider_diagnostics"] = dict(exc.provider_diagnostics)
         detail["global_failure"] = detail.get("global_failure", False) or isinstance(exc, ProviderGlobalFailure)
         errors.append(f"latest {provider} {status['latest']}: {_safe_error(exc)}")
         if isinstance(exc, ProviderGlobalFailure):
@@ -578,6 +582,8 @@ def _load_single_source_symbol(
             status["decision_status"] = unavailable_reason(PROVIDER_GLOBAL_FAILURE)
             detail["qfq_error_type"] = type(exc).__name__
             detail["qfq_error"] = _safe_error(exc)
+            if getattr(exc, "provider_diagnostics", None):
+                detail["qfq_provider_diagnostics"] = dict(exc.provider_diagnostics)
             detail["source_contract"] = SINGLE_SOURCE_MARKET_DATA_VERSION
             return latest_rows, qfq_rows, status, detail, list(dict.fromkeys(errors))
 
@@ -591,6 +597,7 @@ def _load_single_source_symbol(
             max(retry_count, EXACT_QFQ_MIN_RETRY_ATTEMPTS),
             retry_wait,
             target_trade_date=as_of_date,
+            stale_host_comparison=stale_host_comparison,
         )
         qfq_errors = validate_single_source_quotes(
             qfq_result.quotes,
@@ -617,6 +624,8 @@ def _load_single_source_symbol(
         status["qfq"] = _single_source_error_status(exc)
         detail["qfq_error_type"] = type(exc).__name__
         detail["qfq_error"] = _safe_error(exc)
+        if getattr(exc, "provider_diagnostics", None):
+            detail["qfq_provider_diagnostics"] = dict(exc.provider_diagnostics)
         detail["global_failure"] = detail.get("global_failure", False) or isinstance(exc, ProviderGlobalFailure)
         errors.append(f"qfq {provider} {status['qfq']}: {_safe_error(exc)}")
 
@@ -701,6 +710,7 @@ def load_ephemeral_market_data(
                     qfq_start=start_date,
                     close_tolerance=close_tolerance,
                     volume_tolerance=volume_tolerance,
+                    stale_host_comparison=normalized_market == "US",
                 )
                 latest_rows.extend(single_latest_rows)
                 qfq_rows.extend(single_qfq_rows)

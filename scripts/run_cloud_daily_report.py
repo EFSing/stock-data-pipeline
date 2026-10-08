@@ -52,6 +52,21 @@ UPSTREAM_NOT_READY = "UPSTREAM_NOT_READY"
 DELIVERY_FAILED = "FAILED"
 MARKET_LABELS = {"CN": "A股", "US": "美股"}
 ARTIFACT_ALLOWLIST = ("daily-report.json", "daily-report.html")
+# Operational-only Candidate readiness gates.  The 2026-10-06 US artifact
+# had 306 stale Candidate errors over 717 data-qualified symbols (42.68%),
+# while the recovered run had 0 stale errors over 1,021 qualified symbols and
+# only two ordinary provider-symbol errors.  This boundary separates that
+# observed broad-tail condition from isolated symbol failures; it never enters
+# Candidate ranking or strategy calculations.
+CANDIDATE_BROAD_STALE_MIN_COUNT = 3
+CANDIDATE_BROAD_STALE_RATIO = 0.25
+FINAL_DELIVERY_ELIGIBLE = "FINAL_DELIVERY_ELIGIBLE"
+FINAL_DELIVERY_PENDING_LEDGER = "FINAL_DELIVERY_PENDING_LEDGER"
+FINAL_DELIVERY_BLOCKED_LEDGER = "FINAL_DELIVERY_BLOCKED_LEDGER"
+FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC = "FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC"
+FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA = "FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA"
+DELIVERY_SCOPE_NATURAL = "NATURAL"
+DELIVERY_SCOPE_DIAGNOSTIC = "DIAGNOSTIC"
 # The normal automatic path has a finite 25-minute recovery window: t=0, 5,
 # 10, 15, 20, and 25 minutes.  A later schedule fallback remains useful when
 # the close workflow itself is delayed, while this window covers the observed
@@ -397,6 +412,13 @@ def _status_from_result(
         else "SUCCESS"
     )
     coverage_ratio = data_ok / attempted if attempted else 1.0
+    candidate_operational: dict[str, Any] = {}
+    if isinstance(candidate_markets, Mapping):
+        candidate_value = candidate_markets.get(ephemeral.market)
+        if isinstance(candidate_value, Mapping):
+            candidate_operational = _candidate_operational_diagnostics(
+                candidate_value, market=ephemeral.market,
+            )
     quality = {
         "status": status,
         "run_status": run_status,
@@ -404,8 +426,13 @@ def _status_from_result(
         "attempted_universe": attempted,
         "data_ok_count": data_ok,
         "failed_count": max(attempted - data_ok, 0),
+        "formal_exact_t_attempted_count": attempted,
+        "formal_exact_t_usable_count": data_ok,
+        "formal_exact_t_failed_count": max(attempted - data_ok, 0),
         "coverage_ratio": coverage_ratio,
         "coverage_pct": round(coverage_ratio * 100, 2),
+        "formal_exact_t_coverage_ratio": coverage_ratio,
+        "formal_exact_t_coverage_pct": round(coverage_ratio * 100, 2),
         "strategy_analyzed_count": len(exact_rows),
         "blocked_count": max(attempted - len(exact_rows), 0),
         "strategy_blocked_count": max(attempted - len(exact_rows), 0),
@@ -433,6 +460,7 @@ def _status_from_result(
         "candidate_status": candidate_component_status,
         "CANDIDATE_STATUS": candidate_component_status,
         "provider_global_failure": provider_global_failure,
+        **candidate_operational,
     }
     return status, quality
 
@@ -484,6 +512,83 @@ def _candidate_readiness_snapshot(
     }
 
 
+def _candidate_operational_diagnostics(
+    candidate: Mapping[str, Any], *, market: str,
+) -> dict[str, Any]:
+    """Classify Candidate provider symptoms without changing strategy inputs."""
+
+    raw_errors: list[str] = [
+        str(value) for value in (candidate.get("errors") or ()) if value
+    ]
+    deep_errors = candidate.get("deep_history_errors")
+    if isinstance(deep_errors, Mapping):
+        for symbol, values in deep_errors.items():
+            values = values if isinstance(values, (list, tuple)) else (values,)
+            raw_errors.extend(f"{symbol}:{value}" for value in values if value)
+
+    def symbol_for(value: str) -> str | None:
+        text = value.strip()
+        prefix = f"{market} Candidate:"
+        if text.startswith(prefix):
+            text = text[len(prefix):].strip()
+        if text.startswith("Candidate:"):
+            text = text[len("Candidate:"):].strip()
+        symbol = text.split(":", 1)[0].strip()
+        if not symbol or " " in symbol or symbol.upper() in {"STATUS", "CANDIDATE"}:
+            return None
+        return symbol.upper()
+
+    stale_symbols: set[str] = set()
+    provider_symbol_symbols: set[str] = set()
+    stale_messages = 0
+    provider_symbol_messages = 0
+    for value in raw_errors:
+        upper = value.upper()
+        is_stale = (
+            "YAHOO_CHART返回日期落后于目标交易日" in value
+            or "DATA_STALE" in upper
+            or "TARGET_SESSION_MISSING" in upper
+            or ("TARGET SESSION" in upper and "STALE" in upper)
+        )
+        is_provider_symbol = (
+            "PROVIDER_SYMBOL_ERROR" in upper
+            or "YAHOO_CHART_SYMBOL_ERROR" in upper
+        )
+        symbol = symbol_for(value)
+        if is_stale:
+            stale_messages += 1
+            if symbol:
+                stale_symbols.add(symbol)
+        elif is_provider_symbol:
+            provider_symbol_messages += 1
+            if symbol:
+                provider_symbol_symbols.add(symbol)
+
+    stale_count = len(stale_symbols) or stale_messages
+    provider_symbol_count = len(provider_symbol_symbols) or provider_symbol_messages
+    qualified = _integer_value(candidate.get("candidate_data_qualified_count"))
+    included = _integer_value(candidate.get("candidate_included_count"))
+    denominator = max(qualified, included)
+    ratio = stale_count / denominator if denominator else 0.0
+    exclusions = candidate.get("candidate_exclusion_reason_counts")
+    normal_exclusions = 0
+    if isinstance(exclusions, Mapping):
+        for reason, value in exclusions.items():
+            if str(reason).upper() != "INCLUDED":
+                normal_exclusions += _integer_value(value)
+    return {
+        "candidate_exact_t_stale_count": stale_count,
+        "candidate_exact_t_stale_ratio": round(ratio, 6),
+        "candidate_exact_t_stale_base_count": denominator,
+        "candidate_provider_symbol_error_count": provider_symbol_count,
+        "candidate_normal_exclusion_count": normal_exclusions,
+        "candidate_broad_stale": (
+            stale_count >= CANDIDATE_BROAD_STALE_MIN_COUNT
+            and ratio >= CANDIDATE_BROAD_STALE_RATIO
+        ),
+    }
+
+
 def _delivery_readiness(
     *,
     market: str,
@@ -527,6 +632,19 @@ def _delivery_readiness(
         or data_quality.get("candidate_quality_errors")
         or candidate_snapshot["candidate"].get("errors")
     )
+    formal_attempted = _integer_value(
+        data_quality.get(
+            "formal_exact_t_attempted_count",
+            data_quality.get("attempted_universe"),
+        )
+    )
+    formal_usable = _integer_value(
+        data_quality.get(
+            "formal_exact_t_usable_count",
+            data_quality.get("data_ok_count"),
+        )
+    )
+    candidate_broad_stale = bool(data_quality.get("candidate_broad_stale"))
 
     def outcome(
         classification: str, reason: str, *, retryable: bool, notify: str,
@@ -550,6 +668,16 @@ def _delivery_readiness(
         return outcome(UPSTREAM_NOT_READY, "SESSION_NOT_COMPLETED", retryable=True, notify="ALERT")
     if run_status == "COMPLETED_NO_USABLE_SYMBOLS" or data_status == "NO_USABLE_SYMBOLS":
         return outcome(UPSTREAM_NOT_READY, "NO_USABLE_SYMBOLS", retryable=True, notify="ALERT")
+    # Dynamic Candidate analysis is not evidence that the formal universe was
+    # ready.  A zero-coverage formal universe must remain retryable and can
+    # never claim a complete final report.
+    if formal_attempted > 0 and formal_usable == 0:
+        return outcome(
+            UPSTREAM_NOT_READY,
+            "FORMAL_EXACT_T_NOT_READY",
+            retryable=True,
+            notify="ALERT",
+        )
 
     if candidate_status in {"UNAVAILABLE", "NO_USABLE_SYMBOLS", "NOT_RUN", "NOT_REPORTED"}:
         if strategy_analyzed == 0:
@@ -594,6 +722,13 @@ def _delivery_readiness(
         return outcome(
             DEGRADED_DIAGNOSTIC_ONLY,
             "CANDIDATE_ANALYSIS_NOT_COVERED",
+            retryable=True,
+            notify="ALERT",
+        )
+    if candidate_broad_stale:
+        return outcome(
+            UPSTREAM_NOT_READY,
+            "CANDIDATE_EXACT_T_BROADLY_STALE",
             retryable=True,
             notify="ALERT",
         )
@@ -688,6 +823,7 @@ def _cloud_metadata(
     reliability_classification: str | None = None,
     session_resolution: Mapping[str, Any] | None = None,
     legacy_recovery_identity: str | None = None,
+    delivery_scope: str = DELIVERY_SCOPE_NATURAL,
 ) -> dict[str, Any]:
     candidate_markets = result.get("candidate_markets")
     seed_sources = {}
@@ -785,6 +921,15 @@ def _cloud_metadata(
         "delivery_readiness_reason": readiness["reason"],
         "delivery_readiness_retryable": readiness["retryable"],
         "delivery_notification_mode": readiness["notification_mode"],
+        "report_data_readiness": readiness["classification"],
+        "report_data_ready": readiness["final_report_eligible"],
+        "final_delivery_eligibility": (
+            FINAL_DELIVERY_PENDING_LEDGER
+            if readiness["final_report_eligible"]
+            else FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA
+        ),
+        "final_delivery_eligible": False,
+        "delivery_scope": str(delivery_scope or DELIVERY_SCOPE_NATURAL).upper(),
         "session_identity": _session_payload(session_identity),
         "session_resolution": dict(session_resolution or {}),
         "calendar_gate": "EXACT_COMPLETED_SESSION" if session_identity is not None else status,
@@ -976,12 +1121,33 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     )
     readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
     readiness_reason = str(cloud.get("delivery_readiness_reason") or "").strip()
+    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
     projection = build_dashboard_projection(payload)
     summary = projection.get("summary", {})
     freshness = projection.get("freshness_funnel", {})
     plan_count = int(summary.get("strategy_proposal_count", 0) or 0) + int(
         summary.get("entry_allowed_count", 0) or 0
     )
+    if final_delivery == FINAL_DELIVERY_BLOCKED_LEDGER:
+        cloud_quality = cloud.get("data_quality") or {}
+        title = f"{label}日报/机会账本异常"
+        body = (
+            f"市场：{label}\n"
+            f"数据日期：{projection.get('as_of_date', '—')}\n"
+            "报告数据就绪：是\n"
+            "最终发送资格：未占用\n"
+            f"原因：{cloud.get('final_delivery_reason') or 'OPPORTUNITY_LEDGER_FAILED'}\n"
+            f"RUN_STATUS：{run_status}\n"
+            f"DATA_STATUS：{data_status}\n"
+            f"机会账本状态：{cloud.get('OPPORTUNITY_LEDGER_STATUS') or 'FAILED'}\n"
+            f"账本错误：{cloud.get('opportunity_ledger_error') or '未提供'}\n"
+            f"正式数据覆盖：{cloud_quality.get('formal_exact_t_coverage_pct', cloud_quality.get('coverage_pct', '—'))}%\n"
+            "本次未 claim final marker；修复账本后可在同一 session 重跑正式日报。"
+        )
+        run_url = cloud.get("github_run_url")
+        if run_url:
+            body += f"\n查看本次运行：{run_url}"
+        return title, body
     if readiness and readiness != FINAL_REPORT_ELIGIBLE:
         quality = cloud.get("data_quality") or {}
         failed = quality.get("failed_symbols") or []
@@ -1099,6 +1265,42 @@ def _notification_attachment_filename(payload: Mapping[str, Any]) -> str:
     return f"{label}交易日报_{trade_date}.html"
 
 
+def _finalize_delivery_eligibility(
+    payload: dict[str, Any], opportunity_status: str,
+) -> None:
+    """Separate report-data readiness from final-delivery identity ownership."""
+
+    cloud = payload.get("cloud_daily_report")
+    if not isinstance(cloud, dict):
+        return
+    readiness = str(cloud.get("report_data_readiness") or cloud.get("delivery_readiness") or "").upper()
+    scope = str(cloud.get("delivery_scope") or DELIVERY_SCOPE_NATURAL).upper()
+    if readiness != FINAL_REPORT_ELIGIBLE:
+        eligibility = FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA
+        reason = "REPORT_DATA_NOT_FINAL_READY"
+    elif scope == DELIVERY_SCOPE_DIAGNOSTIC:
+        eligibility = FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC
+        reason = "DIAGNOSTIC_SCOPE"
+    elif opportunity_status == "FAILED":
+        eligibility = FINAL_DELIVERY_BLOCKED_LEDGER
+        reason = "OPPORTUNITY_LEDGER_FAILED"
+    elif opportunity_status == "MISSED_PROSPECTIVE_SESSION":
+        eligibility = FINAL_DELIVERY_BLOCKED_LEDGER
+        reason = "OPPORTUNITY_LEDGER_SESSION_MISSED"
+    else:
+        eligibility = FINAL_DELIVERY_ELIGIBLE
+        reason = "REPORT_DATA_AND_LEDGER_READY"
+    cloud["final_delivery_eligibility"] = eligibility
+    cloud["final_delivery_eligible"] = eligibility == FINAL_DELIVERY_ELIGIBLE
+    cloud["final_delivery_reason"] = reason
+    if eligibility == FINAL_DELIVERY_ELIGIBLE:
+        cloud["delivery_notification_mode"] = "FINAL"
+    elif eligibility == FINAL_DELIVERY_BLOCKED_LEDGER:
+        cloud["delivery_notification_mode"] = "ALERT"
+    elif eligibility == FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC:
+        cloud["delivery_notification_mode"] = "NONE"
+
+
 def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
     cloud = payload.get("cloud_daily_report", {})
     try:
@@ -1109,6 +1311,8 @@ def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
             "NOOP_DEGRADED_ALERT_ALREADY_SENT",
             "LEGACY_V1_MARKER_PRESENT",
             "LEGACY_RECOVERY_NOT_AUTHORIZED",
+            "NOT_NOTIFYABLE_DIAGNOSTIC",
+            "NOT_ELIGIBLE_FINAL_DELIVERY",
         }:
             cloud["notifications"] = {
                 "bark": {"status": claim["status"], "configured": True},
@@ -1140,7 +1344,12 @@ def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
             attachment_filename=_notification_attachment_filename(payload),
         )
         cloud["notifications"] = {
-            "kind": "FINAL_REPORT" if cloud.get("delivery_readiness") == FINAL_REPORT_ELIGIBLE else "DEGRADED_ALERT",
+            "kind": claim.get(
+                "delivery_kind",
+                "FINAL_REPORT"
+                if cloud.get("final_delivery_eligibility") == FINAL_DELIVERY_ELIGIBLE
+                else "DEGRADED_ALERT",
+            ),
             "bark": bark,
             "email": email,
         }
@@ -1175,6 +1384,7 @@ def run_cloud_daily_report(
     notify: bool = True,
     automatic_resolution: bool = False,
     legacy_recovery_identity: str | None = None,
+    delivery_scope: str = DELIVERY_SCOPE_NATURAL,
 ) -> dict[str, Any]:
     """Run and persist exactly one market/T report."""
 
@@ -1345,6 +1555,7 @@ def run_cloud_daily_report(
             ),
             session_resolution=session_resolution,
             legacy_recovery_identity=legacy_recovery_identity,
+            delivery_scope=delivery_scope,
         ),
     }
     # A manual rerun of the current natural session uses the same ledger.
@@ -1392,6 +1603,7 @@ def run_cloud_daily_report(
     payload["cloud_daily_report"]["sheet_mutation"] = (True if opportunity_status == "SUCCESS" else "UNKNOWN" if opportunity_write_attempted else False)
     payload["cloud_daily_report"]["sheet_mutation_scope"] = list(SCHEMAS) if opportunity_write_attempted else []
     payload["cloud_daily_report"]["opportunity_followup_ohlc_persistence"] = opportunity_write_attempted
+    _finalize_delivery_eligibility(payload, opportunity_status)
     if opportunity_write_attempted:
         payload["NO Sheets mutation"] = False
         payload["read behavior"] = "READ_ONLY_STRATEGY_WITH_OPPORTUNITY_LEDGER"
@@ -1482,6 +1694,11 @@ def main(argv: list[str] | None = None) -> int:
             notify=not args.no_notify,
             automatic_resolution=args.trade_date is None,
             legacy_recovery_identity=args.legacy_recovery_identity,
+            delivery_scope=(
+                DELIVERY_SCOPE_DIAGNOSTIC
+                if args.trade_date is not None
+                else DELIVERY_SCOPE_NATURAL
+            ),
         )
         readiness = str(
             (payload.get("cloud_daily_report") or {}).get("delivery_readiness") or ""

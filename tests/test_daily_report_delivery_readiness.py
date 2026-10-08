@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from scripts.run_cloud_daily_report import (
     DEFAULT_RETRY_NOT_READY_ATTEMPTS,
     DEFAULT_RETRY_NOT_READY_DELAY_SECONDS,
+    CANDIDATE_BROAD_STALE_RATIO,
     DEGRADED_DIAGNOSTIC_ONLY,
     FINAL_REPORT_ELIGIBLE,
     UPSTREAM_NOT_READY,
@@ -84,6 +85,7 @@ def _result(
 def _quality(
     *, run_status="COMPLETED", data_status="OK", candidate_status="SUCCESS",
     analyzed=2, operational=True, provider_global=False,
+    formal_attempted=0, formal_usable=0, candidate_broad_stale=False,
 ):
     return {
         "run_status": run_status,
@@ -92,6 +94,9 @@ def _quality(
         "strategy_analyzed_count": analyzed,
         "operationally_complete": operational,
         "provider_global_failure": provider_global,
+        "formal_exact_t_attempted_count": formal_attempted,
+        "formal_exact_t_usable_count": formal_usable,
+        "candidate_broad_stale": candidate_broad_stale,
     }
 
 
@@ -138,6 +143,50 @@ class DailyReportDeliveryReadinessTests(unittest.TestCase):
         self.assertEqual(readiness["classification"], FINAL_REPORT_ELIGIBLE)
         self.assertTrue(readiness["final_report_eligible"])
 
+    def test_formal_zero_coverage_cannot_be_upgraded_by_dynamic_analysis(self):
+        readiness = _delivery_readiness(
+            market="US",
+            status="PARTIAL_DATA_QUALITY",
+            session_identity=object(),
+            result=_result(candidate_status="PARTIAL", included=701, dynamic_analysis=701),
+            data_quality=_quality(
+                data_status="PARTIAL", candidate_status="PARTIAL", analyzed=701,
+                formal_attempted=2, formal_usable=0,
+            ),
+        )
+        self.assertEqual(readiness["classification"], UPSTREAM_NOT_READY)
+        self.assertEqual(readiness["reason"], "FORMAL_EXACT_T_NOT_READY")
+        self.assertFalse(readiness["final_report_eligible"])
+
+    def test_broad_candidate_stale_is_retryable_but_isolated_symbol_failure_is_final(self):
+        broad = _delivery_readiness(
+            market="US",
+            status="PARTIAL_DATA_QUALITY",
+            session_identity=object(),
+            result=_result(candidate_status="PARTIAL", included=701, dynamic_analysis=701),
+            data_quality=_quality(
+                data_status="PARTIAL", candidate_status="PARTIAL", analyzed=701,
+                formal_attempted=2, formal_usable=2, candidate_broad_stale=True,
+            ),
+        )
+        self.assertEqual(broad["classification"], UPSTREAM_NOT_READY)
+        self.assertEqual(broad["reason"], "CANDIDATE_EXACT_T_BROADLY_STALE")
+        self.assertTrue(broad["retryable"])
+
+        isolated = _delivery_readiness(
+            market="US",
+            status="PARTIAL_DATA_QUALITY",
+            session_identity=object(),
+            result=_result(candidate_status="PARTIAL", included=1002, dynamic_analysis=1002),
+            data_quality=_quality(
+                data_status="PARTIAL", candidate_status="PARTIAL", analyzed=1002,
+                formal_attempted=2, formal_usable=2,
+                candidate_broad_stale=False,
+            ),
+        )
+        self.assertEqual(isolated["classification"], FINAL_REPORT_ELIGIBLE)
+        self.assertGreater(CANDIDATE_BROAD_STALE_RATIO, 0)
+
     def test_case_c_degraded_alert_does_not_block_recovered_final_claim(self):
         store = _MarkerStore()
         degraded = claim_degraded_alert(_payload(UPSTREAM_NOT_READY), store=store)
@@ -171,6 +220,22 @@ class DailyReportDeliveryReadinessTests(unittest.TestCase):
             ),
             data_quality=_quality(
                 data_status="PARTIAL", candidate_status="PARTIAL", analyzed=735,
+            ),
+        )
+        self.assertEqual(readiness["classification"], FINAL_REPORT_ELIGIBLE)
+
+    def test_nonzero_formal_partial_coverage_remains_final_when_candidate_is_usable(self):
+        readiness = _delivery_readiness(
+            market="CN",
+            status="PARTIAL_DATA_QUALITY",
+            session_identity=object(),
+            result=_result(
+                market="CN", candidate_status="PARTIAL", included=735,
+                dynamic_analysis=735, formal_rows=2,
+            ),
+            data_quality=_quality(
+                data_status="PARTIAL", candidate_status="PARTIAL", analyzed=735,
+                formal_attempted=3, formal_usable=2,
             ),
         )
         self.assertEqual(readiness["classification"], FINAL_REPORT_ELIGIBLE)
