@@ -97,9 +97,10 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 - 本轮 focused suite（122 passed）、完整 `python -m unittest discover -s tests -v`
   （1049 passed、4 skipped）、compileall、目标文件 `py_compile` 与 `git diff --check`
-  均已通过；此前 PR head 的 CI Test Gate、Daily Decision Chain generic operational shadow、
-  Portfolio Risk generic operational shadow 均已由 GitHub 验证通过，动态 run 事实以 GitHub
-  为准；本轮 closeout 推送后的 exact-head 结果仍待核对。
+  均已通过；本轮 closeout source head 的 CI Test Gate、Daily Decision Chain generic
+  operational shadow、Paper trade lifecycle generic operational shadow、Portfolio Risk
+  generic operational shadow 均已由 GitHub exact-head 验证通过，动态 run 事实以 GitHub
+  为准。
 - 本轮真实历史 US/CN artifact 的 dashboard/email `USER_VISIBLE_LANGUAGE_AUDIT` 均为
   raw enum、内部字段、不必要英文、半中英提示计数全为 0；US presentation duplicate
   count 为 0，Candidate component placeholder count 为 0，partial 页面未使用 danger
@@ -149,10 +150,10 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Blocker / Remaining Risks
 
-- 当前剩余动作是把已通过本地验证的 closeout commit 推送到 PR #137，并等待该新 HEAD 的
-  exact-head CI / relevant shadows 与 reviewer 意见；PR 保持 OPEN，不 merge。历史 US
-  artifact 的 Opportunity Ledger `FAILED` 已按独立 blocker 呈现，且来自旧 main 的
-  `DailySymbolInput.quotes` 接线问题，不应与本轮 Candidate symbol 异常合并。
+- 当前代码 closeout 与 exact-head checks 已完成；剩余是 reviewer 意见及未来自然日报的
+  production evidence，PR 保持 OPEN，不 merge。历史 US artifact 的 Opportunity Ledger
+  `FAILED` 已按独立 blocker 呈现，且来自旧 main 的 `DailySymbolInput.quotes` 接线问题，
+  不应与本轮 Candidate symbol 异常合并。
 - 完整 1026-symbol production Candidate runtime 的本地批量 probe 曾因 Yahoo 请求超出
   有界验证时间终止；PR 只读证据不把该 probe 写成 production acceptance，完整自然
   Candidate included/deep-ready/strategy 数量仍以未来正常运行 artifact 为准。
@@ -173,9 +174,8 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Next Action
 
-提交并推送本轮 closeout 到 PR #137，随后只核对新 HEAD 的 exact-head CI / relevant shadows
-与 PR 状态；保持 PR OPEN、不 merge。后续自然日报继续观察新的 readiness、final delivery
-与 provider diagnostics；不发送 corrected final，除非用户另行明确授权。
+保持 PR #137 OPEN，等待 reviewer 意见；不 merge。后续自然日报继续观察新的 readiness、
+final delivery 与 provider diagnostics；不发送 corrected final，除非用户另行明确授权。
 
 ## Constraints / Pitfalls
 
