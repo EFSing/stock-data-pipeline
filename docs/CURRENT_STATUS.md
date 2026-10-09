@@ -5,7 +5,7 @@
 > 本文件不保存历史 PR 过程、blocker 演变、测试数量、CI run ID、commit SHA 或
 > Engineering Event 流水账；动态工程事实以 Git / GitHub 实时状态为准。
 
-> 最后实质更新：2026-10-08（CN A-share provider-forward QFQ 合同迁移与 US Candidate lifecycle structural fixes 已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
+> 最后实质更新：2026-10-09（CN A-share provider-forward QFQ 合同迁移与 US Candidate lifecycle structural fixes 已合并到 main、独立 Candidate 源日期修复、Wave 非正摆幅 Fib-context 边界
 > 修复与 formal reader DATA_OK 接入已合并到 main；真实只读 CN 回补已 COMPLETED，核心
 > 异常解除，数据质量仍 PARTIAL。日报优先展示重点、折叠原始审计、区分覆盖与成功分析；
 > 公式和门槛不变。Daily Opportunity Ledger V1 已合并并接入 production Cloud path，
@@ -13,7 +13,9 @@
 > human-opportunity presentation / SETUP_02 causal projection / cross-stage consistency
 > 已随 PR #135 squash merge 进入 main。READ_ONLY_VALIDATION_REPLAY 只证明代码路径的
 > 严格 T 日回放，不等于 natural production acceptance 或 D1 evidence。单源 provider、
-> D1 V2 activation 与 natural production / D1 evidence 边界不变）。
+> D1 V2 activation 与 natural production / D1 evidence 边界不变。Daily Report notification
+> routing 与 market/session finality V1 已进入 main；自然通知、Ledger 写入与 Yahoo exact-T
+> forensic 仍待独立 natural acceptance）。
 
 ## 项目身份
 
@@ -476,9 +478,23 @@
   universe 非空但 exact-T usable coverage 为 0% 时不得 `FINAL_REPORT_ELIGIBLE`；broad
   Candidate exact-T stale 可进入 upstream readiness gate；少量 isolated symbol stale（包括
   CN 的少量标的异常）在 formal coverage 与其余分析可用时仍允许整份日报 final。
-- Opportunity Ledger 使用 canonical `qfq_history` / `data_quality_status`。Ledger failure
-  不 claim final marker，改为独立 exactly-once alert；同一 session 后续恢复成功时仍可
-  claim/send 真正 final。
+- Opportunity Ledger 使用 canonical `qfq_history` / `data_quality_status`。final-ready
+  report 即使 `OPPORTUNITY_LEDGER_STATUS=FAILED`，仍 claim final-report marker 并发送正式
+  日报 Email，同时发送一次独立 Ledger Bark；Ledger failure 不再否定正式日报，也不要求
+  automatic fallback 重跑整份日报。
+- Daily Report notification/session finality V1 已进入 main：bounded readiness retry 的中间
+  attempt 完全静默，只由 terminal payload 决定通知；正式日报为 Email only，正式日报加
+  Ledger failure 为 Email + 独立 Ledger Bark，非最终/异常日报为 Bark only，diagnostic /
+  replay / non-session 不发送 Email 或 Bark。
+- natural automatic path 在 provider、Candidate、strategy、Ledger work 前执行 durable
+  market/session finality preflight；已有有效 V2 或兼容 legacy final marker 时返回
+  `NOOP_FINAL_SESSION_ALREADY_COMPLETED`，不再请求 provider、运行 Candidate/strategy/Ledger
+  或产生通知。degraded Bark claim 也有 final-marker 二次保护，final、Ledger-error 与
+  email-delivery-failure identities 相互独立。
+- Email failure 记录 `EMAIL_DELIVERY_FAILED`，可发送一次 Bark；Bark failure 记录
+  `BARK_DELIVERY_FAILED`，不以 Email 替代。HITHINK future snapshot guard、cron、trading
+  strategy、Candidate ranking、provider contracts、Paper、Portfolio Risk、broker 与 D1
+  semantics 均未改变。
 - V2 erroneous final marker 只能通过显式、受审计的 corrected-final recovery contract
   恢复；Yahoo latest timestamp、raw、adjclose 尾部与 query1/query2 comparison 只提供诊断，
   不改变正式 provider selection。

@@ -4,11 +4,10 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_NOTIFICATION_AND_SESSION_FINALITY_PR_READY`：从最新 `main` 创建的独立分支
-`fix/daily-report-notification-session-finality-v1` 已提交并推送，PR #138 保持 Open；
-不直接修改或合并 `main`。本任务 supersede PR #137 中“Ledger 失败阻断 final delivery”
-的通知语义，但不改变 readiness threshold、Ledger 数据模型、交易策略、Candidate ranking、
-provider 合同或 cron。
+`DAILY_REPORT_NOTIFICATION_AND_SESSION_FINALITY_MERGED_WAITING_NATURAL_ACCEPTANCE`：PR #138
+已 squash merge 进入 `main`，merge 后 `main` CI 已通过；本轮不再进行功能修改。本任务
+supersede PR #137 中“Ledger 失败阻断 final delivery”的通知语义，但不改变 readiness
+threshold、Ledger 数据模型、交易策略、Candidate ranking、provider 合同或 cron。
 
 目标是让正式日报数据状态与 Opportunity Ledger 状态独立、bounded retry 静默，并在自然自动
 路径的 provider work 之前以 durable final marker 对 market/session 做 terminal NOOP；显式历史
@@ -18,10 +17,8 @@ diagnostic/replay 仍不发送通知、不污染 production marker。
 checks 与 generic operational shadows 均为成功。历史状态仅作为只读 evidence，不写成当前
 任务的 natural acceptance。
 
-本分支基线已包含 PR #137 的 formal exact-T coverage、Candidate broad-stale gate、
-`DailySymbolInput.qfq_history` / `data_quality_status` Ledger 接线、独立 alert marker 与
-corrected-final recovery contract。本任务正在把 final Email、Ledger Bark、retry finalization
-和 session terminality 重新解耦；PR #137 的历史语义保留在 `docs/DECISION_LOG.md`，不静默改写。
+本轮已将 final Email、Ledger Bark、retry finalization 和 session terminality 重新解耦；
+PR #137 的历史语义保留在 `docs/DECISION_LOG.md`，不静默改写。
 
 ## Current State / Completed
 
@@ -101,7 +98,7 @@ corrected-final recovery contract。本任务正在把 final Email、Ledger Bark
   `python -m unittest discover -s tests -v`（1058 passed、4 skipped）、compileall、目标
   文件 `py_compile` 与 `git diff --check` 均已通过；CI Test Gate 与三个 relevant
   generic operational shadows：Daily Decision Chain、Paper lifecycle、Portfolio Risk，
-  均已按 exact head 通过。动态 run 事实以 GitHub 为准。
+  均已按 exact head 通过；merge 后 `main` CI 亦已通过。动态 run 事实以 GitHub 为准。
 - 本轮真实历史 US/CN artifact 的 dashboard/email `USER_VISIBLE_LANGUAGE_AUDIT` 均为
   raw enum、内部字段、不必要英文、半中英提示计数全为 0；US presentation duplicate
   count 为 0，Candidate component placeholder count 为 0，partial 页面未使用 danger
@@ -151,8 +148,8 @@ corrected-final recovery contract。本任务正在把 final Email、Ledger Bark
 
 ## Blocker / Remaining Risks
 
-- PR #138 已创建、推送并通过 exact-head CI；当前无 code blocker，必须保持 PR Open，
-  不 merge，不触发真实重复 Email/Bark。真实生产 end-to-end notification 仍未触发。
+- PR #138 已 squash merge 进入 `main`，当前无 code blocker；真实生产 end-to-end notification
+  仍未触发，不能以历史回放替代 natural acceptance。
 - PR #137 的历史 US artifact `Opportunity Ledger FAILED` 来自旧 main 的
   `DailySymbolInput.quotes` 接线问题；本分支只做 `.quotes` regression，不重新设计 Ledger。
 - 完整 1026-symbol production Candidate runtime 的本地批量 probe 曾因 Yahoo 请求超出
@@ -175,8 +172,9 @@ corrected-final recovery contract。本任务正在把 final Email、Ledger Bark
 
 ## Next Action
 
-保持 `DAILY_REPORT_NOTIFICATION_AND_SESSION_FINALITY_PR_READY` 状态，等待 PR #138 review；
-除 review correction 外不扩大范围，不 merge、不发送真实重复 Email/Bark。
+保持 `DAILY_REPORT_NOTIFICATION_AND_SESSION_FINALITY_MERGED_WAITING_NATURAL_ACCEPTANCE` 状态，
+等待 CN/US 自然日报与通知、Ledger natural acceptance；除明确 follow-up 外不扩大范围，
+不通过自动重跑整份日报修复 Ledger。
 
 ## Constraints / Pitfalls
 
