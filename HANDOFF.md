@@ -99,8 +99,9 @@ corrected-final recovery contract。本任务正在把 final Email、Ledger Bark
 - 本轮 notification/marker/Cloud Report focused suite（60 passed）、Opportunity Ledger、
   CN/US workflow contract 与 generic operational shadow suite（19 passed）、完整
   `python -m unittest discover -s tests -v`（1058 passed、4 skipped）、compileall、目标
-  文件 `py_compile` 与 `git diff --check` 均已通过；PR #138 的 CI Test Gate 与四个
-  generic operational shadow 已按 exact head 通过，动态 run 事实以 GitHub 为准。
+  文件 `py_compile` 与 `git diff --check` 均已通过；CI Test Gate 与三个 relevant
+  generic operational shadows：Daily Decision Chain、Paper lifecycle、Portfolio Risk，
+  均已按 exact head 通过。动态 run 事实以 GitHub 为准。
 - 本轮真实历史 US/CN artifact 的 dashboard/email `USER_VISIBLE_LANGUAGE_AUDIT` 均为
   raw enum、内部字段、不必要英文、半中英提示计数全为 0；US presentation duplicate
   count 为 0，Candidate component placeholder count 为 0，partial 页面未使用 danger
