@@ -6,9 +6,13 @@ from unittest.mock import patch
 
 from scripts.run_cloud_daily_report import _notify
 from trading.operational_markers import (
+    FINAL_SESSION_ALREADY_COMPLETED,
+    claim_email_delivery_failure_alert,
     claim_corrected_final_recovery,
     claim_final_report_notification,
+    claim_ledger_error_alert,
     claim_report_notification,
+    final_report_session_status,
 )
 
 
@@ -106,6 +110,13 @@ class OperationalMarkerTests(unittest.TestCase):
         self.assertEqual(result["legacy_marker_identities"], [identity])
         self.assertFalse(any("final-v2" in name for name, _, _ in store.calls))
 
+    def test_finality_preflight_recognizes_legacy_final_evidence(self):
+        store = _MarkerStore()
+        identity = store.add_legacy()
+        result = final_report_session_status(_us_payload(), store=store)
+        self.assertEqual(result["status"], FINAL_SESSION_ALREADY_COMPLETED)
+        self.assertEqual(result["marker_identities"], [identity])
+
     def test_legacy_degraded_v1_marker_blocks_without_recovery_authorization(self):
         store = _MarkerStore()
         store.add_legacy(readiness="DEGRADED_DIAGNOSTIC_ONLY")
@@ -156,7 +167,7 @@ class OperationalMarkerTests(unittest.TestCase):
             "NOOP_REPORT_ALREADY_SENT",
         )
 
-    def test_report_ready_ledger_failure_alert_does_not_claim_final_and_recovery_does(self):
+    def test_report_ready_ledger_failure_claims_final_email_and_independent_bark(self):
         store = _MarkerStore()
         payload = _us_payload()
         payload["cloud_daily_report"].update({
@@ -164,20 +175,19 @@ class OperationalMarkerTests(unittest.TestCase):
             "opportunity_ledger_error": "controlled ledger failure",
             "final_delivery_eligibility": "FINAL_DELIVERY_BLOCKED_LEDGER",
             "final_delivery_reason": "OPPORTUNITY_LEDGER_FAILED",
-            "delivery_notification_mode": "ALERT",
+            "report_data_readiness": "FINAL_REPORT_ELIGIBLE",
+            "delivery_scope": "NATURAL",
+            "delivery_notification_mode": "FINAL_WITH_LEDGER_ERROR",
             "data_quality": {"formal_exact_t_coverage_pct": 100},
         })
-        with patch(
-            "scripts.run_cloud_daily_report.claim_report_notification",
-            side_effect=lambda value: claim_report_notification(value, store=store),
-        ), patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}) as bark, patch(
+        with patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}) as bark, patch(
             "scripts.run_cloud_daily_report.send_optional_email",
             return_value={"status": "SENT"},
         ) as email:
-            _notify(payload, dashboard_html="<html></html>")
+            _notify(payload, dashboard_html="<html></html>", marker_store=store)
             self.assertTrue(any("daily-report-alerts" in name for name in store.objects))
-            self.assertFalse(any("final-v2" in name for name in store.objects))
-            _notify(payload, dashboard_html="<html></html>")
+            self.assertTrue(any("final-v2" in name for name in store.objects))
+            _notify(payload, dashboard_html="<html></html>", marker_store=store)
             self.assertEqual(bark.call_count, 1)
             self.assertEqual(email.call_count, 1)
 
@@ -188,18 +198,100 @@ class OperationalMarkerTests(unittest.TestCase):
             "final_delivery_reason": "REPORT_DATA_AND_LEDGER_READY",
             "delivery_notification_mode": "FINAL",
         })
-        with patch(
-            "scripts.run_cloud_daily_report.claim_report_notification",
-            side_effect=lambda value: claim_report_notification(value, store=store),
-        ), patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}) as bark, patch(
+        with patch("scripts.run_cloud_daily_report.send_bark", return_value={"status": "SENT"}) as bark, patch(
             "scripts.run_cloud_daily_report.send_optional_email",
             return_value={"status": "SENT"},
         ) as email:
-            _notify(payload, dashboard_html="<html></html>")
-            _notify(payload, dashboard_html="<html></html>")
-            self.assertEqual(bark.call_count, 1)
-            self.assertEqual(email.call_count, 1)
+            _notify(payload, dashboard_html="<html></html>", marker_store=store)
+            _notify(payload, dashboard_html="<html></html>", marker_store=store)
+            bark.assert_not_called()
+            email.assert_not_called()
         self.assertTrue(any("final-v2" in name for name in store.objects))
+
+    def test_final_marker_guard_suppresses_degraded_alert_after_final(self):
+        store = _MarkerStore()
+        final = claim_final_report_notification(_us_payload(), store=store)
+        self.assertEqual(final["status"], "CLAIMED")
+        degraded = _us_payload()
+        degraded["cloud_daily_report"].update({
+            "delivery_readiness": "UPSTREAM_NOT_READY",
+            "delivery_readiness_reason": "NO_USABLE_SYMBOLS",
+            "delivery_notification_mode": "ALERT",
+        })
+        with patch("scripts.run_cloud_daily_report.send_bark") as bark, patch(
+            "scripts.run_cloud_daily_report.send_optional_email"
+        ) as email:
+            _notify(degraded, dashboard_html="<html></html>", marker_store=store)
+        bark.assert_not_called()
+        email.assert_not_called()
+        self.assertEqual(
+            degraded["cloud_daily_report"]["notification_idempotency"]["status"],
+            FINAL_SESSION_ALREADY_COMPLETED,
+        )
+
+    def test_ledger_and_email_failure_alert_identities_are_independent(self):
+        store = _MarkerStore()
+        payload = _us_payload()
+        payload["cloud_daily_report"].update({
+            "OPPORTUNITY_LEDGER_STATUS": "FAILED",
+            "opportunity_ledger_error": "controlled ledger failure",
+            "report_data_readiness": "FINAL_REPORT_ELIGIBLE",
+            "delivery_scope": "NATURAL",
+        })
+        ledger = claim_ledger_error_alert(payload, store=store)
+        email = claim_email_delivery_failure_alert(payload, store=store)
+        self.assertEqual(ledger["status"], "CLAIMED")
+        self.assertEqual(email["status"], "CLAIMED")
+        self.assertNotEqual(ledger["marker_name"], email["marker_name"])
+        self.assertEqual(final_report_session_status(payload, store=store)["status"], "NO_FINAL_REPORT_MARKER")
+
+    def test_smtp_failure_is_recorded_and_emits_only_one_bark_alert(self):
+        store = _MarkerStore()
+        payload = _us_payload()
+        with patch(
+            "scripts.run_cloud_daily_report.send_optional_email",
+            return_value={"status": "FAILED", "error": "SMTP unavailable"},
+        ) as email, patch(
+            "scripts.run_cloud_daily_report.send_bark",
+            return_value={"status": "SENT"},
+        ) as bark:
+            _notify(payload, dashboard_html="<html></html>", marker_store=store)
+            _notify(payload, dashboard_html="<html></html>", marker_store=store)
+
+        email.assert_called_once()
+        bark.assert_called_once()
+        cloud = payload["cloud_daily_report"]
+        self.assertEqual(cloud["email_delivery_status"], "EMAIL_DELIVERY_FAILED")
+        self.assertEqual(cloud["email_failure_bark"]["status"], "SENT")
+        self.assertIn("SMTP unavailable", bark.call_args.kwargs["body"])
+
+    def test_bark_failure_is_recorded_without_email_fallback(self):
+        store = _MarkerStore()
+        payload = _us_payload()
+        payload["cloud_daily_report"].update({
+            "report_data_readiness": "UPSTREAM_NOT_READY",
+            "delivery_readiness": "UPSTREAM_NOT_READY",
+            "delivery_readiness_reason": "NO_USABLE_SYMBOLS",
+            "delivery_notification_mode": "ALERT",
+        })
+        with patch(
+            "scripts.run_cloud_daily_report.send_bark",
+            return_value={"status": "FAILED", "error": "Bark unavailable"},
+        ) as bark, patch(
+            "scripts.run_cloud_daily_report.send_optional_email",
+        ) as email:
+            _notify(payload, dashboard_html="<html></html>", marker_store=store)
+
+        bark.assert_called_once()
+        email.assert_not_called()
+        self.assertEqual(
+            payload["cloud_daily_report"]["bark_delivery_status"],
+            "BARK_DELIVERY_FAILED",
+        )
+        self.assertEqual(
+            payload["cloud_daily_report"]["notifications"]["email"]["status"],
+            "NOT_SENT_ERROR_BARK_ONLY",
+        )
 
     def test_v2_corrected_final_recovery_is_explicit_audited_and_exactly_once(self):
         store = _MarkerStore()

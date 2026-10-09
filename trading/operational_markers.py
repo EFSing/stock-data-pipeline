@@ -17,6 +17,9 @@ LEGACY_REPORT_NOTIFICATION_MARKER_VERSION = "DAILY_REPORT_NOTIFICATION_IDEMPOTEN
 LEGACY_RECOVERY_MIGRATION_VERSION = "DAILY_REPORT_LEGACY_V1_TO_V2_RECOVERY_V1"
 CORRECTED_FINAL_RECOVERY_VERSION = "DAILY_REPORT_FINAL_V2_CORRECTION_RECOVERY_V1"
 CORRECTED_FINAL_MARKER_VERSION = "DAILY_REPORT_CORRECTED_FINAL_NOTIFICATION_IDEMPOTENCY_V1"
+FINAL_SESSION_ALREADY_COMPLETED = "NOOP_FINAL_SESSION_ALREADY_COMPLETED"
+LEDGER_ERROR_ALERT_STATE = "OPPORTUNITY_LEDGER_FAILED"
+EMAIL_DELIVERY_FAILURE_ALERT_STATE = "EMAIL_DELIVERY_FAILED"
 # Kept as a compatibility export for callers that only need the operational
 # marker family name.  New claims use the V2 final contract.
 REPORT_NOTIFICATION_MARKER_VERSION = FINAL_REPORT_NOTIFICATION_MARKER_VERSION
@@ -181,6 +184,54 @@ def _legacy_v1_markers(
         }
 
 
+def _read_v2_final_marker(
+    store: OperationalMarkerStore, *, market: str, session_date: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Read the exact V2 final marker, distinguishing absence from corruption."""
+
+    marker_name = _marker_name(
+        market, session_date, FINAL_REPORT_NOTIFICATION_MARKER_VERSION,
+    )
+    try:
+        raw_payload, receipt = store.read_bytes(marker_name)
+    except (FileNotFoundError, KeyError):
+        return None, None
+    except Exception as exc:  # noqa: BLE001 - idempotency evidence is fail-closed
+        return None, {
+            "status": "IDEMPOTENCY_UNAVAILABLE",
+            "configured": True,
+            "marker_name": marker_name,
+            "error": str(exc).replace("\r", " ").replace("\n", " ")[:240],
+        }
+    try:
+        marker = json.loads(raw_payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, {
+            "status": "FINAL_MARKER_INVALID",
+            "configured": True,
+            "marker_name": marker_name,
+            "error": str(exc).replace("\r", " ").replace("\n", " ")[:240],
+        }
+    expected_identity = f"{market}|{session_date}|{FINAL_REPORT_NOTIFICATION_MARKER_VERSION}"
+    if (
+        not isinstance(marker, Mapping)
+        or marker.get("schema_version") != FINAL_REPORT_NOTIFICATION_MARKER_VERSION
+        or str(marker.get("market") or "").upper() != market
+        or str(marker.get("session_date") or "") != session_date
+        or str(marker.get("identity") or "") != expected_identity
+    ):
+        return None, {
+            "status": "FINAL_MARKER_INVALID",
+            "configured": True,
+            "marker_name": marker_name,
+        }
+    return {
+        "marker_version": FINAL_REPORT_NOTIFICATION_MARKER_VERSION,
+        "marker_name": marker_name,
+        "marker_sha256": str(receipt.get("sha256") or sha256(raw_payload).hexdigest()),
+    }, None
+
+
 def _configured_store(
     *, store: OperationalMarkerStore | None, environ: Mapping[str, str],
 ) -> tuple[OperationalMarkerStore | None, dict[str, Any] | None]:
@@ -199,6 +250,63 @@ def _configured_store(
             "configured": True,
             "error": str(exc).replace("\r", " ").replace("\n", " ")[:240],
         }
+
+
+def final_report_session_status(
+    payload: Mapping[str, Any], *, store: OperationalMarkerStore | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Inspect durable final evidence for one market/session.
+
+    This is a read-only preflight used before any market-data or strategy work
+    on the natural automatic path.  A valid V2 marker or a valid legacy V1
+    notification marker means the session is terminal.  Missing optional
+    marker configuration is reported separately so local diagnostic callers
+    can continue without pretending that durable evidence exists.
+    """
+
+    market, session_date, _ = _report_context(payload)
+    if market not in {"CN", "US"} or not session_date:
+        return {"status": "NOT_CONFIGURED", "configured": False}
+    resolved_store, unavailable = _configured_store(
+        store=store,
+        environ=environ if environ is not None else os.environ,
+    )
+    if unavailable is not None:
+        return unavailable
+    assert resolved_store is not None
+
+    v2_marker, v2_error = _read_v2_final_marker(
+        resolved_store, market=market, session_date=session_date,
+    )
+    if v2_error is not None:
+        return v2_error
+    if v2_marker is not None:
+        return {
+            "status": FINAL_SESSION_ALREADY_COMPLETED,
+            "configured": True,
+            **v2_marker,
+        }
+
+    legacy_markers, legacy_error = _legacy_v1_markers(
+        resolved_store, market=market, session_date=session_date,
+    )
+    if legacy_error is not None:
+        return legacy_error
+    if legacy_markers:
+        return {
+            "status": FINAL_SESSION_ALREADY_COMPLETED,
+            "configured": True,
+            "marker_version": LEGACY_REPORT_NOTIFICATION_MARKER_VERSION,
+            "marker_names": [item["marker_name"] for item in legacy_markers],
+            "marker_identities": [item["identity"] for item in legacy_markers],
+        }
+    return {
+        "status": "NO_FINAL_REPORT_MARKER",
+        "configured": True,
+        "market": market,
+        "session_date": session_date,
+    }
 
 
 def _claim_marker(
@@ -366,13 +474,6 @@ def claim_corrected_final_recovery(
         }
     if str(cloud.get("delivery_scope") or "").strip().upper() == "DIAGNOSTIC":
         return {"status": "NOT_NOTIFYABLE_DIAGNOSTIC", "configured": True}
-    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
-    if final_delivery and final_delivery != "FINAL_DELIVERY_ELIGIBLE":
-        return {
-            "status": "NOT_ELIGIBLE_FINAL_DELIVERY",
-            "configured": True,
-            "final_delivery_eligibility": final_delivery,
-        }
     market, session_date, report_protocol = _report_context(payload)
     if market not in {"CN", "US"} or not session_date:
         return {"status": "NOT_CONFIGURED", "configured": False}
@@ -538,13 +639,6 @@ def claim_final_report_notification(
             "configured": True,
             "delivery_scope": "DIAGNOSTIC",
         }
-    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
-    if final_delivery and final_delivery != "FINAL_DELIVERY_ELIGIBLE":
-        return {
-            "status": "NOT_ELIGIBLE_FINAL_DELIVERY",
-            "configured": True,
-            "final_delivery_eligibility": final_delivery,
-        }
     market, session_date, _ = _report_context(payload)
     if market not in {"CN", "US"} or not session_date:
         return {"status": "NOT_CONFIGURED", "configured": False}
@@ -607,28 +701,25 @@ def claim_degraded_alert(
 
     cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
     readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
-    ledger_failure = (
-        str(cloud.get("OPPORTUNITY_LEDGER_STATUS") or "").strip().upper()
-        in {"FAILED", "MISSED_PROSPECTIVE_SESSION"}
-        or str(cloud.get("final_delivery_eligibility") or "").strip().upper()
-        == "FINAL_DELIVERY_BLOCKED_LEDGER"
-    )
-    if readiness in {"", "FINAL_REPORT_ELIGIBLE"} and not ledger_failure:
+    if readiness in {"", "FINAL_REPORT_ELIGIBLE"}:
         return {"status": "NOT_ELIGIBLE_DEGRADED_ALERT", "configured": True}
-    if (
-        str(cloud.get("delivery_notification_mode") or "").strip().upper() == "NONE"
-        and not ledger_failure
-    ):
+    if str(cloud.get("delivery_notification_mode") or "").strip().upper() == "NONE":
         return {
             "status": "NOT_NOTIFYABLE",
             "configured": True,
             "delivery_readiness": readiness,
         }
-    reason = str(
-        (cloud.get("final_delivery_reason") or "OPPORTUNITY_LEDGER_FAILED")
-        if ledger_failure
-        else (cloud.get("delivery_readiness_reason") or "UNKNOWN_REASON")
-    ).strip().upper()
+    terminality = final_report_session_status(
+        payload, store=store, environ=environ,
+    )
+    if terminality["status"] != "NO_FINAL_REPORT_MARKER":
+        if terminality["status"] == FINAL_SESSION_ALREADY_COMPLETED:
+            return terminality
+        if terminality["status"] in {
+            "IDEMPOTENCY_UNAVAILABLE", "FINAL_MARKER_INVALID",
+        }:
+            return terminality
+    reason = str(cloud.get("delivery_readiness_reason") or "UNKNOWN_REASON").strip().upper()
     state_key = f"{readiness}|{_safe_component(reason)}"
     return _claim_marker(
         payload=payload,
@@ -638,6 +729,71 @@ def claim_degraded_alert(
         role="OPERATIONAL_REPORT_DEGRADED_ALERT_CLAIM",
         alert=True,
         state_key=state_key,
+    )
+
+
+def _claim_named_delivery_failure_alert(
+    payload: Mapping[str, Any], *, state_key: str, role: str,
+    store: OperationalMarkerStore | None, environ: Mapping[str, str] | None,
+) -> dict[str, Any]:
+    return _claim_marker(
+        payload=payload,
+        store=store,
+        environ=environ if environ is not None else os.environ,
+        marker_version=DEGRADED_ALERT_MARKER_VERSION,
+        role=role,
+        alert=True,
+        state_key=state_key,
+    )
+
+
+def claim_ledger_error_alert(
+    payload: Mapping[str, Any], *, store: OperationalMarkerStore | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Claim the independent Bark alert for a final report ledger failure."""
+
+    cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
+    readiness = str(cloud.get("report_data_readiness") or cloud.get("delivery_readiness") or "").strip().upper()
+    scope = str(cloud.get("delivery_scope") or "NATURAL").strip().upper()
+    ledger_status = str(
+        cloud.get("OPPORTUNITY_LEDGER_STATUS") or cloud.get("opportunity_ledger_status") or ""
+    ).strip().upper()
+    if scope == "DIAGNOSTIC":
+        return {"status": "NOT_NOTIFYABLE_DIAGNOSTIC", "configured": True}
+    if readiness != "FINAL_REPORT_ELIGIBLE":
+        return {"status": "NOT_ELIGIBLE_LEDGER_ALERT", "configured": True}
+    if ledger_status not in {"FAILED", "MISSED_PROSPECTIVE_SESSION"}:
+        return {"status": "NOT_ELIGIBLE_LEDGER_ALERT", "configured": True}
+    state_key = f"LEDGER_ERROR|{_safe_component(ledger_status)}"
+    return _claim_named_delivery_failure_alert(
+        payload,
+        state_key=state_key,
+        role="OPERATIONAL_REPORT_LEDGER_ERROR_ALERT_CLAIM",
+        store=store,
+        environ=environ,
+    )
+
+
+def claim_email_delivery_failure_alert(
+    payload: Mapping[str, Any], *, store: OperationalMarkerStore | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Claim one Bark alert when a final report email delivery fails."""
+
+    cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
+    readiness = str(cloud.get("report_data_readiness") or cloud.get("delivery_readiness") or "").strip().upper()
+    scope = str(cloud.get("delivery_scope") or "NATURAL").strip().upper()
+    if scope == "DIAGNOSTIC":
+        return {"status": "NOT_NOTIFYABLE_DIAGNOSTIC", "configured": True}
+    if readiness != "FINAL_REPORT_ELIGIBLE":
+        return {"status": "NOT_ELIGIBLE_EMAIL_FAILURE_ALERT", "configured": True}
+    return _claim_named_delivery_failure_alert(
+        payload,
+        state_key=EMAIL_DELIVERY_FAILURE_ALERT_STATE,
+        role="OPERATIONAL_REPORT_EMAIL_DELIVERY_FAILURE_ALERT_CLAIM",
+        store=store,
+        environ=environ,
     )
 
 
@@ -656,9 +812,6 @@ def claim_report_notification(
 
     cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
     readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
-    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
-    if final_delivery == "FINAL_DELIVERY_BLOCKED_LEDGER":
-        return claim_degraded_alert(payload, store=store, environ=environ)
     if readiness and readiness != "FINAL_REPORT_ELIGIBLE":
         return claim_degraded_alert(payload, store=store, environ=environ)
     return claim_final_report_notification(payload, store=store, environ=environ)
@@ -668,12 +821,18 @@ __all__ = [
     "DEGRADED_ALERT_MARKER_VERSION",
     "CORRECTED_FINAL_MARKER_VERSION",
     "CORRECTED_FINAL_RECOVERY_VERSION",
+    "EMAIL_DELIVERY_FAILURE_ALERT_STATE",
     "FINAL_REPORT_NOTIFICATION_MARKER_VERSION",
+    "FINAL_SESSION_ALREADY_COMPLETED",
+    "LEDGER_ERROR_ALERT_STATE",
     "LEGACY_RECOVERY_MIGRATION_VERSION",
     "LEGACY_REPORT_NOTIFICATION_MARKER_VERSION",
     "REPORT_NOTIFICATION_MARKER_VERSION",
     "claim_degraded_alert",
+    "claim_email_delivery_failure_alert",
+    "claim_ledger_error_alert",
     "claim_corrected_final_recovery",
     "claim_final_report_notification",
     "claim_report_notification",
+    "final_report_session_status",
 ]

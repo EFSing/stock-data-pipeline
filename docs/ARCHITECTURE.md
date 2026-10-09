@@ -286,9 +286,9 @@ Cloud自然session默认启用（schedule/manual/fallback使用同一记录路�
 自然completed session的close→next-open窗口；历史--date是诊断、不写正式账本；手动指定仍在close→next-open窗口的当前session也幂等记录。
 三个tab已在既有Cloud Google credentials下创建并核验写权限，未写生产历史observation。
 OPPORTUNITY_LEDGER_STATUS与RUN_STATUS分离；ledger失败仍尽量生成诊断JSON/HTML并
-non-zero exit。报告数据ready但ledger失败时，最终发送identity保持未占用，另发一次
-ledger-specific alert；账本修复后的同session重跑才可 claim final。若报告本身失败，仍可
-持久化已有结果/失败summary与continuation gaps。
+保留可见的账本异常状态。报告数据ready但ledger失败时，正式日报 final identity 仍被
+claim，Email 正常发送，另发一次 ledger-specific Bark alert；后续自动 fallback 不为补账本
+而重跑整份日报。若报告本身失败，仍可持久化已有结果/失败summary与continuation gaps。
 策略状态、Paper、持仓、broker、market-history与D1 evidence不写。
 
 ### trading/ephemeral_market_data.py
