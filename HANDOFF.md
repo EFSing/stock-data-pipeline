@@ -4,24 +4,24 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`US_DAILY_REPORT_FINALIZATION_AND_DIAGNOSTICS_MERGED_WAITING_NATURAL_ACCEPTANCE`：PR #137
-`fix/us-daily-report-finalization-ledger-v1` 已 squash merge 进入 `main`；当前只等待
-自然日报证据，不新建功能 PR、不改变交易策略或重复使用历史 replay 冒充 natural acceptance。
+`DAILY_REPORT_NOTIFICATION_AND_SESSION_FINALITY_PR_READY`：从最新 `main` 创建的独立分支
+`fix/daily-report-notification-session-finality-v1` 已提交并推送，PR #138 保持 Open；
+不直接修改或合并 `main`。本任务 supersede PR #137 中“Ledger 失败阻断 final delivery”
+的通知语义，但不改变 readiness threshold、Ledger 数据模型、交易策略、Candidate ranking、
+provider 合同或 cron。
 
-本轮只处理用户可见诊断分类、中文提示、重复收敛、真实历史 artifact 回归，以及 Candidate
-Yahoo forensic 的有界采样记录；不改变 readiness threshold、ledger 语义、交易策略、
-Candidate ranking、marker 或 cron。
+目标是让正式日报数据状态与 Opportunity Ledger 状态独立、bounded retry 静默，并在自然自动
+路径的 provider work 之前以 durable final marker 对 market/session 做 terminal NOOP；显式历史
+diagnostic/replay 仍不发送通知、不污染 production marker。
 
 #136 merge closeout 已客观核对：GitHub 状态为 MERGED，main 已包含其最终提交；其 required
 checks 与 generic operational shadows 均为成功。历史状态仅作为只读 evidence，不写成当前
 任务的 natural acceptance。
 
-本任务已实现：formal exact-T coverage 与 dynamic Candidate coverage 分离；formal 0% 或
-Candidate broad exact-T stale 不得 final；Opportunity Ledger 使用
-`DailySymbolInput.qfq_history` / `data_quality_status`；ledger failure 阻断 final marker 并
-发送独立幂等 alert；V2 错误 marker 有显式、审计化、默认关闭的 corrected-final recovery
-contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON。上述能力已随 PR #137
-进入 `main`，本轮已完成日报诊断呈现收口。
+本分支基线已包含 PR #137 的 formal exact-T coverage、Candidate broad-stale gate、
+`DailySymbolInput.qfq_history` / `data_quality_status` Ledger 接线、独立 alert marker 与
+corrected-final recovery contract。本任务正在把 final Email、Ledger Bark、retry finalization
+和 session terminality 重新解耦；PR #137 的历史语义保留在 `docs/DECISION_LOG.md`，不静默改写。
 
 ## Current State / Completed
 
@@ -77,7 +77,8 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
   release 前的 session 被排除；正式 birth 只在自然 completed session 的 close→next-open
   窗口产生。三个 tab 已用现有 Cloud Google Secrets 创建并核验写权限，无新增权限。
 - 写入失败独立为 OPPORTUNITY_LEDGER_STATUS=FAILED，尽量生成 JSON/HTML，workflow
-  非零退出；部分写入不伪称零写入。已有 session/strategy/data/provider 合同不放宽。
+  非零退出；正式日报仍可发 Email，并只为账本异常发一次独立 Bark；部分写入不伪称零写入。
+  已有 session/strategy/data/provider 合同不放宽。
 - 所有交易规则、正式策略状态、Paper lifecycle、持仓、broker 和 D1 evidence 均不变；
   不处理 601059/601198 residual data；US lifecycle hygiene 只处理通用 IWB metadata/identity
   status，不新增 Phase/registry/storage abstraction。
@@ -95,12 +96,12 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Validation
 
-- 本轮 focused suite（122 passed）、完整 `python -m unittest discover -s tests -v`
-  （1049 passed、4 skipped）、compileall、目标文件 `py_compile` 与 `git diff --check`
-  均已通过；本轮 closeout source head 的 CI Test Gate、Daily Decision Chain generic
-  operational shadow、Paper trade lifecycle generic operational shadow、Portfolio Risk
-  generic operational shadow 均已由 GitHub exact-head 验证通过，动态 run 事实以 GitHub
-  为准。
+- 本轮 notification/marker/Cloud Report focused suite（60 passed）、Opportunity Ledger、
+  CN/US workflow contract 与 generic operational shadow suite（19 passed）、完整
+  `python -m unittest discover -s tests -v`（1058 passed、4 skipped）、compileall、目标
+  文件 `py_compile` 与 `git diff --check` 均已通过；CI Test Gate 与三个 relevant
+  generic operational shadows：Daily Decision Chain、Paper lifecycle、Portfolio Risk，
+  均已按 exact head 通过。动态 run 事实以 GitHub 为准。
 - 本轮真实历史 US/CN artifact 的 dashboard/email `USER_VISIBLE_LANGUAGE_AUDIT` 均为
   raw enum、内部字段、不必要英文、半中英提示计数全为 0；US presentation duplicate
   count 为 0，Candidate component placeholder count 为 0，partial 页面未使用 danger
@@ -150,10 +151,10 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Blocker / Remaining Risks
 
-- PR #137 已 squash merge；当前无 code blocker，剩余是未来自然日报的 production evidence。
-  历史 US artifact 的 Opportunity Ledger
-  `FAILED` 已按独立 blocker 呈现，且来自旧 main 的 `DailySymbolInput.quotes` 接线问题，
-  不应与本轮 Candidate symbol 异常合并。
+- PR #138 已创建、推送并通过 exact-head CI；当前无 code blocker，必须保持 PR Open，
+  不 merge，不触发真实重复 Email/Bark。真实生产 end-to-end notification 仍未触发。
+- PR #137 的历史 US artifact `Opportunity Ledger FAILED` 来自旧 main 的
+  `DailySymbolInput.quotes` 接线问题；本分支只做 `.quotes` regression，不重新设计 Ledger。
 - 完整 1026-symbol production Candidate runtime 的本地批量 probe 曾因 Yahoo 请求超出
   有界验证时间终止；PR 只读证据不把该 probe 写成 production acceptance，完整自然
   Candidate included/deep-ready/strategy 数量仍以未来正常运行 artifact 为准。
@@ -174,8 +175,8 @@ contract；Yahoo adapter 输出有限 provider diagnostics，不保存 raw JSON�
 
 ## Next Action
 
-保持当前 `main` 状态，后续自然日报继续观察新的 readiness、final delivery 与 provider
-diagnostics；不发送 corrected final，除非用户另行明确授权。
+保持 `DAILY_REPORT_NOTIFICATION_AND_SESSION_FINALITY_PR_READY` 状态，等待 PR #138 review；
+除 review correction 外不扩大范围，不 merge、不发送真实重复 Email/Bark。
 
 ## Constraints / Pitfalls
 

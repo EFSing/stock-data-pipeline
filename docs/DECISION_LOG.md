@@ -1198,3 +1198,35 @@ This remains an operational evidence-integrity contract only. It does not change
 Fibonacci, Setup, Entry Zone, Stop, Target, R/R, Portfolio Risk, Paper, broker, Candidate
 selection formulas, or D1 semantics. The implementation is merged into `main`; natural
 production acceptance remains a separate evidence boundary.
+
+## 2026-10-09 — Daily Report notification routing and session finality V1
+
+**Superseding decision for the notification/finality fix:** `REPORT_DATA_READINESS` and
+Opportunity Ledger status are independent operational dimensions. `FINAL_REPORT_ELIGIBLE` is
+the authority for formal Daily Report Email eligibility. A final-ready report with
+`OPPORTUNITY_LEDGER_STATUS=FAILED` still claims the final-report marker and sends the usable
+Daily Report Email; it claims a separate stable ledger-error marker and sends one Bark alert
+containing the market, session, error summary, and run URL. Ledger failure no longer blocks the
+formal report, and a later automatic trigger must not rerun the full report merely to repair the
+ledger. An independent, explicitly audited ledger-only repair path remains a follow-up boundary.
+
+The natural automatic CN/US path performs a durable market/session finality preflight before
+Candidate seed, ephemeral market data, Yahoo/HITHINK, strategy, or ledger work. A valid
+`DAILY_REPORT_FINAL_NOTIFICATION_IDEMPOTENCY_V2` marker or compatible legacy V1 final marker
+returns `NOOP_FINAL_SESSION_ALREADY_COMPLETED` with no provider work, writes, or notification.
+Degraded/error Bark claims also honor this final terminality guard; the ledger-error and email
+delivery-failure alert identities are separate because those alerts are allowed to coexist with
+the one final Email claim. Explicit historical diagnostics/replays remain calculation-allowed
+but are notification-silent and do not write production notification markers.
+
+Bounded internal readiness retries are silent: only the terminal payload routes notification.
+The routing matrix is `FINAL_REPORT_ONLY → Email`, `FINAL_REPORT_WITH_LEDGER_ERROR → Email +
+ledger Bark`, `ERROR_ALERT_ONLY → Bark`, and `NO_NOTIFICATION → neither`. SMTP failure is
+recorded as `EMAIL_DELIVERY_FAILED` and may produce one Bark delivery-failure alert; Bark
+failure is recorded as `BARK_DELIVERY_FAILED` and never substituted with Email. No cron,
+strategy, Candidate ranking, provider contract, risk, Paper, broker, or D1 semantics change.
+
+This decision supersedes only the 2026-10-07 statement that a final-ready report with a failed
+Opportunity Ledger must leave the final V2 identity unclaimed and wait for a same-session rerun.
+The historical decision is retained above for audit; its formal-readiness and broad-stale
+semantics remain in force.

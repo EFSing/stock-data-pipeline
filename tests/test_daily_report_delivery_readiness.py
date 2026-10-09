@@ -13,6 +13,7 @@ from scripts.run_cloud_daily_report import (
     FINAL_REPORT_ELIGIBLE,
     UPSTREAM_NOT_READY,
     _delivery_readiness,
+    _finalize_delivery_eligibility,
     bounded_readiness_attempt_offsets,
     main as cloud_report_main,
     run_cloud_daily_report,
@@ -209,6 +210,20 @@ class DailyReportDeliveryReadinessTests(unittest.TestCase):
         self.assertEqual(first["status"], "CLAIMED")
         self.assertEqual(second["status"], "NOOP_REPORT_ALREADY_SENT")
 
+    def test_final_report_and_failed_ledger_keep_email_eligibility_separate(self):
+        payload = _payload(FINAL_REPORT_ELIGIBLE)
+        payload["cloud_daily_report"].update({
+            "delivery_scope": "NATURAL",
+            "OPPORTUNITY_LEDGER_STATUS": "FAILED",
+        })
+        _finalize_delivery_eligibility(payload, "FAILED")
+        cloud = payload["cloud_daily_report"]
+        self.assertEqual(cloud["final_delivery_eligibility"], "FINAL_DELIVERY_ELIGIBLE")
+        self.assertTrue(cloud["final_delivery_eligible"])
+        self.assertTrue(cloud["report_email_eligible"])
+        self.assertTrue(cloud["opportunity_ledger_alert_required"])
+        self.assertEqual(cloud["delivery_notification_mode"], "FINAL_WITH_LEDGER_ERROR")
+
     def test_case_f_cn_partial_symbol_quality_remains_final_eligible(self):
         readiness = _delivery_readiness(
             market="CN",
@@ -311,6 +326,42 @@ class DailyReportDeliveryReadinessTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(len(calls), 6)
         self.assertEqual(sleeps, [300.0] * 5)
+        self.assertTrue(all(call["notify"] is False for call in calls))
+
+    def test_internal_retry_is_silent_and_only_terminal_payload_is_notified(self):
+        calls = []
+
+        def fake_run(**kwargs):
+            calls.append(kwargs)
+            output = Path(kwargs["output_dir"])
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "daily-report.html").write_text("<html></html>", encoding="utf-8")
+            (output / "daily-report.json").write_text("{}", encoding="utf-8")
+            ready = len(calls) == 2
+            return {
+                "cloud_daily_report": {
+                    "status": "SUCCESS" if ready else "PARTIAL_DATA_QUALITY",
+                    "delivery_readiness": FINAL_REPORT_ELIGIBLE if ready else UPSTREAM_NOT_READY,
+                    "delivery_readiness_retryable": not ready,
+                    "run_status": "COMPLETED",
+                    "data_status": "OK" if ready else "NO_USABLE_SYMBOLS",
+                }
+            }
+
+        with TemporaryDirectory() as directory, \
+                patch("scripts.run_cloud_daily_report.resolve_cloud_trade_date", return_value=date(2026, 10, 5)), \
+                patch("scripts.run_cloud_daily_report.run_cloud_daily_report", side_effect=fake_run), \
+                patch("scripts.run_cloud_daily_report.time.sleep"), \
+                patch("scripts.run_cloud_daily_report._notify") as notify:
+            exit_code = cloud_report_main([
+                "--market", "US", "--output", directory,
+                "--retry-not-ready-delay-seconds", "0",
+            ])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(call["notify"] is False for call in calls))
+        notify.assert_called_once()
 
     def test_observed_lag_trigger_order_model_keeps_a_bounded_recovery_path(self):
         offsets = bounded_readiness_attempt_offsets()

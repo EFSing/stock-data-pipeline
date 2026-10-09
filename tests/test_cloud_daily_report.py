@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from core import Quote
 from scripts.run_cloud_daily_report import (
+    FINAL_SESSION_ALREADY_COMPLETED,
     build_prospective_observation,
     main as cloud_report_main,
     _notification_text,
@@ -24,6 +25,7 @@ from trading.ephemeral_market_data import (
     load_ephemeral_market_data,
 )
 from trading.production_prerequisites import ExactExchangeCalendarProvider, build_production_snapshot
+from trading.operational_markers import claim_final_report_notification
 
 from tests.test_production_prerequisites import (
     AFTER_CLOSE,
@@ -96,6 +98,24 @@ def _cloud_us_client():
     }]
     client.header_rows["自选清单"] = tuple(client.rows["自选清单"][0])
     return client
+
+
+class _MarkerStore:
+    def __init__(self):
+        self.objects = {}
+
+    def put_bytes(self, name, payload, **kwargs):
+        if name in self.objects:
+            return {"status": "IDEMPOTENT_REPLAY"}
+        self.objects[name] = bytes(payload)
+        return {"status": "CREATED"}
+
+    def read_bytes(self, name, **kwargs):
+        return self.objects[name], {"sha256": ""}
+
+    def scan(self, prefix="", *, with_hash=False):
+        del with_hash
+        return [{"name": name} for name in sorted(self.objects) if name.startswith(prefix)]
 
 
 class CloudDailyReportTests(unittest.TestCase):
@@ -193,6 +213,57 @@ class CloudDailyReportTests(unittest.TestCase):
                 self.assertEqual(resolved, expected)
                 identity = provider.completed_session(market, resolved, now=now)
                 self.assertEqual(identity.trade_date, expected)
+
+    def test_natural_final_session_noops_before_candidate_and_provider_work(self):
+        store = _MarkerStore()
+        final_payload = {
+            "market": "CN",
+            "as_of_date": T_DAY.isoformat(),
+            "cloud_daily_report": {
+                "market": "CN",
+                "as_of_date": T_DAY.isoformat(),
+                "protocol_version": "CLOUD-DAILY-REPORT-MOBILE-V1-2026-09-14",
+                "delivery_readiness": "FINAL_REPORT_ELIGIBLE",
+                "delivery_scope": "NATURAL",
+            },
+        }
+        self.assertEqual(
+            claim_final_report_notification(final_payload, store=store)["status"],
+            "CLAIMED",
+        )
+
+        class ExplodingCalendar:
+            def is_session(self, *args, **kwargs):
+                raise AssertionError("final session preflight must precede calendar/provider work")
+
+        with TemporaryDirectory() as directory, \
+                patch("scripts.run_cloud_daily_report.load_ephemeral_market_data", side_effect=AssertionError("ephemeral loader called")) as ephemeral, \
+                patch("scripts.run_cloud_daily_report.run_production_daily_decision", side_effect=AssertionError("strategy called")) as strategy, \
+                patch("scripts.run_cloud_daily_report.persist_daily_opportunities", side_effect=AssertionError("ledger called")) as ledger, \
+                patch("trading.candidate_universe_sources.HithinkCandidateSeedAdapter.load", side_effect=AssertionError("HITHINK called")) as hithink, \
+                patch("scripts.run_cloud_daily_report.send_bark") as bark, \
+                patch("scripts.run_cloud_daily_report.send_optional_email") as email:
+            payload = run_cloud_daily_report(
+                market="CN",
+                as_of_date=T_DAY,
+                output_dir=directory,
+                now=AFTER_CLOSE,
+                client=object(),
+                calendar_provider=ExplodingCalendar(),
+                automatic_resolution=True,
+                marker_store=store,
+                notify=True,
+            )
+
+        self.assertEqual(payload["cloud_daily_report"]["status"], FINAL_SESSION_ALREADY_COMPLETED)
+        self.assertEqual(payload["cloud_daily_report"]["delivery_notification_mode"], "NONE")
+        self.assertEqual(payload["cloud_daily_report"]["OPPORTUNITY_LEDGER_STATUS"], "NOT_RUN")
+        ephemeral.assert_not_called()
+        strategy.assert_not_called()
+        ledger.assert_not_called()
+        hithink.assert_not_called()
+        bark.assert_not_called()
+        email.assert_not_called()
 
     def test_explicit_trade_date_bypasses_automatic_calendar_resolution(self):
         class ExplodingAutoDateProvider(ExactExchangeCalendarProvider):
@@ -506,6 +577,30 @@ class CloudDailyReportTests(unittest.TestCase):
             self.assertIn("不使用上一交易日替代", html)
             self.assertNotIn('<span class="market-name">US</span>', html)
 
+    def test_non_session_default_is_silent(self):
+        class ExplodingClient:
+            def records(self, sheet_name):
+                raise AssertionError("non-session must not read Sheets")
+
+        with TemporaryDirectory() as directory, patch(
+            "scripts.run_cloud_daily_report.send_bark"
+        ) as bark, patch("scripts.run_cloud_daily_report.send_optional_email") as email:
+            payload = run_cloud_daily_report(
+                market="CN",
+                as_of_date=datetime(2026, 9, 6, tzinfo=timezone.utc).date(),
+                output_dir=directory,
+                now=AFTER_CLOSE,
+                client=ExplodingClient(),
+                notify=True,
+            )
+
+        bark.assert_not_called()
+        email.assert_not_called()
+        self.assertEqual(
+            payload["cloud_daily_report"]["notifications"]["routing"],
+            "NO_NOTIFICATION",
+        )
+
     def test_incomplete_session_fails_closed_and_still_writes_final_artifacts(self):
         class ExplodingClient:
             def records(self, sheet_name):
@@ -521,7 +616,7 @@ class CloudDailyReportTests(unittest.TestCase):
             self.assertTrue(payload["cloud_daily_report"]["errors"])
             self.assertIn("本日不生成新的交易信号", Path(directory, "daily-report.html").read_text(encoding="utf-8"))
 
-    def test_ordinary_artifact_allowlist_and_bark_are_isolated_from_core_result(self):
+    def test_non_final_artifact_routes_error_to_bark_only(self):
         fixture_payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
         fake_ephemeral = EphemeralMarketDataSnapshot(
             market="CN", as_of_date=T_DAY, fetched_at=AFTER_CLOSE,
@@ -551,21 +646,12 @@ class CloudDailyReportTests(unittest.TestCase):
             self.assertNotIn("qfq_history", json_path.read_text(encoding="utf-8"))
             self.assertIn("收盘交易决策日报", html_path.read_text(encoding="utf-8"))
             bark.assert_called_once()
-            email.assert_called_once()
-            email_html = email.call_args.kwargs["html_body"]
-            self.assertEqual(email_html, render_daily_report_email_html(payload))
-            self.assertEqual(
-                email.call_args.kwargs["html_attachment"],
-                html_path.read_text(encoding="utf-8"),
-            )
-            self.assertEqual(
-                email.call_args.kwargs["attachment_filename"],
-                "A股交易日报_2026-09-03.html",
-            )
-            self.assertNotEqual(email_html, html_path.read_text(encoding="utf-8"))
-            self.assertNotIn("<script", email_html.lower())
-            self.assertNotIn("<select", email_html.lower())
+            email.assert_not_called()
             self.assertEqual(payload["cloud_daily_report"]["notifications"]["bark"]["status"], "SENT")
+            self.assertEqual(
+                payload["cloud_daily_report"]["notifications"]["email"]["status"],
+                "NOT_SENT_ERROR_BARK_ONLY",
+            )
 
     def test_partial_data_quality_is_persisted_and_unproven_completion_fails_closed(self):
         fixture_payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -593,7 +679,8 @@ class CloudDailyReportTests(unittest.TestCase):
         self.assertEqual(payload["cloud_daily_report"]["status"], "PARTIAL_DATA_QUALITY")
         self.assertEqual(saved["cloud_daily_report"]["status"], "PARTIAL_DATA_QUALITY")
         self.assertIn("PARTIAL_DATA_QUALITY", dashboard_html)
-        self.assertIn("部分数据异常", email.call_args.kwargs["html_body"])
+        email.assert_not_called()
+        self.assertEqual(payload["cloud_daily_report"]["notifications"]["bark"]["status"], "SENT")
 
         with patch(
             "scripts.run_cloud_daily_report.resolve_cloud_trade_date",

@@ -35,7 +35,13 @@ from trading.ephemeral_market_data import (
     load_ephemeral_market_data,
 )
 from trading.notifications import github_run_url, send_bark, send_optional_email
-from trading.operational_markers import claim_report_notification
+from trading.operational_markers import (
+    FINAL_SESSION_ALREADY_COMPLETED,
+    claim_email_delivery_failure_alert,
+    claim_ledger_error_alert,
+    claim_report_notification,
+    final_report_session_status,
+)
 from trading.production_candidate_runtime import ProductionCandidateRuntime
 from trading.opportunity_ledger import RELEASE_DATE, SCHEMAS, birth_snapshots, persist_daily_opportunities
 from trading.production_prerequisites import ExactExchangeCalendarProvider
@@ -65,8 +71,11 @@ FINAL_DELIVERY_PENDING_LEDGER = "FINAL_DELIVERY_PENDING_LEDGER"
 FINAL_DELIVERY_BLOCKED_LEDGER = "FINAL_DELIVERY_BLOCKED_LEDGER"
 FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC = "FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC"
 FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA = "FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA"
+FINAL_DELIVERY_ALREADY_COMPLETED = "FINAL_DELIVERY_ALREADY_COMPLETED"
 DELIVERY_SCOPE_NATURAL = "NATURAL"
 DELIVERY_SCOPE_DIAGNOSTIC = "DIAGNOSTIC"
+EMAIL_DELIVERY_FAILED = "EMAIL_DELIVERY_FAILED"
+BARK_DELIVERY_FAILED = "BARK_DELIVERY_FAILED"
 # The normal automatic path has a finite 25-minute recovery window: t=0, 5,
 # 10, 15, 20, and 25 minutes.  A later schedule fallback remains useful when
 # the close workflow itself is delayed, while this window covers the observed
@@ -929,6 +938,12 @@ def _cloud_metadata(
             else FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA
         ),
         "final_delivery_eligible": False,
+        "report_email_eligible": bool(
+            readiness["final_report_eligible"]
+            and str(delivery_scope or DELIVERY_SCOPE_NATURAL).upper() == DELIVERY_SCOPE_NATURAL
+        ),
+        "opportunity_ledger_status": "NOT_RUN",
+        "opportunity_ledger_alert_required": False,
         "delivery_scope": str(delivery_scope or DELIVERY_SCOPE_NATURAL).upper(),
         "session_identity": _session_payload(session_identity),
         "session_resolution": dict(session_resolution or {}),
@@ -1121,37 +1136,34 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
     )
     readiness = str(cloud.get("delivery_readiness") or "").strip().upper()
     readiness_reason = str(cloud.get("delivery_readiness_reason") or "").strip()
-    final_delivery = str(cloud.get("final_delivery_eligibility") or "").strip().upper()
     projection = build_dashboard_projection(payload)
     summary = projection.get("summary", {})
     freshness = projection.get("freshness_funnel", {})
     plan_count = int(summary.get("strategy_proposal_count", 0) or 0) + int(
         summary.get("entry_allowed_count", 0) or 0
     )
-    if final_delivery == FINAL_DELIVERY_BLOCKED_LEDGER:
-        cloud_quality = cloud.get("data_quality") or {}
-        title = f"{label}日报/机会账本异常"
-        body = (
-            f"市场：{label}\n"
-            f"数据日期：{projection.get('as_of_date', '—')}\n"
-            "报告数据就绪：是\n"
-            "最终发送资格：未占用\n"
-            f"原因：{cloud.get('final_delivery_reason') or 'OPPORTUNITY_LEDGER_FAILED'}\n"
-            f"RUN_STATUS：{run_status}\n"
-            f"DATA_STATUS：{data_status}\n"
-            f"机会账本状态：{cloud.get('OPPORTUNITY_LEDGER_STATUS') or 'FAILED'}\n"
-            f"账本错误：{cloud.get('opportunity_ledger_error') or '未提供'}\n"
-            f"正式数据覆盖：{cloud_quality.get('formal_exact_t_coverage_pct', cloud_quality.get('coverage_pct', '—'))}%\n"
-            "本次未 claim final marker；修复账本后可在同一 session 重跑正式日报。"
-        )
-        run_url = cloud.get("github_run_url")
-        if run_url:
-            body += f"\n查看本次运行：{run_url}"
-        return title, body
     if readiness and readiness != FINAL_REPORT_ELIGIBLE:
         quality = cloud.get("data_quality") or {}
         failed = quality.get("failed_symbols") or []
         retryable = "是" if cloud.get("delivery_readiness_retryable") else "否"
+        readiness_copy = {
+            UPSTREAM_NOT_READY: "数据仍未准备完成",
+            DEGRADED_DIAGNOSTIC_ONLY: "本次仅生成诊断信息",
+            DELIVERY_FAILED: "日报运行异常",
+        }
+        reason_copy = {
+            "SESSION_NOT_COMPLETED": "交易时段尚未完成",
+            "NO_USABLE_SYMBOLS": "当前没有可用标的数据",
+            "CANDIDATE_UNAVAILABLE_NO_ANALYSIS": "候选数据不可用且没有完成策略分析",
+            "CANDIDATE_UNAVAILABLE_FORMAL_ONLY": "候选数据不可用，但已有正式标的完成分析",
+            "CANDIDATE_COVERAGE_INCOMPLETE": "候选数据覆盖未完成",
+            "CANDIDATE_EXACT_T_BROADLY_STALE": "候选数据大范围落后于报告日期",
+            "FORMAL_EXACT_T_NOT_READY": "正式标的尚未覆盖报告日期",
+            "REPORT_COVERAGE_NOT_COMPLETE": "日报分析覆盖未完成",
+            "NO_STRATEGY_ANALYSIS": "尚未完成策略分析",
+            "PROVIDER_GLOBAL_FAILURE": "行情数据服务出现全局异常",
+            "REPORT_EXECUTION_FAILED": "日报运行出现异常",
+        }
         title = (
             f"{label}日报等待数据"
             if readiness == UPSTREAM_NOT_READY
@@ -1162,14 +1174,11 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
         body = (
             f"市场：{label}\n"
             f"数据日期：{projection.get('as_of_date', '—')}\n"
-            f"日报就绪状态：{readiness}\n"
-            f"原因：{readiness_reason or '未提供'}\n"
-            f"RUN_STATUS：{run_status}\n"
-            f"DATA_STATUS：{data_status}\n"
-            f"CANDIDATE_STATUS：{candidate_status}\n"
+            f"日报状态：{readiness_copy.get(readiness, '日报运行异常')}\n"
+            f"原因：{reason_copy.get(readiness_reason, '暂时无法评估')}\n"
             f"策略分析：{quality.get('strategy_analyzed_count', '—')}；异常标的：{', '.join(failed[:20]) or '无'}\n"
             f"允许后续重试：{retryable}\n"
-            "本次输出仅作等待/异常诊断，未形成可发送的正式交易日报。"
+            "本次未形成可发送的正式交易日报。"
         )
         run_url = cloud.get("github_run_url")
         if run_url:
@@ -1185,17 +1194,16 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
         blocked = quality.get("blocked_count", "—")
         reasons = quality.get("failed_by_reason") or {}
         reason_text = "、".join(
-            f"{key}={len(values) if isinstance(values, (list, tuple, set)) else 1}"
+            f"{len(values) if isinstance(values, (list, tuple, set)) else 1}项"
             for key, values in sorted(reasons.items())
+            if key
         ) or "无"
         title = f"{label}日报完成" if run_status == "COMPLETED" else f"{label}日报完成但无可用标的"
         body = (
             f"市场：{label}\n"
             f"数据日期：{projection.get('as_of_date', '—')}\n"
-            f"RUN_STATUS：{run_status}\n"
-            f"DATA_STATUS：{data_status}\n"
-            f"CANDIDATE_STATUS：{candidate_status}\n"
-            f"尝试标的：{attempted}；DATA_OK：{data_ok}；失败：{failed_count}\n"
+            "日报状态：已完成\n"
+            f"尝试标的：{attempted}；数据正常：{data_ok}；异常：{failed_count}\n"
             f"覆盖率：{(cloud.get('data_quality') or {}).get('coverage_pct', '—')}%\n"
             f"策略分析：{analyzed}；数据阻断：{blocked}\n"
             f"失败原因：{reason_text}\n"
@@ -1213,7 +1221,7 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
         body = (
             f"市场：{label}\n"
             f"数据日期：{projection.get('as_of_date', '—')}\n"
-            f"数据状态：{status}\n"
+            "数据状态：已完成\n"
             f"新确认：{summary.get('new_confirmed_count', 0)}\n"
             f"等待确认：{summary.get('armed_count', 0)}\n"
             f"交易方案：{plan_count}\n"
@@ -1226,14 +1234,58 @@ def _notification_text(payload: Mapping[str, Any]) -> tuple[str, str]:
         title = f"{label}日报异常"
         body = (
             f"数据日期：{projection.get('as_of_date', '—')}\n"
-            f"状态：{status}\n"
+            "状态：日报运行异常\n"
             f"异常标的：{', '.join(failed) or '无可用标的'}\n"
             "本日不生成新的交易信号。"
         )
     run_url = cloud.get("github_run_url")
-    if cloud.get("OPPORTUNITY_LEDGER_STATUS") == "FAILED":
+    if str(cloud.get("OPPORTUNITY_LEDGER_STATUS") or "").upper() in {
+        "FAILED", "MISSED_PROSPECTIVE_SESSION",
+    } and readiness == FINAL_REPORT_ELIGIBLE:
         title += "（机会账本写入失败）"
-        body += "\nOPPORTUNITY_LEDGER_STATUS=FAILED；日报已生成，账本未完整持久化，请查看运行诊断。"
+        body += "\n日报已正常生成，可正常使用；机会观察账本写入失败，不影响本日报的行情和策略判断。"
+    if run_url:
+        body += f"\n查看本次运行：{run_url}"
+    return title, body
+
+
+def _ledger_alert_text(payload: Mapping[str, Any]) -> tuple[str, str]:
+    """Return the Bark-only message for a final report ledger failure."""
+
+    cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
+    market = str(cloud.get("market") or payload.get("market") or "").upper()
+    label = MARKET_LABELS.get(market, market or "市场")
+    trade_date = str(cloud.get("as_of_date") or payload.get("as_of_date") or "—")
+    error = str(cloud.get("opportunity_ledger_error") or "未提供").strip()
+    title = f"{label}机会账本写入失败"
+    body = (
+        f"市场：{label}\n"
+        f"数据日期：{trade_date}\n"
+        "日报已正常生成，可正常使用；机会观察账本写入失败，不影响本日报的行情和策略判断。\n"
+        f"简要错误：{error}"
+    )
+    run_url = cloud.get("github_run_url")
+    if run_url:
+        body += f"\n查看本次运行：{run_url}"
+    return title, body
+
+
+def _email_failure_alert_text(payload: Mapping[str, Any]) -> tuple[str, str]:
+    cloud = payload.get("cloud_daily_report") if isinstance(payload.get("cloud_daily_report"), Mapping) else {}
+    market = str(cloud.get("market") or payload.get("market") or "").upper()
+    label = MARKET_LABELS.get(market, market or "市场")
+    trade_date = str(cloud.get("as_of_date") or payload.get("as_of_date") or "—")
+    notifications = cloud.get("notifications") if isinstance(cloud.get("notifications"), Mapping) else {}
+    email_result = notifications.get("email") if isinstance(notifications.get("email"), Mapping) else {}
+    error = str(email_result.get("error") or "未提供").strip()
+    title = f"{label}日报已生成，但邮件发送失败"
+    body = (
+        f"市场：{label}\n"
+        f"数据日期：{trade_date}\n"
+        "今日正式日报已生成，但邮件发送失败；请查看日报文件。\n"
+        f"简要错误：{error}"
+    )
+    run_url = cloud.get("github_run_url")
     if run_url:
         body += f"\n查看本次运行：{run_url}"
     return title, body
@@ -1268,109 +1320,326 @@ def _notification_attachment_filename(payload: Mapping[str, Any]) -> str:
 def _finalize_delivery_eligibility(
     payload: dict[str, Any], opportunity_status: str,
 ) -> None:
-    """Separate report-data readiness from final-delivery identity ownership."""
+    """Finalize independent report-email and ledger-alert eligibility."""
 
     cloud = payload.get("cloud_daily_report")
     if not isinstance(cloud, dict):
         return
     readiness = str(cloud.get("report_data_readiness") or cloud.get("delivery_readiness") or "").upper()
     scope = str(cloud.get("delivery_scope") or DELIVERY_SCOPE_NATURAL).upper()
+    ledger_failed = opportunity_status in {"FAILED", "MISSED_PROSPECTIVE_SESSION"}
     if readiness != FINAL_REPORT_ELIGIBLE:
         eligibility = FINAL_DELIVERY_NOT_ELIGIBLE_REPORT_DATA
         reason = "REPORT_DATA_NOT_FINAL_READY"
     elif scope == DELIVERY_SCOPE_DIAGNOSTIC:
         eligibility = FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC
         reason = "DIAGNOSTIC_SCOPE"
-    elif opportunity_status == "FAILED":
-        eligibility = FINAL_DELIVERY_BLOCKED_LEDGER
-        reason = "OPPORTUNITY_LEDGER_FAILED"
-    elif opportunity_status == "MISSED_PROSPECTIVE_SESSION":
-        eligibility = FINAL_DELIVERY_BLOCKED_LEDGER
-        reason = "OPPORTUNITY_LEDGER_SESSION_MISSED"
     else:
         eligibility = FINAL_DELIVERY_ELIGIBLE
-        reason = "REPORT_DATA_AND_LEDGER_READY"
+        reason = "REPORT_DATA_READY_LEDGER_FAILED" if ledger_failed else "REPORT_DATA_AND_LEDGER_READY"
     cloud["final_delivery_eligibility"] = eligibility
-    cloud["final_delivery_eligible"] = eligibility == FINAL_DELIVERY_ELIGIBLE
+    cloud["final_delivery_eligible"] = (
+        eligibility == FINAL_DELIVERY_ELIGIBLE
+        and scope == DELIVERY_SCOPE_NATURAL
+    )
+    cloud["report_email_eligible"] = (
+        readiness == FINAL_REPORT_ELIGIBLE
+        and scope == DELIVERY_SCOPE_NATURAL
+    )
+    cloud["opportunity_ledger_status"] = opportunity_status
+    cloud["opportunity_ledger_alert_required"] = (
+        ledger_failed
+        and readiness == FINAL_REPORT_ELIGIBLE
+        and scope == DELIVERY_SCOPE_NATURAL
+    )
     cloud["final_delivery_reason"] = reason
-    if eligibility == FINAL_DELIVERY_ELIGIBLE:
-        cloud["delivery_notification_mode"] = "FINAL"
-    elif eligibility == FINAL_DELIVERY_BLOCKED_LEDGER:
-        cloud["delivery_notification_mode"] = "ALERT"
-    elif eligibility == FINAL_DELIVERY_NOT_APPLICABLE_DIAGNOSTIC:
-        cloud["delivery_notification_mode"] = "NONE"
-
-
-def _notify(payload: dict[str, Any], *, dashboard_html: str) -> None:
-    cloud = payload.get("cloud_daily_report", {})
-    try:
-        claim = claim_report_notification(payload)
-        cloud["notification_idempotency"] = claim
-        if claim.get("status") in {
-            "NOOP_REPORT_ALREADY_SENT",
-            "NOOP_DEGRADED_ALERT_ALREADY_SENT",
-            "LEGACY_V1_MARKER_PRESENT",
-            "LEGACY_RECOVERY_NOT_AUTHORIZED",
-            "NOT_NOTIFYABLE_DIAGNOSTIC",
-            "NOT_ELIGIBLE_FINAL_DELIVERY",
-        }:
-            cloud["notifications"] = {
-                "bark": {"status": claim["status"], "configured": True},
-                "email": {"status": claim["status"], "configured": True},
-            }
-            return
-        if claim.get("status") in {"NOT_NOTIFYABLE", "NOT_ELIGIBLE_FINAL_REPORT"}:
-            cloud["notifications"] = {
-                "bark": {"status": "NOT_SENT_NOT_NOTIFYABLE", "configured": False},
-                "email": {"status": "NOT_SENT_NOT_NOTIFYABLE", "configured": False},
-            }
-            return
-        if claim.get("status") == "IDEMPOTENCY_UNAVAILABLE":
-            # A configured but unavailable durable marker must not turn a
-            # fallback into duplicate normal email/Bark delivery.
-            cloud["notifications"] = {
-                "bark": {"status": "NOT_SENT_IDEMPOTENCY_UNAVAILABLE", "configured": True},
-                "email": {"status": "NOT_SENT_IDEMPOTENCY_UNAVAILABLE", "configured": True},
-            }
-            return
-        title, body = _notification_text(payload)
-        endpoint = os.environ.get("BARK_ENDPOINT", "")
-        bark = send_bark(endpoint, title=title, body=body, url=cloud.get("github_run_url"))
-        email = send_optional_email(
-            subject=title,
-            body=body,
-            html_body=render_daily_report_email_html(payload),
-            html_attachment=dashboard_html,
-            attachment_filename=_notification_attachment_filename(payload),
+    if readiness == FINAL_REPORT_ELIGIBLE and scope == DELIVERY_SCOPE_NATURAL:
+        cloud["delivery_notification_mode"] = (
+            "FINAL_WITH_LEDGER_ERROR" if ledger_failed else "FINAL"
         )
+    elif scope == DELIVERY_SCOPE_DIAGNOSTIC:
+        cloud["delivery_notification_mode"] = "NONE"
+    else:
+        cloud["delivery_notification_mode"] = "ALERT"
+
+
+def _claim_with_store(claim_function, payload, marker_store):
+    if marker_store is None:
+        return claim_function(payload)
+    return claim_function(payload, store=marker_store)
+
+
+def _not_sent(status: str, *, configured: bool = False) -> dict[str, Any]:
+    return {"status": status, "configured": configured}
+
+
+def _notify(
+    payload: dict[str, Any], *, dashboard_html: str,
+    marker_store: Any | None = None,
+) -> None:
+    """Route one terminal payload according to the report/ledger contract."""
+
+    cloud = payload.setdefault("cloud_daily_report", {})
+    if not isinstance(cloud, dict):
+        return
+    try:
+        readiness = str(
+            cloud.get("report_data_readiness") or cloud.get("delivery_readiness") or ""
+        ).strip().upper()
+        scope = str(cloud.get("delivery_scope") or DELIVERY_SCOPE_NATURAL).strip().upper()
+        if (
+            scope == DELIVERY_SCOPE_DIAGNOSTIC
+            or str(cloud.get("status") or "").strip().upper()
+            in {"SKIPPED_NON_SESSION", "READ_ONLY_VALIDATION_REPLAY"}
+            or str(cloud.get("delivery_readiness_reason") or "").strip().upper()
+            == "NON_SESSION"
+        ):
+            cloud["notifications"] = {
+                "routing": "NO_NOTIFICATION",
+                "bark": _not_sent("NOT_SENT_NON_SESSION"),
+                "email": _not_sent("NOT_SENT_NON_SESSION"),
+            }
+            return
+        ledger_failed = str(
+            cloud.get("OPPORTUNITY_LEDGER_STATUS") or cloud.get("opportunity_ledger_status") or ""
+        ).strip().upper() in {"FAILED", "MISSED_PROSPECTIVE_SESSION"}
+
+        if readiness in {"", FINAL_REPORT_ELIGIBLE}:
+            report_claim = _claim_with_store(
+                claim_report_notification, payload, marker_store,
+            )
+            cloud["notification_idempotency"] = report_claim
+            final_status = str(report_claim.get("status") or "")
+            can_send_email = final_status in {"CLAIMED", "NOT_CONFIGURED"}
+            if final_status == "IDEMPOTENCY_UNAVAILABLE":
+                can_send_email = False
+            email = _not_sent(
+                final_status or "NOT_SENT_FINAL_MARKER_NOT_CLAIMED",
+                configured=bool(report_claim.get("configured")),
+            )
+            bark = _not_sent("NOT_SENT_FINAL_REPORT_EMAIL_ONLY")
+            ledger_claim = None
+            ledger_bark = _not_sent("NOT_SENT_LEDGER_ALERT_NOT_REQUIRED")
+            if ledger_failed:
+                ledger_claim = _claim_with_store(
+                    claim_ledger_error_alert, payload, marker_store,
+                )
+                cloud["ledger_notification_idempotency"] = ledger_claim
+                if ledger_claim.get("status") in {"CLAIMED", "NOT_CONFIGURED"}:
+                    ledger_title, ledger_body = _ledger_alert_text(payload)
+                    ledger_bark = send_bark(
+                        os.environ.get("BARK_ENDPOINT", ""),
+                        title=ledger_title,
+                        body=ledger_body,
+                        url=cloud.get("github_run_url"),
+                    )
+                    if ledger_bark.get("status") == "FAILED":
+                        cloud["bark_delivery_status"] = BARK_DELIVERY_FAILED
+            if can_send_email:
+                title, body = _notification_text(payload)
+                email = send_optional_email(
+                    subject=title,
+                    body=body,
+                    html_body=render_daily_report_email_html(payload),
+                    html_attachment=dashboard_html,
+                    attachment_filename=_notification_attachment_filename(payload),
+                )
+                if email.get("status") == "FAILED":
+                    # Make the terminal SMTP result available to the alert
+                    # formatter before the final notification envelope is
+                    # assembled below.
+                    cloud["notifications"] = {"email": email}
+                    cloud["email_delivery_status"] = EMAIL_DELIVERY_FAILED
+                    failure_claim = _claim_with_store(
+                        claim_email_delivery_failure_alert, payload, marker_store,
+                    )
+                    cloud["email_failure_notification_idempotency"] = failure_claim
+                    if failure_claim.get("status") in {"CLAIMED", "NOT_CONFIGURED"}:
+                        title, body = _email_failure_alert_text(payload)
+                        failure_bark = send_bark(
+                            os.environ.get("BARK_ENDPOINT", ""),
+                            title=title,
+                            body=body,
+                            url=cloud.get("github_run_url"),
+                        )
+                        if failure_bark.get("status") == "FAILED":
+                            cloud["bark_delivery_status"] = BARK_DELIVERY_FAILED
+                        cloud["email_failure_bark"] = failure_bark
+            elif final_status == "IDEMPOTENCY_UNAVAILABLE":
+                cloud["email_delivery_status"] = "NOT_SENT_IDEMPOTENCY_UNAVAILABLE"
+            cloud["notifications"] = {
+                "routing": "FINAL_REPORT_WITH_LEDGER_ERROR" if ledger_failed else "FINAL_REPORT_ONLY",
+                "kind": "FINAL_REPORT",
+                "bark": ledger_bark if ledger_failed else bark,
+                "email": email,
+                "ledger_alert": {
+                    "claim": ledger_claim,
+                    "bark": ledger_bark,
+                } if ledger_failed else None,
+            }
+            return
+
+        alert_claim = _claim_with_store(claim_report_notification, payload, marker_store)
+        cloud["notification_idempotency"] = alert_claim
+        bark = _not_sent(
+            "NOT_SENT_ERROR_MARKER_NOT_CLAIMED",
+            configured=bool(alert_claim.get("configured")),
+        )
+        if alert_claim.get("status") in {"CLAIMED", "NOT_CONFIGURED"}:
+            title, body = _notification_text(payload)
+            bark = send_bark(
+                os.environ.get("BARK_ENDPOINT", ""),
+                title=title,
+                body=body,
+                url=cloud.get("github_run_url"),
+            )
+            if bark.get("status") == "FAILED":
+                cloud["bark_delivery_status"] = BARK_DELIVERY_FAILED
         cloud["notifications"] = {
-            "kind": claim.get(
-                "delivery_kind",
-                "FINAL_REPORT"
-                if cloud.get("final_delivery_eligibility") == FINAL_DELIVERY_ELIGIBLE
-                else "DEGRADED_ALERT",
-            ),
+            "routing": "ERROR_ALERT_ONLY",
+            "kind": "DEGRADED_ALERT",
             "bark": bark,
-            "email": email,
+            "email": _not_sent("NOT_SENT_ERROR_BARK_ONLY"),
         }
     except Exception as exc:
         cloud["notifications"] = {
+            "routing": "ERROR_ALERT_ONLY",
             "bark": {"status": "FAILED", "configured": bool(os.environ.get("BARK_ENDPOINT")), "error": _error_text(exc)},
-            "email": {"status": "NOT_RUN", "configured": False},
+            "email": _not_sent("NOT_RUN", configured=False),
         }
 
 
 def _write_and_notify(
-    payload: dict[str, Any], output_dir: str | Path, *, notify: bool
+    payload: dict[str, Any], output_dir: str | Path, *, notify: bool,
+    marker_store: Any | None = None,
 ) -> None:
     _, html_path = _write_artifacts(payload, output_dir)
-    if not notify:
+    if not notify or (payload.get("cloud_daily_report") or {}).get("status") == FINAL_SESSION_ALREADY_COMPLETED:
         return
     dashboard_html = html_path.read_text(encoding="utf-8")
-    _notify(payload, dashboard_html=dashboard_html)
+    _notify(payload, dashboard_html=dashboard_html, marker_store=marker_store)
     # Keep the final artifact byte-identical to the attachment even though the
     # JSON receives notification metadata after delivery.
     _write_artifacts(payload, output_dir, dashboard_html=dashboard_html)
+
+
+def _finality_noop_payload(
+    *, market: str, as_of_date: date, generated_at: datetime,
+    output_dir: str | Path, finality: Mapping[str, Any],
+    delivery_scope: str,
+) -> dict[str, Any]:
+    result = _empty_result(as_of_date, FINAL_SESSION_ALREADY_COMPLETED, [])
+    result["market"] = market
+    result["preflight"]["production readiness"] = FINAL_SESSION_ALREADY_COMPLETED
+    result["finality_preflight"] = dict(finality)
+    metadata = _cloud_metadata(
+        market=market,
+        as_of_date=as_of_date,
+        generated_at=generated_at,
+        status=FINAL_SESSION_ALREADY_COMPLETED,
+        session_identity=None,
+        ephemeral={
+            "protocol_version": EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION,
+            "market": market,
+            "as_of_date": as_of_date.isoformat(),
+            "input_fingerprint": None,
+            "provider_status": {},
+        },
+        data_quality={
+            "status": FINAL_SESSION_ALREADY_COMPLETED,
+            "run_status": FINAL_SESSION_ALREADY_COMPLETED,
+            "data_status": "NOT_RUN_FINAL_SESSION_ALREADY_COMPLETED",
+            "failed_symbols": [],
+            "ephemeral_errors": [],
+        },
+        result=result,
+        errors=[],
+        reliability_classification=FINAL_SESSION_ALREADY_COMPLETED,
+        delivery_scope=delivery_scope,
+    )
+    metadata.update({
+        "status": FINAL_SESSION_ALREADY_COMPLETED,
+        "RUN_STATUS": FINAL_SESSION_ALREADY_COMPLETED,
+        "run_status": FINAL_SESSION_ALREADY_COMPLETED,
+        "DATA_STATUS": "NOT_RUN_FINAL_SESSION_ALREADY_COMPLETED",
+        "data_status": "NOT_RUN_FINAL_SESSION_ALREADY_COMPLETED",
+        "delivery_readiness": FINAL_SESSION_ALREADY_COMPLETED,
+        "report_data_readiness": FINAL_SESSION_ALREADY_COMPLETED,
+        "final_report_eligible": False,
+        "delivery_readiness_reason": "FINAL_REPORT_ALREADY_COMPLETED",
+        "delivery_readiness_retryable": False,
+        "delivery_notification_mode": "NONE",
+        "final_delivery_eligibility": FINAL_DELIVERY_ALREADY_COMPLETED,
+        "final_delivery_eligible": False,
+        "report_email_eligible": False,
+        "opportunity_ledger_status": "NOT_RUN",
+        "OPPORTUNITY_LEDGER_STATUS": "NOT_RUN",
+        "opportunity_ledger_alert_required": False,
+        "finality_preflight": dict(finality),
+        "errors": [],
+        "notifications": {
+            "routing": "NO_NOTIFICATION",
+            "bark": _not_sent(FINAL_SESSION_ALREADY_COMPLETED),
+            "email": _not_sent(FINAL_SESSION_ALREADY_COMPLETED),
+        },
+    })
+    payload = {
+        **result,
+        "market": market,
+        "as_of_date": as_of_date.isoformat(),
+        "generated_at": generated_at.isoformat(),
+        "finality_preflight": dict(finality),
+        "opportunity_tracking": {
+            "status": FINAL_SESSION_ALREADY_COMPLETED,
+            "error": None,
+            "writes_performed": False,
+        },
+        "cloud_daily_report": metadata,
+    }
+    _write_artifacts(payload, output_dir)
+    return payload
+
+
+def _finality_preflight_failure_payload(
+    *, market: str, as_of_date: date, generated_at: datetime,
+    output_dir: str | Path, finality: Mapping[str, Any],
+    delivery_scope: str,
+) -> dict[str, Any]:
+    error = f"FINALITY_PREFLIGHT_{finality.get('status', 'UNAVAILABLE')}"
+    result = _empty_result(as_of_date, "FAILED", [error])
+    result["market"] = market
+    result["preflight"]["production readiness"] = "FAILED"
+    result["finality_preflight"] = dict(finality)
+    metadata = _cloud_metadata(
+        market=market,
+        as_of_date=as_of_date,
+        generated_at=generated_at,
+        status="FAILED",
+        session_identity=None,
+        ephemeral={"provider_status": {}, "input_fingerprint": None},
+        data_quality={"status": "FAILED", "run_status": "FAILED", "failed_symbols": [], "ephemeral_errors": [error]},
+        result=result,
+        errors=[error],
+        reliability_classification="FINALITY_PREFLIGHT_UNAVAILABLE",
+        delivery_scope=delivery_scope,
+    )
+    metadata.update({
+        "delivery_readiness": DELIVERY_FAILED,
+        "report_data_readiness": DELIVERY_FAILED,
+        "delivery_notification_mode": "NONE",
+        "report_email_eligible": False,
+        "finality_preflight": dict(finality),
+    })
+    payload = {
+        **result,
+        "market": market,
+        "as_of_date": as_of_date.isoformat(),
+        "generated_at": generated_at.isoformat(),
+        "finality_preflight": dict(finality),
+        "cloud_daily_report": metadata,
+    }
+    _write_artifacts(payload, output_dir)
+    return payload
 
 
 def run_cloud_daily_report(
@@ -1385,6 +1654,7 @@ def run_cloud_daily_report(
     automatic_resolution: bool = False,
     legacy_recovery_identity: str | None = None,
     delivery_scope: str = DELIVERY_SCOPE_NATURAL,
+    marker_store: Any | None = None,
 ) -> dict[str, Any]:
     """Run and persist exactly one market/T report."""
 
@@ -1397,6 +1667,42 @@ def run_cloud_daily_report(
     provider = calendar_provider or ExactExchangeCalendarProvider()
     scheduler_delay = False
     session_resolution: dict[str, Any] = {}
+
+    normalized_scope = str(delivery_scope or DELIVERY_SCOPE_NATURAL).strip().upper()
+    if (
+        automatic_resolution
+        and normalized_scope == DELIVERY_SCOPE_NATURAL
+        and not str(legacy_recovery_identity or "").strip()
+    ):
+        marker_context = {
+            "market": normalized_market,
+            "as_of_date": as_of_date.isoformat(),
+            "cloud_daily_report": {
+                "market": normalized_market,
+                "as_of_date": as_of_date.isoformat(),
+                "protocol_version": CLOUD_DAILY_REPORT_PROTOCOL_VERSION,
+                "delivery_scope": normalized_scope,
+            },
+        }
+        finality = final_report_session_status(marker_context, store=marker_store)
+        if finality.get("status") == FINAL_SESSION_ALREADY_COMPLETED:
+            return _finality_noop_payload(
+                market=normalized_market,
+                as_of_date=as_of_date,
+                generated_at=generated_at,
+                output_dir=output_dir,
+                finality=finality,
+                delivery_scope=normalized_scope,
+            )
+        if finality.get("status") in {"IDEMPOTENCY_UNAVAILABLE", "FINAL_MARKER_INVALID"}:
+            return _finality_preflight_failure_payload(
+                market=normalized_market,
+                as_of_date=as_of_date,
+                generated_at=generated_at,
+                output_dir=output_dir,
+                finality=finality,
+                delivery_scope=normalized_scope,
+            )
 
     try:
         is_session = provider.is_session(normalized_market, as_of_date)
@@ -1415,9 +1721,10 @@ def run_cloud_daily_report(
                 data_quality={"status": "FAILED", "failed_symbols": [], "ephemeral_errors": [error]},
                 result=result, errors=[error],
                 reliability_classification="SESSION_RESOLUTION_ERROR",
+                delivery_scope=normalized_scope,
             ),
         }
-        _write_and_notify(payload, output_dir, notify=notify)
+        _write_and_notify(payload, output_dir, notify=notify, marker_store=marker_store)
         return payload
 
     if not is_session:
@@ -1440,9 +1747,10 @@ def run_cloud_daily_report(
                 status="SKIPPED_NON_SESSION", session_identity=None,
                 ephemeral=ephemeral_meta, data_quality=quality, result=result, errors=[],
                 reliability_classification="SKIPPED_NON_SESSION",
+                delivery_scope=normalized_scope,
             ),
         }
-        _write_and_notify(payload, output_dir, notify=notify)
+        _write_and_notify(payload, output_dir, notify=notify, marker_store=marker_store)
         return payload
 
     try:
@@ -1477,9 +1785,10 @@ def run_cloud_daily_report(
                     result=result,
                     resolution_error=session_status == "FAILED",
                 ),
+                delivery_scope=normalized_scope,
             ),
         }
-        _write_and_notify(payload, output_dir, notify=notify)
+        _write_and_notify(payload, output_dir, notify=notify, marker_store=marker_store)
         return payload
 
     errors: list[str] = []
@@ -1555,7 +1864,7 @@ def run_cloud_daily_report(
             ),
             session_resolution=session_resolution,
             legacy_recovery_identity=legacy_recovery_identity,
-            delivery_scope=delivery_scope,
+            delivery_scope=normalized_scope,
         ),
     }
     # A manual rerun of the current natural session uses the same ledger.
@@ -1607,7 +1916,7 @@ def run_cloud_daily_report(
     if opportunity_write_attempted:
         payload["NO Sheets mutation"] = False
         payload["read behavior"] = "READ_ONLY_STRATEGY_WITH_OPPORTUNITY_LEDGER"
-    _write_and_notify(payload, output_dir, notify=notify)
+    _write_and_notify(payload, output_dir, notify=notify, marker_store=marker_store)
     return payload
 
 
@@ -1674,6 +1983,9 @@ def main(argv: list[str] | None = None) -> int:
                 result=result,
                 errors=[error],
                 reliability_classification="SESSION_RESOLUTION_ERROR",
+                delivery_scope=(
+                    DELIVERY_SCOPE_DIAGNOSTIC if args.trade_date is not None else DELIVERY_SCOPE_NATURAL
+                ),
             ),
         }
         _write_and_notify(payload, args.output, notify=not args.no_notify)
@@ -1691,7 +2003,9 @@ def main(argv: list[str] | None = None) -> int:
             output_dir=args.output,
             now=datetime.now(timezone.utc) if attempt else generated_at,
             calendar_provider=calendar_provider,
-            notify=not args.no_notify,
+            # Bounded readiness attempts are internal computation only.  The
+            # terminal payload is notified once after the loop below.
+            notify=False,
             automatic_resolution=args.trade_date is None,
             legacy_recovery_identity=args.legacy_recovery_identity,
             delivery_scope=(
@@ -1716,8 +2030,17 @@ def main(argv: list[str] | None = None) -> int:
         if delay:
             time.sleep(delay)
     assert payload is not None
+    if payload.get("cloud_daily_report", {}).get("status") != FINAL_SESSION_ALREADY_COMPLETED:
+        if not args.no_notify:
+            dashboard_path = args.output / "daily-report.html"
+            if dashboard_path.is_file():
+                dashboard_html = dashboard_path.read_text(encoding="utf-8")
+                _notify(payload, dashboard_html=dashboard_html)
+                _write_artifacts(payload, args.output, dashboard_html=dashboard_html)
     print(json.dumps(payload.get("cloud_daily_report", {}), ensure_ascii=False, indent=2, default=str))
     metadata = payload.get("cloud_daily_report", {})
+    if metadata.get("status") == FINAL_SESSION_ALREADY_COMPLETED:
+        return 0
     if metadata.get("OPPORTUNITY_LEDGER_STATUS") in {"FAILED", "MISSED_PROSPECTIVE_SESSION"} or payload.get("opportunity_tracking", {}).get("provider_global_failure"):
         return 1
     status = str(metadata.get("status") or "FAILED")

@@ -2530,8 +2530,8 @@ def _diagnostic_ledger_blocker(cloud: Mapping[str, Any]) -> dict[str, str] | Non
     return {
         "status": ledger_status or "FAILED",
         "title": "机会观察账本写入失败",
-        "message": "日报数据已完成，但机会观察账本写入失败；该阻断项与候选标的异常分开处理。",
-        "retry_message": "本次不改变正式日报数据资格，修复账本后可在同一交易日重新生成正式日报。",
+        "message": "日报已正常生成，可正常使用；机会观察账本写入失败，不影响本日报的行情和策略判断。",
+        "retry_message": "账本异常单独记录，后续修复须走独立账本处理路径，不重跑整份日报。",
         "raw_reason": reason,
     }
 
