@@ -4,11 +4,12 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`DAILY_REPORT_VPS_MARKER_ABSENCE_FIX_IMPLEMENTED_AWAITING_MERGE_DECISION`。
+`DAILY_REPORT_VPS_MARKER_ABSENCE_FIX_MERGED_WAITING_NATURAL_ACCEPTANCE`。
 PR #138 已合并，但其首次 CN/US natural acceptance 已失败；原“无 code blocker、等待
 natural acceptance”的现场描述与生产证据冲突。本轮已核对远端 main、PR #138 与 Actions，
-并在最新 main 上建立独立分支 `codex/fix-daily-report-vps-marker-absence` 做最小修复。
-修复 PR 保持 OPEN、未合并；main 的 production regression 在合并前仍存在。
+最小修复已按用户授权通过 PR #139 squash merge 进入 main，PR 为 MERGED/CLOSED，
+merge 后 main CI 已通过；本地 main 已同步。修复后的真实 CN/US natural acceptance 仍待
+下一次自然运行，本次 merge closeout 未触发日报、Email/Bark、历史补跑或 formal collector。
 PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜像。
 
 ## Production Evidence / Root Cause
@@ -39,8 +40,9 @@ PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜�
   scan 已列出的 immutable marker 随后 read missing 仍 fail closed，不把证据丢失当正常 absent。
   没有修改 legacy scan/read 的错误处理或 storage/helper。
 - focused tests、完整 unittest、compileall、workflow contracts、六个既有 generic operational
-  shadows 与 `git diff --check` 已通过。远端 CI 与相关 shadow readiness 看修复 PR 的实时
-  exact-head checks；synthetic 验证不等于修复后的 natural acceptance。
+  shadows 与 `git diff --check` 已通过；PR #139 合并前 exact-head checks 与 merge 后 main
+  CI 均已成功。docs-only closeout 仅执行既有轻量治理检查与 diff check，不因文档提交
+  重跑完整测试/shadow；synthetic 验证不等于修复后的 natural acceptance。
 - notification routing、Ledger failure 独立维度、bounded retry 静默和 session terminality 的
   长期设计不变；`docs/DECISION_LOG.md` 的 2026-10-09 决策无需改写。
 
@@ -69,8 +71,21 @@ PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜�
 
 ## Next Action
 
-唯一下一步决策：审阅并决定是否合并这个最小修复 PR。保持 OPEN，不自动 merge；获准
-合并后等待真实自然日报验证恢复，不手动发送 Email/Bark，不历史补跑冒充验收。
+等待下一次真实 CN/US natural Daily Report（既有 scheduled close → workflow_run 或自然
+fallback），只读核对新 run/log/artifact 与幂等结果；本次 closeout 完成后停止，不手动触发、
+发送 Email/Bark、历史补跑或用 replay/synthetic 结果代替自然验收。
+
+自然验收必须确认：
+
+- 首次 session 的 finality preflight 正常 absent / `NO_FINAL_REPORT_MARKER`，不再因缺 marker
+  返回 `IDEMPOTENCY_UNAVAILABLE`。
+- 实际进入 provider、Candidate、strategy 与 Opportunity Ledger，并按真实结果报告各自状态。
+- 合法 final marker 后的重复自然触发为 terminal `NOOP_FINAL_SESSION_ALREADY_COMPLETED`，
+  无下游重复工作。
+- 非 missing storage/read/corruption 继续 fail-closed，不以成功自然日报推断这些边界已被
+  自然触发验证；按实际故障证据与已通过的回归合同分别记录。
+- 跨真实 run 核对 Email/Bark/marker 没有重复发送/claim；未形成真实 delivery evidence 时
+  不宣称通知自然验收成功。
 
 ## Constraints / Pitfalls
 

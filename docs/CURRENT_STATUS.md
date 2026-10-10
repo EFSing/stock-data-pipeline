@@ -14,8 +14,8 @@
 > 已随 PR #135 squash merge 进入 main。READ_ONLY_VALIDATION_REPLAY 只证明代码路径的
 > 严格 T 日回放，不等于 natural production acceptance 或 D1 evidence。单源 provider、
 > D1 V2 activation 与 natural production / D1 evidence 边界不变。Daily Report notification
-> routing 与 market/session finality V1 已进入 main，但存在 production adapter exception
-> mismatch 回归；最小修复已在独立 PR 分支实现，尚未合并，生产自然恢复未验收。
+> routing 与 market/session finality V1 已进入 main；首次自然验收暴露的 production adapter
+> exception mismatch 已修复并合并到 main，生产自然恢复仍未验收。
 > 自然通知、Ledger 写入与 Yahoo exact-T forensic 仍待独立 natural acceptance）。
 
 ## 项目身份
@@ -497,12 +497,15 @@
   `D1_REMOTE_OBJECT_MISSING (helper exit 6)`。生产 VPS read 的 `VpsObjectMissing` 不属于旧
   preflight 捕获的 `FileNotFoundError/KeyError`；这是真实 production adapter exception
   mismatch，不是“无 code blocker、只等自然验收”。真实 run 链接与现场见 `HANDOFF.md`。
-- 最小修复已在独立 PR 分支实现、未合并：operational-marker 边界精确识别 VPS V2 absent，
+- 最小修复已合并到 main：operational-marker 边界精确识别 VPS V2 absent，
   legacy scan 为空后返回 `NO_FINAL_REPORT_MARKER`，允许首次 CN/US 自然路径继续。
   合法 V2 final marker 仍 terminal NOOP；非 missing SSH/storage identity/hash/read/scan
   错误与 corrupt marker 保持 fail-closed。legacy scan 空结果无同类异常合同 bug；已列出
   marker 的 read missing 仍是 evidence failure。真实 VPS legacy 枚举范围的既有限制单列
-  follow-up，未修改 storage。修复后的 natural acceptance 尚未发生。
+  follow-up，未修改 storage。修复后的 natural acceptance 尚未发生，等待真实 CN/US 自然
+  运行核对 absent preflight、下游 provider/Candidate/strategy/Ledger、final marker terminal
+  NOOP、非 missing error fail-closed 与 Email/Bark/marker 幂等；不能以 replay/synthetic
+  替代真实自然 delivery evidence。
 - Email failure 记录 `EMAIL_DELIVERY_FAILED`，可发送一次 Bark；Bark failure 记录
   `BARK_DELIVERY_FAILED`，不以 Email 替代。HITHINK future snapshot guard、cron、trading
   strategy、Candidate ranking、provider contracts、Paper、Portfolio Risk、broker 与 D1
