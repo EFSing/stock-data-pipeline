@@ -26,7 +26,7 @@ PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜�
   `FileNotFoundError/KeyError` 视为 absent；旧 `_MarkerStore` 的 KeyError fixture 未覆盖
   真实 adapter 合同。缺 marker 是首次日报的正常状态，不是 storage unavailable。
 
-## Current State / Validation
+## Current State / Completed / Validation
 
 - 仅在 operational-marker 读取边界增加 `VpsObjectMissing` 的精确类型识别；V2 absent
   继续查 legacy，无 legacy 时返回 `NO_FINAL_REPORT_MARKER`，允许首次自然日报继续。
@@ -44,7 +44,7 @@ PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜�
 - notification routing、Ledger failure 独立维度、bounded retry 静默和 session terminality 的
   长期设计不变；`docs/DECISION_LOG.md` 的 2026-10-09 决策无需改写。
 
-## Separate Follow-ups / Remaining Risks
+## Blocker / Separate Follow-ups / Remaining Risks
 
 - D1 独立 blocker 已只读核实：[run 38019348189](https://github.com/EFSing/stock-data-pipeline/actions/runs/38019348189)
   返回 `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE:{"CN":0,"US":1}`。本修复不放松保护，
@@ -74,7 +74,12 @@ PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜�
 
 ## Constraints / Pitfalls
 
-- 总体交易主线与四类 Setup 以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一事实源。
+- 总体交易主线与四类 Setup 以 `docs/TRADING_SYSTEM_SPEC.md` 为唯一事实源：
+  Weekly State → Daily State → Swing → Wave Scenario → Fibonacci → Setup →
+  Entry / Decision → Invalidation / Target → Risk / Position Management → Exit。
+  SETUP_01=Wave 2→Wave 3，SETUP_02=Wave 3 Continuation，SETUP_03=Platform Breakout，
+  SETUP_04=Extreme Fear Reversal；SETUP_03 只是四类 Setup 之一的子策略，其开发深度不
+  改变总体优先级，Wave Scenario Engine、SETUP_01、SETUP_02 仍是总体核心路线。
 - 不改变 Candidate ranking、provider contract、Wave/Setup/Entry/Target/Risk、Opportunity
   Ledger、Paper、broker 或 D1 formal evidence 语义；不访问真实持仓。
 - 保持 `data <= t`、T→T+1、Target-before-RR、CN/US 独立和 exact-T；不制造目标/RR。
