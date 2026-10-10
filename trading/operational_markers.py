@@ -6,6 +6,8 @@ import json
 import os
 from typing import Any, Mapping, Protocol
 
+from research.setup01_d1_vps_store import VpsObjectMissing
+
 
 FINAL_REPORT_NOTIFICATION_MARKER_VERSION = "DAILY_REPORT_FINAL_NOTIFICATION_IDEMPOTENCY_V2"
 DEGRADED_ALERT_MARKER_VERSION = "DAILY_REPORT_DEGRADED_ALERT_IDEMPOTENCY_V1"
@@ -194,7 +196,7 @@ def _read_v2_final_marker(
     )
     try:
         raw_payload, receipt = store.read_bytes(marker_name)
-    except (FileNotFoundError, KeyError):
+    except (FileNotFoundError, KeyError, VpsObjectMissing):
         return None, None
     except Exception as exc:  # noqa: BLE001 - idempotency evidence is fail-closed
         return None, {
