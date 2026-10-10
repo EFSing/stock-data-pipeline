@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from core import Quote
+from research.setup01_d1_vps_store import VpsD1Store
 from scripts.run_cloud_daily_report import (
     FINAL_SESSION_ALREADY_COMPLETED,
     build_prospective_observation,
@@ -34,6 +35,7 @@ from tests.test_production_prerequisites import (
     _latest,
     _rows,
 )
+from tests.test_setup01_d1_vps_store import LocalHelperRunner
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "daily_dashboard_v1.json"
@@ -215,7 +217,12 @@ class CloudDailyReportTests(unittest.TestCase):
                 self.assertEqual(identity.trade_date, expected)
 
     def test_natural_final_session_noops_before_candidate_and_provider_work(self):
-        store = _MarkerStore()
+        marker_directory = TemporaryDirectory()
+        self.addCleanup(marker_directory.cleanup)
+        store = VpsD1Store(
+            LocalHelperRunner(Path(marker_directory.name)),
+            storage_root=marker_directory.name,
+        )
         final_payload = {
             "market": "CN",
             "as_of_date": T_DAY.isoformat(),
@@ -264,6 +271,51 @@ class CloudDailyReportTests(unittest.TestCase):
         hithink.assert_not_called()
         bark.assert_not_called()
         email.assert_not_called()
+
+    def test_natural_vps_missing_marker_continues_but_read_failure_blocks_work(self):
+        for market, trade_date, now in (
+            ("CN", T_DAY, AFTER_CLOSE),
+            ("US", US_T_DAY, US_AFTER_CLOSE),
+        ):
+            for read_failure in (False, True):
+                with self.subTest(market=market, read_failure=read_failure), \
+                        TemporaryDirectory() as marker_directory, \
+                        TemporaryDirectory() as output_directory:
+                    local = LocalHelperRunner(Path(marker_directory))
+
+                    def runner(args, **kwargs):
+                        if read_failure and args[0] == "read":
+                            return 6, b"", b'{"reason":"D1_REMOTE_READ_FAILED"}'
+                        return local(args, **kwargs)
+
+                    store = VpsD1Store(runner, storage_root=marker_directory)
+                    snapshot = EphemeralMarketDataSnapshot(
+                        market=market, as_of_date=trade_date, fetched_at=now,
+                        required_symbols=(), active_paper_symbols=(),
+                        latest_rows=(), qfq_rows=(), symbol_status={}, provider_status={},
+                        errors=(), input_fingerprint="fixture", retry_count=1, history_days=1000,
+                    )
+                    with patch("scripts.run_cloud_daily_report.load_ephemeral_market_data", return_value=snapshot) as ephemeral, \
+                            patch("scripts.run_cloud_daily_report.run_production_daily_decision", return_value={}) as strategy, \
+                            patch("scripts.run_cloud_daily_report.persist_daily_opportunities") as ledger, \
+                            patch("scripts.run_cloud_daily_report.send_bark") as bark, \
+                            patch("scripts.run_cloud_daily_report.send_optional_email") as email:
+                        payload = run_cloud_daily_report(
+                            market=market, as_of_date=trade_date, now=now,
+                            output_dir=output_directory, client=object(),
+                            automatic_resolution=True, marker_store=store, notify=False,
+                        )
+                    if read_failure:
+                        self.assertEqual(payload["finality_preflight"]["status"], "IDEMPOTENCY_UNAVAILABLE")
+                        ephemeral.assert_not_called()
+                        strategy.assert_not_called()
+                        ledger.assert_not_called()
+                    else:
+                        ephemeral.assert_called_once()
+                        strategy.assert_called_once()
+                        self.assertNotIn("finality_preflight", payload)
+                    bark.assert_not_called()
+                    email.assert_not_called()
 
     def test_explicit_trade_date_bypasses_automatic_calendar_resolution(self):
         class ExplodingAutoDateProvider(ExactExchangeCalendarProvider):

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+from research.setup01_d1_vps_store import VpsD1Store, VpsObjectMissing
 from scripts.run_cloud_daily_report import _notify
+from tests.test_setup01_d1_vps_store import LocalHelperRunner
 from trading.operational_markers import (
     FINAL_SESSION_ALREADY_COMPLETED,
     claim_email_delivery_failure_alert,
@@ -86,6 +90,79 @@ def _us_payload(*, recovery_identity=None):
 
 
 class OperationalMarkerTests(unittest.TestCase):
+    def test_real_vps_missing_v2_and_legacy_markers_allow_first_session(self):
+        with TemporaryDirectory() as directory:
+            store = VpsD1Store(LocalHelperRunner(Path(directory)), storage_root=directory)
+            for payload in (_payload(), _us_payload()):
+                with self.subTest(market=payload["market"]):
+                    # Use the actual helper -> VpsD1Store exception contract.
+                    name = (
+                        "system/operational/daily-report-notifications/final-v2/"
+                        f"{payload['market']}/{payload['as_of_date']}/"
+                        "DAILY_REPORT_FINAL_NOTIFICATION_IDEMPOTENCY_V2.json"
+                    )
+                    with self.assertRaises(VpsObjectMissing):
+                        store.read_bytes(name)
+                    legacy_prefix = (
+                        "system/operational/daily-report-notifications/"
+                        f"{payload['market']}/{payload['as_of_date']}/"
+                    )
+                    self.assertEqual(store.scan(legacy_prefix), [])
+                    self.assertEqual(
+                        final_report_session_status(payload, store=store)["status"],
+                        "NO_FINAL_REPORT_MARKER",
+                    )
+
+    def test_real_vps_valid_final_marker_is_terminal(self):
+        with TemporaryDirectory() as directory:
+            store = VpsD1Store(LocalHelperRunner(Path(directory)), storage_root=directory)
+            payload = _us_payload()
+            claimed = claim_final_report_notification(payload, store=store)
+            self.assertEqual(claimed["status"], "CLAIMED")
+            self.assertEqual(
+                final_report_session_status(payload, store=store)["status"],
+                FINAL_SESSION_ALREADY_COMPLETED,
+            )
+
+    def test_real_vps_transport_identity_hash_and_read_errors_fail_closed(self):
+        with TemporaryDirectory() as directory:
+            local = LocalHelperRunner(Path(directory))
+            for reason in (
+                "D1_VPS_HELPER_FAILED", "D1_STORAGE_IDENTITY_MISMATCH",
+                "D1_HASH_MISMATCH", "D1_REMOTE_READ_FAILED",
+            ):
+                for command in ("identity", "read", "scan"):
+                    with self.subTest(reason=reason, command=command):
+                        def runner(args, **kwargs):
+                            if args[0] == command:
+                                return 6, b"", json.dumps({"reason": reason}).encode()
+                            return local(args, **kwargs)
+
+                        store = VpsD1Store(runner, storage_root=directory)
+                        result = final_report_session_status(_us_payload(), store=store)
+                        self.assertEqual(result["status"], "IDEMPOTENCY_UNAVAILABLE")
+                        self.assertIn(reason, result["error"])
+
+    def test_real_vps_invalid_final_payload_still_fails_closed(self):
+        with TemporaryDirectory() as directory:
+            store = VpsD1Store(LocalHelperRunner(Path(directory)), storage_root=directory)
+            payload = _us_payload()
+            claimed = claim_final_report_notification(payload, store=store)
+            path = Path(directory) / claimed["marker_name"]
+            path.write_bytes(b"invalid JSON")
+            self.assertEqual(
+                final_report_session_status(payload, store=store)["status"],
+                "FINAL_MARKER_INVALID",
+            )
+
+    def test_scanned_legacy_marker_missing_on_read_remains_fail_closed(self):
+        store = _MarkerStore()
+        store.add_legacy()
+        store.read_bytes = Mock(side_effect=VpsObjectMissing(6, "D1_REMOTE_OBJECT_MISSING"))
+        result = final_report_session_status(_us_payload(), store=store)
+        self.assertEqual(result["status"], "IDEMPOTENCY_UNAVAILABLE")
+        self.assertIn("legacy_marker_prefix", result)
+
     def test_report_identity_is_create_only_and_outside_d1_session_namespace(self):
         store = _MarkerStore()
         first = claim_report_notification(_payload(), store=store)
