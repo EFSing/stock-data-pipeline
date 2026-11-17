@@ -7,6 +7,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+from openpyxl import Workbook
+
 from core import Quote
 from trading.candidate_universe import (
     AffordabilityTier,
@@ -21,6 +23,7 @@ from trading.candidate_universe_sources import (
     CandidateSeedDataError,
     HithinkCandidateSeedAdapter,
     IwbOfficialHoldingsAdapter,
+    load_cni_industry_snapshot,
     parse_iwb_holdings_csv,
 )
 
@@ -410,6 +413,34 @@ class IwbContractTests(unittest.TestCase):
         self.assertEqual(by_symbol["VYLR-WI"].exclusion_reason, "LIFECYCLE_WHEN_ISSUED")
         self.assertIn("lifecycle_status:WHEN_ISSUED", by_symbol["VYLR-WI"].provenance)
         self.assertEqual(by_symbol["VYLR-WI"].symbol, "VYLR-WI")
+
+
+class CniIndustryContractTests(unittest.TestCase):
+    def test_report_uses_latest_eligible_workbook_and_preserves_cn_codes(self):
+        releases = """
+          <div @click="dataInfoRequestUrl('./202608/P20260801.xlsx')">
+            <i class="icon"></i><span>国证行业上市公司分类结果（2026-9）</span></div>
+          <div @click="dataInfoRequestUrl('./202605/P20260529.xlsx')">
+            <i class="icon"></i><span>国证行业上市公司分类结果（2026-6）</span></div>
+        """
+        workbook = Workbook()
+        workbook.active.append(["证券代码", "一级行业名称", "三级行业名称"])
+        workbook.active.append(["000001", "金融", "银行"])
+        workbook.active.append(["600001", "医药卫生", "制药"])
+        workbook.active.append(["600002", "工业", None])
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        with patch("trading.candidate_universe_sources.urlopen", side_effect=[
+            io.BytesIO(releases.encode()), io.BytesIO(buffer.getvalue()),
+        ]) as fetch:
+            self.assertEqual(load_cni_industry_snapshot(AS_OF), {
+                "000001": ("银行", "金融"), "600001": ("制药", "医药卫生"),
+            })
+        self.assertTrue(fetch.call_args.args[0].endswith("/202605/P20260529.xlsx"))
+
+    def test_report_industry_timeout_is_optional(self):
+        with patch("trading.candidate_universe_sources.urlopen", side_effect=TimeoutError):
+            self.assertEqual(load_cni_industry_snapshot(AS_OF), {})
 
 
 class BaoStockContractTests(unittest.TestCase):

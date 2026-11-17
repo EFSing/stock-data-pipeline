@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 import html
 from typing import Any
 
-from trading.daily_dashboard import build_dashboard_projection
+from trading.daily_dashboard import build_dashboard_projection, render_wave3_sector_summary
 
 
 EMAIL_MAX_HIGHLIGHTS = 20
@@ -778,6 +778,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
     """Render a static, single-column HTML email from an existing report payload."""
 
     projection = build_dashboard_projection(payload)
+    wave3_sector_summary = render_wave3_sector_summary(projection["wave3_sector_summary"], compact=True)
     all_rows = _all_rows_for_mail(projection)
     focus_rows = _rows_for_mail(projection)
     displayed_rows = focus_rows[:EMAIL_MAX_HIGHLIGHTS]
@@ -869,6 +870,7 @@ def render_daily_report_email_html(payload: Mapping[str, Any]) -> str:
          "</td></tr>"
          + _alert_html(projection, summary["data_issues"])
          + _diagnostics_html(projection)
+         + (f'<tr><td style="padding:12px 0;">{wave3_sector_summary}</td></tr>' if wave3_sector_summary else "")
          + "".join(groups)
         + _run_link_html(projection)
         + '<tr><td style="padding:18px 0 0 0;color:#8a94a6;font-size:12px;text-align:center;">'

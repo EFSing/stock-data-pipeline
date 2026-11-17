@@ -8,7 +8,7 @@ also be inspected independently of the HTML renderer.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date
 import html
 from html.parser import HTMLParser
@@ -19,6 +19,7 @@ import re
 from typing import Any
 
 from trading.daily_decision_chain import project_setup01_wave3_extensions
+from trading.production_candidate_runtime import canonical_key
 from trading.risk import relative_distance_pct
 from trading.trade_logic_explanation import strategy_rules_for_dashboard
 
@@ -2737,6 +2738,190 @@ def _freshness_funnel(
     return {**totals, "confirmation_funnel_conserved": conserved}
 
 
+_US_SECTOR_LABELS = {
+    "information technology": "信息技术",
+    "technology": "信息技术",
+    "consumer staples": "必选消费",
+    "health care": "医疗保健",
+    "utilities": "公用事业",
+    "consumer discretionary": "可选消费",
+    "industrials": "工业",
+    "energy": "能源",
+    "materials": "原材料",
+    "financials": "金融",
+    "real estate": "房地产",
+    "communication": "通信与媒体",
+    "communication services": "通信与媒体",
+}
+_WAVE3_INDUSTRY_TYPES = {
+    "科技": ("信息技术", "软件服务", "软件和信息技术服务业", "互联网和相关服务", "半导体",
+             "计算机、通信和其他电子设备制造业", "电信、广播电视和卫星传输服务"),
+    "防御": ("必选消费", "主要消费", "医疗保健", "医药卫生", "公用事业", "医药制造业", "卫生", "食品制造业",
+             "农副食品加工业", "酒、饮料和精制茶制造业", "电力、热力生产和供应业",
+             "燃气生产和供应业", "水的生产和供应业"),
+    "周期": ("可选消费", "工业", "能源", "原材料", "工业制造", "专用设备", "专用设备制造业",
+             "通用设备制造业", "汽车制造业", "电气机械和器材制造业", "煤炭开采和洗选业",
+             "石油和天然气开采业", "化学原料和化学制品制造业", "非金属矿物制品业",
+             "黑色金属冶炼和压延加工业", "有色金属冶炼和压延加工业", "有色金属矿采选业"),
+    "金融地产": ("金融", "房地产", "房地产开发", "房地产业", "货币金融服务", "资本市场服务",
+                 "保险业", "其他金融业"),
+    "通信与媒体": ("通信与媒体", "电信业务", "广播、电视、电影和录音制作业"),
+}
+_WAVE3_TYPE_BY_INDUSTRY = {
+    industry: style
+    for style, industries in _WAVE3_INDUSTRY_TYPES.items()
+    for industry in industries
+}
+_UNKNOWN_INDUSTRY = "行业未知"
+
+
+def _wave3_industry(value: Any) -> str:
+    industry = _text(value)
+    label = re.sub(r"^[A-Z]\d{2}\s*(?=[\u4e00-\u9fff])", "", industry)
+    if label.casefold() in {"", "—", "-", "n/a", "unknown", "none", "未知", "未分类", _UNKNOWN_INDUSTRY}:
+        return ""
+    return _US_SECTOR_LABELS.get(label.casefold(), label)
+
+
+def _has_wave3_confirmation(result: Mapping[str, Any]) -> bool:
+    # The per-setup identities are exact-session events even if this run has
+    # already seen the event. Older artifacts may only have the new event list.
+    if result.get("setup01_event_identity") or result.get("setup02_event_identity"):
+        return True
+    identities = _sequence(result.get("new_confirmed_event_identities")) + (
+        result.get("new_confirmed_event_identity"),
+    )
+    supplied = tuple(_text(identity) for identity in identities if _text(identity))
+    if supplied:
+        return any({"SETUP_01", "SETUP_02"}.intersection(identity.split("|")) for identity in supplied)
+    return _event_is_new(result) and "CONFIRMED" in _setup_states(result)
+
+
+def build_wave3_sector_summary(
+    value: Any, *, cn_industry_loader: Callable[[date], Mapping[str, tuple[str, str]]] | None = None,
+) -> list[dict[str, Any]]:
+    """Count exact-session confirmations and ARMED stocks by distinct market identity."""
+    payload = _as_payload(value)
+    cloud = _mapping(payload.get("cloud_daily_report"))
+    target_market = _normalised_market(cloud.get("market") or payload.get("market"))
+    target_date = _text(payload.get("as_of_date") or _mapping(payload.get("preflight")).get("T"))
+    candidate_markets = _mapping(payload.get("candidate_markets"))
+    evaluated: set[tuple[str, str]] = set()
+    stages: dict[tuple[str, str], str] = {}
+    industries: dict[tuple[str, str], tuple[str, str]] = {}
+    for entry in _report_entries(payload):
+        report = entry["report"]
+        report_date = target_date or _text(report.get("as_of_date"))
+        market = entry["market"] or target_market
+        candidate = _mapping(candidate_markets.get(market)) or entry["candidate"]
+        candidate_industries = {
+            canonical_key(market, _normalised_symbol(row.get("symbol"))): row.get("sector")
+            for value in _sequence(candidate.get("candidate_records"))
+            if (row := _mapping(value))
+        }
+        for value in _sequence(report.get("results")):
+            result = _mapping(value)
+            result_market = _normalised_market(result.get("market")) or market
+            symbol = _normalised_symbol(result.get("symbol"))
+            if not symbol or result_market not in {"CN", "US"} or (target_market and result_market != target_market):
+                continue
+            if report_date and _text(result.get("as_of_date"), report_date) != report_date:
+                continue
+            if result.get("data_status") != "DATA_OK" or _is_data_blocked(result, {}) or _is_overall_failure(result):
+                continue
+            labels = _provenance_labels(result, entry["universe"], symbol)
+            if not {"FORMAL_STRATEGY_POOL", "DYNAMIC_CANDIDATE"}.intersection(labels) and (
+                {"ACTIVE_STRATEGY_POSITION", "PAPER_TRACKED"}.intersection(labels)
+                or result.get("position_management")
+            ):
+                continue
+            key = canonical_key(result_market, symbol)
+            evaluated.add(key)
+            if _has_wave3_confirmation(result):
+                stages[key] = "confirmed"
+            elif "ARMED" in _setup_states(result):
+                stages.setdefault(key, "armed")
+            _, sector = _metadata(result, entry["universe"], symbol)
+            industry = _wave3_industry(sector) or _wave3_industry(candidate_industries.get(key))
+            if industry:
+                industries.setdefault(key, (industry, _WAVE3_TYPE_BY_INDUSTRY.get(industry, "其他")))
+
+    if cn_industry_loader and target_market == "CN" and target_date and any(
+        key not in industries for key in stages
+    ):
+        snapshot = cn_industry_loader(date.fromisoformat(target_date))
+        for key in stages.keys() - industries.keys():
+            classification = snapshot.get(key[1].split(".")[0])
+            if classification:
+                industry, sector = classification
+                industries[key] = (industry, _WAVE3_TYPE_BY_INDUSTRY.get(sector, "其他"))
+
+    summaries = []
+    for market in sorted({key[0] for key in evaluated} | ({target_market} if target_market else set())):
+        groups = {}
+        totals = {"confirmed": 0, "armed": 0}
+        types = {}
+        for key, stage in sorted(stages.items()):
+            if key[0] != market:
+                continue
+            industry, style = industries.get(key, (_UNKNOWN_INDUSTRY, "未知"))
+            group = groups.setdefault(
+                (industry, style), {"industry": industry, "type": style, "confirmed": [], "armed": []},
+            )
+            group[stage].append(key[1])
+            totals[stage] += 1
+            types.setdefault(style, {"type": style, "confirmed": 0, "armed": 0})[stage] += 1
+        summaries.append({
+            "market": market,
+            "evaluated_count": sum(key[0] == market for key in evaluated),
+            **totals,
+            "types": sorted(types.values(), key=lambda item: (
+                item["type"] == "未知", -(item["confirmed"] + item["armed"]), item["type"],
+            )),
+            "industries": sorted(groups.values(), key=lambda item: (
+                item["industry"] == _UNKNOWN_INDUSTRY,
+                -(len(item["confirmed"]) + len(item["armed"])), item["industry"], item["type"],
+            )),
+        })
+    return summaries
+
+
+def render_wave3_sector_summary(summary: Sequence[Mapping[str, Any]], *, compact: bool = False) -> str:
+    if not summary:
+        return ""
+
+    sections = ['<h2 style="margin:0 0 5px;font-size:16px;">三浪板块分布</h2>']
+    sections.append('<p style="margin:0 0 8px;color:#536176;">'
+                    '按当日已评估的正式池和候选股去重。已确认含进入三浪与三浪延续的当日结构确认。'
+                    '等待确认表示结构已达到预备阶段，仍待突破。'
+                    '</p>')
+    for market in summary:
+        if len(summary) > 1:
+            sections.append(f'<h3>{_escape(MARKET_LABELS.get(market["market"], market["market"]))}</h3>')
+        if not market["evaluated_count"]:
+            sections.append('<p>本次日报暂无可评估股票。</p>')
+            continue
+        sections.append(f'<p>结构已确认 {market["confirmed"]} 只 · 等待确认 {market["armed"]} 只</p>')
+        if not market["industries"]:
+            continue
+        sections.append('<strong>类型</strong><ul style="padding-left:20px;">')
+        for item in market["types"]:
+            sections.append(f'<li>{_escape(item["type"])} · 已确认 {item["confirmed"]} · 等待确认 {item["armed"]}</li>')
+        sections.append('</ul><strong>行业／板块</strong><ul style="padding-left:20px;">')
+        for item in market["industries"]:
+            name = _escape(item["industry"])
+            if item["industry"] != _UNKNOWN_INDUSTRY:
+                name += f'（{_escape(item["type"])}）'
+            counts = []
+            for stage, label in (("confirmed", "已确认"), ("armed", "等待确认")):
+                symbols = item[stage]
+                detail = f'（{_escape("、".join(symbols))}）' if symbols and not compact else ""
+                counts.append(f'{label} {len(symbols)}{detail}')
+            sections.append(f'<li>{name} · {" · ".join(counts)}</li>')
+        sections.append('</ul>')
+    return "".join(sections)
+
+
 def build_dashboard_projection(value: Any) -> dict[str, Any]:
     """Build a deterministic, presentation-only dashboard projection."""
 
@@ -2850,6 +3035,10 @@ def build_dashboard_projection(value: Any) -> dict[str, Any]:
         "cloud_daily_report": dict(cloud_daily),
         "prospective_observation": dict(_mapping(payload.get("prospective_observation"))),
         "opportunity_tracking": dict(_mapping(payload.get("opportunity_tracking"))),
+        "wave3_sector_summary": (
+            _sequence(payload["wave3_sector_summary"])
+            if "wave3_sector_summary" in payload else build_wave3_sector_summary(payload)
+        ),
     }
 
 
@@ -4788,6 +4977,7 @@ def render_dashboard_html(value: Any) -> str:
     """Render a standalone UTF-8 HTML dashboard from an existing result."""
 
     projection = build_dashboard_projection(value)
+    wave3_sector_summary = render_wave3_sector_summary(projection["wave3_sector_summary"])
     summary = projection["summary"]
     paper = _mapping(projection.get("paper"))
     sector_options = "".join(
@@ -4912,6 +5102,7 @@ def render_dashboard_html(value: Any) -> str:
 </section>
 <section class="market-grid" aria-label="市场数据状态">{_render_market_cards(projection['markets'])}</section>
  {_render_diagnostics(projection)}
+ {f'<section class="diagnostic-panel" aria-label="三浪板块分布">{wave3_sector_summary}</section>' if wave3_sector_summary else ''}
  {_render_opportunity_tracking(projection)}
  {_render_prospective_observation(projection)}
 <nav class="workspace-nav" aria-label="工作台导航">{workspace_nav}</nav>

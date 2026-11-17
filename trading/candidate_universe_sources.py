@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from datetime import date, datetime
+from http.client import HTTPException
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 from zoneinfo import ZoneInfo
 
 from market_data_contract import ProviderGlobalFailure
@@ -111,6 +115,43 @@ def _canonical_cn(code: str) -> tuple[str, str] | None:
     if len(prefix) == 6 and prefix.isdigit() and digits in {"sh", "sz"}:
         return f"{prefix}.{digits.upper()}", digits.upper()
     return None
+
+
+_CNI_INDUSTRY_RELEASES_URL = "https://www.cnindex.com.cn/zh_information/data_resource/fljg/"
+_CNI_INDUSTRY_RELEASE = re.compile(
+    r"dataInfoRequestUrl\('\./(?P<path>\d{6}/P\d+\.xlsx)'\)\">\s*"
+    r"<i[^>]*></i>\s*<span>国证行业上市公司分类结果（(?P<year>\d{4})-(?P<month>\d{1,2})）</span>"
+)
+
+
+def load_cni_industry_snapshot(as_of: date) -> dict[str, tuple[str, str]]:
+    """Load official CN third-level industry and first-level sector for the report."""
+    import pandas as pd
+
+    try:
+        with urlopen(_CNI_INDUSTRY_RELEASES_URL, timeout=8) as response:
+            page = response.read().decode("utf-8")
+        published = []
+        for release in _CNI_INDUSTRY_RELEASE.finditer(page):
+            year, month = int(release["year"]), int(release["month"])
+            # The archive gives an effective month but no day. The prior
+            # workbook remains eligible throughout the transition month.
+            if 1 <= month <= 12 and (year, month) < (as_of.year, as_of.month):
+                published.append((year, month, release["path"]))
+        if not published:
+            return {}
+        with urlopen(urljoin(_CNI_INDUSTRY_RELEASES_URL, max(published)[2]), timeout=8) as response:
+            workbook = io.BytesIO(response.read())
+        columns = ["证券代码", "一级行业名称", "三级行业名称"]
+        rows = pd.read_excel(workbook, dtype=str, usecols=columns, engine="openpyxl").fillna("")
+    except (OSError, HTTPException, ValueError, KeyError, BadZipFile, ParseError, ImportError):
+        return {}
+
+    return {
+        code.strip(): (industry.strip(), sector.strip())
+        for code, sector, industry in rows[columns].itertuples(index=False, name=None)
+        if re.fullmatch(r"[036]\d{5}", code.strip()) and industry.strip()
+    }
 
 
 class BaoStockCandidateSeedAdapter:

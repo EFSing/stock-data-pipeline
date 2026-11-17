@@ -4,6 +4,15 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
+`DAILY_REPORT_WAVE3_SECTOR_SUMMARY`。独立日报展示分支已接入 A 股／美股日报、邮件正文和
+JSON。统计当日三浪结构确认与等待确认，按市场和股票代码去重。A 股补充国证行业快照，
+美股复用当期 IWB 行业。缺分类保留为行业未知。公开行业源与本地回归已验证。
+
+下一步是审阅独立 PR；合并后的自然日报用于确认生产分类覆盖和展示效果。此项不需要
+历史补跑、真实持仓、研究样本或手工发送通知。
+
+## 独立的日报运维验收
+
 `DAILY_REPORT_VPS_MARKER_ABSENCE_FIX_MERGED_WAITING_NATURAL_ACCEPTANCE`。
 PR #138 已合并，但其首次 CN/US natural acceptance 已失败；原“无 code blocker、等待
 natural acceptance”的现场描述与生产证据冲突。本轮已核对远端 main、PR #138 与 Actions，
