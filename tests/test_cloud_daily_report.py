@@ -121,6 +121,67 @@ class _MarkerStore:
 
 
 class CloudDailyReportTests(unittest.TestCase):
+    def test_cn_wave3_sector_summary_is_shared_by_json_dashboard_and_email(self):
+        fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        cn_report = fixture["reports"][0]
+        watch, armed, _ = cn_report["报告"]["results"]
+        confirmed = dict(watch, setup01_state="CONFIRMED", setup01_event_identity="confirmed-on-T")
+        stale = dict(confirmed, symbol="600005.SH", as_of_date="2026-09-02")
+        duplicate = dict(armed, symbol="600001")
+        incomplete = dict(armed, symbol="600006.SH", data_status="DATA_BLOCKED")
+        unknown = dict(armed, symbol="600007.SH")
+        old = dict(confirmed, symbol="600008.SH", setup01_event_identity=None)
+        position_only = dict(confirmed, symbol="600009.SH", provenance={"source": "ACTIVE_STRATEGY_POSITION"})
+        cn_report["报告"]["results"] = [duplicate, armed, confirmed, stale, incomplete, unknown, old, position_only]
+        cn_report["universe"]["candidate_metadata"] = {}
+        snapshot = EphemeralMarketDataSnapshot(
+            market="CN", as_of_date=T_DAY, fetched_at=AFTER_CLOSE,
+            required_symbols=(), active_paper_symbols=(), latest_rows=(), qfq_rows=(),
+            symbol_status={}, provider_status={}, errors=(),
+            input_fingerprint="fixture", retry_count=0, history_days=1000,
+        )
+        with TemporaryDirectory() as directory, \
+             patch("scripts.run_cloud_daily_report.load_ephemeral_market_data", return_value=snapshot), \
+             patch("scripts.run_cloud_daily_report.run_production_daily_decision", return_value=fixture), \
+             patch("scripts.run_cloud_daily_report.load_cni_industry_snapshot", return_value={
+                 "600001": ("半导体", "信息技术"),
+                 "600002": ("制药", "医药卫生"),
+             }) as industry_loader:
+            payload = run_cloud_daily_report(
+                market="CN", as_of_date=T_DAY, output_dir=directory,
+                now=AFTER_CLOSE, client=object(), notify=False,
+            )
+            saved = json.loads(Path(directory, "daily-report.json").read_text(encoding="utf-8"))
+            dashboard = Path(directory, "daily-report.html").read_text(encoding="utf-8")
+
+        industry_loader.assert_called_once_with(T_DAY)
+        self.assertEqual(saved["wave3_sector_summary"], payload["wave3_sector_summary"])
+        summary, = saved["wave3_sector_summary"]
+        self.assertEqual(summary["market"], "CN")
+        self.assertEqual((summary["evaluated_count"], summary["confirmed"], summary["armed"]), (4, 1, 2))
+        industries = {row["type"]: (row["confirmed"], row["armed"]) for row in summary["industries"]}
+        self.assertEqual(industries, {
+            "科技": (["600001.SH"], []), "防御": ([], ["600002.SH"]), "未知": ([], ["600007.SH"]),
+        })
+        self.assertIn("已确认 1（600001.SH）", dashboard)
+        mail = render_daily_report_email_html(saved)
+        for report in (dashboard, mail):
+            self.assertIn("三浪板块分布", report)
+            self.assertIn("科技 · 已确认 1 · 等待确认 0", report)
+            self.assertIn("行业未知", report)
+
+    def test_us_wave3_sector_summary_uses_existing_full_seed_audit(self):
+        payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        payload["cloud_daily_report"] = {"market": "US"}
+        payload["reports"][1]["universe"]["candidate_metadata"].pop("AAA")
+        payload["candidate_markets"]["US"]["candidate_records"] = [
+            {"symbol": "AAA", "sector": "Information Technology", "included": False},
+        ]
+        summary, = build_dashboard_projection(payload)["wave3_sector_summary"]
+        industry = next(row for row in summary["industries"] if row["industry"] == "信息技术")
+        self.assertEqual(industry["type"], "科技")
+        self.assertEqual(industry["confirmed"], ["AAA"])
+
     def test_prospective_union_identity_and_first_event_are_distinct_from_daily_state(self):
         t = date(2026, 9, 23)
         identity = "AAA|SETUP_01|2026-09-23|CONFIRMED|lifecycle=1"

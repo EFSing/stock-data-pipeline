@@ -27,7 +27,12 @@ except ModuleNotFoundError as exc:
         raise
     from run_production_daily_decision import run_production_daily_decision
 from sheets_client import SheetsClient
-from trading.daily_dashboard import build_dashboard_projection, render_dashboard_html
+from trading.candidate_universe_sources import load_cni_industry_snapshot
+from trading.daily_dashboard import (
+    build_dashboard_projection,
+    build_wave3_sector_summary,
+    render_dashboard_html,
+)
 from trading.daily_report_email import render_daily_report_email_html
 from trading.ephemeral_market_data import (
     EPHEMERAL_MARKET_DATA_PROTOCOL_VERSION,
@@ -1916,6 +1921,9 @@ def run_cloud_daily_report(
     if opportunity_write_attempted:
         payload["NO Sheets mutation"] = False
         payload["read behavior"] = "READ_ONLY_STRATEGY_WITH_OPPORTUNITY_LEDGER"
+    payload["wave3_sector_summary"] = build_wave3_sector_summary(
+        payload, cn_industry_loader=load_cni_industry_snapshot,
+    )
     _write_and_notify(payload, output_dir, notify=notify, marker_store=marker_store)
     return payload
 
