@@ -4,12 +4,15 @@ Git/GitHub 是 branch、HEAD、PR、CI 的实时事实源；本文件只记录�
 
 ## Current Task
 
-`VPS_GITHUB_APP_SCHEDULER_CUTOVER_PENDING`。本次变更将六个市场收盘 workflow 的原生
-Cron、Cloudflare Cron 和 VPS PAT watchdog 迁移为现有 Ubuntu VPS 的六个 systemd
-user timers。GitHub Actions 继续执行收盘行情、日报和 D1。手动入口和 D1 前瞻边界沿用现有合同。
-专用 App 已安装到本仓库，后续在 VPS 预检并以 CI dispatch 验证 App bot 身份。
-上线顺序见 [VPS 调度运维](infra/vps/market-close-watchdog/README.md)。切换后只读验收下一次
-自然 CN/US 链路与各补跑的幂等结果。操作现场以 GitHub、VPS 和 Cloudflare 控制面为准。
+`VPS_GITHUB_APP_SCHEDULER_LIVE_AWAITING_NATURAL_ACCEPTANCE`。迁移 PR 已合并到 main。
+现有 Ubuntu VPS 的六个 systemd user timers 已启用，专用 App 私钥由 VPS 非 root 调度账户
+以 `0600` 保管。每个定时进程按次签发短期 installation token，再触发 GitHub Actions。
+GitHub 原生 Cron 已从 main 移除，Cloudflare 已清空该 Worker 的 Cron，VPS 的两条
+旧 PAT timer 已停用。App 的只读预检和由 App bot 发起的 CI 均已通过。
+
+下一步只读核对首次自然 CN/US 收盘更新、日报接跑和 D1 补跑。时刻表、部署及验收见
+[VPS 调度运维](infra/vps/market-close-watchdog/README.md)。首次自然链路尚待验收。
+运行期不依赖本地 Windows 电脑、PAT 或 Cloudflare Cron。
 
 ## 日报后续验收
 
@@ -69,15 +72,6 @@ PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜�
 - D1 独立 blocker 已只读核实：[run 38019348189](https://github.com/EFSing/stock-data-pipeline/actions/runs/38019348189)
   返回 `D1_SOURCE_MIGRATION_AFTER_FORMAL_EVIDENCE:{"CN":0,"US":1}`。本修复不放松保护，
   不创建 activation、不迁移/回填 evidence、不运行 formal collector。
-- scheduler 独立问题：Asia nominal 北京时间 17:30，最近三次
-  [10-09](https://github.com/EFSing/stock-data-pipeline/actions/runs/37959269205)、
-  [10-08](https://github.com/EFSing/stock-data-pipeline/actions/runs/37811655542)、
-  [10-07](https://github.com/EFSing/stock-data-pipeline/actions/runs/37654963376) created/start
-  延迟约 418/438/439 分钟；US nominal 北京时间 08:30，最近三次
-  [10-10](https://github.com/EFSing/stock-data-pipeline/actions/runs/38030097686)、
-  [10-09](https://github.com/EFSing/stock-data-pipeline/actions/runs/37893695255)、
-  [10-08](https://github.com/EFSing/stock-data-pipeline/actions/runs/37737676192) 延迟约
-  342/358/357 分钟。只读记录，cron 与 trigger/concurrency 不变。
 - 既有 VPS helper `_iter_store_files()` 未枚举 `system/operational/`；因此 generic legacy
   fixture 的有效 V1 marker 识别不证明真实 VPS legacy 枚举覆盖。该扫描范围问题与本次
   absent exception mismatch 不同，单独记录，不在本 PR 重构/扩展 storage。
@@ -89,9 +83,8 @@ PR/HEAD/mergeability/exact-head CI 一律实时查询 GitHub，不在这里镜�
 
 ## Next Action
 
-等待下一次真实 CN/US natural Daily Report（既有 scheduled close → workflow_run 或自然
-fallback），只读核对新 run/log/artifact 与幂等结果；本次 closeout 完成后停止，不手动触发、
-发送 Email/Bark、历史补跑或用 replay/synthetic 结果代替自然验收。
+下次真实 CN/US natural Daily Report 由 VPS App 触发的收盘更新成功后接跑，或由 VPS
+补跑。只读核对 run、交付和幂等结果，不以 replay 或 synthetic 结果代替自然验收。
 
 自然验收必须确认：
 
