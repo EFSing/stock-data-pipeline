@@ -1,14 +1,7 @@
 name: SETUP01 Market Close Reconciliation (CN)
 
-# Primary CN trigger.  The cron fires after the 15:00 Beijing close and after
-# the 17:30 Beijing production market-data run.  The shared reconciliation
-# resolver selects the latest real completed session, enforces the
-# close-to-next-open prospective window, and makes duplicate triggers
-# idempotent.  This workflow remains the primary trigger; Cloudflare and VPS
-# watchdogs dispatch the same workflow as independent fallbacks.
+# The VPS App dispatches this workflow at the scheduled market-close slots.
 on:
-  schedule:
-    - cron: "40 10 * * 1-5"
   workflow_dispatch:
 
 permissions:

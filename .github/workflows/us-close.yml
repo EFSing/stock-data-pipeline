@@ -1,9 +1,6 @@
 name: 欧美市场收盘更新
 
 on:
-  schedule:
-    # 美股交易日后的北京时间 08:30（次日 UTC 00:30，周二至周六）。
-    - cron: "30 0 * * 2-6"
   workflow_dispatch:
     inputs:
       mode:
@@ -32,11 +29,12 @@ jobs:
       - name: Run production market data pipeline
         env:
           DISPATCH_MODE: ${{ inputs.mode }}
+          SCHEDULER_BOT: ${{ vars.VPS_SCHEDULER_BOT }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
           set -o pipefail
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+          if [ "$GITHUB_ACTOR" = "$SCHEDULER_BOT" ]; then
             RUN_MODE=latest
           else
             RUN_MODE="${DISPATCH_MODE:-latest}"

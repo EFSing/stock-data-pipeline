@@ -1,0 +1,13 @@
+[Unit]
+Description=Stock data pipeline us-report schedule
+
+[Timer]
+OnCalendar=Tue..Sat *-*-* 09:15:00 Asia/Shanghai
+OnCalendar=Tue..Sat *-*-* 09:30:00 Asia/Shanghai
+OnCalendar=Tue..Sat *-*-* 10:00:00 Asia/Shanghai
+OnCalendar=Tue..Sat *-*-* 11:05:00 Asia/Shanghai
+AccuracySec=1s
+Unit=market-close-schedule@us-report.service
+
+[Install]
+WantedBy=timers.target

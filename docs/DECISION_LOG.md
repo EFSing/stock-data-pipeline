@@ -921,13 +921,11 @@ session close and next session open for CN=`XSHG` and US=`XNYS`; it must not der
 last real completed CN session, while a missing D1 session discovered after the next exchange
 session opens is recorded as `MISSED_PROSPECTIVE_SESSION` and never backfilled as prospective data.
 
-The GitHub native CN/US schedules remain primary. Cloudflare Worker Cron and an independent
-user-level Ubuntu VPS watchdog only inspect/dispatch the repository-owned Daily Report or D1
-reconciliation workflows; neither runs market computation or duplicates business logic. GitHub
-Actions concurrency plus the immutable VPS pointer/object contract provide the final idempotent
-boundary. Daily Report notification claims use a separate operational namespace keyed by
-`market + session_date + report_protocol_version`; an existing claim is
-`NOOP_REPORT_ALREADY_SENT` and is never formal D1 evidence.
+GitHub Actions concurrency plus the immutable VPS pointer/object contract provide the final
+idempotent boundary. Daily Report notification claims use a separate operational namespace
+keyed by `market + session_date + report_protocol_version`. An existing claim is
+`NOOP_REPORT_ALREADY_SENT` and is never formal D1 evidence. The scheduler deployment is
+described in the 2026-11-24 decision.
 
 Daily Report reliability is reported separately from its existing quality status through
 `SCHEDULER_DELAY`, `SESSION_RESOLUTION_ERROR`, `INCOMPLETE_SESSION`, `DATA_QUALITY_PARTIAL`,
@@ -944,7 +942,7 @@ research/source-contract change requires an explicit new protocol/freeze/activat
 
 **Reason:** GitHub Actions schedules are at-least-once and can be delayed across local midnight.
 Treating the runner's current civil date as T can select an uncompleted session or lose a legitimate
-prospective collection window. A shared exact resolver, two trigger-only fallbacks, an explicit
+prospective collection window. A shared exact resolver, bounded trigger-only fallbacks, an explicit
 close-to-next-open deadline, and independent notification claims improve delivery reliability while
 preserving research time isolation, D1 exactly-once identity, and the existing trading system.
 
@@ -1158,12 +1156,12 @@ identity. This recovery contract is default-off, auditable, and does not contain
 branch. The V2 final identity remains exactly one per market/session, while alert identity is one
 per stable degraded state.
 
-CN and US Daily Report workflows accept a `workflow_run` only when the market-close workflow
-completed successfully on `main` from a scheduled event; manual `workflow_dispatch` close runs
-do not launch an automatic Daily Report. The workflows retain an earlier and a later bounded
-schedule fallback, and each report run performs at most six readiness-gated attempts at five-minute
-intervals (a 25-minute finite recovery window). A failed close does not launch a final report
-through this dependency; an upstream-not-ready result remains diagnostic/retryable.
+CN and US Daily Report workflows accept a `workflow_run` only for successful automated close
+updates on `main`. Manual close runs do not launch an automatic Daily Report. Each report run
+performs at most six readiness-gated attempts at five-minute intervals (a 25-minute recovery
+window). A failed close cannot launch a final report through this dependency. An
+upstream-not-ready result remains diagnostic and retryable. The 2026-11-24 decision defines
+how the automated close identity is verified.
 
 This is an operational delivery and evidence-integrity contract only. It does not change Wave,
 Swing, Fibonacci, Setup, Entry Zone, Stop, Target, R/R, Portfolio Risk, Paper, broker, Candidate
@@ -1230,3 +1228,14 @@ This decision supersedes only the 2026-10-07 statement that a final-ready report
 Opportunity Ledger must leave the final V2 identity unclaimed and wait for a same-session rerun.
 The historical decision is retained above for audit; its formal-readiness and broad-stale
 semantics remain in force.
+
+## 2026-11-24 — VPS scheduling with GitHub App installation tokens
+
+项目定时由现有 Ubuntu VPS 的非 root systemd user timers 负责，覆盖行情更新、日报补跑和
+D1 reconciliation。GitHub Actions 继续执行六个业务 workflow。VPS 使用专用 GitHub App，
+安装范围为本仓库，按次签发仅具 Actions 读写权限的短期 installation token。取消 GitHub
+原生 Cron 与 Cloudflare Cron，替换 VPS PAT watchdog，以消除周期性重发人用令牌的运维依赖。
+这一选择将定时可用性集中在 VPS 上。
+
+日报接跑只认 `main` 上由配置的 App bot 发起且成功的市场收盘更新。手动收盘更新、日报与
+D1 仍可独立运行。已有的 readiness、通知和 D1 幂等、exact session 与前瞻截止时间继续生效。

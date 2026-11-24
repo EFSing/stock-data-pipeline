@@ -58,9 +58,9 @@
   failure；coverage 只作诊断，不作数量 hard gate。完整合同见
   `docs/PRODUCTION_SINGLE_SOURCE_MARKET_DATA_V1.md`。
 
-- 定时行情流水线：`asia-close`（CN/HK/JP）与 `us-close`（US/SE）两个 GitHub
-  Actions workflow 按市场收盘时间调度，运行 `main.py --mode latest`；Asia 为工作日
-  09:30 UTC（北京时间 17:30），US 为周二至周六 00:30 UTC（北京时间 08:30）。
+- 定时行情流水线由 VPS 经 GitHub App 触发 `asia-close`（CN/HK/JP）与 `us-close`（US/SE）。
+  GitHub Actions 运行 `main.py --mode latest`，Asia 为周一至周五北京时间 17:30，
+  US 为周二至周六北京时间 08:30。
 - `latest` 模式只抓取短窗口最新行情、执行 source-date evidence 与单源合同校验，
   对 CN/US 不再执行双源校验；
   ordinary-calendar freshness guard，写入 `最新行情`、`校验记录`、`运行日志`；
@@ -473,8 +473,8 @@
   claim final notification；其他结果只能保留诊断 artifact 和对应告警。
 - degraded alert 与 final notification 使用独立幂等 identity。legacy V1 marker 默认继续
   作为防重复证据；只有显式 recovery 才允许一次经审计的迁移。
-- CN/US scheduled market-close 成功的 `workflow_run` 是日报 primary trigger；manual close
-  (`workflow_dispatch`) 不自动触发日报。bounded readiness retry / fallback 已进入生产 workflow。
+- CN/US 日报由 GitHub App 发起的 `main` 收盘更新成功后自动接跑。人工收盘更新仍可单独运行。
+  VPS 同时保留有界的日报补跑时段。
 - IWB 缺少可信 snapshot date 时，只按真实 XNYS sessions 做有界回退；response source date
   是唯一可信的日期证据，request date 不得冒充 snapshot date。
 
@@ -737,17 +737,14 @@
   bytes fail-closed、空目录恢复、CN/US 正式 graph 为空），并通过同一 SSH/helper 路径在
   真实磁盘上重跑确认。10 GB system disk 已投入使用：collector 每次都报告 total/used/free/
   store bytes/object·session count，危险阈值 fail closed 且不自动删除任何 evidence。
-- `scripts/run_market_close_reconcile.py` 是 CN/US D1 primary、Cloudflare fallback 与 VPS
-  watchdog 的共同执行边界：解析最近 exact completed session，检查 VPS session pointer，
+- `scripts/run_market_close_reconcile.py` 是 CN/US D1 定时和人工入口的共同执行边界。
+  它解析最近 exact completed session，检查 VPS session pointer，
   只在 `session close <= now < next exchange session open` 内运行 natural collector；已提交
   返回 `NOOP_ALREADY_COMMITTED`，缺失但过了 next-open 返回 `MISSED_PROSPECTIVE_SESSION`
   且绝不历史 backfill。Daily Report 与 D1 reconciliation 仍是两个独立业务 workflow。
-- GitHub native CN/US schedules 是 primary；Cloudflare Worker Cron 是第一 fallback，独立
-  Ubuntu VPS user-level watchdog 是第二 fallback。两者只 dispatch repository-owned Daily
-  Report/D1 reconciliation workflow，不抓行情、不运行策略、不读取 holdings/Paper/broker、
-  不写 `/srv/d1-research`，不复制交易逻辑。Cloudflare Worker 已部署并完成 CN/US 受保护
-  smoke；VPS main 版本已部署，非 root runtime user credential 为 `0600`，CN/US timers
-  已 `enable/active` 并完成 trigger-only smoke。
+- VPS systemd timers 统一调度六个 GitHub Actions workflow。专用 GitHub App 为每次执行签发
+  短期 installation token。VPS 调度进程仅调用 GitHub API，Actions 保留业务执行与各市场隔离。
+  原 GitHub Actions Cron、Cloudflare Cron 和 VPS PAT watchdog 由这一调度路径替换。
 - 独立公开 source/observer contract 已接入既有 Candidate runtime：保存当日 universe、raw
   Stage-A payload/hash、QFQ exact-T causal prefix/hash、精确 session identity、既有 causal
   Swing/Fibonacci 与双路径 observer 的 signal/touch/no-signal、trigger/ceiling、stop、

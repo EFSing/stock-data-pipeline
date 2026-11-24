@@ -5,3 +5,5 @@ research/snapshots/phase5k_a1_cn_us_2026-08-27-v2/*.csv binary
 # Deployed to the Ubuntu VPS and executed there: never check out with CRLF.
 *.sh text eol=lf
 research/d1_vps_store_helper.py text eol=lf
+infra/vps/market-close-watchdog/market_close_watchdog.py text eol=lf
+infra/vps/market-close-watchdog/systemd/* text eol=lf

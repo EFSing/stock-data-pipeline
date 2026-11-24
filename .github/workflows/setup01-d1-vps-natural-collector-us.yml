@@ -1,14 +1,7 @@
 name: SETUP01 Market Close Reconciliation (US)
 
-# Primary US trigger.  The cron fires at 09:40 Beijing (Tue-Sat), after the
-# prior exchange session close in both US DST and standard-time schedules and
-# after the 08:30 Beijing production market-data run.  The shared
-# reconciliation resolver selects the latest real completed session, enforces
-# the close-to-next-open prospective window, and makes duplicate triggers
-# idempotent.  Cloudflare and VPS watchdogs dispatch this same workflow.
+# The VPS App dispatches this workflow at the scheduled market-close slots.
 on:
-  schedule:
-    - cron: "40 1 * * 2-6"
   workflow_dispatch:
 
 permissions:

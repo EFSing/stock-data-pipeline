@@ -39,7 +39,8 @@ state、主/备选情景、confirmed Swing、Fib 候选区间、结构失效位�
 `SETUP_01`/`SETUP_02` context。它只读 Google Sheets 和 qfq 历史，生成
 JSON/CSV artifact，不写 Sheet、交易决策、ENTRY 或生产配置。
 
-`workflow_dispatch` 默认是 `latest`，仅手动选择 `full`；daily schedule 始终强制 `latest`。
+VPS 定时器通过 GitHub App 触发 Actions，收盘更新固定使用 `latest`。手动触发可选 `full`。
+时刻表和恢复步骤见 [VPS 调度运维](infra/vps/market-close-watchdog/README.md)。
 
 需要每天查看现有 Production Daily Decision 结果时，可在只读 `--run` 中显式生成
 standalone HTML dashboard：
