@@ -1,0 +1,10 @@
+[Unit]
+Description=Stock data pipeline us-close schedule
+
+[Timer]
+OnCalendar=Tue..Sat *-*-* 08:30:00 Asia/Shanghai
+AccuracySec=1s
+Unit=market-close-schedule@us-close.service
+
+[Install]
+WantedBy=timers.target

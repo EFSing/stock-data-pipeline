@@ -31,8 +31,8 @@ NO_BACKFILL
 ```
 
 正式 identity 始终是 `market + session_date`。重复触发不创建第二个 D1 event。
-所有入口进入 `scripts/run_market_close_reconcile.py`；Cloudflare 和 VPS 只检查/触发
-GitHub Actions，不复制 market-data 或研究业务逻辑。
+D1 入口统一进入 `scripts/run_market_close_reconcile.py`。VPS 只检查、触发 GitHub Actions，
+行情、日报和研究计算均由各自的 Actions workflow 执行。
 
 ## Shared completed-session resolver
 
@@ -59,10 +59,10 @@ US 使用真实 `XNYS` close，因此 EDT/EST 自动切换；周末、Observed H
 
 主入口和两条 fallback 都调用同一个 market-specific workflow：
 
-| Market | GitHub workflow file | Primary schedule |
+| Market | GitHub workflow file | VPS primary |
 |---|---|---|
-| CN | `.github/workflows/setup01-d1-vps-natural-collector-cn.yml` | `40 10 * * 1-5` UTC = 18:40 BJT |
-| US | `.github/workflows/setup01-d1-vps-natural-collector-us.yml` | `40 1 * * 2-6` UTC = 09:40 BJT |
+| CN | `.github/workflows/setup01-d1-vps-natural-collector-cn.yml` | 18:40 BJT (Mon–Fri) |
+| US | `.github/workflows/setup01-d1-vps-natural-collector-us.yml` | 09:40 BJT (Tue–Sat) |
 
 workflow 名称保留历史文件路径，但 job 已执行 reconciliation CLI。CLI：
 
@@ -104,49 +104,17 @@ Daily Report 与 D1 仍故障隔离：任一 D1/VPS 失败不改变普通 Daily 
 report metadata 记录 `IDEMPOTENCY_UNAVAILABLE`。该 marker 绝不进入 `objects/` 或
 `sessions/`，也不构成 D1 evidence。
 
-## Cloudflare Worker fallback
+## VPS 调度与 GitHub App
 
-源码在 `infra/cloudflare/market-close-watchdog/`。Free-plan Worker 只调用 GitHub Actions
-API：最近 90 分钟存在 queued/in-progress/success run 时 `NOOP_PRIMARY_ACTIVE_OR_SUCCESS`；
-没有运行、失败或 API 状态不确定时 dispatch 同一 workflow。429/5xx/network error 最多
-三次 bounded retry；token 不打印。
+六个 GitHub Actions workflow 的时间触发统一由 Ubuntu VPS 的 user-level systemd timers
+负责。App 按次生成短期 installation token，权限范围为本仓库的 Actions 读写。日报的主触发
+仍为收盘更新成功后的 `workflow_run`，仅接受 `main` 上由配置的 App bot 发起的更新。
+定时日报补跑照常执行 readiness 和终态去重。D1 补跑照常执行 prospective session gate。
 
-| UTC cron | Market | fallback |
-|---|---|---|
-| `45 9 * * 1-5` | CN | Daily Report |
-| `55 10 * * 1-5` | CN | D1 prospective |
-| `15 1 * * 2-6` | US | Daily Report |
-| `55 1 * * 2-6` | US | D1 prospective |
-
-部署时只需要创建一个 Free Worker 并设置 secret `GITHUB_TOKEN`。Fine-grained token
-必须只允许 `EFSing/stock-data-pipeline` 一个 repository、`Actions: Read and write`；
-不授予 Contents write、Administration 或其他仓库。Cloudflare 不需要 paid Workers、KV、
-R2、Durable Objects 或任何购买/升级操作。详细步骤见该目录 README。
-
-Worker 的公开 HTTP `POST` smoke 入口另需独立随机 secret `WATCHDOG_SMOKE_TOKEN`；
-该 secret 不得复用 GitHub token，且只用于一次性 trigger-only 验证。Cron scheduled
-handler 不依赖此 secret。未配置 smoke secret 时，HTTP `POST` fail closed，仍不影响
-Cloudflare Cron fallback。
-
-## Ubuntu VPS watchdog fallback
-
-源码在 `infra/vps/market-close-watchdog/`。user-level systemd timers 约在：
-
-- CN：周一至周五 20:05–20:15 BJT；
-- US：周二至周六 11:05–11:15 BJT。
-
-watchdog 同时检查 Daily Report 与 D1 workflow，仍只调用 GitHub Actions API；不连接行情、
-VPS D1 store、holdings、Paper、Sheet 或 broker。GitHub API 使用 bounded retry，不无限循环。
-由于 VPS 检查晚于日报 primary/fallback，watchdog 对最近 workflow run 使用四小时有界查询窗；
-该窗口覆盖两条业务链的延迟，不会把前一交易日的成功 run 当作当前 run。
-
-token 放在 VPS 用户自己的 `0600` 配置文件，不进入 repo、D1 evidence 或日志。建议与
-Cloudflare 使用两个独立 fine-grained token，以隔离 credential failure domain；若确实共享，
-必须接受两条 fallback 共享 credential failure domain，并记录同一个 expiry。轮换时先建同
-权限新 token、更新对应 secret/config、验证后撤销旧 token。
-
-最少部署命令和不使用 Docker/nginx/database/root 的约束见
-`infra/vps/market-close-watchdog/README.md`。
+时刻表、只读预检、验收与部署步骤见 [VPS 调度运维](../infra/vps/market-close-watchdog/README.md)。
+部署切换时在 Cloudflare 控制台停用旧 Cron，并停用 VPS 上的两条旧 watchdog timer。
+若 VPS 故障覆盖某次调度，恢复后由余下的本交易日时段尝试协调。VPS 没有独立的外部
+定时后备，系统启动后也不自动补发错过的全部时段。
 
 ## Activation / code SHA audit
 
@@ -161,13 +129,3 @@ epoch。receipt 明确记录 reconciliation protocol version，避免把 operati
 
 如果未来修改 frozen research/source contract，必须先创建新的明确 protocol/freeze 与
 activation 记录；不得静默覆盖既有 activation 或把历史/日报 backfill 成 prospective evidence。
-
-## 外部节点
-
-本 PR 不需要用户把任何 credential 发到聊天。真正部署时用户只需在各自控制面完成：
-
-1. Cloudflare Free Worker + `GITHUB_TOKEN` 与独立 `WATCHDOG_SMOKE_TOKEN` secrets；
-2. GitHub fine-grained tokens（Cloudflare/VPS 各一个）精确限制到本仓库 Actions read/write；
-3. VPS 0600 watchdog config + user systemd timers。
-
-没有新增付费服务或自动购买动作。

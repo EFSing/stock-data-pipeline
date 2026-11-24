@@ -1,0 +1,6 @@
+[Unit]
+Description=Stock data pipeline market-close schedule (%i)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/stock-data-pipeline/infra/vps/market-close-watchdog/market_close_watchdog.py --job %i --config %h/.config/stock-data-pipeline/market-close-scheduler.json

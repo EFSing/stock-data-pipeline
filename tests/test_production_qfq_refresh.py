@@ -556,16 +556,6 @@ class ProductionQfqRefreshTests(unittest.TestCase):
             self.assertIn("RUN_MODE=latest", source)
             self.assertIn("- full", source)
 
-    def test_legacy_workflows_restore_the_original_scheduled_triggers(self):
-        for relative_path, cron in (
-            (".github/workflows/asia-close.yml", 'cron: "30 9 * * 1-5"'),
-            (".github/workflows/us-close.yml", 'cron: "30 0 * * 2-6"'),
-        ):
-            source = (ROOT / relative_path).read_text(encoding="utf-8")
-            self.assertIn("schedule:", source)
-            self.assertIn(cron, source)
-            self.assertIn("workflow_dispatch:", source)
-
 
 if __name__ == "__main__":
     unittest.main()

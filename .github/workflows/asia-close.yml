@@ -1,9 +1,6 @@
 name: 亚洲市场收盘更新
 
 on:
-  schedule:
-    # 工作日北京时间17:30，给收盘后更新较慢的数据源预留同步时间。
-    - cron: "30 9 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
@@ -32,12 +29,13 @@ jobs:
       - name: Run production market data pipeline
         env:
           DISPATCH_MODE: ${{ inputs.mode }}
+          SCHEDULER_BOT: ${{ vars.VPS_SCHEDULER_BOT }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
         run: |
           set -o pipefail
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+          if [ "$GITHUB_ACTOR" = "$SCHEDULER_BOT" ]; then
             RUN_MODE=latest
           else
             RUN_MODE="${DISPATCH_MODE:-latest}"

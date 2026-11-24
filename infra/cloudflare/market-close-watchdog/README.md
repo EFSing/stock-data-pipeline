@@ -1,4 +1,6 @@
-# Cloudflare market-close watchdog
+# Cloudflare market-close watchdog（旧路径）
+
+现行定时由 [Ubuntu VPS 和 GitHub App](../../vps/market-close-watchdog/README.md) 负责。`wrangler.toml` 的 Cron 列表为空，以下保留历史运维步骤供回滚参考。
 
 This is the first independent trigger fallback for the CN/US GitHub Actions
 paths. It is intentionally a trigger-only Worker: it does not call a market
